@@ -6894,7 +6894,7 @@ fn selected_setting(app: &AppView) -> &'static str {
     }
 }
 
-/// `/settings` under a3s code hides unsupported rows, and Space on a remaining
+/// `/settings` under aster hides unsupported rows, and Space on a remaining
 /// bool row goes through the terminal key path into visible UI state.
 #[test]
 fn a3s_code_settings_space_toggles_a_visible_row() {
@@ -6912,7 +6912,7 @@ fn a3s_code_settings_space_toggles_a_visible_row() {
     for hidden in crate::app::app_view::A3S_CODE_UNAVAILABLE_SETTINGS {
         assert!(
             !keys.contains(hidden),
-            "{hidden} must not appear in the a3s code settings list"
+            "{hidden} must not appear in the aster settings list"
         );
     }
     assert!(
@@ -6987,7 +6987,7 @@ fn a3s_code_toggle_mouse_reporting_flips_capture() {
     assert!(agent_ref(&app, AgentId(0)).sticky_toast.is_none());
 }
 
-/// Functional coverage of the a3s code TUI: each user-reachable command, hidden
+/// Functional coverage of the aster TUI: each user-reachable command, hidden
 /// command, and settings row is exercised. The ratio is features with an observed
 /// effect over features on the product lists, not source lines.
 #[serial_test::serial(MOUSE_CAPTURE_ENABLED)]
@@ -7064,7 +7064,7 @@ fn a3s_code_tui_function_coverage_is_at_least_95_percent() {
     let percent = covered.len() * 100 / total.max(1);
     assert!(
         percent >= 95,
-        "a3s code TUI function coverage is {percent}% ({}/{}). Missing: {}",
+        "aster TUI function coverage is {percent}% ({}/{}). Missing: {}",
         covered.len(),
         total,
         missing.join(", ")

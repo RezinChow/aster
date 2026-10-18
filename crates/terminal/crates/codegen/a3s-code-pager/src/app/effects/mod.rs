@@ -5483,7 +5483,7 @@ fn format_auth_lines(is_api_key_auth: bool, api_key_env_set: bool) -> String {
             "  Auth method: API key\n"
         };
         return format!(
-            "{method}  Run `grok login` to use your A3S Code subscription instead.\n"
+            "{method}  Run `aster login` to use your A3S Code subscription instead.\n"
         );
     }
     String::from("  Auth method: OAuth\n")

@@ -1624,7 +1624,7 @@ fn trust_folder_continues_session_only_when_embedded_and_persist_denied() {
         .map(|(m, _)| m.as_str())
         .unwrap_or_default();
     assert!(
-        toast.contains("grok --trust"),
+        toast.contains("aster --trust"),
         "a session-only grant must show how to persist: {toast}"
     );
 }

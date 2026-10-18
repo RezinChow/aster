@@ -1,4 +1,4 @@
-//! `a3s models` subcommand.
+//! `aster models` subcommand.
 
 use a3s_code_shell::agent::config::Config as AgentConfig;
 use a3s_code_shell::cli_models::{AuthStatus, list_models};

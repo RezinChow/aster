@@ -22,10 +22,10 @@ const SCHEMA_VERSION: u32 = 2;
 #[command(
     after_help = "Lists every top-level directory in the grok home, largest first, then every \
 worktree under `worktrees/` and `worktree_pool/` with its size, age, and label. To reclaim space, preview a sweep with \
-`grok worktree gc --max-age 7d --dry-run`: without `--max-age`, gc expires nothing, it \
+`aster worktree gc --max-age 7d --dry-run`: without `--max-age`, gc expires nothing, it \
 visits only worktrees the registry tracks, and it keeps a worktree whose work \
-it cannot find elsewhere. Inspect Grove artifacts with `grok worktree redirect list <mount>` \
-and purge them with `grok worktree clean-artifacts <mount> --yes`."
+it cannot find elsewhere. Inspect Grove artifacts with `aster worktree redirect list <mount>` \
+and purge them with `aster worktree clean-artifacts <mount> --yes`."
 )]
 pub struct DiskUsageArgs {
     /// Emit machine-readable JSON output.

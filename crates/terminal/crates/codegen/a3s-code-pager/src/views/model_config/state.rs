@@ -424,7 +424,7 @@ impl ModelConfigState {
         match self.draft.save() {
             Ok(()) => {
                 self.editing = None;
-                self.status = format!("Saved {}. Restart a3s code to use it", path.display());
+                self.status = format!("Saved {}. Restart aster to use it", path.display());
             }
             Err(error) => self.status = error,
         }

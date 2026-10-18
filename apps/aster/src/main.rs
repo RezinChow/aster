@@ -203,7 +203,7 @@ fn resolve_agent_profile_path(path: &std::path::Path) -> std::path::PathBuf {
 /// Print startup information for the serve command.
 fn print_serve_startup_info(bind_addr: SocketAddr, secret: &str) {
     eprintln!();
-    eprintln!("   A3S Code agent starting...");
+    eprintln!("   Aster agent starting...");
     eprintln!();
     eprintln!("   Address:  {}:{}", bind_addr.ip(), bind_addr.port());
     eprintln!("   Secret:   {}", secret);
@@ -271,7 +271,7 @@ async fn run_setup_command(json: bool) {
     if !managed_config::has_principal() {
         eprintln!("No deployment key or team sign-in found.");
         eprintln!();
-        eprintln!("To install managed configuration, sign in with a team using `grok login`,");
+        eprintln!("To install managed configuration, sign in with a team using `aster login`,");
         eprintln!("or set a deployment key:");
         eprintln!();
         if cfg!(unix) {
@@ -279,7 +279,7 @@ async fn run_setup_command(json: bool) {
         } else {
             eprintln!("  $env:GROK_DEPLOYMENT_KEY=\"<your-key>\"");
         }
-        eprintln!("  grok setup");
+        eprintln!("  aster setup");
         eprintln!();
         eprintln!("Or add the key to ~/.grok/config.toml:");
         eprintln!();
@@ -287,7 +287,7 @@ async fn run_setup_command(json: bool) {
         eprintln!("  deployment_key = \"<your-key>\"");
         eprintln!();
         eprintln!(
-            "If you don't have a deployment key, contact your organization's A3S Code administrator."
+            "If you don't have a deployment key, contact your organization's Aster administrator."
         );
         std::process::exit(1);
     }
@@ -319,12 +319,12 @@ async fn run_setup_command(json: bool) {
         }
         SetupOutcome::Skipped => {
             eprintln!(
-                "Managed configuration was not applied this run (another process held the apply lock, or the credential changed during the fetch). Run `grok setup` again."
+                "Managed configuration was not applied this run (another process held the apply lock, or the credential changed during the fetch). Run `aster setup` again."
             );
         }
         SetupOutcome::Staged => {
             eprintln!(
-                "Managed configuration update verified; it takes effect the next time A3S Code starts."
+                "Managed configuration update verified; it takes effect the next time Aster starts."
             );
         }
         SetupOutcome::Failed(e) => {
@@ -505,7 +505,7 @@ struct LeaderDoorCli {
     leader_mode_reason: &'static str,
 }
 const WORKSPACE_DOOR: LeaderDoorCli = LeaderDoorCli {
-    name: "grok workspace",
+    name: "aster workspace",
     client_type: "grok-workspace-cli",
     leader_mode_reason: "the workspace is shared via the leader",
 };
@@ -587,7 +587,7 @@ async fn run_workspace_mgmt(args: WorkspaceMgmtArgs) -> Result<()> {
     ) && let Some(profile) = a3s_code_sandbox::requested_confinement_profile()
     {
         anyhow::bail!(
-            "`grok workspace` start/restart/resume is unavailable under sandbox profile '{profile}': \
+            "`aster workspace` start/restart/resume is unavailable under sandbox profile '{profile}': \
              those commands (re)activate shared-leader workspace exposure that this session cannot \
              prove is confined by that profile. Disable the profile at the source that selected it \
              (CLI, env, config, or a managed requirement)."
@@ -604,14 +604,14 @@ async fn run_workspace_mgmt(args: WorkspaceMgmtArgs) -> Result<()> {
         WorkspaceGate::Enabled => {}
         WorkspaceGate::Disabled => {
             anyhow::bail!(
-                "`grok workspace` is not enabled for this account \
+                "`aster workspace` is not enabled for this account \
              (gated by a server-side feature flag that is currently off)."
             )
         }
         WorkspaceGate::Unknown => {
             anyhow::bail!(
-                "Could not load your settings for `grok workspace`. Check your \
-             network connection (run `grok login` if you are signed out), then \
+                "Could not load your settings for `aster workspace`. Check your \
+             network connection (run `aster login` if you are signed out), then \
              try again."
             )
         }
@@ -720,7 +720,7 @@ async fn spawn_and_connect_leader(
         agent_config.login_device_flow,
         agent_config.endpoints.proxy_url(),
         false,
-        Some("No cached credentials found. Run `grok login` first."),
+        Some("No cached credentials found. Run `aster login` first."),
     )
     .await?;
     let env_urls = LeaderEnvUrls::from(&agent_config.grok_com_config);
@@ -1273,7 +1273,7 @@ async fn run_agent_command(
     let is_leader = matches!(agent_args.mode, Some(AgentCmd::Leader(_)));
     if !is_stdio && !is_leader {
         eprintln!(
-            "A3S Code (pager) - v{}",
+            "Aster (pager) - v{}",
             a3s_code_version::display_version_with_commit(
                 env!("VERSION_WITH_COMMIT"),
                 a3s_code_update::channel_label(),
@@ -2086,10 +2086,10 @@ fn main() {
     a3s_code_pager::memory_trace::start(a3s_code_pager::memory_trace::default_dir());
     raise_fd_limit();
     if let Err(e) = a3s_code_config::validate_requirements() {
-        eprintln!("Couldn't start A3S Code: {e}");
+        eprintln!("Couldn't start Aster: {e}");
         eprintln!();
         eprintln!(
-            "Update A3S Code to a version the policy allows, or ask your administrator \
+            "Update Aster to a version the policy allows, or ask your administrator \
              to fix the managed requirements."
         );
         std::process::exit(2);
@@ -2105,7 +2105,7 @@ fn main() {
     if a3s_code_shell::util::config::load_crash_handler_enabled_sync() {
         let crash_dir = crash_dir_for(&args);
         if let Some(report) = a3s_crash_handler::check_previous_crash(&crash_dir) {
-            eprintln!("A3S Code crashed during your last session.");
+            eprintln!("Aster crashed during your last session.");
             eprintln!("  Signal:  {}", report.signal_name);
             eprintln!("  Version: {}", report.app_version);
             eprintln!("  Report:  {}", report.report_path.display());
@@ -2542,9 +2542,9 @@ async fn async_main(mut args: PagerArgs) -> Result<()> {
         Ok(true) => {
             let adopted = bg_update_wait.lock().await.take();
             if finish_update_on_exit(adopted, &update_config).await {
-                eprintln!("Update installed. Run `grok` to start.");
+                eprintln!("Update installed. Run `aster` to start.");
             } else {
-                eprintln!("Update did not complete. Run `grok update` to retry.");
+                eprintln!("Update did not complete. Rebuild this workspace to update Aster.");
             }
             Ok(())
         }

@@ -265,7 +265,7 @@ struct SessionSetup<'a> {
 
 /// Skill roots the interactive session scans. Existing directories only.
 /// Configured ACL paths join the workspace when they are relative. The user
-/// directory `~/.a3s/skills` is included so `a3s code skills add` is visible
+/// directory `~/.a3s/skills` is included so installed user skills are visible
 /// without editing `skill_dirs`.
 fn session_capability_note(
     semantic: bool,
@@ -1434,7 +1434,7 @@ const SESSION_OUTCOME_BOUNDARY: &str = "\
 Finish the user's outcome in this turn. Do not read or explain the product \
 implementation unless the user asked to change that implementation. When a \
 host command already does the outcome, name that command and stop. Example: \
-the user installs a skill with `a3s code skills add <git-url>`.";
+the user lists recent sessions with `aster sessions list`.";
 
 const HOST_PARALLEL_TASKS: usize = 8;
 const HOST_CONTINUATION_TURNS: u32 = 8;

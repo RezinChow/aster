@@ -44,7 +44,7 @@ pub use model::{
 };
 pub use view::{DiagnosticSnapshot, view};
 
-/// Passive input-device probe for `a3s doctor` / `/doctor`. The TUI passes true only while voice mode is enabled.
+/// Passive input-device probe for `aster doctor` / `/doctor`. The TUI passes true only while voice mode is enabled.
 pub fn apply_voice_probe(report: &mut DiagnosticReport, emit_missing_issue: bool) {
     if !a3s_code_voice::AUDIO_SUPPORTED {
         return;
@@ -80,7 +80,7 @@ fn voice_missing_finding(error: String) -> DiagnosticFinding {
         automatic_remediation: None,
         note: Some(
             "Connect or select a microphone in your system sound settings. On Linux, install a \
-             supported audio recorder if none was found on PATH. Then run `/doctor` or `grok \
+             supported audio recorder if none was found on PATH. Then run `/doctor` or `aster \
              doctor` again. Doctor can't detect denied macOS microphone access when the system \
              returns silence; follow the message shown when dictation fails."
                 .to_owned(),
@@ -120,7 +120,7 @@ pub enum WarningCategory {
     /// tmux is attached to a client it believes cannot render 24-bit color, so it rewrites every truecolor cell to the client terminfo's palette.
     TmuxColorReduced,
     SandboxProfileConflict,
-    /// The session runs over SSH without `a3s wrap` on the local end.
+    /// The session runs over SSH without `aster wrap` on the local end.
     /// Clipboard forwarding and terminal-mode restore on dropped connections are then not guaranteed.
     /// An informational recommendation, not a breakage.
     SshWithoutWrap,
@@ -230,7 +230,7 @@ pub(crate) fn collect_startup_warnings_from(
         );
         warning.note = Some(
             "A3S Code also saves each copy to the backup file shown in the copy message. To copy \
-             directly, run `grok wrap ssh <host>` on your local computer or use a terminal that \
+             directly, run `aster wrap ssh <host>` on your local computer or use a terminal that \
              supports OSC 52. You can also use `/copy <file>` or `/minimal`."
                 .to_owned(),
         );
@@ -406,7 +406,7 @@ fn sandbox_profile_conflict_warning_from(conflicts: Vec<String>) -> Option<Termi
     })
 }
 
-/// Pure SSH `a3s wrap` recommendation: suggests launching the session through `a3s wrap ssh <host>` on the user's
+/// Pure SSH `aster wrap` recommendation: suggests launching the session through `aster wrap ssh <host>` on the user's
 /// local machine. Gates (all must hold). This detector only describes the environment. All inputs are injected so
 /// tests never touch ambient env (pattern: [`diagnose_wayland_data_control`]).
 pub fn ssh_wrap_hint(
@@ -420,7 +420,7 @@ pub fn ssh_wrap_hint(
     let mut warning = TerminalWarning::new(
         WarningCategory::SshWithoutWrap,
         "Use local SSH wrapping for more reliable clipboard copy and terminal recovery",
-        Some("grok wrap ssh <host>"),
+        Some("aster wrap ssh <host>"),
         None,
     );
     warning.note = Some(
@@ -873,7 +873,7 @@ pub fn color_support_warning(
 
     // Checked before the detected level is consulted at all: the level says what A3S Code emits, which is a different question from what survives tmux
     // A truecolor detection is not evidence that truecolor reaches the terminal
-    // A session with no color evidence (piped `a3s doctor`) still has a clamping client worth reporting
+    // A session with no color evidence (piped `aster doctor`) still has a clamping client worth reporting
     if color_passthrough == TmuxColorPassthrough::Reduced {
         let mut warning = TerminalWarning::new(
             WarningCategory::TmuxColorReduced,
@@ -2063,7 +2063,7 @@ mod tests {
         // is_ssh, no sink, not VS Code remote: recommend wrap
         let w = ssh_wrap_hint(true, false, false).expect("hint must fire");
         assert_eq!(w.category, WarningCategory::SshWithoutWrap);
-        assert_eq!(w.fix.as_deref(), Some("grok wrap ssh <host>"));
+        assert_eq!(w.fix.as_deref(), Some("aster wrap ssh <host>"));
         assert!(
             w.config_path.is_none(),
             "fix is a command, not a config line"
@@ -2084,7 +2084,7 @@ mod tests {
 
     #[test]
     fn ssh_wrap_hint_suppressed_when_sink_active() {
-        // An active OSC 52 sink means the session already runs under `a3s wrap`; adoption silences the hint by itself
+        // An active OSC 52 sink means the session already runs under `aster wrap`; adoption silences the hint by itself
         assert!(ssh_wrap_hint(true, true, false).is_none());
     }
 
@@ -2433,7 +2433,7 @@ mod tests {
         assert!(finding.automatic_remediation.is_none());
         assert!(finding.note.as_deref().is_some_and(|note| {
             note.contains("install a supported audio recorder")
-                && note.contains("grok doctor")
+                && note.contains("aster doctor")
                 && note.contains("can't detect denied macOS microphone access")
         }));
     }
@@ -2913,7 +2913,7 @@ mod tests {
         );
     }
 
-    /// Piped `a3s doctor` has no color evidence, but the tmux client is still measurable, and `doctor fix` needs the finding to plan against.
+    /// Piped `aster doctor` has no color evidence, but the tmux client is still measurable, and `doctor fix` needs the finding to plan against.
     #[test]
     fn color_support_warning_reports_tmux_clamp_without_color_evidence() {
         let w = color_support_warning(

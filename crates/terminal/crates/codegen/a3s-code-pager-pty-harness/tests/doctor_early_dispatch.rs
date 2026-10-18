@@ -356,7 +356,7 @@ fn doctor_fix_without_id_lists_only_applicable_automatic_fixes() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(
-        stdout.contains("On your local computer, run: grok doctor fix ssh-wrap"),
+        stdout.contains("On your local computer, run: aster doctor fix ssh-wrap"),
         "{stdout}"
     );
     assert!(!home.join(".bashrc").exists());
@@ -478,7 +478,7 @@ fn doctor_fix_yes_writes_only_actual_home_shell_rc() {
     assert!(stdout.contains("command ssh"));
     assert_eq!(
         std::fs::read_to_string(home.join(".bashrc")).unwrap(),
-        "# >>> grok doctor >>>\n# >>> terminal.ssh-wrap >>>\nalias ssh='grok wrap ssh'\n# <<< terminal.ssh-wrap <<<\n# <<< grok doctor <<<"
+        "# >>> grok doctor >>>\n# >>> terminal.ssh-wrap >>>\nalias ssh='aster wrap ssh'\n# <<< terminal.ssh-wrap <<<\n# <<< grok doctor <<<"
     );
     assert!(!grok_home.join(".bashrc").exists());
 }

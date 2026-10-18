@@ -2432,7 +2432,7 @@ pub enum TaskResult {
     WorktreeSessionFailed {
         agent_id: AgentId,
         error: String,
-        /// The orphaned worktree still on disk, so the handler can re-append the `a3s worktree rm` hint; `None` if none was created.
+        /// The orphaned worktree still on disk, so the handler can re-append the `aster worktree rm` hint; `None` if none was created.
         orphaned_worktree_root: Option<std::path::PathBuf>,
         /// The create RPC hit its bounded timeout, rather than failing early for another reason.
         timed_out: bool,

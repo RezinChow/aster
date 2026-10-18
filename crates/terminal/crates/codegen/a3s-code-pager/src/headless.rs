@@ -412,14 +412,14 @@ fn auto_respond_to_permissions(
 /// "Not signed in" error message, tailored to the session type.
 fn auth_required_message(interactive: bool) -> String {
     if interactive {
-        "Not signed in. Run `grok login` to authenticate \
-         (or `grok login --device-code` if no browser is available)."
+        "Not signed in. Run `aster login` to authenticate \
+         (or `aster login --device-code` if no browser is available)."
             .to_string()
     } else {
         "Not signed in. To authenticate without a browser, run:\n  \
-         grok login --device-code\n\n\
+         aster login --device-code\n\n\
          Alternatively, set the A3S_API_KEY environment variable \
-         or run `grok login` on a machine with a browser."
+         or run `aster login` on a machine with a browser."
             .to_string()
     }
 }
@@ -764,7 +764,7 @@ async fn apply_headless_model_and_effort(
     .map_err(|e| {
         if let Some(name) = model_name {
             anyhow::anyhow!(
-                "Couldn't set model '{}': {}. Run 'grok models' to see available models.",
+                "Couldn't set model '{}': {}. Run 'aster models' to see available models.",
                 name,
                 e
             )

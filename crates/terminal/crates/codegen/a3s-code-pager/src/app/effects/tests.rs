@@ -2766,7 +2766,7 @@ fn format_session_info_session_auth_ignores_api_key_env() {
     assert!(!text.contains("Manage account and credits"), "{text}");
     assert!(!text.contains("Also present: A3S_API_KEY"), "{text}");
     assert!(!text.contains("docs.a3s.ai"), "{text}");
-    assert!(!text.contains("grok login"), "{text}");
+    assert!(!text.contains("aster login"), "{text}");
 }
 #[test]
 fn format_session_info_api_key_without_env() {
@@ -2776,7 +2776,7 @@ fn format_session_info_api_key_without_env() {
     assert!(!text.contains("A3S_API_KEY"), "{text}");
     assert!(!text.contains("Manage account and credits"), "{text}");
     assert!(
-            text.contains("Run `grok login` to use your A3S Code subscription instead."),
+            text.contains("Run `aster login` to use your A3S Code subscription instead."),
             "{text}"
         );
     assert!(!text.contains("a3s"), "{text}");
@@ -2788,7 +2788,7 @@ fn format_session_info_api_key_auth_suggests_grok_login() {
     assert!(text.contains("Auth method: API key (A3S_API_KEY)"), "{text}");
     assert!(!text.contains("Manage account and credits"), "{text}");
     assert!(
-            text.contains("Run `grok login` to use your A3S Code subscription instead."),
+            text.contains("Run `aster login` to use your A3S Code subscription instead."),
             "{text}"
         );
     assert!(!text.contains("Also present: A3S_API_KEY"), "{text}");
@@ -2803,7 +2803,7 @@ fn format_session_info_session_only_shows_oauth() {
     assert!(!text.contains("Manage account and credits"), "{text}");
     assert!(!text.contains("Also present: A3S_API_KEY"), "{text}");
     assert!(!text.contains("docs.a3s.ai"), "{text}");
-    assert!(!text.contains("grok login"), "{text}");
+    assert!(!text.contains("aster login"), "{text}");
 }
 #[test]
 fn format_session_info_shows_conversation_id_when_present() {

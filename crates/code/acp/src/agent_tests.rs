@@ -184,7 +184,7 @@ fn empty_registry_still_states_the_product_boundary() {
         .and_then(|slots| slots.guidelines)
         .expect("session boundary");
     assert!(text.contains("Do not read or explain the product implementation"));
-    assert!(text.contains("a3s code skills add <git-url>"));
+    assert!(text.contains("aster sessions list"));
     assert!(text.contains("Finish the user's outcome in this turn."));
 }
 
@@ -1006,8 +1006,7 @@ fn tool_cards_use_pager_kind_and_raw_input() {
     let ls = prepared_raw_input("ls", &serde_json::json!({"path": "src"})).unwrap();
     assert_eq!(ls["target_directory"], "src");
 
-    let search =
-        prepared_raw_input("web_search", &serde_json::json!({"query": "a3s code"})).unwrap();
+    let search = prepared_raw_input("web_search", &serde_json::json!({"query": "aster"})).unwrap();
     assert_eq!(search["variant"], "WebSearch");
 
     let bash = tool_raw_output(

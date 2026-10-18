@@ -50,7 +50,7 @@ enum WorktreeCommand {
         #[arg(long)]
         max_age: Option<String>,
         /// Skip the live-process and protected-path guards.
-        /// This does not override the safety check; use `a3s worktree rm` for that.
+        /// This does not override the safety check; use `aster worktree rm` for that.
         #[arg(short, long)]
         force: bool,
     },

@@ -6,21 +6,21 @@ use std::path::PathBuf;
 /// Top-level commands for the pager binary.
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
-    /// Run A3S Code without the interactive UI
+    /// Run Aster without the interactive UI
     Agent(Box<AgentArgs>),
-    /// Show the configuration A3S Code discovers for this directory
+    /// Show the configuration Aster discovers for this directory
     Inspect {
         /// Emit machine-readable JSON output.
         #[arg(long)]
         json: bool,
     },
-    /// Check terminal, clipboard, color, and input support without starting A3S Code
+    /// Check terminal, clipboard, color, and input support without starting Aster
     Doctor(crate::doctor_cmd::DoctorArgs),
     /// Manage running leader processes
     Leader(LeaderMgmtArgs),
     /// Sign out and clear cached credentials
     Logout,
-    /// Sign in to A3S Code
+    /// Sign in to Aster
     Login {
         /// Ignored (kept for backwards compatibility). OAuth2 is now the only auth method.
         #[arg(long, hide = true)]
@@ -75,8 +75,8 @@ clipboard (containers, SSH) and your terminal does not handle OSC 52 itself
 sync with your window size.
 
 Examples:
-  grok wrap docker exec -it my-container bash
-  grok wrap kubectl exec -it my-pod -- bash
+  aster wrap docker exec -it my-container bash
+  aster wrap kubectl exec -it my-pod -- bash
 
 See ~/.grok/README.md for more information.
 ")]
@@ -108,7 +108,7 @@ See ~/.grok/README.md for more information.
         /// Switch to the enterprise release channel.
         #[arg(long, conflicts_with_all = ["alpha", "stable"], hide = true)]
         enterprise: bool,
-        /// Internal: what spawned this `a3s update` (`user_command`, `auto_background`, `leader_converge`). Hidden.
+        /// Internal: what spawned this `aster update` (`user_command`, `auto_background`, `leader_converge`). Hidden.
         #[arg(long, hide = true)]
         trigger: Option<String>,
         /// Internal compat alias for `--trigger=auto_background` (older parents still spawn children with it).
@@ -156,10 +156,10 @@ pub struct WrapArgs {
     )]
     pub command: Vec<String>,
 }
-/// Targets a running leader process by PID (used by `a3s leader` / `a3s workspace`).
+/// Targets a running leader process by PID (used by `aster leader` / `aster workspace`).
 #[derive(Debug, clap::Args, Clone, Default)]
 pub struct LeaderTargetArgs {
-    /// Leader process ID from `a3s leader list`.
+    /// Leader process ID from `aster leader list`.
     #[arg(long)]
     pub pid: Option<u32>,
 }
@@ -422,7 +422,7 @@ pub struct PagerArgs {
     pub cwd: Option<PathBuf>,
     /// Use a custom leader socket path instead of the default `~/.a3s/leader.sock`.
     /// A local/branch build can thus run an isolated leader without colliding with the default one already running on the machine
-    /// Name it `~/.a3s/leader-*.sock` to keep `a3s leader list/kill` able to find it; any other location works but won't be auto-discovered
+    /// Name it `~/.a3s/leader-*.sock` to keep `aster leader list/kill` able to find it; any other location works but won't be auto-discovered
     #[arg(
         long = "leader-socket",
         value_name = "PATH",
@@ -753,7 +753,7 @@ pub struct PagerArgs {
     /// Run standalone even when leader mode is configured.
     #[arg(long, conflicts_with = "leader", hide = true)]
     pub no_leader: bool,
-    /// Initial prompt for the interactive session, e.g. `a3s "fix the bug"` or `a3s --worktree=feat "create this feature"`.
+    /// Initial prompt for the interactive session, e.g. `aster "fix the bug"` or `aster --worktree=feat "create this feature"`.
     #[arg(
         value_name = "PROMPT",
         conflicts_with_all = &["single",
@@ -1009,7 +1009,7 @@ impl PagerArgs {
     }
     /// The initial interactive prompt from the positional argument, trimmed.
     /// Returns `None` when no positional prompt was given or it is only whitespace.
-    /// This is the `a3s "<prompt>"` launch form; the headless `-p`/`--single` path is handled separately.
+    /// This is the `aster "<prompt>"` launch form; the headless `-p`/`--single` path is handled separately.
     pub fn initial_prompt(&self) -> Option<&str> {
         self.prompt
             .as_deref()
@@ -1305,7 +1305,7 @@ mod tests {
     #[test]
     fn leader_mgmt_list_info_kill_parse() {
         let list = PagerArgs::try_parse_from(["grok", "leader", "list", "--json"])
-            .expect("grok leader list --json");
+            .expect("aster leader list --json");
         assert!(matches!(
             list.command,
             Some(Command::Leader(LeaderMgmtArgs {
@@ -1313,7 +1313,7 @@ mod tests {
             }))
         ));
         let info = PagerArgs::try_parse_from(["grok", "leader", "info", "--pid", "42"])
-            .expect("grok leader info --pid");
+            .expect("aster leader info --pid");
         assert!(matches!(
             info.command,
             Some(Command::Leader(LeaderMgmtArgs {
@@ -1323,7 +1323,8 @@ mod tests {
                 },
             }))
         ));
-        let kill = PagerArgs::try_parse_from(["grok", "leader", "kill"]).expect("grok leader kill");
+        let kill =
+            PagerArgs::try_parse_from(["grok", "leader", "kill"]).expect("aster leader kill");
         assert!(matches!(
             kill.command,
             Some(Command::Leader(LeaderMgmtArgs {

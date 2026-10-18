@@ -1,4 +1,4 @@
-//! Resolve ACL layers the same way `a3s code` / the thin TUI scaffold does.
+//! Resolve ACL layers the same way `aster` / the thin TUI scaffold does.
 //!
 //! When the host opts in (`import_accounts` in a trusted layer, or
 //! `--import-accounts`), also merges:

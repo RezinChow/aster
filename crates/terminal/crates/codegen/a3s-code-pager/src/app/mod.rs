@@ -1273,12 +1273,12 @@ fn print_exit_resume_hint(info: &ExitInfo, max_width: usize, w: &mut impl Write)
     );
 }
 
-/// Pasteable resume CLI for this a3s-code TUI fork (`a3s code`, not `grok`).
+/// Pasteable command for resuming an Aster session.
 pub(crate) fn exit_resume_command(session_id: &str, minimal: bool) -> String {
     if minimal {
-        format!("a3s code --minimal --resume {session_id}")
+        format!("aster --minimal --resume {session_id}")
     } else {
-        format!("a3s code --resume {session_id}")
+        format!("aster --resume {session_id}")
     }
 }
 /// Screen-mode relaunch failure fallback (same quit tail as plain resume).
@@ -1692,10 +1692,10 @@ pub(crate) fn set_terminal_title(title: &str) {
 fn terminal_title_string(title: &str) -> String {
     let sanitized: String = title.chars().filter(|c| !c.is_control()).collect();
     if sanitized.is_empty() {
-        "a3s code".into()
+        "aster".into()
     } else {
-        let truncated: String = sanitized.chars().take(80 - 10).collect();
-        format!("{truncated} - a3s code")
+        let truncated: String = sanitized.chars().take(80 - " - aster".len()).collect();
+        format!("{truncated} - aster")
     }
 }
 #[cfg(test)]
@@ -1745,11 +1745,11 @@ mod tests {
     fn terminal_title_strips_control_characters() {
         assert_eq!(
             terminal_title_string("evil\x07\x1b]52;c;payload\x07title"),
-            "evil]52;c;payloadtitle - a3s code"
+            "evil]52;c;payloadtitle - aster"
         );
-        assert_eq!(terminal_title_string("\x07\x1b\x00"), "a3s code");
-        assert_eq!(terminal_title_string(""), "a3s code");
-        assert_eq!(terminal_title_string("My chat"), "My chat - a3s code");
+        assert_eq!(terminal_title_string("\x07\x1b\x00"), "aster");
+        assert_eq!(terminal_title_string(""), "aster");
+        assert_eq!(terminal_title_string("My chat"), "My chat - aster");
     }
     #[test]
     fn hunk_tracker_mode_nothing_set_is_none() {
@@ -2321,22 +2321,23 @@ mod tests {
         }
     }
     #[test]
-    fn print_exit_resume_hint_writes_expected_lines() {
-        let mut buf = Vec::new();
-        print_exit_resume_hint(&bare_exit_info("sess-abc", false), 80, &mut buf);
-        assert_eq!(
-            String::from_utf8(buf).unwrap(),
-            "\nResume this session with:\n  a3s code --resume sess-abc\n"
-        );
-    }
-    #[test]
-    fn print_exit_resume_hint_includes_minimal_flag() {
-        let mut buf = Vec::new();
-        print_exit_resume_hint(&bare_exit_info("sess-abc", true), 80, &mut buf);
-        assert_eq!(
-            String::from_utf8(buf).unwrap(),
-            "\nResume this session with:\n  a3s code --minimal --resume sess-abc\n"
-        );
+    fn printed_resume_commands_are_accepted_by_the_aster_cli() {
+        use clap::Parser;
+        for minimal in [false, true] {
+            let mut output = Vec::new();
+            print_exit_resume_hint(&bare_exit_info("sess-abc", minimal), 80, &mut output);
+            let output = String::from_utf8(output).unwrap();
+            let command = output.lines().last().unwrap();
+            let argv: Vec<_> = command.split_whitespace().collect();
+            assert_eq!(argv[0], "aster");
+            let args = cli::PagerArgs::try_parse_from(argv).expect("pasteable resume command");
+            assert_eq!(
+                args.resume_target(),
+                cli::ResumeTarget::SessionId("sess-abc".into())
+            );
+            assert_eq!(args.minimal, minimal);
+            assert!(args.prompt.is_none());
+        }
     }
     #[test]
     fn print_exit_resume_hint_includes_session_summary() {
@@ -2360,7 +2361,7 @@ mod tests {
                 "  Pinned the seed; 200 consecutive green runs.\n",
                 "\n",
                 "Resume this session with:\n",
-                "  a3s code --resume sess-abc\n",
+                "  aster --resume sess-abc\n",
             )
         );
     }
@@ -2381,7 +2382,7 @@ mod tests {
         assert!(out.contains(&format!("\n{}…\n", "t".repeat(19))));
         assert!(out.contains(&format!("\n> {}…\n", "p".repeat(17))));
         assert!(out.contains(&format!("\n  {}…\n", "r".repeat(17))));
-        assert!(out.contains("  a3s code --resume sess-abc\n"));
+        assert!(out.contains("  aster --resume sess-abc\n"));
     }
     #[test]
     fn print_relaunch_failure_hint_writes_expected_lines() {

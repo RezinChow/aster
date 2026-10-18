@@ -1220,7 +1220,7 @@ mod tests {
     fn live_cursor_catalog_matches_agent_models() {
         isolated(|| {
             // Launch from the process workspace so ancestor ACL layers are
-            // the ones `a3s code` reads. A temp directory has none of them.
+            // the ones `aster` reads. A temp directory has none of them.
             let workspace = std::env::current_dir().expect("cwd");
             let (launch, _) = crate::config::load_launch_config_with_imports(
                 workspace,

@@ -452,7 +452,7 @@ async fn run_upload(
         UploadGate::NoCredentials => {
             if !json {
                 eprintln!(
-                    "No upload credentials for this account (run `grok login` or set a deployment \
+                    "No upload credentials for this account (run `aster login` or set a deployment \
                      key); exporting locally."
                 );
             }
@@ -631,7 +631,7 @@ impl UploadAttempt<'_> {
             eprintln!("Trace upload failed: {error}");
             eprintln!("  Bundle: {}", export_path.display());
             eprintln!("  Log:    {}", log_path.display());
-            eprintln!("  Retry:  grok trace {}", self.session_id);
+            eprintln!("  Retry:  aster trace {}", self.session_id);
             println!("{}", export_path.display());
         }
 
