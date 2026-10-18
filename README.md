@@ -2,10 +2,10 @@
 
 **把模型的建议，变成有边界、有记录、可验证的执行。**
 
-Aster 提供终端编程工具 **Aster CLI** 和桌面工作台 **AsterDream / Work**。
+Aster 提供终端编程工具 **Aster CLI** 和桌面工作台 **Aster Work**。
 它们使用本仓库维护的 Rust Harness：连接模型、组织上下文、调用工具，并由宿主控制权限和完成条件。
 
-[快速开始](#快速开始) · [理解 Meta Harness](#理解-meta-harness) · [开发 Work](#开发-work) · [参与开发](#参与开发)
+[快速开始](#快速开始) · [理解 Meta Harness](#理解-meta-harness) · [开发 Aster Work](#开发-aster-work) · [参与开发](#参与开发)
 
 ![Aster Meta Harness：装配工作台的底座固定，推演、执行、核验三个工位可以组合；所有工作遵守同一执行边界。](assets/readme/meta-harness.svg)
 
@@ -173,7 +173,7 @@ fn session_options() -> anyhow::Result<SessionOptions> {
 ## 从哪里读源码
 
 ```text
-Aster CLI / AsterDream
+Aster CLI / Aster Work
           │ ACP 会话协议
           ▼
      a3s-code-acp
@@ -199,13 +199,13 @@ Aster CLI / AsterDream
 | Office 引擎与编辑器 | [crates/office](crates/office)、[Office 编辑器源码](apps/work/vendor/packages/office) |
 
 所有 A3S Rust 依赖随仓库维护，成员均为 `publish = false`，共享根目录工作区和 `Cargo.lock`。
-构建 Aster 和 AsterDream 无需先发布 `a3s-code`，也无需相邻的 `../a3s` 仓库。
+构建 Aster 和 Aster Work 无需先发布 `a3s-code`，也无需相邻的 `../a3s` 仓库。
 Cargo 和 pnpm 仍会下载普通第三方依赖。
 Code 只保留 Rust SDK；内部 `a3s-*` 包名用于保留现有 Rust API 兼容性。
 
-## 开发 Work
+## 开发 Aster Work
 
-Work 的 Rust 宿主在 `apps/work/src-tauri`，前端在 `apps/work` 的 pnpm 工作区。
+Aster Work 的 Rust 宿主在 `apps/work/src-tauri`，前端在 `apps/work` 的 pnpm 工作区。
 需要 Node 和 pnpm 12.6.0；Node 版本范围见 [package.json](apps/work/package.json)。
 
 ```sh
@@ -223,7 +223,7 @@ just build-work-release
 just work
 ```
 
-`just work` 启动修改时间最新的 AsterDream。候选是 `just build-work` 的 `aster-dream`，以及 `just build-work-release` 的 `.app`。仍在运行的旧进程会被替换。Office 编辑器随前端依赖安装从源码构建；
+`just work` 启动修改时间最新的 Aster Work。候选包括 `just build-work` 生成的可执行程序，以及 `just build-work-release` 的 `.app`。仍在运行的旧进程会被替换。Office 编辑器随前端依赖安装从源码构建；
 WASM 内核的重建方法见 [Office 说明](apps/work/vendor/packages/office/README.md)。
 
 ## 参与开发
@@ -243,7 +243,7 @@ cargo test --locked -p aster
 ```
 
 - [CI](https://github.com/aster-ai-lab/aster/actions/workflows/ci.yml)：查看当前分支的实际检查结果。
-- [本地验证记录](docs/validation.md)：已验证的范围、macOS 限制及 Work 尚未通过的完整质量检查。
+- [本地验证记录](docs/validation.md)：已验证的范围、macOS 限制及 Aster Work 尚未通过的完整质量检查。
 - [迁移与来源](docs/migration.md)：依赖内化、兼容性选择和来源清单。
 - [README 图形源码与重建](assets/readme/README.md)：Hairline 工作台的交互页与静态预览。
 - [问题与缺陷](https://github.com/aster-ai-lab/aster/issues)：报告时附操作系统、复现步骤、预期结果和去除凭据的日志。
@@ -253,5 +253,5 @@ cargo test --locked -p aster
 ## 许可证
 
 根目录代码见 [Apache-2.0](LICENSE)；Code / Effect 保留各自的 [MIT](crates/code/LICENSE) [许可](crates/effect/LICENSE)，
-Work 保留 [AGPL-3.0](apps/work/LICENSE)。分发时请按组件保留原有许可证和第三方声明。
+Aster Work 保留 [AGPL-3.0](apps/work/LICENSE)。分发时请按组件保留原有许可证和第三方声明。
 Hairline 图形引擎的 MIT 许可证随[图形资产](assets/readme/hairline-license.txt)保留。

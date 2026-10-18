@@ -77,7 +77,7 @@ try {
     <text x="60" y="166" font-size="88" font-weight="650" letter-spacing="-3">Aster</text>
     <text x="64" y="228" font-size="28">让任务有边界，让结果有证据。</text>
     <text x="64" y="278" font-size="24" fill="#6f6f78">同一事实日志 · 可组合组件</text>
-    <text x="64" y="336" font-size="20" fill="#6f6f78">CLI + AsterDream · 源码统一维护</text>
+    <text x="64" y="336" font-size="20" fill="#6f6f78">CLI + Aster Work · 源码统一维护</text>
   </g>
   ${drawing}
 </svg>
