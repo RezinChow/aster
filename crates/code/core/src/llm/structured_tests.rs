@@ -1,0 +1,2656 @@
+use super::*;
+use crate::llm::{
+    ContentBlock, LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition,
+};
+use async_trait::async_trait;
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+
+#[test]
+fn streamed_value_completion_requires_exact_schema_valid_json() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["answer"],
+        "additionalProperties": false,
+        "properties": {
+            "answer": { "type": "string", "minLength": 1 }
+        }
+    });
+
+    assert!(is_complete_streamed_value(r#"{"answer":"ready"}"#, &schema));
+    assert!(!is_complete_streamed_value(
+        r#"{"answer":"ready"} trailing"#,
+        &schema
+    ));
+    assert!(!is_complete_streamed_value(r#"{"answer":""}"#, &schema));
+    assert!(!is_complete_streamed_value(r#"{"other":"ready"}"#, &schema));
+    assert!(!is_complete_streamed_value(r#"{"answer":"ready""#, &schema));
+}
+
+struct MockStructuredClient {
+    responses: Mutex<Vec<LlmResponse>>,
+}
+
+impl MockStructuredClient {
+    fn new(responses: Vec<LlmResponse>) -> Self {
+        Self {
+            responses: Mutex::new(responses),
+        }
+    }
+
+    fn text_response(text: &str) -> LlmResponse {
+        LlmResponse {
+            message: Message {
+                role: "assistant".to_string(),
+                content: vec![ContentBlock::Text {
+                    text: text.to_string(),
+                }],
+                reasoning_content: None,
+                transcript_text: None,
+                transcript_visibility: Default::default(),
+            },
+            usage: TokenUsage {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15,
+                cache_read_tokens: None,
+                cache_write_tokens: None,
+            },
+            stop_reason: Some("end_turn".to_string()),
+            token_logprobs: Vec::new(),
+            meta: None,
+        }
+    }
+
+    fn tool_call_response(tool_name: &str, args: serde_json::Value) -> LlmResponse {
+        LlmResponse {
+            message: Message {
+                role: "assistant".to_string(),
+                content: vec![ContentBlock::ToolUse {
+                    id: "call_001".to_string(),
+                    name: tool_name.to_string(),
+                    input: args,
+                }],
+                reasoning_content: None,
+                transcript_text: None,
+                transcript_visibility: Default::default(),
+            },
+            usage: TokenUsage {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15,
+                cache_read_tokens: None,
+                cache_write_tokens: None,
+            },
+            stop_reason: Some("tool_use".to_string()),
+            token_logprobs: Vec::new(),
+            meta: None,
+        }
+    }
+
+    /// Reasoning-model response: the object (and/or thinking) is in the reasoning
+    /// channel, `content` may be empty, and there is no tool call — the shape that
+    /// GLM/zhipu reasoning models produce and that used to fail generate_object.
+    fn reasoning_response(reasoning: &str, content: &str) -> LlmResponse {
+        LlmResponse {
+            message: Message {
+                role: "assistant".to_string(),
+                content: if content.is_empty() {
+                    vec![]
+                } else {
+                    vec![ContentBlock::Text {
+                        text: content.to_string(),
+                    }]
+                },
+                reasoning_content: Some(reasoning.to_string()),
+                transcript_text: None,
+                transcript_visibility: Default::default(),
+            },
+            usage: TokenUsage {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15,
+                cache_read_tokens: None,
+                cache_write_tokens: None,
+            },
+            stop_reason: Some("end_turn".to_string()),
+            token_logprobs: Vec::new(),
+            meta: None,
+        }
+    }
+}
+
+#[async_trait]
+impl LlmClient for MockStructuredClient {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+    ) -> anyhow::Result<LlmResponse> {
+        let mut responses = self.responses.lock().unwrap();
+        if responses.is_empty() {
+            anyhow::bail!("No more mock responses");
+        }
+        Ok(responses.remove(0))
+    }
+
+    async fn complete_streaming(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+        _cancel_token: CancellationToken,
+    ) -> anyhow::Result<mpsc::Receiver<StreamEvent>> {
+        let mut responses = self.responses.lock().unwrap();
+        if responses.is_empty() {
+            anyhow::bail!("No more mock responses");
+        }
+        let response = responses.remove(0);
+        let (tx, rx) = mpsc::channel(10);
+        tokio::spawn(async move {
+            for block in &response.message.content {
+                if let ContentBlock::ToolUse { name, input, .. } = block {
+                    tx.send(StreamEvent::ToolUseStart {
+                        id: "call_001".to_string(),
+                        name: name.clone(),
+                    })
+                    .await
+                    .ok();
+                    let json_str = serde_json::to_string(input).unwrap();
+                    for chunk in json_str.as_bytes().chunks(10) {
+                        let s = String::from_utf8_lossy(chunk).to_string();
+                        tx.send(StreamEvent::ToolUseInputDelta { id: None, delta: s })
+                            .await
+                            .ok();
+                    }
+                } else if let ContentBlock::Text { text } = block {
+                    for chunk in text.as_bytes().chunks(10) {
+                        let s = String::from_utf8_lossy(chunk).to_string();
+                        tx.send(StreamEvent::TextDelta(s)).await.ok();
+                    }
+                }
+            }
+            tx.send(StreamEvent::Done(response)).await.ok();
+        });
+        Ok(rx)
+    }
+
+    fn native_structured_support(&self) -> NativeStructuredSupport {
+        NativeStructuredSupport::ForcedTool
+    }
+}
+
+struct CompleteObjectWithoutDoneClient;
+
+#[async_trait]
+impl LlmClient for CompleteObjectWithoutDoneClient {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+    ) -> anyhow::Result<LlmResponse> {
+        anyhow::bail!("blocking generation is not used in this test")
+    }
+
+    async fn complete_streaming(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+        cancel_token: CancellationToken,
+    ) -> anyhow::Result<mpsc::Receiver<StreamEvent>> {
+        let (tx, rx) = mpsc::channel(4);
+        tokio::spawn(async move {
+            tx.send(StreamEvent::TextDelta(
+                r#"{"color":"blue","count":3}"#.to_string(),
+            ))
+            .await
+            .ok();
+            cancel_token.cancelled().await;
+        });
+        Ok(rx)
+    }
+}
+
+struct CancellationBoundaryClient;
+
+#[async_trait]
+impl LlmClient for CancellationBoundaryClient {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+    ) -> anyhow::Result<LlmResponse> {
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        anyhow::bail!("unexpected completion after cancellation")
+    }
+
+    async fn complete_streaming(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+        cancel_token: CancellationToken,
+    ) -> anyhow::Result<mpsc::Receiver<StreamEvent>> {
+        cancel_token.cancelled().await;
+        anyhow::bail!("provider observed cancellation")
+    }
+}
+
+fn cancellation_request() -> StructuredRequest {
+    StructuredRequest {
+        prompt: "Generate a value".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["value"],
+            "properties": {"value": {"type": "string"}}
+        }),
+        schema_name: "cancellation_test".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 1,
+    }
+}
+
+// ========================================================================
+// extract_json_value tests
+// ========================================================================
+
+#[test]
+fn test_extract_json_direct() {
+    let input = r#"{"name": "Alice", "age": 30}"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["name"], "Alice");
+    assert_eq!(result["age"], 30);
+}
+
+#[test]
+fn test_extract_json_with_whitespace() {
+    let input = "  \n  {\"x\": 1}  \n  ";
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["x"], 1);
+}
+
+#[test]
+fn test_extract_json_from_code_fence() {
+    let input = "```json\n{\"key\": \"value\"}\n```";
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["key"], "value");
+}
+
+#[test]
+fn test_extract_json_from_code_fence_no_lang() {
+    let input = "```\n{\"key\": \"value\"}\n```";
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["key"], "value");
+}
+
+#[test]
+fn test_extract_json_with_surrounding_prose() {
+    let input = "Here is the result:\n{\"status\": \"ok\"}\nDone!";
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["status"], "ok");
+}
+
+#[test]
+fn test_extract_json_nested_braces() {
+    let input = r#"Result: {"outer": {"inner": [1, 2, 3]}} end"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["outer"]["inner"][1], 2);
+}
+
+#[test]
+fn test_extract_json_with_escaped_quotes() {
+    let input = r#"{"msg": "he said \"hello\""}"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["msg"], "he said \"hello\"");
+}
+
+#[test]
+fn test_extract_json_array() {
+    let input = r#"[{"a": 1}, {"a": 2}]"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result[0]["a"], 1);
+}
+
+#[test]
+fn test_extract_json_no_json() {
+    let input = "This is just plain text with no JSON.";
+    assert!(extract_json_value(input).is_err());
+}
+
+#[test]
+fn test_extract_json_braces_in_string() {
+    let input = r#"prefix {"template": "Hello {name}!"} suffix"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["template"], "Hello {name}!");
+}
+
+// ========================================================================
+// try_parse_partial_json tests
+// ========================================================================
+
+#[test]
+fn test_partial_json_complete() {
+    let input = r#"{"name": "Alice", "age": 30}"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["name"], "Alice");
+}
+
+#[test]
+fn test_partial_json_unclosed_object() {
+    let input = r#"{"name": "Alice", "age": 30"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["name"], "Alice");
+    assert_eq!(result["age"], 30);
+}
+
+#[test]
+fn test_partial_json_unclosed_array() {
+    let input = r#"{"items": [1, 2, 3"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["items"][0], 1);
+    assert_eq!(result["items"][2], 3);
+}
+
+#[test]
+fn test_partial_json_unclosed_string() {
+    let input = r#"{"name": "Ali"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["name"], "Ali");
+}
+
+#[test]
+fn test_partial_json_trailing_comma() {
+    let input = r#"{"a": 1,"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["a"], 1);
+}
+
+#[test]
+fn test_partial_json_key_no_value() {
+    let input = r#"{"a": 1, "b":"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["a"], 1);
+    assert!(result.get("b").is_none());
+}
+
+#[test]
+fn test_partial_json_partial_key_is_dropped() {
+    let input = r#"{"a": 1, "be"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result, serde_json::json!({"a": 1}));
+}
+
+#[test]
+fn test_partial_json_incomplete_unicode_escape_is_repaired() {
+    let input = r#"{"a": "\u12"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result, serde_json::json!({"a": ""}));
+}
+
+#[test]
+fn test_partial_json_incomplete_exponent_is_trimmed() {
+    let input = r#"{"n": 2.5e"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result, serde_json::json!({"n": 2.5}));
+}
+
+#[test]
+fn test_array_envelope_partial_drops_repaired_last_element() {
+    let parsed = parse_partial_json(r#"{"elements":[{"name":"a"},{"name":"b""#).unwrap();
+    assert!(parsed.repaired);
+    let projected = SchemaEnvelope::Elements
+        .project_partial(&parsed.value, parsed.repaired)
+        .unwrap();
+    assert_eq!(projected, serde_json::json!([{ "name": "a" }]));
+}
+
+#[test]
+fn test_partial_json_empty() {
+    assert!(try_parse_partial_json("").is_none());
+}
+
+#[test]
+fn test_partial_json_just_open_brace() {
+    let result = try_parse_partial_json("{");
+    assert!(result.is_some());
+    assert!(result.unwrap().is_object());
+}
+
+#[test]
+fn test_partial_json_nested_unclosed() {
+    let input = r#"{"user": {"name": "Bob", "tags": ["admin""#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["user"]["name"], "Bob");
+    assert_eq!(result["user"]["tags"][0], "admin");
+}
+
+// ========================================================================
+// Schema validation tests
+// ========================================================================
+
+#[test]
+fn test_validate_simple_object() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["name", "age"],
+        "properties": {
+            "name": {"type": "string"},
+            "age": {"type": "integer"}
+        }
+    });
+    let value = serde_json::json!({"name": "Alice", "age": 30});
+    assert!(validate_against_schema(&value, &schema).is_ok());
+}
+
+#[test]
+fn test_validate_missing_required() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["name", "age"],
+        "properties": {
+            "name": {"type": "string"},
+            "age": {"type": "integer"}
+        }
+    });
+    let value = serde_json::json!({"name": "Alice"});
+    let errors = validate_against_schema(&value, &schema).unwrap_err();
+    assert!(errors.iter().any(|e| e.contains("age")));
+}
+
+#[test]
+fn test_validate_wrong_type() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": {
+            "count": {"type": "integer"}
+        }
+    });
+    let value = serde_json::json!({"count": "not a number"});
+    let errors = validate_against_schema(&value, &schema).unwrap_err();
+    assert!(errors.iter().any(|e| e.contains("integer")));
+}
+
+#[test]
+fn test_validate_array_items() {
+    let schema = serde_json::json!({
+        "type": "array",
+        "items": {"type": "string"}
+    });
+    let value = serde_json::json!(["a", "b", "c"]);
+    assert!(validate_against_schema(&value, &schema).is_ok());
+
+    let bad_value = serde_json::json!(["a", 123, "c"]);
+    assert!(validate_against_schema(&bad_value, &schema).is_err());
+}
+
+#[test]
+fn test_validate_enum() {
+    let schema = serde_json::json!({
+        "type": "string",
+        "enum": ["red", "green", "blue"]
+    });
+    let good = serde_json::json!("red");
+    assert!(validate_against_schema(&good, &schema).is_ok());
+
+    let bad = serde_json::json!("purple");
+    assert!(validate_against_schema(&bad, &schema).is_err());
+}
+
+#[test]
+fn test_validate_nested_object() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["user"],
+        "properties": {
+            "user": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                    "email": {"type": "string"}
+                }
+            }
+        }
+    });
+    let good = serde_json::json!({"user": {"email": "a@b.com"}});
+    assert!(validate_against_schema(&good, &schema).is_ok());
+
+    let bad = serde_json::json!({"user": {}});
+    let errors = validate_against_schema(&bad, &schema).unwrap_err();
+    assert!(errors.iter().any(|e| e.contains("email")));
+}
+
+// ========================================================================
+// generate_blocking tests
+// ========================================================================
+
+#[tokio::test]
+async fn test_generate_blocking_with_cancellation_aborts_provider_call() {
+    let cancellation = CancellationToken::new();
+    let task_cancellation = cancellation.clone();
+    let task = tokio::spawn(async move {
+        generate_blocking_with_cancellation(
+            &CancellationBoundaryClient,
+            &cancellation_request(),
+            task_cancellation,
+        )
+        .await
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    cancellation.cancel();
+    let error = tokio::time::timeout(std::time::Duration::from_secs(1), task)
+        .await
+        .expect("cancellation must finish the model call")
+        .expect("generation task must not panic")
+        .expect_err("cancelled generation must fail");
+
+    assert!(error.to_string().contains("Operation cancelled by user"));
+}
+
+#[tokio::test]
+async fn test_generate_blocking_tool_mode_success() {
+    let client = MockStructuredClient::new(vec![MockStructuredClient::tool_call_response(
+        "emit_invoice",
+        serde_json::json!({"amount": 100, "currency": "USD"}),
+    )]);
+
+    let req = StructuredRequest {
+        prompt: "Extract invoice".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["amount", "currency"],
+            "properties": {
+                "amount": {"type": "number"},
+                "currency": {"type": "string"}
+            }
+        }),
+        schema_name: "invoice".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 2,
+    };
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object["amount"], 100);
+    assert_eq!(result.object["currency"], "USD");
+    assert_eq!(result.repair_rounds, 0);
+}
+
+#[tokio::test]
+async fn test_generate_blocking_prompt_mode_success() {
+    let client = MockStructuredClient::new(vec![MockStructuredClient::text_response(
+        r#"{"amount": 50, "currency": "EUR"}"#,
+    )]);
+
+    let req = StructuredRequest {
+        prompt: "Extract invoice".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["amount", "currency"],
+            "properties": {
+                "amount": {"type": "number"},
+                "currency": {"type": "string"}
+            }
+        }),
+        schema_name: "invoice".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 2,
+    };
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object["amount"], 50);
+    assert_eq!(result.object["currency"], "EUR");
+}
+
+#[tokio::test]
+async fn test_generate_blocking_repair_on_invalid_json() {
+    let client = MockStructuredClient::new(vec![
+        MockStructuredClient::text_response("not json at all"),
+        MockStructuredClient::text_response(r#"{"name": "fixed"}"#),
+    ]);
+
+    let req = StructuredRequest {
+        prompt: "Generate".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["name"],
+            "properties": {"name": {"type": "string"}}
+        }),
+        schema_name: "result".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 2,
+    };
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object["name"], "fixed");
+    assert_eq!(result.repair_rounds, 1);
+}
+
+#[tokio::test]
+async fn test_generate_blocking_repair_on_schema_violation() {
+    let client = MockStructuredClient::new(vec![
+        MockStructuredClient::text_response(r#"{"name": "Alice"}"#),
+        MockStructuredClient::text_response(r#"{"name": "Alice", "age": 25}"#),
+    ]);
+
+    let req = StructuredRequest {
+        prompt: "Generate".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["name", "age"],
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"}
+            }
+        }),
+        schema_name: "person".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 2,
+    };
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object["age"], 25);
+    assert_eq!(result.repair_rounds, 1);
+}
+
+// ========================================================================
+// Cross-model generate_object: reasoning-channel resolution
+// (regression for "未返回结构化输出 / no structured output" with GLM5.1 etc.)
+// ========================================================================
+
+fn invoice_request(mode: StructuredMode) -> StructuredRequest {
+    StructuredRequest {
+        prompt: "Extract invoice".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["amount", "currency"],
+            "properties": {
+                "amount": {"type": "number"},
+                "currency": {"type": "string"}
+            }
+        }),
+        schema_name: "invoice".to_string(),
+        schema_description: None,
+        mode,
+        max_repair_attempts: 2,
+    }
+}
+
+#[tokio::test]
+async fn test_reasoning_model_object_only_in_reasoning_channel() {
+    // GLM/zhipu reasoning model: empty content, no tool call, object in the reasoning
+    // channel. This was the production "未返回结构化输出" failure — must resolve, no repair.
+    let client = MockStructuredClient::new(vec![MockStructuredClient::reasoning_response(
+        r#"Let me work it out... amount is 100, currency USD. Final: {"amount": 100, "currency": "USD"}"#,
+        "",
+    )]);
+    let result = generate_blocking(&client, &invoice_request(StructuredMode::Tool))
+        .await
+        .unwrap();
+    assert_eq!(result.object["amount"], 100);
+    assert_eq!(result.object["currency"], "USD");
+    assert_eq!(result.repair_rounds, 0);
+}
+
+#[tokio::test]
+async fn test_reasoning_picks_schema_valid_object_among_several() {
+    // Reasoning trace has a throwaway example object that fails the schema, then the real
+    // answer. Must validate each candidate and keep the one that fits (not the first).
+    let client = MockStructuredClient::new(vec![MockStructuredClient::reasoning_response(
+        r#"e.g. the shape might be {"note": "scratch"} — no. Real answer: {"amount": 7, "currency": "EUR"}"#,
+        "",
+    )]);
+    let result = generate_blocking(&client, &invoice_request(StructuredMode::Tool))
+        .await
+        .unwrap();
+    assert_eq!(result.object["amount"], 7);
+    assert_eq!(result.object["currency"], "EUR");
+    assert_eq!(result.repair_rounds, 0);
+}
+
+#[tokio::test]
+async fn test_tool_mode_falls_back_to_reasoning_when_no_tool_call() {
+    // Tool mode requested, but the model emitted no tool call and empty content.
+    let client = MockStructuredClient::new(vec![MockStructuredClient::reasoning_response(
+        r#"```json
+{"amount": 42, "currency": "GBP"}
+```"#,
+        "",
+    )]);
+    let result = generate_blocking(&client, &invoice_request(StructuredMode::Tool))
+        .await
+        .unwrap();
+    assert_eq!(result.object["amount"], 42);
+    assert_eq!(result.object["currency"], "GBP");
+}
+
+#[test]
+fn test_extract_raw_candidates_includes_reasoning() {
+    let msg = Message {
+        role: "assistant".to_string(),
+        content: vec![],
+        reasoning_content: Some(r#"{"x": 1}"#.to_string()),
+        transcript_text: None,
+        transcript_visibility: Default::default(),
+    };
+    let cands = extract_raw_candidates(&msg, StructuredMode::Tool);
+    assert!(cands.iter().any(|c| c.contains("\"x\"")));
+}
+
+#[test]
+fn test_extract_all_json_values_multiple_objects() {
+    let text = r#"first {"a": 1} then {"b": 2} done"#;
+    let vals = extract_all_json_values(text);
+    assert_eq!(vals.len(), 2);
+    assert_eq!(vals[0]["a"], 1);
+    assert_eq!(vals[1]["b"], 2);
+}
+
+#[test]
+fn test_find_all_balanced_objects() {
+    let text = r#"x {"a":1} y {"b":{"c":2}} z"#;
+    let all = find_all_balanced(text, '{', '}');
+    assert_eq!(all.len(), 2);
+    assert_eq!(all[1], r#"{"b":{"c":2}}"#);
+}
+
+#[test]
+fn test_truncate_utf8_never_splits_multibyte() {
+    let s = "诊断报告".repeat(700); // 4 CJK chars * 3 bytes * 700 > 2000 bytes
+    let t = truncate_utf8(&s, 2000);
+    assert!(t.len() <= 2000);
+    assert!(s.starts_with(t)); // valid prefix, no panic, no broken char
+}
+
+#[tokio::test]
+async fn test_generate_blocking_exhausts_repairs() {
+    let client = MockStructuredClient::new(vec![
+        MockStructuredClient::text_response("bad1"),
+        MockStructuredClient::text_response("bad2"),
+        MockStructuredClient::text_response("bad3"),
+    ]);
+
+    let req = StructuredRequest {
+        prompt: "Generate".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["x"],
+            "properties": {"x": {"type": "string"}}
+        }),
+        schema_name: "r".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 2,
+    };
+
+    let err = generate_blocking(&client, &req).await.unwrap_err();
+    assert!(err.to_string().contains("repair attempts"));
+}
+
+// ========================================================================
+// generate_streaming tests
+// ========================================================================
+
+#[tokio::test]
+async fn test_generate_streaming_with_cancellation_aborts_provider_setup() {
+    let cancellation = CancellationToken::new();
+    let task_cancellation = cancellation.clone();
+    let task = tokio::spawn(async move {
+        generate_streaming_with_cancellation(
+            &CancellationBoundaryClient,
+            &cancellation_request(),
+            Box::new(|_| {}),
+            task_cancellation,
+        )
+        .await
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    cancellation.cancel();
+    let error = tokio::time::timeout(std::time::Duration::from_secs(1), task)
+        .await
+        .expect("cancellation must finish provider setup")
+        .expect("generation task must not panic")
+        .expect_err("cancelled generation must fail");
+
+    assert!(error.to_string().contains("Operation cancelled by user"));
+}
+
+#[tokio::test]
+async fn test_generate_streaming_tool_mode() {
+    let client = MockStructuredClient::new(vec![MockStructuredClient::tool_call_response(
+        "emit_result",
+        serde_json::json!({"items": ["a", "b", "c"]}),
+    )]);
+
+    let req = StructuredRequest {
+        prompt: "List items".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+                "items": {"type": "array", "items": {"type": "string"}}
+            }
+        }),
+        schema_name: "result".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 0,
+    };
+
+    let partials = Arc::new(Mutex::new(Vec::new()));
+    let partials_clone = Arc::clone(&partials);
+    let callback: PartialObjectCallback = Box::new(move |v: &Value| {
+        partials_clone.lock().unwrap().push(v.clone());
+    });
+
+    let result = generate_streaming(&client, &req, callback).await.unwrap();
+    assert_eq!(result.object["items"][0], "a");
+    assert_eq!(result.object["items"][2], "c");
+
+    let p = partials.lock().unwrap();
+    assert!(!p.is_empty());
+}
+
+// ========================================================================
+// Edge case: extract_json_value
+// ========================================================================
+
+#[test]
+fn test_extract_json_unicode() {
+    let input = r#"{"name": "日本語テスト", "emoji": "🎉"}"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["name"], "日本語テスト");
+    assert_eq!(result["emoji"], "🎉");
+}
+
+#[test]
+fn test_extract_json_deeply_nested() {
+    let input = r#"{"a":{"b":{"c":{"d":{"e":"deep"}}}}}"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["a"]["b"]["c"]["d"]["e"], "deep");
+}
+
+#[test]
+fn test_extract_json_empty_object() {
+    let input = "{}";
+    let result = extract_json_value(input).unwrap();
+    assert!(result.as_object().unwrap().is_empty());
+}
+
+#[test]
+fn test_extract_json_empty_array() {
+    let input = "[]";
+    let result = extract_json_value(input).unwrap();
+    assert!(result.as_array().unwrap().is_empty());
+}
+
+#[test]
+fn test_extract_json_multiple_objects_takes_first() {
+    let input = r#"first: {"a": 1} second: {"b": 2}"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["a"], 1);
+}
+
+#[test]
+fn test_extract_json_code_fence_with_trailing_whitespace() {
+    let input = "```json\n{\"x\": 1}\n```\n\n";
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["x"], 1);
+}
+
+#[test]
+fn test_extract_json_code_fence_uppercase() {
+    // Some models output ```JSON instead of ```json
+    let input = "```JSON\n{\"x\": 1}\n```";
+    // This won't match our fence stripper, but find_balanced will catch it
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["x"], 1);
+}
+
+#[test]
+fn test_extract_json_with_newlines_in_string() {
+    let input = r#"{"text": "line1\nline2\nline3"}"#;
+    let result = extract_json_value(input).unwrap();
+    // \n in JSON becomes actual newline when parsed
+    assert!(result["text"].as_str().unwrap().contains('\n'));
+}
+
+#[test]
+fn test_extract_json_number_values() {
+    let input = r#"{"int": 42, "float": 3.14, "neg": -1, "exp": 1e10}"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["int"], 42);
+    assert_eq!(result["neg"], -1);
+}
+
+#[test]
+fn test_extract_json_boolean_null() {
+    let input = r#"{"flag": true, "other": false, "empty": null}"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["flag"], true);
+    assert_eq!(result["other"], false);
+    assert!(result["empty"].is_null());
+}
+
+#[test]
+fn test_extract_json_scalar_rejected() {
+    // A bare string/number is not a valid structured output
+    assert!(extract_json_value(r#""just a string""#).is_err());
+    assert!(extract_json_value("42").is_err());
+    assert!(extract_json_value("true").is_err());
+}
+
+// ========================================================================
+// Edge case: partial JSON parser
+// ========================================================================
+
+#[test]
+fn test_partial_json_deeply_nested_unclosed() {
+    let input = r#"{"a": {"b": {"c": [1, 2"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["a"]["b"]["c"][0], 1);
+    assert_eq!(result["a"]["b"]["c"][1], 2);
+}
+
+#[test]
+fn test_partial_json_boolean_mid_value() {
+    // The partial repair scanner completes JSON literals, matching Vercel-style
+    // streaming behavior for `true` / `false` / `null`.
+    let input = r#"{"done": tru"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["done"], true);
+}
+
+#[test]
+fn test_partial_json_number_mid_value() {
+    let input = r#"{"count": 12"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["count"], 12);
+}
+
+#[test]
+fn test_partial_json_multiple_keys() {
+    let input = r#"{"a": "hello", "b": 42, "c": [1, 2, 3], "d":"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["a"], "hello");
+    assert_eq!(result["b"], 42);
+    assert_eq!(result["c"][2], 3);
+    assert!(result["d"].is_null()); // colon with no value → null
+}
+
+#[test]
+fn test_partial_json_escaped_quotes_in_string() {
+    let input = r#"{"msg": "he said \"hi\""#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["msg"], "he said \"hi\"");
+}
+
+#[test]
+fn test_partial_json_unicode_in_string() {
+    let input = r#"{"name": "日本"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["name"], "日本");
+}
+
+#[test]
+fn test_partial_json_empty_array_unclosed() {
+    let input = r#"{"items": ["#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert!(result["items"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn test_partial_json_nested_objects_and_arrays() {
+    let input = r#"{"users": [{"name": "Alice", "tags": ["admin", "user"#;
+    let result = try_parse_partial_json(input).unwrap();
+    assert_eq!(result["users"][0]["name"], "Alice");
+    assert_eq!(result["users"][0]["tags"][0], "admin");
+    assert_eq!(result["users"][0]["tags"][1], "user");
+}
+
+// ========================================================================
+// Edge case: schema validation
+// ========================================================================
+
+#[test]
+fn test_validate_nullable_type() {
+    let schema = serde_json::json!({
+        "type": ["string", "null"]
+    });
+    assert!(validate_against_schema(&serde_json::json!("hello"), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!(null), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!(42), &schema).is_err());
+}
+
+#[test]
+fn test_validate_any_of() {
+    let schema = serde_json::json!({
+        "anyOf": [
+            {"type": "string"},
+            {"type": "integer"}
+        ]
+    });
+    assert!(validate_against_schema(&serde_json::json!("hello"), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!(42), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!(true), &schema).is_err());
+}
+
+#[test]
+fn test_validate_one_of() {
+    let schema = serde_json::json!({
+        "oneOf": [
+            {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}}},
+            {"type": "object", "required": ["id"], "properties": {"id": {"type": "integer"}}}
+        ]
+    });
+    assert!(validate_against_schema(&serde_json::json!({"name": "Alice"}), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!({"id": 1}), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!({"other": true}), &schema).is_err());
+}
+
+#[test]
+fn test_validate_one_of_requires_exactly_one_matching_branch() {
+    let schema = serde_json::json!({
+        "oneOf": [
+            {"type": "number"},
+            {"minimum": 0}
+        ]
+    });
+
+    assert!(validate_against_schema(&serde_json::json!(-1), &schema).is_ok());
+    let errors = validate_against_schema(&serde_json::json!(1), &schema).unwrap_err();
+    assert!(errors.iter().any(|error| error.contains("oneOf")));
+}
+
+#[test]
+fn test_validate_resolves_local_refs_without_ambient_io() {
+    let schema = serde_json::json!({
+        "$defs": {
+            "user": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {"name": {"type": "string"}},
+                "additionalProperties": false
+            }
+        },
+        "$ref": "#/$defs/user"
+    });
+
+    assert!(validate_against_schema(&serde_json::json!({"name": "Ada"}), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!({"name": 42}), &schema).is_err());
+    assert!(
+        validate_against_schema(&serde_json::json!({"name": "Ada", "secret": true}), &schema)
+            .is_err()
+    );
+}
+
+#[test]
+fn test_validate_rejects_unresolvable_external_refs() {
+    let schema = serde_json::json!({"$ref": "https://example.invalid/schema.json"});
+    let errors = validate_against_schema(&serde_json::json!({}), &schema).unwrap_err();
+    assert!(errors
+        .iter()
+        .any(|error| error.contains("invalid JSON Schema") || error.contains("example.invalid")));
+}
+
+#[test]
+fn test_validate_additional_properties_false() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "additionalProperties": false
+    });
+    assert!(validate_against_schema(&serde_json::json!({"name": "ok"}), &schema).is_ok());
+    let errors =
+        validate_against_schema(&serde_json::json!({"name": "ok", "extra": true}), &schema)
+            .unwrap_err();
+    assert!(errors.iter().any(|e| e.contains("extra")));
+}
+
+#[test]
+fn test_validate_number_range() {
+    let schema = serde_json::json!({
+        "type": "number",
+        "minimum": 0,
+        "maximum": 100
+    });
+    assert!(validate_against_schema(&serde_json::json!(50), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!(0), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!(100), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!(-1), &schema).is_err());
+    assert!(validate_against_schema(&serde_json::json!(101), &schema).is_err());
+}
+
+#[test]
+fn test_validate_exclusive_range() {
+    let schema = serde_json::json!({
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "exclusiveMaximum": 10
+    });
+    assert!(validate_against_schema(&serde_json::json!(5), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!(0), &schema).is_err());
+    assert!(validate_against_schema(&serde_json::json!(10), &schema).is_err());
+}
+
+#[test]
+fn test_validate_string_pattern() {
+    let schema = serde_json::json!({
+        "type": "string",
+        "pattern": "^[a-z]+$"
+    });
+    assert!(validate_against_schema(&serde_json::json!("hello"), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!("Hello"), &schema).is_err());
+    assert!(validate_against_schema(&serde_json::json!("123"), &schema).is_err());
+}
+
+#[test]
+fn test_validate_string_length_unicode() {
+    let schema = serde_json::json!({
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 5
+    });
+    // Unicode chars count as 1 each (char count, not byte count)
+    assert!(validate_against_schema(&serde_json::json!("日本"), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!("a"), &schema).is_err());
+    assert!(validate_against_schema(&serde_json::json!("abcdef"), &schema).is_err());
+}
+
+#[test]
+fn test_validate_integer_as_float() {
+    let schema = serde_json::json!({"type": "integer"});
+    // 30.0 should pass as integer
+    assert!(validate_against_schema(&serde_json::json!(30.0), &schema).is_ok());
+    // 30.5 should fail
+    assert!(validate_against_schema(&serde_json::json!(30.5), &schema).is_err());
+}
+
+#[test]
+fn test_validate_min_max_items() {
+    let schema = serde_json::json!({
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 4,
+        "items": {"type": "number"}
+    });
+    assert!(validate_against_schema(&serde_json::json!([1, 2]), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!([1, 2, 3, 4]), &schema).is_ok());
+    assert!(validate_against_schema(&serde_json::json!([1]), &schema).is_err());
+    assert!(validate_against_schema(&serde_json::json!([1, 2, 3, 4, 5]), &schema).is_err());
+}
+
+#[test]
+fn test_validate_nested_required_with_optional() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+            "id": {"type": "integer"},
+            "metadata": {
+                "type": "object",
+                "required": ["version"],
+                "properties": {
+                    "version": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}}
+                }
+            }
+        }
+    });
+    // id present, metadata absent (not required) → ok
+    assert!(validate_against_schema(&serde_json::json!({"id": 1}), &schema).is_ok());
+    // id present, metadata present but missing version → error
+    let errors = validate_against_schema(&serde_json::json!({"id": 1, "metadata": {}}), &schema)
+        .unwrap_err();
+    assert!(errors.iter().any(|e| e.contains("version")));
+}
+
+// ========================================================================
+// Edge case: generate_blocking
+// ========================================================================
+
+#[tokio::test]
+async fn test_generate_blocking_tool_mode_model_returns_text_instead() {
+    // Model ignores tool instruction and returns text — should still extract JSON
+    let client = MockStructuredClient::new(vec![MockStructuredClient::text_response(
+        r#"{"fallback": true}"#,
+    )]);
+
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "properties": {"fallback": {"type": "boolean"}}
+        }),
+        schema_name: "test".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 0,
+    };
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object["fallback"], true);
+}
+
+#[tokio::test]
+async fn test_generate_blocking_zero_repair_attempts() {
+    let client = MockStructuredClient::new(vec![MockStructuredClient::text_response("bad")]);
+
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({"type": "object", "required": ["x"], "properties": {"x": {"type": "string"}}}),
+        schema_name: "r".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 0,
+    };
+
+    let err = generate_blocking(&client, &req).await.unwrap_err();
+    assert!(err.to_string().contains("parsing"));
+}
+
+#[tokio::test]
+async fn test_generate_blocking_code_fence_output() {
+    let client = MockStructuredClient::new(vec![MockStructuredClient::text_response(
+        "```json\n{\"status\": \"ok\"}\n```",
+    )]);
+
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["status"],
+            "properties": {"status": {"type": "string"}}
+        }),
+        schema_name: "r".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 0,
+    };
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object["status"], "ok");
+}
+
+#[tokio::test]
+async fn test_generate_blocking_repair_in_tool_mode() {
+    // First call: tool call with missing required field
+    // Second call: tool call with complete object
+    let client = MockStructuredClient::new(vec![
+        MockStructuredClient::tool_call_response("emit_person", serde_json::json!({"name": "Bob"})),
+        MockStructuredClient::tool_call_response(
+            "emit_person",
+            serde_json::json!({"name": "Bob", "age": 30}),
+        ),
+    ]);
+
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["name", "age"],
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"}
+            }
+        }),
+        schema_name: "person".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 2,
+    };
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object["name"], "Bob");
+    assert_eq!(result.object["age"], 30);
+    assert_eq!(result.repair_rounds, 1);
+}
+
+// ========================================================================
+// Edge case: streaming
+// ========================================================================
+
+#[tokio::test]
+async fn test_generate_streaming_text_mode() {
+    let client = MockStructuredClient::new(vec![MockStructuredClient::text_response(
+        r#"{"color": "blue", "count": 3}"#,
+    )]);
+
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["color", "count"],
+            "properties": {
+                "color": {"type": "string"},
+                "count": {"type": "integer"}
+            }
+        }),
+        schema_name: "result".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 0,
+    };
+
+    let partials = Arc::new(Mutex::new(Vec::new()));
+    let partials_clone = Arc::clone(&partials);
+    let callback: PartialObjectCallback = Box::new(move |v: &Value| {
+        partials_clone.lock().unwrap().push(v.clone());
+    });
+
+    let result = generate_streaming(&client, &req, callback).await.unwrap();
+    assert_eq!(result.object["color"], "blue");
+    assert_eq!(result.object["count"], 3);
+    assert_eq!(result.usage.total_tokens, 15);
+}
+
+#[tokio::test]
+async fn test_generate_streaming_accepts_a_complete_valid_object_without_done() {
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["color", "count"],
+            "properties": {
+                "color": {"type": "string"},
+                "count": {"type": "integer"}
+            }
+        }),
+        schema_name: "result".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 0,
+    };
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        generate_streaming(&CompleteObjectWithoutDoneClient, &req, Box::new(|_| {})),
+    )
+    .await
+    .expect("a schema-valid streamed object must not wait forever for Done")
+    .expect("complete streamed object");
+
+    assert_eq!(result.object["color"], "blue");
+    assert_eq!(result.object["count"], 3);
+}
+
+#[tokio::test]
+async fn test_generate_streaming_schema_validation_failure() {
+    let client = MockStructuredClient::new(vec![MockStructuredClient::tool_call_response(
+        "emit_result",
+        serde_json::json!({"wrong_field": true}),
+    )]);
+
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["name"],
+            "properties": {"name": {"type": "string"}}
+        }),
+        schema_name: "result".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 0,
+    };
+
+    let callback: PartialObjectCallback = Box::new(|_| {});
+    let err = generate_streaming(&client, &req, callback)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("schema validation"));
+}
+
+#[tokio::test]
+async fn test_generate_streaming_repairs_schema_violation_when_requested() {
+    let client = MockStructuredClient::new(vec![
+        MockStructuredClient::tool_call_response(
+            "emit_result",
+            serde_json::json!({"name": "too long"}),
+        ),
+        MockStructuredClient::tool_call_response("emit_result", serde_json::json!({"name": "ok"})),
+    ]);
+
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["name"],
+            "properties": {"name": {"type": "string", "maxLength": 2}}
+        }),
+        schema_name: "result".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 1,
+    };
+
+    let partials = Arc::new(Mutex::new(Vec::new()));
+    let partials_clone = Arc::clone(&partials);
+    let result = generate_streaming(
+        &client,
+        &req,
+        Box::new(move |value| partials_clone.lock().unwrap().push(value.clone())),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result.object["name"], "ok");
+    assert_eq!(result.repair_rounds, 1);
+    assert_eq!(result.usage.total_tokens, 30);
+    assert_eq!(partials.lock().unwrap().last(), Some(&result.object));
+}
+
+// ========================================================================
+// Edge case: find_balanced with tricky strings
+// ========================================================================
+
+#[test]
+fn test_find_balanced_brace_inside_string() {
+    let input = r#"text "contains {braces}" then {"real": true} end"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["real"], true);
+}
+
+#[test]
+fn test_find_balanced_escaped_quote_before_brace() {
+    let input = r#"prefix "escaped \" quote" {"key": "val"} suffix"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["key"], "val");
+}
+
+#[test]
+fn test_find_balanced_escaped_quote_inside_object() {
+    // The escape sits after `{`, so the depth scan must treat `\"` as data.
+    let input = r#"prose {"key": "say \"hi\""} tail"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["key"], "say \"hi\"");
+}
+
+#[test]
+fn test_find_balanced_unclosed_object_is_not_json() {
+    let error = extract_json_value(r#"prose {"key": "no-close""#).unwrap_err();
+    assert!(error.to_string().contains("No valid JSON"), "{error}");
+}
+
+#[test]
+fn test_find_balanced_nested_strings_with_braces() {
+    let input = r#"{"template": "Hello {name}!", "data": {"name": "World"}}"#;
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["template"], "Hello {name}!");
+    assert_eq!(result["data"]["name"], "World");
+}
+
+// ========================================================================
+// Integration tests (require real LLM API)
+// Run with: cargo test -p a3s-code-core --lib structured_tests::test_integration -- --ignored
+// ========================================================================
+
+fn load_minimax_config() -> Option<(String, String, String)> {
+    // CARGO_MANIFEST_DIR = .../crates/code/core
+    // config.acl is at repo root: .../a3s/.a3s/config.acl
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let candidates = [
+        manifest_dir.join("../../../.a3s/config.acl"), // crates/code/core → repo root
+        manifest_dir.join("../../.a3s/config.acl"),
+        manifest_dir.join("../.a3s/config.acl"),
+    ];
+
+    let config_path = candidates.iter().find(|p| p.exists())?;
+    let content = std::fs::read_to_string(config_path).ok()?;
+
+    // Parse ACL to extract openai provider with MiniMax model
+    let api_key = extract_acl_field(&content, "providers \"openai\"", "apiKey")?;
+    let base_url = extract_acl_field(&content, "providers \"openai\"", "baseUrl")?;
+    Some((base_url, api_key, "MiniMax-M2.7-highspeed".to_string()))
+}
+
+fn extract_acl_field(content: &str, section: &str, field: &str) -> Option<String> {
+    let section_start = content.find(section)?;
+    let section_content = &content[section_start..];
+    // Find the field within the section (before next top-level block)
+    let field_pattern = format!("{} = \"", field);
+    let field_start = section_content.find(&field_pattern)?;
+    let value_start = field_start + field_pattern.len();
+    let value_end = section_content[value_start..].find('"')?;
+    Some(section_content[value_start..value_start + value_end].to_string())
+}
+
+#[tokio::test]
+#[ignore = "requires MiniMax (or compatible) credentials in .a3s/config.acl"]
+async fn test_integration_generate_blocking_tool_mode() {
+    let Some((base_url, api_key, model)) = load_minimax_config() else {
+        eprintln!("Skipping: .a3s/config.acl not found or missing MiniMax config");
+        return;
+    };
+
+    let config = crate::llm::LlmConfig::new("openai", &model, &api_key)
+        .with_base_url(&base_url)
+        .with_temperature(0.0);
+    let client = crate::llm::factory::create_client_with_config(config);
+
+    let req = StructuredRequest {
+        prompt: "Extract the person's information: John Smith is 35 years old and works as a software engineer.".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["name", "age", "occupation"],
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+                "occupation": {"type": "string"}
+            }
+        }),
+        schema_name: "person".to_string(),
+        schema_description: Some("A person's basic information".to_string()),
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 2,
+    };
+
+    let result = generate_blocking(&*client, &req).await;
+    assert!(
+        result.is_ok(),
+        "generate_blocking failed: {:?}",
+        result.err()
+    );
+
+    let result = result.unwrap();
+    assert_eq!(
+        result.object["name"].as_str().unwrap().to_lowercase(),
+        "john smith"
+    );
+    assert_eq!(result.object["age"], 35);
+    assert!(result.object["occupation"]
+        .as_str()
+        .unwrap()
+        .to_lowercase()
+        .contains("software"));
+    eprintln!(
+        "Integration test passed: mode={:?}, repairs={}, tokens={}",
+        result.mode_used, result.repair_rounds, result.usage.total_tokens
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires MiniMax (or compatible) credentials in .a3s/config.acl"]
+async fn test_integration_generate_blocking_prompt_mode() {
+    let Some((base_url, api_key, model)) = load_minimax_config() else {
+        eprintln!("Skipping: .a3s/config.acl not found");
+        return;
+    };
+
+    let config = crate::llm::LlmConfig::new("openai", &model, &api_key)
+        .with_base_url(&base_url)
+        .with_temperature(0.0);
+    let client = crate::llm::factory::create_client_with_config(config);
+
+    let req = StructuredRequest {
+        prompt: "Classify the sentiment of this text: 'I absolutely love this product, it changed my life!' Return the classification.".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["sentiment", "confidence"],
+            "properties": {
+                "sentiment": {"type": "string", "enum": ["positive", "negative", "neutral"]},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+            }
+        }),
+        schema_name: "classification".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 2,
+    };
+
+    let result = generate_blocking(&*client, &req).await;
+    assert!(
+        result.is_ok(),
+        "generate_blocking failed: {:?}",
+        result.err()
+    );
+
+    let result = result.unwrap();
+    assert_eq!(result.object["sentiment"], "positive");
+    let confidence = result.object["confidence"].as_f64().unwrap();
+    assert!((0.0..=1.0).contains(&confidence));
+    eprintln!(
+        "Integration test passed: sentiment={}, confidence={}, repairs={}",
+        result.object["sentiment"], confidence, result.repair_rounds
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires MiniMax (or compatible) credentials in .a3s/config.acl"]
+async fn test_integration_generate_streaming_tool_mode() {
+    let Some((base_url, api_key, model)) = load_minimax_config() else {
+        eprintln!("Skipping: .a3s/config.acl not found");
+        return;
+    };
+
+    let config = crate::llm::LlmConfig::new("openai", &model, &api_key)
+        .with_base_url(&base_url)
+        .with_temperature(0.0);
+    let client = crate::llm::factory::create_client_with_config(config);
+
+    let req = StructuredRequest {
+        prompt: "List 3 programming languages with their year of creation.".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["languages"],
+            "properties": {
+                "languages": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": {
+                        "type": "object",
+                        "required": ["name", "year"],
+                        "properties": {
+                            "name": {"type": "string"},
+                            "year": {"type": "integer", "minimum": 1950, "maximum": 2030}
+                        }
+                    }
+                }
+            }
+        }),
+        schema_name: "languages".to_string(),
+        schema_description: Some("A list of programming languages".to_string()),
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 0,
+    };
+
+    let partials = Arc::new(Mutex::new(Vec::new()));
+    let partials_clone = Arc::clone(&partials);
+    let callback: PartialObjectCallback = Box::new(move |v: &Value| {
+        partials_clone.lock().unwrap().push(v.clone());
+    });
+
+    let result = generate_streaming(&*client, &req, callback).await;
+    assert!(
+        result.is_ok(),
+        "generate_streaming failed: {:?}",
+        result.err()
+    );
+
+    let result = result.unwrap();
+    let languages = result.object["languages"].as_array().unwrap();
+    assert_eq!(languages.len(), 3);
+    for lang in languages {
+        assert!(lang["name"].is_string());
+        let year = lang["year"].as_i64().unwrap();
+        assert!((1950..=2030).contains(&year));
+    }
+
+    let partial_count = partials.lock().unwrap().len();
+    eprintln!(
+        "Integration test passed: {} languages, {} partial updates, tokens={}",
+        languages.len(),
+        partial_count,
+        result.usage.total_tokens
+    );
+    // Should have received at least a few partial updates during streaming
+    assert!(
+        partial_count >= 1,
+        "Expected partial updates during streaming, got 0"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires MiniMax (or compatible) credentials in .a3s/config.acl"]
+async fn test_integration_generate_complex_nested_schema() {
+    let Some((base_url, api_key, model)) = load_minimax_config() else {
+        eprintln!("Skipping: .a3s/config.acl not found");
+        return;
+    };
+
+    let config = crate::llm::LlmConfig::new("openai", &model, &api_key)
+        .with_base_url(&base_url)
+        .with_temperature(0.0);
+    let client = crate::llm::factory::create_client_with_config(config);
+
+    let req = StructuredRequest {
+        prompt: "Generate a sample API error response for a 404 not found error when trying to access user with ID 123.".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["error"],
+            "properties": {
+                "error": {
+                    "type": "object",
+                    "required": ["code", "message", "details"],
+                    "properties": {
+                        "code": {"type": "integer"},
+                        "message": {"type": "string", "minLength": 5},
+                        "details": {
+                            "type": "object",
+                            "required": ["resource", "id"],
+                            "properties": {
+                                "resource": {"type": "string"},
+                                "id": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+        }),
+        schema_name: "api_error".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 2,
+    };
+
+    let result = generate_blocking(&*client, &req).await;
+    assert!(
+        result.is_ok(),
+        "generate_blocking failed: {:?}",
+        result.err()
+    );
+
+    let result = result.unwrap();
+    let error = &result.object["error"];
+    assert_eq!(error["code"], 404);
+    assert!(error["message"].as_str().unwrap().len() >= 5);
+    assert!(error["details"]["resource"].is_string());
+    assert!(error["details"]["id"].as_str().unwrap().contains("123"));
+    eprintln!(
+        "Integration test passed: error.code={}, repairs={}",
+        error["code"], result.repair_rounds
+    );
+}
+
+// ========================================================================
+// Native structured-output routing (capability + directive) tests
+//
+// These verify the core stability fix: the structured engine resolves the
+// mode against the client's native capability and passes the correct
+// directive (forced tool_choice vs. response_format) to complete_structured.
+// ========================================================================
+
+/// A client that records the directive + tool surface it was asked to honor,
+/// and reports a configurable native capability.
+struct RecordingClient {
+    support: NativeStructuredSupport,
+    responses: Mutex<Vec<LlmResponse>>,
+    last_directive: Mutex<Option<StructuredDirective>>,
+    last_tool_names: Mutex<Vec<String>>,
+    last_tools: Mutex<Vec<ToolDefinition>>,
+    structured_calls: std::sync::atomic::AtomicUsize,
+}
+
+impl RecordingClient {
+    fn new(support: NativeStructuredSupport, responses: Vec<LlmResponse>) -> Self {
+        Self {
+            support,
+            responses: Mutex::new(responses),
+            last_directive: Mutex::new(None),
+            last_tool_names: Mutex::new(Vec::new()),
+            last_tools: Mutex::new(Vec::new()),
+            structured_calls: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    fn pop(&self) -> anyhow::Result<LlmResponse> {
+        let mut responses = self.responses.lock().unwrap();
+        if responses.is_empty() {
+            anyhow::bail!("No more mock responses");
+        }
+        Ok(responses.remove(0))
+    }
+}
+
+#[async_trait]
+impl LlmClient for RecordingClient {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+    ) -> anyhow::Result<LlmResponse> {
+        self.pop()
+    }
+
+    async fn complete_streaming(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+        _cancel_token: CancellationToken,
+    ) -> anyhow::Result<mpsc::Receiver<StreamEvent>> {
+        anyhow::bail!("streaming not used in routing tests")
+    }
+
+    fn native_structured_support(&self) -> NativeStructuredSupport {
+        self.support
+    }
+
+    async fn complete_structured(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        tools: &[ToolDefinition],
+        directive: &StructuredDirective,
+    ) -> anyhow::Result<LlmResponse> {
+        self.structured_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        *self.last_directive.lock().unwrap() = Some(directive.clone());
+        *self.last_tool_names.lock().unwrap() = tools.iter().map(|t| t.name.clone()).collect();
+        *self.last_tools.lock().unwrap() = tools.to_vec();
+        self.pop()
+    }
+
+    async fn complete_streaming_structured(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        tools: &[ToolDefinition],
+        directive: &StructuredDirective,
+        _cancel_token: CancellationToken,
+    ) -> anyhow::Result<mpsc::Receiver<StreamEvent>> {
+        self.structured_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        *self.last_directive.lock().unwrap() = Some(directive.clone());
+        *self.last_tool_names.lock().unwrap() = tools.iter().map(|t| t.name.clone()).collect();
+        *self.last_tools.lock().unwrap() = tools.to_vec();
+        let response = self.pop()?;
+        let (tx, rx) = mpsc::channel(10);
+        tokio::spawn(async move {
+            for block in &response.message.content {
+                if let ContentBlock::ToolUse { name, input, .. } = block {
+                    tx.send(StreamEvent::ToolUseStart {
+                        id: "call_001".to_string(),
+                        name: name.clone(),
+                    })
+                    .await
+                    .ok();
+                    let json_str = serde_json::to_string(input).unwrap();
+                    for chunk in json_str.as_bytes().chunks(8) {
+                        tx.send(StreamEvent::ToolUseInputDelta {
+                            id: None,
+                            delta: String::from_utf8_lossy(chunk).to_string(),
+                        })
+                        .await
+                        .ok();
+                    }
+                } else if let ContentBlock::Text { text } = block {
+                    for chunk in text.as_bytes().chunks(8) {
+                        tx.send(StreamEvent::TextDelta(
+                            String::from_utf8_lossy(chunk).to_string(),
+                        ))
+                        .await
+                        .ok();
+                    }
+                }
+            }
+            tx.send(StreamEvent::Done(response)).await.ok();
+        });
+        Ok(rx)
+    }
+}
+
+fn person_request(mode: StructuredMode) -> StructuredRequest {
+    StructuredRequest {
+        prompt: "Extract the person".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "required": ["name"],
+            "properties": { "name": { "type": "string" } }
+        }),
+        schema_name: "person".to_string(),
+        schema_description: None,
+        mode,
+        max_repair_attempts: 0,
+    }
+}
+
+#[tokio::test]
+async fn test_routing_tool_mode_forces_tool_choice() {
+    let client = RecordingClient::new(
+        NativeStructuredSupport::ForcedTool,
+        vec![MockStructuredClient::tool_call_response(
+            "emit_person",
+            serde_json::json!({ "name": "Bob" }),
+        )],
+    );
+    let result = generate_blocking(&client, &person_request(StructuredMode::Tool))
+        .await
+        .unwrap();
+
+    assert_eq!(result.object["name"], "Bob");
+    assert_eq!(result.mode_used, StructuredMode::Tool);
+    assert_eq!(
+        client
+            .structured_calls
+            .load(std::sync::atomic::Ordering::SeqCst),
+        1
+    );
+
+    let directive = client.last_directive.lock().unwrap().clone().unwrap();
+    assert_eq!(directive.force_tool.as_deref(), Some("emit_person"));
+    assert!(directive.response_format.is_none());
+    // The synthetic emit tool must be present in the tool surface.
+    assert_eq!(
+        client.last_tool_names.lock().unwrap().as_slice(),
+        &["emit_person".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn test_routing_auto_collapses_to_forced_tool() {
+    let client = RecordingClient::new(
+        NativeStructuredSupport::JsonSchema,
+        vec![MockStructuredClient::tool_call_response(
+            "emit_person",
+            serde_json::json!({ "name": "Bob" }),
+        )],
+    );
+    let result = generate_blocking(&client, &person_request(StructuredMode::Auto))
+        .await
+        .unwrap();
+
+    assert_eq!(result.mode_used, StructuredMode::Tool);
+    let directive = client.last_directive.lock().unwrap().clone().unwrap();
+    assert_eq!(directive.force_tool.as_deref(), Some("emit_person"));
+}
+
+#[tokio::test]
+async fn test_tool_mode_wraps_top_level_array_schema_and_unwraps_result() {
+    let req = StructuredRequest {
+        prompt: "Return two colors".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 2
+        }),
+        schema_name: "colors".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 0,
+    };
+    let client = RecordingClient::new(
+        NativeStructuredSupport::ForcedTool,
+        vec![MockStructuredClient::tool_call_response(
+            "emit_colors",
+            serde_json::json!({ "elements": ["red", "blue"] }),
+        )],
+    );
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object, serde_json::json!(["red", "blue"]));
+
+    let tools = client.last_tools.lock().unwrap();
+    assert_eq!(tools[0].parameters["type"], "object");
+    assert_eq!(tools[0].parameters["required"][0], "elements");
+    assert_eq!(
+        tools[0].parameters["properties"]["elements"]["type"],
+        "array"
+    );
+}
+
+#[tokio::test]
+async fn test_tool_mode_wraps_scalar_enum_schema_and_unwraps_value() {
+    let req = StructuredRequest {
+        prompt: "Pick one color".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "string",
+            "enum": ["red", "green", "blue"]
+        }),
+        schema_name: "color".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Tool,
+        max_repair_attempts: 0,
+    };
+    let client = RecordingClient::new(
+        NativeStructuredSupport::ForcedTool,
+        vec![MockStructuredClient::tool_call_response(
+            "emit_color",
+            serde_json::json!({ "value": "green" }),
+        )],
+    );
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object, serde_json::json!("green"));
+
+    let tools = client.last_tools.lock().unwrap();
+    assert_eq!(tools[0].parameters["type"], "object");
+    assert_eq!(tools[0].parameters["required"][0], "value");
+    assert_eq!(
+        tools[0].parameters["properties"]["value"]["enum"][1],
+        "green"
+    );
+}
+
+#[tokio::test]
+async fn test_wrapped_schema_still_accepts_direct_model_output() {
+    let req = StructuredRequest {
+        prompt: "Return two colors".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "array",
+            "items": { "type": "string" }
+        }),
+        schema_name: "colors".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 0,
+    };
+    let client = RecordingClient::new(
+        NativeStructuredSupport::None,
+        vec![MockStructuredClient::text_response(r#"["red", "blue"]"#)],
+    );
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object, serde_json::json!(["red", "blue"]));
+}
+
+#[tokio::test]
+async fn test_scalar_schema_still_accepts_direct_model_output() {
+    let req = StructuredRequest {
+        prompt: "Pick one color".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "string",
+            "enum": ["red", "green", "blue"]
+        }),
+        schema_name: "color".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 0,
+    };
+    let client = RecordingClient::new(
+        NativeStructuredSupport::None,
+        vec![MockStructuredClient::text_response(r#""green""#)],
+    );
+
+    let result = generate_blocking(&client, &req).await.unwrap();
+    assert_eq!(result.object, serde_json::json!("green"));
+    assert_eq!(result.repair_rounds, 0);
+}
+
+#[tokio::test]
+async fn test_routing_strict_uses_response_format_when_supported() {
+    let client = RecordingClient::new(
+        NativeStructuredSupport::JsonSchema,
+        vec![MockStructuredClient::text_response(r#"{"name": "Bob"}"#)],
+    );
+    let result = generate_blocking(&client, &person_request(StructuredMode::Strict))
+        .await
+        .unwrap();
+
+    assert_eq!(result.object["name"], "Bob");
+    assert_eq!(result.mode_used, StructuredMode::Strict);
+
+    let directive = client.last_directive.lock().unwrap().clone().unwrap();
+    assert!(directive.force_tool.is_none());
+    match directive.response_format {
+        Some(ResponseFormat::JsonSchema {
+            ref name,
+            ref schema,
+        }) => {
+            assert_eq!(name, "person");
+            assert_eq!(schema["required"][0], "name");
+        }
+        other => panic!("expected json_schema response_format, got {:?}", other),
+    }
+    // Strict mode must not inject a tool.
+    assert!(client.last_tool_names.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_routing_strict_falls_back_to_tool_without_support() {
+    // A provider with forced-tool support but no native json_schema support
+    // falls back to forced tool mode.
+    let client = RecordingClient::new(
+        NativeStructuredSupport::ForcedTool,
+        vec![MockStructuredClient::tool_call_response(
+            "emit_person",
+            serde_json::json!({ "name": "Bob" }),
+        )],
+    );
+    let result = generate_blocking(&client, &person_request(StructuredMode::Strict))
+        .await
+        .unwrap();
+
+    assert_eq!(result.mode_used, StructuredMode::Tool);
+    let directive = client.last_directive.lock().unwrap().clone().unwrap();
+    assert_eq!(directive.force_tool.as_deref(), Some("emit_person"));
+    assert!(directive.response_format.is_none());
+}
+
+#[tokio::test]
+async fn test_routing_unknown_support_falls_back_to_prompt() {
+    let client = RecordingClient::new(
+        NativeStructuredSupport::None,
+        vec![MockStructuredClient::text_response(r#"{"name": "Bob"}"#)],
+    );
+    let result = generate_blocking(&client, &person_request(StructuredMode::Tool))
+        .await
+        .unwrap();
+
+    assert_eq!(result.object["name"], "Bob");
+    assert_eq!(result.mode_used, StructuredMode::Prompt);
+    assert_eq!(
+        client
+            .structured_calls
+            .load(std::sync::atomic::Ordering::SeqCst),
+        1
+    );
+    let directive = client.last_directive.lock().unwrap().clone().unwrap();
+    assert!(directive.force_tool.is_none());
+    assert!(directive.response_format.is_none());
+    assert!(client.last_tool_names.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_prompt_mode_retains_the_host_validation_schema() {
+    let request = person_request(StructuredMode::Prompt);
+    let client = RecordingClient::new(
+        NativeStructuredSupport::None,
+        vec![MockStructuredClient::text_response(r#"{"name":"Bob"}"#)],
+    );
+
+    let result = generate_blocking(&client, &request).await.unwrap();
+
+    assert_eq!(result.object["name"], "Bob");
+    let directive = client.last_directive.lock().unwrap().clone().unwrap();
+    assert!(directive.force_tool.is_none());
+    assert!(directive.response_format.is_none());
+    assert_eq!(directive.validation_schema, Some(request.schema));
+}
+
+#[tokio::test]
+async fn test_routing_json_uses_json_object_when_supported() {
+    let client = RecordingClient::new(
+        NativeStructuredSupport::JsonSchema,
+        vec![MockStructuredClient::text_response(r#"{"name": "Bob"}"#)],
+    );
+    let result = generate_blocking(&client, &person_request(StructuredMode::Json))
+        .await
+        .unwrap();
+
+    assert_eq!(result.mode_used, StructuredMode::Json);
+    let directive = client.last_directive.lock().unwrap().clone().unwrap();
+    assert_eq!(directive.response_format, Some(ResponseFormat::JsonObject));
+    assert!(directive.force_tool.is_none());
+}
+
+#[tokio::test]
+async fn test_routing_json_object_only_never_forces_tool_choice() {
+    // Reasoning providers such as DeepSeek accept response_format=json_object
+    // but reject a forced tool_choice while thinking is enabled.  The engine
+    // must select the narrower JSON route for every native structured request.
+    for requested in [
+        StructuredMode::Auto,
+        StructuredMode::Tool,
+        StructuredMode::Strict,
+        StructuredMode::Json,
+    ] {
+        let client = RecordingClient::new(
+            NativeStructuredSupport::JsonObject,
+            vec![MockStructuredClient::text_response(r#"{"name":"Bob"}"#)],
+        );
+        let result = generate_blocking(&client, &person_request(requested))
+            .await
+            .unwrap_or_else(|error| {
+                panic!("{requested:?} should use JSON-object fallback: {error}")
+            });
+
+        assert_eq!(result.mode_used, StructuredMode::Json);
+        let directive = client.last_directive.lock().unwrap().clone().unwrap();
+        assert!(directive.force_tool.is_none());
+        assert_eq!(directive.response_format, Some(ResponseFormat::JsonObject));
+        assert!(client.last_tool_names.lock().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn test_streaming_routing_tool_mode_forces_tool_choice() {
+    // The streaming path must also force the directive (via
+    // complete_streaming_structured), not silently drop it.
+    let client = RecordingClient::new(
+        NativeStructuredSupport::ForcedTool,
+        vec![MockStructuredClient::tool_call_response(
+            "emit_person",
+            serde_json::json!({ "name": "Bob" }),
+        )],
+    );
+
+    let partials = Arc::new(Mutex::new(0usize));
+    let partials_cb = partials.clone();
+    let result = generate_streaming(
+        &client,
+        &person_request(StructuredMode::Tool),
+        Box::new(move |_partial| {
+            *partials_cb.lock().unwrap() += 1;
+        }),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result.object["name"], "Bob");
+    assert_eq!(result.mode_used, StructuredMode::Tool);
+    let directive = client.last_directive.lock().unwrap().clone().unwrap();
+    assert_eq!(directive.force_tool.as_deref(), Some("emit_person"));
+    assert!(
+        *partials.lock().unwrap() >= 1,
+        "on_partial should fire at least once (final object)"
+    );
+}
+
+// ========================================================================
+// Adversarial JSON extraction edge cases
+// ========================================================================
+
+#[test]
+fn test_extract_json_crlf_code_fence() {
+    let input = "```json\r\n{\"a\": 1}\r\n```";
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["a"], 1);
+}
+
+#[test]
+fn test_extract_json_prose_with_brace_in_string() {
+    // A `}` inside a string value, plus trailing prose: balanced extraction
+    // must keep the in-string brace and stop at the real closing brace.
+    let input = "Sure thing: {\"msg\": \"close with } please\"} — done.";
+    let result = extract_json_value(input).unwrap();
+    assert_eq!(result["msg"], "close with } please");
+}
+
+#[test]
+fn test_extract_json_single_quotes_rejected() {
+    // Single-quoted pseudo-JSON is NOT valid JSON; extraction must fail rather
+    // than silently mis-parse. (Documents current, intentional behavior.)
+    assert!(extract_json_value("{'name': 'Bob'}").is_err());
+}
+
+#[test]
+fn test_extract_raw_output_tool_mode_falls_back_to_text() {
+    // If the model ignores the forced tool and replies with text anyway, tool
+    // mode must fall back to reading the message text.
+    let msg = Message {
+        role: "assistant".to_string(),
+        content: vec![ContentBlock::Text {
+            text: r#"{"name": "Bob"}"#.to_string(),
+        }],
+        reasoning_content: None,
+        transcript_text: None,
+        transcript_visibility: Default::default(),
+    };
+    let candidates = extract_raw_candidates(&msg, StructuredMode::Tool);
+    let value = extract_json_value(&candidates[0]).unwrap();
+    assert_eq!(value["name"], "Bob");
+}
+
+#[test]
+fn schema_envelope_covers_object_array_scalar_and_ref_shapes() {
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "type": "object",
+            "properties": { "a": { "type": "string" } }
+        })),
+        SchemaEnvelope::Direct
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(
+            &serde_json::json!({ "type": "array", "items": { "type": "string" } })
+        ),
+        SchemaEnvelope::Elements
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({ "type": "string" })),
+        SchemaEnvelope::Value
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({ "const": "ready" })),
+        SchemaEnvelope::Value
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({ "enum": [1, 2, 3] })),
+        SchemaEnvelope::Value
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "$ref": "#/$defs/Person",
+            "$defs": {
+                "Person": {
+                    "type": "object",
+                    "properties": { "name": { "type": "string" } }
+                }
+            }
+        })),
+        SchemaEnvelope::Direct
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "anyOf": [
+                { "type": "array", "items": { "type": "number" } },
+                { "type": "array", "items": { "type": "integer" } }
+            ]
+        })),
+        SchemaEnvelope::Elements
+    );
+
+    let elements = SchemaEnvelope::Elements;
+    assert!(elements.instruction().contains("`elements`"));
+    assert_eq!(
+        elements.unwrap_final(&serde_json::json!({ "elements": [1, 2] })),
+        Some(serde_json::json!([1, 2]))
+    );
+    assert_eq!(
+        SchemaEnvelope::Value.unwrap_final(&serde_json::json!({ "value": true })),
+        Some(serde_json::json!(true))
+    );
+    assert!(SchemaEnvelope::Value.instruction().contains("`value`"));
+    assert_eq!(
+        SchemaEnvelope::Value.project_partial(&serde_json::json!({ "value": "partial" }), false),
+        Some(serde_json::json!("partial"))
+    );
+}
+
+#[test]
+fn extract_json_candidates_keeps_direct_scalars_when_requested() {
+    let values = extract_json_candidates("42", true);
+    assert_eq!(values, vec![serde_json::json!(42)]);
+    assert!(extract_json_candidates("42", false).is_empty());
+
+    let fenced = extract_all_json_values("```json\n{\"a\":1}\n``` and [2]");
+    assert!(fenced.contains(&serde_json::json!({"a": 1})));
+    assert!(fenced.contains(&serde_json::json!([2])));
+}
+
+#[test]
+fn schema_envelope_covers_keyword_only_refs_and_type_arrays() {
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "properties": { "name": { "type": "string" } },
+            "required": ["name"]
+        })),
+        SchemaEnvelope::Direct
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({ "type": ["object"] })),
+        SchemaEnvelope::Direct
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({ "const": {"k": 1} })),
+        SchemaEnvelope::Direct
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({ "const": [1, 2] })),
+        SchemaEnvelope::Elements
+    );
+    assert_eq!(
+        SchemaEnvelope::Direct.unwrap_final(&serde_json::json!({"a": 1})),
+        Some(serde_json::json!({"a": 1}))
+    );
+
+    let wrapped = SchemaEnvelope::Elements.response_schema(&serde_json::json!({
+        "type": "array",
+        "items": { "$ref": "#/$defs/Item" },
+        "$defs": { "Item": { "type": "string" } }
+    }));
+    assert!(wrapped.get("$defs").is_some(), "{wrapped}");
+    assert_eq!(wrapped["required"], serde_json::json!(["elements"]));
+}
+
+#[test]
+fn extract_json_value_recovers_fenced_arrays_and_inline_json_fences() {
+    let array = extract_json_value("prefix [1, 2, 3] suffix").unwrap();
+    assert_eq!(array, serde_json::json!([1, 2, 3]));
+
+    let inline = extract_json_value("```json{\"ok\":true}```").unwrap();
+    assert_eq!(inline, serde_json::json!({"ok": true}));
+
+    let bare_fence = extract_json_value("```\n[9]\n```").unwrap();
+    assert_eq!(bare_fence, serde_json::json!([9]));
+}
+
+#[test]
+fn find_json_start_skips_code_fence_prefixes_and_escaped_quotes() {
+    assert_eq!(find_json_start("```json\n{\"a\":1}"), Some(8));
+    assert_eq!(find_json_start("```\n[1]"), Some(4));
+    assert_eq!(find_json_start("\"no{\" {\"a\":1}"), Some(6));
+    // Backslash escapes inside a string must not end the string early.
+    assert_eq!(find_json_start(r#""say \"hi\"" {"a":1}"#), Some(13));
+    assert!(find_json_start("\"never closes").is_none());
+    assert!(find_json_start("just prose").is_none());
+}
+
+#[test]
+fn build_parse_failure_repair_covers_empty_and_nonempty_raw() {
+    let empty = build_parse_failure_repair("   ");
+    assert!(empty.contains("no JSON"), "{empty}");
+    let nonempty = build_parse_failure_repair("not json at all");
+    assert!(nonempty.contains("could not be parsed"), "{nonempty}");
+}
+
+#[test]
+fn build_repair_message_truncates_large_raw_output() {
+    let raw = "x".repeat(2500);
+    let message = build_repair_message(&raw, &["$: missing".to_string()]);
+    assert!(message.contains("[truncated"), "{message}");
+    assert!(message.contains("Validation errors"), "{message}");
+}
+
+#[test]
+fn schema_envelope_covers_all_of_depth_limit_and_circular_refs() {
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "allOf": [
+                { "type": "object", "properties": { "a": { "type": "string" } } }
+            ]
+        })),
+        SchemaEnvelope::Direct
+    );
+
+    // Circular $ref must not recurse forever; unresolved cycles fall back to Value.
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "$ref": "#/$defs/Loop",
+            "$defs": {
+                "Loop": { "$ref": "#/$defs/Loop" }
+            }
+        })),
+        SchemaEnvelope::Value
+    );
+
+    // Depth guard: a deeply nested allOf chain returns None → Value envelope.
+    let mut nested = serde_json::json!({ "type": "string" });
+    for _ in 0..70 {
+        nested = serde_json::json!({ "allOf": [nested] });
+    }
+    assert_eq!(SchemaEnvelope::for_schema(&nested), SchemaEnvelope::Value);
+}
+
+#[test]
+fn strip_code_fence_and_extract_handle_incomplete_and_inline_fences() {
+    assert!(strip_code_fence("```json\n{\"a\":1}").is_none());
+    assert!(strip_code_fence("```\n[1,2").is_none());
+    assert_eq!(
+        strip_code_fence("```json{\"ok\":true}```").map(str::trim),
+        Some(r#"{"ok":true}"#)
+    );
+    let inline = extract_json_value("```json{\"ok\":true}```").unwrap();
+    assert_eq!(inline, serde_json::json!({"ok": true}));
+}
+
+#[test]
+fn resolve_structured_records_envelope_schema_mismatch_for_repair() {
+    let schema = serde_json::json!({ "type": "string", "minLength": 1 });
+    let resolution = resolve_structured(
+        &[r#"{"value":""}"#.to_string()],
+        &schema,
+        SchemaEnvelope::Value,
+    );
+    assert!(resolution.valid.is_none());
+    let (_, errors) = resolution.invalid.expect("invalid envelope candidate");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.contains("minLength") || error.contains("$")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn schema_root_kind_covers_mixed_enums_anyof_and_non_string_type() {
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "enum": [1, "mixed"]
+        })),
+        SchemaEnvelope::Value
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "anyOf": [
+                { "type": "object", "properties": { "a": { "type": "string" } } },
+                { "type": "array", "items": { "type": "string" } }
+            ]
+        })),
+        SchemaEnvelope::Value
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "type": ["object", "null"]
+        })),
+        SchemaEnvelope::Value
+    );
+    assert_eq!(
+        SchemaEnvelope::for_schema(&serde_json::json!({
+            "type": {"not": "a-string"}
+        })),
+        SchemaEnvelope::Value
+    );
+}
+
+#[test]
+fn resolve_structured_records_invalid_unwrapped_envelope_value() {
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": { "name": { "type": "string", "minLength": 2 } }
+    });
+    let resolution = resolve_structured(
+        &[r#"{"value":{"name":"x"}}"#.to_string()],
+        &schema,
+        SchemaEnvelope::Value,
+    );
+    assert!(resolution.valid.is_none());
+    let (_, errors) = resolution.invalid.expect("invalid unwrapped value");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.contains("minLength") || error.contains("name")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn resolve_structured_records_invalid_elements_wrapper() {
+    let schema = serde_json::json!({
+        "type": "array",
+        "items": { "type": "string" }
+    });
+    let resolution = resolve_structured(
+        &[r#"{"elements":[1,2,3]}"#.to_string()],
+        &schema,
+        SchemaEnvelope::Elements,
+    );
+    assert!(resolution.valid.is_none());
+    assert!(resolution.invalid.is_some());
+}
+
+struct DropAfterCompleteClient;
+
+#[async_trait]
+impl LlmClient for DropAfterCompleteClient {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+    ) -> anyhow::Result<LlmResponse> {
+        anyhow::bail!("blocking generation is not used in this test")
+    }
+
+    async fn complete_streaming(
+        &self,
+        _messages: &[Message],
+        _system: Option<&str>,
+        _tools: &[ToolDefinition],
+        _cancel_token: CancellationToken,
+    ) -> anyhow::Result<mpsc::Receiver<StreamEvent>> {
+        let (tx, rx) = mpsc::channel(4);
+        tokio::spawn(async move {
+            tx.send(StreamEvent::TextDelta(
+                r#"{"color":"blue","count":3}"#.to_string(),
+            ))
+            .await
+            .ok();
+            // Drop the sender without Done so the stream ends with a complete candidate.
+        });
+        Ok(rx)
+    }
+}
+
+#[tokio::test]
+async fn test_generate_streaming_accepts_complete_object_when_stream_ends() {
+    let req = StructuredRequest {
+        prompt: "test".to_string(),
+        system: None,
+        schema: serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["color", "count"],
+            "properties": {
+                "color": {"type": "string"},
+                "count": {"type": "integer"}
+            }
+        }),
+        schema_name: "result".to_string(),
+        schema_description: None,
+        mode: StructuredMode::Prompt,
+        max_repair_attempts: 0,
+    };
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        generate_streaming(&DropAfterCompleteClient, &req, Box::new(|_| {})),
+    )
+    .await
+    .expect("stream-end complete object must not hang")
+    .expect("complete streamed object on channel close");
+
+    assert_eq!(result.object["color"], "blue");
+    assert_eq!(result.object["count"], 3);
+}

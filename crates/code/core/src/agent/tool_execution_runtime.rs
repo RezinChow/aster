@@ -1,0 +1,417 @@
+use super::{AgentEvent, ToolCommand};
+#[cfg(test)]
+use crate::llm::ToolCall;
+#[cfg(test)]
+use crate::tools::ToolInvocation;
+use crate::tools::{ToolContext, ToolErrorKind, ToolExecutor, ToolResult, ToolStreamEvent};
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
+use serde_json::Value;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::mpsc;
+
+const TOOL_CANCELLATION_SETTLE_GRACE: Duration = Duration::from_millis(500);
+
+pub(crate) async fn execute_tool_with_deadline(
+    tool_executor: &ToolExecutor,
+    name: &str,
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+    timeout_ms: Option<u64>,
+) -> anyhow::Result<ToolResult> {
+    let parent_cancellation = ctx.cancellation_token();
+    if parent_cancellation.is_cancelled() {
+        return Ok(ToolResult::error_with_kind(
+            name,
+            format!("Tool '{}' cancelled by caller", name),
+            ToolErrorKind::Cancelled {
+                op: name.to_string(),
+            },
+        ));
+    }
+
+    let invocation_cancellation = parent_cancellation.child_token();
+    let invocation_ctx = ctx
+        .clone()
+        .with_cancellation(invocation_cancellation.clone());
+    let execution = tool_executor.execute_with_context(name, args, &invocation_ctx);
+    tokio::pin!(execution);
+
+    enum Stop {
+        Cancelled,
+        TimedOut(u64),
+    }
+
+    let stop = match timeout_ms {
+        Some(timeout_ms) => {
+            tokio::select! {
+                biased;
+                result = &mut execution => return result,
+                _ = invocation_cancellation.cancelled() => Stop::Cancelled,
+                _ = tokio::time::sleep(Duration::from_millis(timeout_ms)) => {
+                    Stop::TimedOut(timeout_ms)
+                }
+            }
+        }
+        None => {
+            tokio::select! {
+                biased;
+                result = &mut execution => return result,
+                _ = invocation_cancellation.cancelled() => Stop::Cancelled,
+            }
+        }
+    };
+
+    invocation_cancellation.cancel();
+    let _ = tokio::time::timeout(TOOL_CANCELLATION_SETTLE_GRACE, &mut execution).await;
+
+    match stop {
+        Stop::Cancelled => Ok(ToolResult::error_with_kind(
+            name,
+            format!("Tool '{}' cancelled by caller", name),
+            ToolErrorKind::Cancelled {
+                op: name.to_string(),
+            },
+        )),
+        Stop::TimedOut(timeout_ms) => Ok(ToolResult::error_with_kind(
+            name,
+            format!("Tool '{}' timed out after {}ms", name, timeout_ms),
+            ToolErrorKind::Timeout {
+                op: name.to_string(),
+                duration_ms: timeout_ms,
+            },
+        )),
+    }
+}
+
+impl crate::agent::TurnEngine {
+    #[cfg(test)]
+    pub(super) async fn execute_delegated_plan_tool(
+        &self,
+        tool_name: &str,
+        args: &Value,
+        session_id: Option<&str>,
+        event_tx: &Option<mpsc::Sender<AgentEvent>>,
+        cancel_token: &tokio_util::sync::CancellationToken,
+    ) -> (String, i32, bool, Option<Value>) {
+        let call_id = format!("plan-{}-{}", tool_name, uuid::Uuid::new_v4());
+        let capability_turn = match self
+            .capability_runtime
+            .as_ref()
+            .map(|runtime| runtime.begin_turn(0))
+            .transpose()
+        {
+            Ok(turn) => turn,
+            Err(error) => {
+                return (
+                    format!("Capability orchestration Turn admission failed: {error}"),
+                    1,
+                    true,
+                    None,
+                );
+            }
+        };
+        let scoped_cancellation = capability_turn
+            .as_ref()
+            .map(crate::capability::AgentCapabilityTurn::cancellation)
+            .unwrap_or_else(|| cancel_token.clone());
+        let scoped_tool_context = capability_turn.as_ref().map_or_else(
+            || self.tool_context.clone(),
+            |turn| {
+                self.tool_context
+                    .clone()
+                    .with_capability_context(turn.tool_context())
+            },
+        );
+        let synthetic_call = ToolCall {
+            id: call_id.clone(),
+            name: tool_name.to_string(),
+            args: args.clone(),
+        };
+        self.config.rl_trajectory_recorder.record_tool_call(
+            session_id.unwrap_or(""),
+            0,
+            &synthetic_call,
+        );
+        let started = std::time::Instant::now();
+        let mut normalized = self
+            .invoke_model_tool(
+                ToolInvocation::agent(
+                    call_id.clone(),
+                    tool_name.to_string(),
+                    args.clone(),
+                    Vec::new(),
+                ),
+                session_id,
+                event_tx,
+                &scoped_cancellation,
+                &scoped_tool_context,
+            )
+            .await;
+        if let Some(turn) = capability_turn.as_ref() {
+            match turn.close().await {
+                Ok(report) if report.is_clean() => {}
+                Ok(report) => {
+                    normalized = super::tool_result_runtime::NormalizedToolResult::from_execution(
+                        Err(anyhow::anyhow!(
+                            "Capability orchestration Turn close was incomplete (tasks failed: {}, tasks timed out: {}, child scopes failed: {}, child scopes timed out: {}, effects failed: {}, effects timed out: {})",
+                            report.tasks_failed,
+                            report.tasks_timed_out,
+                            report.child_scopes_failed,
+                            report.child_scopes_timed_out,
+                            report.effects_failed,
+                            report.effects_timed_out,
+                        )),
+                    );
+                }
+                Err(error) => {
+                    normalized = super::tool_result_runtime::NormalizedToolResult::from_execution(
+                        Err(anyhow::Error::new(error)),
+                    );
+                }
+            }
+        }
+        self.config.rl_trajectory_recorder.record_tool_result(
+            session_id.unwrap_or(""),
+            0,
+            &call_id,
+            tool_name,
+            &normalized.output,
+            normalized.exit_code,
+            started.elapsed().as_millis() as u64,
+            &normalized.metadata,
+            normalized
+                .error_kind
+                .as_ref()
+                .map(|kind| format!("{kind:?}")),
+        );
+
+        if let Some(tx) = event_tx {
+            tx.send(AgentEvent::ToolEnd {
+                id: call_id,
+                name: tool_name.to_string(),
+                args: Some(args.clone()),
+                output: normalized.output.clone(),
+                exit_code: normalized.exit_code,
+                metadata: normalized.metadata.clone(),
+                error_kind: normalized.error_kind.clone(),
+            })
+            .await
+            .ok();
+        }
+
+        (
+            normalized.output,
+            normalized.exit_code,
+            normalized.is_error,
+            normalized.metadata,
+        )
+    }
+
+    /// Execute a tool, applying the configured timeout if set.
+    ///
+    /// On timeout, returns an error describing which tool timed out and after
+    /// how many milliseconds. The caller converts this to a tool-result error
+    /// message that is fed back to the LLM.
+    async fn execute_tool_timed(
+        &self,
+        executor: &ToolExecutor,
+        name: &str,
+        args: &serde_json::Value,
+        ctx: &ToolContext,
+    ) -> anyhow::Result<crate::tools::ToolResult> {
+        execute_tool_with_deadline(executor, name, args, ctx, self.config.tool_timeout_ms).await
+    }
+
+    /// Execute a tool through the lane queue (if configured) or directly.
+    pub(crate) async fn execute_tool_queued_or_direct(
+        &self,
+        executor: &Arc<ToolExecutor>,
+        name: &str,
+        args: &serde_json::Value,
+        ctx: &ToolContext,
+    ) -> anyhow::Result<crate::tools::ToolResult> {
+        if ctx.is_cancelled() {
+            anyhow::bail!("Tool '{}' cancelled by caller", name);
+        }
+
+        // A queue worker already owns the scheduling slot for this invocation
+        // scope. Re-submitting an orchestrator's nested call to the same lane
+        // can deadlock when that lane has a single worker. Nested calls still
+        // pass through ToolInvoker before reaching this backend, so hooks,
+        // budget, timeout, cancellation, and sanitization remain in force.
+        if ctx.is_inside_tool_queue() {
+            return self.execute_tool_timed(executor, name, args, ctx).await;
+        }
+
+        if let Some(ref queue) = self.command_queue {
+            let command = ToolCommand::new(
+                Arc::clone(executor),
+                name.to_string(),
+                args.clone(),
+                ctx.clone().with_tool_queue_scope(),
+                self.config.tool_timeout_ms,
+            );
+            let cancellation = ctx.cancellation_token();
+            let rx = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => {
+                    anyhow::bail!("Tool '{}' cancelled while waiting for queue submission", name);
+                }
+                rx = queue.submit_by_tool(name, Box::new(command)) => rx,
+            };
+            let queued = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => {
+                    anyhow::bail!("Tool '{}' cancelled while waiting in the queue", name);
+                }
+                result = rx => result,
+            };
+            match queued {
+                Ok(Ok(value)) => {
+                    let output = value["output"]
+                        .as_str()
+                        .ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "Queue result missing 'output' field for tool '{}'",
+                                name
+                            )
+                        })?
+                        .to_string();
+                    let exit_code = value["exit_code"].as_i64().unwrap_or(0) as i32;
+                    let metadata = value
+                        .get("metadata")
+                        .filter(|value| !value.is_null())
+                        .cloned();
+                    let images = value
+                        .get("images")
+                        .and_then(Value::as_array)
+                        .map(|images| {
+                            images
+                                .iter()
+                                .map(|image| {
+                                    let data = image
+                                        .get("data")
+                                        .and_then(Value::as_str)
+                                        .ok_or_else(|| {
+                                            anyhow::anyhow!(
+                                                "Queue result has an image without base64 data for tool '{}'",
+                                                name
+                                            )
+                                        })?;
+                                    let media_type = image
+                                        .get("media_type")
+                                        .and_then(Value::as_str)
+                                        .ok_or_else(|| {
+                                            anyhow::anyhow!(
+                                                "Queue result has an image without media_type for tool '{}'",
+                                                name
+                                            )
+                                        })?;
+                                    let data = BASE64_STANDARD.decode(data).map_err(|error| {
+                                        anyhow::anyhow!(
+                                            "Queue result has invalid image data for tool '{}': {}",
+                                            name,
+                                            error
+                                        )
+                                    })?;
+                                    Ok(crate::llm::Attachment::new(data, media_type))
+                                })
+                                .collect::<anyhow::Result<Vec<_>>>()
+                        })
+                        .transpose()?
+                        .unwrap_or_default();
+                    let error_kind = value
+                        .get("error_kind")
+                        .filter(|value| !value.is_null())
+                        .cloned()
+                        .map(serde_json::from_value)
+                        .transpose()
+                        .map_err(|error| {
+                            anyhow::anyhow!(
+                                "Queue result has invalid 'error_kind' for tool '{}': {}",
+                                name,
+                                error
+                            )
+                        })?;
+                    return Ok(crate::tools::ToolResult {
+                        name: name.to_string(),
+                        output,
+                        exit_code,
+                        metadata,
+                        images,
+                        error_kind,
+                        trust: crate::tools::ToolResultTrustV1::WorkspaceData,
+                    });
+                }
+                Ok(Err(e)) => {
+                    return Err(anyhow::anyhow!("Queued tool '{}' failed: {}", name, e));
+                }
+                Err(_) => {
+                    return Err(anyhow::anyhow!(
+                        "Queued tool '{}' result channel closed",
+                        name
+                    ));
+                }
+            }
+        }
+        self.execute_tool_timed(executor, name, args, ctx).await
+    }
+    /// Create a tool context with streaming support.
+    ///
+    /// When `event_tx` is Some, starts a forwarder task that converts
+    /// `ToolStreamEvent::OutputDelta` into `AgentEvent::ToolOutputDelta`
+    /// and sends them to the agent event channel. Scoped Agent calls register
+    /// the bridge with their Turn supervisor; compatibility calls retain the
+    /// channel-bounded legacy task.
+    ///
+    /// Returns the augmented `ToolContext`. The forwarder task runs until
+    /// the tool-side sender is dropped (i.e., tool execution finishes).
+    pub(super) fn streaming_tool_context(
+        &self,
+        base_ctx: &ToolContext,
+        event_tx: &Option<mpsc::Sender<AgentEvent>>,
+        tool_id: &str,
+        tool_name: &str,
+    ) -> ToolContext {
+        let mut ctx = base_ctx.clone();
+        if let Some(agent_tx) = event_tx {
+            let (tool_tx, mut tool_rx) = mpsc::channel::<ToolStreamEvent>(64);
+            ctx.event_tx = Some(tool_tx);
+
+            let agent_tx = agent_tx.clone();
+            let tool_id = tool_id.to_string();
+            let tool_name = tool_name.to_string();
+            let forwarder = async move {
+                while let Some(event) = tool_rx.recv().await {
+                    match event {
+                        ToolStreamEvent::OutputDelta(delta) => {
+                            agent_tx
+                                .send(AgentEvent::ToolOutputDelta {
+                                    id: tool_id.clone(),
+                                    name: tool_name.clone(),
+                                    delta,
+                                })
+                                .await
+                                .ok();
+                        }
+                    }
+                }
+                Ok::<(), crate::capability::CapabilityEffectError>(())
+            };
+            if let Some(capability) = base_ctx.capability_context() {
+                if let Err(error) =
+                    capability.spawn_foreground_task("tool.stream.forwarder", forwarder)
+                {
+                    tracing::warn!(%error, "Capability Tool stream bridge admission failed");
+                }
+            } else {
+                tokio::spawn(async move {
+                    let _ = forwarder.await;
+                });
+            }
+        }
+        ctx
+    }
+}

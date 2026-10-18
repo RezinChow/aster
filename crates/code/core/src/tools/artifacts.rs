@@ -1,0 +1,668 @@
+//! In-memory artifact storage for large tool observations.
+
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::io::{Read, Write};
+use std::path::Path;
+use std::sync::{Arc, RwLock};
+use thiserror::Error;
+
+const DEFAULT_MAX_ARTIFACTS: usize = 256;
+const DEFAULT_MAX_BYTES: usize = 16 * 1024 * 1024;
+/// Hard safety boundary for the on-disk artifact manifest.
+///
+/// Artifact contents are already bounded by [`ArtifactStoreLimits`], but the
+/// manifest is read before those limits can be applied. Keep that read
+/// bounded so a corrupt or untrusted session directory cannot force an
+/// unbounded allocation during recovery.
+const MAX_ARTIFACT_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolArtifact {
+    pub artifact_id: String,
+    pub artifact_uri: String,
+    pub tool_name: String,
+    pub content: String,
+    pub original_bytes: usize,
+    pub shown_bytes: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ArtifactStoreSnapshot {
+    artifacts: Vec<ToolArtifact>,
+    /// Host-supplied retention roots that must survive eviction/GC.
+    #[serde(default)]
+    retained_uris: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArtifactStoreLimits {
+    pub max_artifacts: usize,
+    pub max_bytes: usize,
+}
+
+/// Conflict raised when a content-addressed URI is reused for different
+/// artifact bytes or metadata.  The existing [`ArtifactStore::put`] method
+/// remains available for mutable cache callers; research and replay paths
+/// should use [`ArtifactStore::put_content_addressed`] instead.
+#[derive(Debug, Clone, Eq, PartialEq, Error)]
+pub enum ArtifactStoreError {
+    #[error("artifact URI '{artifact_uri}' is already bound to different content")]
+    Conflict { artifact_uri: String },
+}
+
+impl Default for ArtifactStoreLimits {
+    fn default() -> Self {
+        Self {
+            max_artifacts: DEFAULT_MAX_ARTIFACTS,
+            max_bytes: DEFAULT_MAX_BYTES,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct ArtifactStoreState {
+    artifacts: HashMap<String, ToolArtifact>,
+    insertion_order: VecDeque<String>,
+    total_bytes: usize,
+    /// URIs that must survive limit eviction and explicit GC until unpinned.
+    retained_uris: HashSet<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArtifactStore {
+    inner: Arc<RwLock<ArtifactStoreState>>,
+    limits: ArtifactStoreLimits,
+}
+
+impl ArtifactStore {
+    pub fn new() -> Self {
+        Self::with_limits(ArtifactStoreLimits::default())
+    }
+
+    pub fn with_limits(limits: ArtifactStoreLimits) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(ArtifactStoreState::default())),
+            limits,
+        }
+    }
+
+    pub fn put(&self, artifact: ToolArtifact) {
+        let mut state = self.inner.write().unwrap();
+        let artifact_uri = artifact.artifact_uri.clone();
+        if let Some(existing) = state.artifacts.remove(&artifact_uri) {
+            state.total_bytes = state.total_bytes.saturating_sub(existing.content.len());
+            state.insertion_order.retain(|uri| uri != &artifact_uri);
+        }
+
+        // Accounting is part of the eviction invariant. Saturating here
+        // keeps a malformed/oversized value from wrapping the counter and
+        // bypassing the byte limit in release builds.
+        state.total_bytes = state.total_bytes.saturating_add(artifact.content.len());
+        state.insertion_order.push_back(artifact_uri.clone());
+        state.artifacts.insert(artifact_uri, artifact);
+
+        self.enforce_limits(&mut state);
+    }
+
+    /// Insert an artifact without allowing an existing URI to be overwritten.
+    ///
+    /// Exact replay is idempotent and returns `Ok(false)`.  A URI collision
+    /// with different bytes or metadata fails closed and leaves the retained
+    /// artifact untouched.  Retention eviction remains explicit store policy:
+    /// after an object is evicted, a later create-only write may reinsert its
+    /// URI because the store no longer owns that historical object.
+    pub fn put_content_addressed(
+        &self,
+        artifact: ToolArtifact,
+    ) -> Result<bool, ArtifactStoreError> {
+        let mut state = self.inner.write().unwrap();
+        let artifact_uri = artifact.artifact_uri.clone();
+        if let Some(existing) = state.artifacts.get(&artifact_uri) {
+            if existing == &artifact {
+                return Ok(false);
+            }
+            return Err(ArtifactStoreError::Conflict { artifact_uri });
+        }
+
+        state.total_bytes += artifact.content.len();
+        state.insertion_order.push_back(artifact_uri.clone());
+        state.artifacts.insert(artifact_uri, artifact);
+        self.enforce_limits(&mut state);
+        Ok(true)
+    }
+
+    pub fn get(&self, artifact_uri: &str) -> Option<ToolArtifact> {
+        self.inner
+            .read()
+            .unwrap()
+            .artifacts
+            .get(artifact_uri)
+            .cloned()
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.read().unwrap().artifacts.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn total_bytes(&self) -> usize {
+        self.inner.read().unwrap().total_bytes
+    }
+
+    pub fn limits(&self) -> ArtifactStoreLimits {
+        self.limits
+    }
+
+    pub fn artifacts(&self) -> Vec<ToolArtifact> {
+        self.ordered_artifacts()
+    }
+
+    /// Pin artifact URIs so limit eviction and unreferenced GC cannot remove
+    /// content still reachable from a retained identity (STORE-GC1).
+    pub fn pin_uris(&self, uris: impl IntoIterator<Item = impl Into<String>>) {
+        let mut state = self.inner.write().unwrap();
+        for uri in uris {
+            let uri = uri.into();
+            if !uri.is_empty() {
+                state.retained_uris.insert(uri);
+            }
+        }
+    }
+
+    /// Replace the retained URI set with exactly the supplied roots.
+    pub fn set_retained_uris(&self, uris: impl IntoIterator<Item = impl Into<String>>) {
+        let mut state = self.inner.write().unwrap();
+        state.retained_uris.clear();
+        for uri in uris {
+            let uri = uri.into();
+            if !uri.is_empty() {
+                state.retained_uris.insert(uri);
+            }
+        }
+    }
+
+    pub fn retained_uris(&self) -> HashSet<String> {
+        self.inner.read().unwrap().retained_uris.clone()
+    }
+
+    /// Remove artifacts that are not in the retained root set.
+    ///
+    /// Returns the number of removed objects. Retained roots that are absent
+    /// from the store are ignored; present retained objects are never removed.
+    pub fn gc_unreferenced(&self) -> usize {
+        let mut state = self.inner.write().unwrap();
+        let removable: Vec<String> = state
+            .insertion_order
+            .iter()
+            .filter(|uri| !state.retained_uris.contains(uri.as_str()))
+            .cloned()
+            .collect();
+        let mut removed = 0usize;
+        for uri in removable {
+            if let Some(artifact) = state.artifacts.remove(&uri) {
+                state.total_bytes = state.total_bytes.saturating_sub(artifact.content.len());
+                state.insertion_order.retain(|queued| queued != &uri);
+                removed += 1;
+            }
+        }
+        removed
+    }
+
+    pub fn save_to_dir(&self, dir: impl AsRef<Path>) -> Result<()> {
+        let dir = dir.as_ref();
+        std::fs::create_dir_all(dir)
+            .with_context(|| format!("failed to create artifact directory '{}'", dir.display()))?;
+        let mut retained: Vec<String> = self.retained_uris().into_iter().collect();
+        retained.sort();
+        let snapshot = ArtifactStoreSnapshot {
+            artifacts: self.ordered_artifacts(),
+            retained_uris: retained,
+        };
+        let json = serde_json::to_string_pretty(&snapshot)
+            .context("failed to serialize artifact store snapshot")?;
+        let path = artifact_manifest_path(dir);
+        if json.len() as u64 > MAX_ARTIFACT_MANIFEST_BYTES {
+            anyhow::bail!(
+                "refusing to write artifact manifest '{}': {} bytes exceeds the {} byte limit",
+                path.display(),
+                json.len(),
+                MAX_ARTIFACT_MANIFEST_BYTES
+            );
+        }
+
+        // The manifest is the legacy fragment-store boundary. Publish it as
+        // one generation so a reader can never observe a partially written
+        // JSON document after a crash or concurrent session load.
+        let mut temp = tempfile::NamedTempFile::new_in(dir).with_context(|| {
+            format!(
+                "failed to create temporary artifact manifest in '{}'",
+                dir.display()
+            )
+        })?;
+        temp.write_all(json.as_bytes())
+            .context("failed to write temporary artifact manifest")?;
+        temp.flush()
+            .context("failed to flush temporary artifact manifest")?;
+        temp.as_file()
+            .sync_all()
+            .context("failed to sync temporary artifact manifest")?;
+        temp.persist(&path)
+            .map_err(|error| error.error)
+            .with_context(|| {
+                format!(
+                    "failed to atomically replace artifact manifest '{}'",
+                    path.display()
+                )
+            })?;
+        Ok(())
+    }
+
+    pub fn load_from_dir(dir: impl AsRef<Path>) -> Result<Self> {
+        Self::load_from_dir_with_limits(dir, ArtifactStoreLimits::default())
+    }
+
+    pub fn load_from_manifest_bytes(bytes: &[u8]) -> Result<Self> {
+        Self::load_from_manifest_bytes_with_limits(bytes, ArtifactStoreLimits::default())
+    }
+
+    pub fn load_from_manifest_bytes_with_limits(
+        bytes: &[u8],
+        limits: ArtifactStoreLimits,
+    ) -> Result<Self> {
+        if bytes.len() as u64 > MAX_ARTIFACT_MANIFEST_BYTES {
+            anyhow::bail!(
+                "refusing to parse artifact manifest: {} bytes exceeds the {} byte limit",
+                bytes.len(),
+                MAX_ARTIFACT_MANIFEST_BYTES
+            );
+        }
+        let snapshot: ArtifactStoreSnapshot =
+            serde_json::from_slice(bytes).context("failed to parse artifact store snapshot")?;
+        let store = Self::with_limits(limits);
+        for artifact in snapshot.artifacts {
+            store
+                .put_content_addressed(artifact)
+                .map_err(|error| anyhow::anyhow!("invalid artifact manifest: {error}"))?;
+        }
+        store.set_retained_uris(snapshot.retained_uris);
+        Ok(store)
+    }
+
+    pub fn load_from_dir_with_limits(
+        dir: impl AsRef<Path>,
+        limits: ArtifactStoreLimits,
+    ) -> Result<Self> {
+        let path = artifact_manifest_path(dir.as_ref());
+        if !path.exists() {
+            return Ok(Self::with_limits(limits));
+        }
+
+        let json = read_manifest(&path)?;
+        Self::load_from_manifest_bytes_with_limits(&json, limits)
+    }
+
+    fn enforce_limits(&self, state: &mut ArtifactStoreState) {
+        while state.artifacts.len() > self.limits.max_artifacts
+            || state.total_bytes > self.limits.max_bytes
+        {
+            let Some(uri) = pop_oldest_evictable(state) else {
+                break;
+            };
+            if let Some(removed) = state.artifacts.remove(&uri) {
+                state.total_bytes = state.total_bytes.saturating_sub(removed.content.len());
+            }
+        }
+    }
+
+    fn ordered_artifacts(&self) -> Vec<ToolArtifact> {
+        let state = self.inner.read().unwrap();
+        state
+            .insertion_order
+            .iter()
+            .filter_map(|uri| state.artifacts.get(uri).cloned())
+            .collect()
+    }
+}
+
+fn pop_oldest_evictable(state: &mut ArtifactStoreState) -> Option<String> {
+    let mut skipped = VecDeque::new();
+    let mut evicted = None;
+    while let Some(uri) = state.insertion_order.pop_front() {
+        if state.retained_uris.contains(&uri) {
+            skipped.push_back(uri);
+            continue;
+        }
+        evicted = Some(uri);
+        break;
+    }
+    while let Some(uri) = skipped.pop_back() {
+        state.insertion_order.push_front(uri);
+    }
+    evicted
+}
+
+impl Default for ArtifactStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn artifact_manifest_path(dir: &Path) -> std::path::PathBuf {
+    dir.join("artifacts.json")
+}
+
+fn read_manifest(path: &Path) -> Result<Vec<u8>> {
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("failed to open artifact manifest '{}'", path.display()))?;
+    let declared_len = file
+        .metadata()
+        .with_context(|| format!("failed to inspect artifact manifest '{}'", path.display()))?
+        .len();
+    if declared_len > MAX_ARTIFACT_MANIFEST_BYTES {
+        anyhow::bail!(
+            "refusing to read artifact manifest '{}': {} bytes exceeds the {} byte limit",
+            path.display(),
+            declared_len,
+            MAX_ARTIFACT_MANIFEST_BYTES
+        );
+    }
+
+    // Re-check through a bounded reader so a file that grows after metadata
+    // inspection cannot race past the allocation boundary.
+    let mut reader = file.take(MAX_ARTIFACT_MANIFEST_BYTES + 1);
+    let mut bytes = Vec::with_capacity(
+        usize::try_from(declared_len)
+            .unwrap_or(usize::MAX)
+            .min(1024 * 1024),
+    );
+    reader
+        .read_to_end(&mut bytes)
+        .with_context(|| format!("failed to read artifact manifest '{}'", path.display()))?;
+    if bytes.len() as u64 > MAX_ARTIFACT_MANIFEST_BYTES {
+        anyhow::bail!(
+            "refusing to read artifact manifest '{}': document exceeds the {} byte limit",
+            path.display(),
+            MAX_ARTIFACT_MANIFEST_BYTES
+        );
+    }
+    Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_artifact_store_put_and_get() {
+        let store = ArtifactStore::new();
+        let artifact = ToolArtifact {
+            artifact_id: "tool-output:test:abc".to_string(),
+            artifact_uri: "a3s://tool-output/test/abc".to_string(),
+            tool_name: "test".to_string(),
+            content: "full output".to_string(),
+            original_bytes: 11,
+            shown_bytes: 4,
+        };
+
+        store.put(artifact.clone());
+
+        assert_eq!(store.len(), 1);
+        assert_eq!(store.get("a3s://tool-output/test/abc"), Some(artifact));
+    }
+
+    #[test]
+    fn test_content_addressed_put_is_idempotent_and_conflict_safe() {
+        let store = ArtifactStore::new();
+        let artifact = ToolArtifact {
+            artifact_id: "tool-output:test:immutable".to_string(),
+            artifact_uri: "a3s://tool-output/test/immutable".to_string(),
+            tool_name: "test".to_string(),
+            content: "immutable output".to_string(),
+            original_bytes: 16,
+            shown_bytes: 8,
+        };
+
+        assert!(store.put_content_addressed(artifact.clone()).unwrap());
+        assert!(!store.put_content_addressed(artifact.clone()).unwrap());
+        assert_eq!(store.len(), 1);
+
+        let mut conflicting = artifact.clone();
+        conflicting.content = "different output".to_string();
+        assert_eq!(
+            store.put_content_addressed(conflicting),
+            Err(ArtifactStoreError::Conflict {
+                artifact_uri: artifact.artifact_uri.clone()
+            })
+        );
+        assert_eq!(store.get(&artifact.artifact_uri), Some(artifact));
+    }
+
+    #[test]
+    fn test_artifact_store_missing_uri() {
+        let store = ArtifactStore::new();
+
+        assert!(store.is_empty());
+        assert!(store.get("a3s://missing").is_none());
+    }
+
+    #[test]
+    fn test_artifact_store_evicts_oldest_by_count() {
+        let store = ArtifactStore::with_limits(ArtifactStoreLimits {
+            max_artifacts: 2,
+            max_bytes: 1024,
+        });
+
+        for index in 0..3 {
+            store.put(ToolArtifact {
+                artifact_id: format!("tool-output:test:{index}"),
+                artifact_uri: format!("a3s://tool-output/test/{index}"),
+                tool_name: "test".to_string(),
+                content: format!("artifact {index}"),
+                original_bytes: 10,
+                shown_bytes: 4,
+            });
+        }
+
+        assert_eq!(store.len(), 2);
+        assert!(store.get("a3s://tool-output/test/0").is_none());
+        assert!(store.get("a3s://tool-output/test/1").is_some());
+        assert!(store.get("a3s://tool-output/test/2").is_some());
+    }
+
+    #[test]
+    fn test_artifact_store_evicts_oldest_by_bytes() {
+        let store = ArtifactStore::with_limits(ArtifactStoreLimits {
+            max_artifacts: 10,
+            max_bytes: 8,
+        });
+
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:a".to_string(),
+            artifact_uri: "a3s://tool-output/test/a".to_string(),
+            tool_name: "test".to_string(),
+            content: "aaaa".to_string(),
+            original_bytes: 4,
+            shown_bytes: 2,
+        });
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:b".to_string(),
+            artifact_uri: "a3s://tool-output/test/b".to_string(),
+            tool_name: "test".to_string(),
+            content: "bbbbb".to_string(),
+            original_bytes: 5,
+            shown_bytes: 2,
+        });
+
+        assert_eq!(store.len(), 1);
+        assert_eq!(store.total_bytes(), 5);
+        assert!(store.get("a3s://tool-output/test/a").is_none());
+        assert!(store.get("a3s://tool-output/test/b").is_some());
+    }
+
+    #[test]
+    fn test_artifact_store_replacing_artifact_updates_order_and_bytes() {
+        let store = ArtifactStore::with_limits(ArtifactStoreLimits {
+            max_artifacts: 2,
+            max_bytes: 1024,
+        });
+
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:a".to_string(),
+            artifact_uri: "a3s://tool-output/test/a".to_string(),
+            tool_name: "test".to_string(),
+            content: "a".to_string(),
+            original_bytes: 1,
+            shown_bytes: 1,
+        });
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:b".to_string(),
+            artifact_uri: "a3s://tool-output/test/b".to_string(),
+            tool_name: "test".to_string(),
+            content: "bb".to_string(),
+            original_bytes: 2,
+            shown_bytes: 1,
+        });
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:a".to_string(),
+            artifact_uri: "a3s://tool-output/test/a".to_string(),
+            tool_name: "test".to_string(),
+            content: "aaaa".to_string(),
+            original_bytes: 4,
+            shown_bytes: 1,
+        });
+
+        assert_eq!(store.len(), 2);
+        assert_eq!(store.total_bytes(), 6);
+        assert_eq!(
+            store.get("a3s://tool-output/test/a").unwrap().content,
+            "aaaa"
+        );
+    }
+
+    #[test]
+    fn test_artifact_store_saves_and_loads_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ArtifactStore::with_limits(ArtifactStoreLimits {
+            max_artifacts: 10,
+            max_bytes: 1024,
+        });
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:a".to_string(),
+            artifact_uri: "a3s://tool-output/test/a".to_string(),
+            tool_name: "test".to_string(),
+            content: "artifact content".to_string(),
+            original_bytes: 16,
+            shown_bytes: 4,
+        });
+
+        store.save_to_dir(dir.path()).unwrap();
+        let loaded = ArtifactStore::load_from_dir_with_limits(
+            dir.path(),
+            ArtifactStoreLimits {
+                max_artifacts: 10,
+                max_bytes: 1024,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(
+            loaded
+                .get("a3s://tool-output/test/a")
+                .expect("artifact")
+                .content,
+            "artifact content"
+        );
+    }
+
+    #[test]
+    fn test_artifact_store_load_missing_manifest_returns_empty_store() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let loaded = ArtifactStore::load_from_dir(dir.path()).unwrap();
+
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn test_artifact_store_rejects_oversized_manifest_before_reading() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("artifacts.json");
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(MAX_ARTIFACT_MANIFEST_BYTES + 1).unwrap();
+
+        let error = ArtifactStore::load_from_dir(dir.path()).unwrap_err();
+
+        assert!(error.to_string().contains("exceeds the"));
+        assert!(error.to_string().contains("artifact manifest"));
+    }
+
+    #[test]
+    fn retained_uris_survive_limit_eviction() {
+        let store = ArtifactStore::with_limits(ArtifactStoreLimits {
+            max_artifacts: 2,
+            max_bytes: 1024,
+        });
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:pinned".to_string(),
+            artifact_uri: "a3s://tool-output/test/pinned".to_string(),
+            tool_name: "test".to_string(),
+            content: "pinned".to_string(),
+            original_bytes: 6,
+            shown_bytes: 3,
+        });
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:kept".to_string(),
+            artifact_uri: "a3s://tool-output/test/kept".to_string(),
+            tool_name: "test".to_string(),
+            content: "kept".to_string(),
+            original_bytes: 4,
+            shown_bytes: 2,
+        });
+        store.set_retained_uris([
+            "a3s://tool-output/test/pinned",
+            "a3s://tool-output/test/kept",
+        ]);
+        store.put(ToolArtifact {
+            artifact_id: "tool-output:test:third".to_string(),
+            artifact_uri: "a3s://tool-output/test/third".to_string(),
+            tool_name: "test".to_string(),
+            content: "third".to_string(),
+            original_bytes: 5,
+            shown_bytes: 2,
+        });
+        assert!(store.get("a3s://tool-output/test/pinned").is_some());
+        assert!(store.get("a3s://tool-output/test/kept").is_some());
+        assert!(
+            store.get("a3s://tool-output/test/third").is_none(),
+            "unpinned overflow should still be evicted"
+        );
+        assert_eq!(store.len(), 2);
+    }
+
+    #[test]
+    fn gc_unreferenced_keeps_only_retained_roots() {
+        let store = ArtifactStore::new();
+        for index in 0..3 {
+            store.put(ToolArtifact {
+                artifact_id: format!("tool-output:test:{index}"),
+                artifact_uri: format!("a3s://tool-output/test/{index}"),
+                tool_name: "test".to_string(),
+                content: format!("artifact {index}"),
+                original_bytes: 10,
+                shown_bytes: 4,
+            });
+        }
+        store.set_retained_uris(["a3s://tool-output/test/1"]);
+        assert_eq!(store.gc_unreferenced(), 2);
+        assert!(store.get("a3s://tool-output/test/0").is_none());
+        assert!(store.get("a3s://tool-output/test/1").is_some());
+        assert!(store.get("a3s://tool-output/test/2").is_none());
+        assert_eq!(store.retained_uris().len(), 1);
+    }
+}

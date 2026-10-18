@@ -1,0 +1,844 @@
+//! LLM-powered planning logic
+//!
+//! Provides intelligent plan generation, goal extraction, and achievement
+//! evaluation by sending structured prompts to an LLM and parsing JSON responses.
+//! Falls back to heuristic logic when no LLM client is available.
+
+use crate::llm::structured::{generate_blocking, StructuredMode, StructuredRequest};
+use crate::llm::{LlmClient, Message};
+use crate::planning::{AgentGoal, Complexity, ExecutionPlan, Task};
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+/// Result of evaluating goal achievement
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AchievementResult {
+    /// Whether the goal has been achieved
+    pub achieved: bool,
+    /// Progress toward goal (0.0 - 1.0)
+    pub progress: f32,
+    /// Criteria that remain unmet
+    pub remaining_criteria: Vec<String>,
+}
+
+/// Pre-analysis result — intent, goal, plan, and optimized input in one LLM call.
+#[derive(Debug, Clone)]
+pub struct PreAnalysis {
+    pub intent: crate::prompts::AgentStyle,
+    pub requires_planning: bool,
+    pub goal: AgentGoal,
+    pub execution_plan: ExecutionPlan,
+    /// LLM-rewritten version of the user input with ambiguities resolved.
+    pub optimized_input: String,
+}
+
+/// LLM-powered planner that generates plans, extracts goals, and evaluates achievement
+pub struct LlmPlanner;
+
+// ============================================================================
+// JSON response schemas for LLM parsing
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+struct PlanResponse {
+    goal: String,
+    complexity: String,
+    steps: Vec<StepResponse>,
+    #[serde(default)]
+    required_tools: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StepResponse {
+    id: String,
+    description: String,
+    #[serde(default)]
+    tool: Option<String>,
+    #[serde(default)]
+    dependencies: Vec<String>,
+    #[serde(default)]
+    success_criteria: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GoalResponse {
+    description: String,
+    success_criteria: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AchievementResponse {
+    achieved: bool,
+    progress: f32,
+    #[serde(default)]
+    remaining_criteria: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PreAnalysisResponse {
+    intent: String,
+    requires_planning: bool,
+    goal: GoalResponse,
+    execution_plan: PreAnalysisPlan,
+    optimized_input: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PreAnalysisPlan {
+    complexity: String,
+    steps: Vec<StepResponse>,
+    #[serde(default)]
+    required_tools: Vec<String>,
+}
+
+fn claim_step_id(seen: &mut std::collections::HashSet<String>, id: String) -> Result<String> {
+    let id = id.trim().to_string();
+    if id.is_empty() {
+        anyhow::bail!("plan step id must not be empty");
+    }
+    if !seen.insert(id.clone()) {
+        anyhow::bail!("plan step id '{id}' is duplicated");
+    }
+    Ok(id)
+}
+
+impl LlmPlanner {
+    /// Generate an execution plan from a prompt using LLM
+    pub async fn create_plan(
+        llm: &Arc<dyn LlmClient>,
+        prompt: &str,
+        language: Option<&str>,
+    ) -> Result<ExecutionPlan> {
+        let system = planning_system_prompt(crate::prompts::LLM_PLAN_SYSTEM, language);
+
+        let messages = vec![Message::user(prompt)];
+        let response = llm
+            .complete(&messages, Some(system.as_str()), &[])
+            .await
+            .context("LLM call failed during plan creation")?;
+
+        let text = response.text();
+        Self::parse_plan_response(&text)
+    }
+
+    /// Extract a goal with success criteria from a prompt using LLM
+    pub async fn extract_goal(
+        llm: &Arc<dyn LlmClient>,
+        prompt: &str,
+        language: Option<&str>,
+    ) -> Result<AgentGoal> {
+        let system = planning_system_prompt(crate::prompts::LLM_GOAL_EXTRACT_SYSTEM, language);
+
+        let messages = vec![Message::user(prompt)];
+        let response = llm
+            .complete(&messages, Some(system.as_str()), &[])
+            .await
+            .context("LLM call failed during goal extraction")?;
+
+        let text = response.text();
+        Self::parse_goal_response(&text)
+    }
+
+    /// Evaluate whether a goal has been achieved given current state
+    pub async fn check_achievement(
+        llm: &Arc<dyn LlmClient>,
+        goal: &AgentGoal,
+        current_state: &str,
+    ) -> Result<AchievementResult> {
+        Self::check_achievement_with_usage(llm, goal, current_state)
+            .await
+            .map(|(result, _)| result)
+    }
+
+    pub(crate) async fn check_achievement_with_usage(
+        llm: &Arc<dyn LlmClient>,
+        goal: &AgentGoal,
+        current_state: &str,
+    ) -> Result<(AchievementResult, crate::llm::TokenUsage)> {
+        let prompt = format!(
+            "Goal: {}\nSuccess Criteria: {}\nCurrent State: {}",
+            goal.description,
+            goal.success_criteria.join("; "),
+            current_state,
+        );
+        let req = StructuredRequest {
+            prompt,
+            system: Some(crate::prompts::LLM_GOAL_CHECK_SYSTEM.to_string()),
+            schema: Self::achievement_schema(),
+            schema_name: "goal_achievement".to_string(),
+            schema_description: Some(
+                "Strict, evidence-backed evaluation of whether every goal criterion is met"
+                    .to_string(),
+            ),
+            mode: StructuredMode::Auto,
+            max_repair_attempts: 2,
+        };
+
+        let result = generate_blocking(&**llm, &req)
+            .await
+            .context("LLM achievement structured generation failed")?;
+        Ok((Self::achievement_from_value(result.object)?, result.usage))
+    }
+
+    /// Create a minimal fallback plan when explicit planning cannot use the LLM.
+    ///
+    /// The original request is the only honest executable step available here.
+    /// Fabricating numbered placeholder steps makes the task tracker look active
+    /// without conveying useful progress.
+    pub fn fallback_plan(prompt: &str) -> ExecutionPlan {
+        let content = match prompt.trim() {
+            "" => "Complete the requested task",
+            prompt => prompt,
+        };
+        let product = crate::transcript::product_user_text(content);
+        let mut plan = if product.trim().is_empty() || product == content {
+            ExecutionPlan::new(content, Complexity::Simple)
+        } else {
+            let mut plan = ExecutionPlan::new(product, Complexity::Simple);
+            plan.execution_context = Some(content.to_string());
+            plan
+        };
+        plan.add_step(Task::new("step-1", content));
+
+        plan
+    }
+
+    /// Create a fallback goal using heuristic logic (no LLM required).
+    ///
+    /// Do not invent English success criteria — they surface in product UI and
+    /// fight the host language pin. The request text is the only honest goal.
+    pub fn fallback_goal(prompt: &str) -> AgentGoal {
+        AgentGoal::new(prompt)
+    }
+
+    /// Create a fail-closed fallback achievement result (no LLM required).
+    ///
+    /// Goal completion is a control-plane decision: a host may stop an
+    /// unbounded engineering loop as soon as `GoalAchieved` is emitted. Plain
+    /// answer text such as "done" (or even "not complete") is not sufficient
+    /// evidence for that decision. If the structured evaluator is unavailable,
+    /// keep every success criterion open and let the host retry in a later
+    /// iteration.
+    pub fn fallback_check_achievement(goal: &AgentGoal, current_state: &str) -> AchievementResult {
+        let _ = current_state;
+
+        AchievementResult {
+            achieved: false,
+            progress: goal.progress,
+            remaining_criteria: goal.success_criteria.clone(),
+        }
+    }
+
+    /// Perform pre-analysis in a single LLM call: intent classification, goal extraction,
+    /// execution plan, and input optimization. Falls back to heuristics on failure.
+    pub async fn pre_analyze(
+        llm: &Arc<dyn LlmClient>,
+        prompt: &str,
+        language: Option<&str>,
+    ) -> Result<PreAnalysis> {
+        let system = planning_system_prompt(crate::prompts::PRE_ANALYSIS_SYSTEM, language);
+        let req = StructuredRequest {
+            prompt: format!(
+                "Analyze this user request and return a compact pre-analysis object. \
+                 Use at most 5 execution steps.\n\nUser request:\n{prompt}"
+            ),
+            system: Some(system),
+            schema: Self::pre_analysis_schema(),
+            schema_name: "pre_analysis".to_string(),
+            schema_description: Some(
+                "Intent, goal, plan, and optimized input for an agent turn".to_string(),
+            ),
+            mode: StructuredMode::Auto,
+            max_repair_attempts: 2,
+        };
+
+        let result = generate_blocking(&**llm, &req)
+            .await
+            .context("LLM pre-analysis structured generation failed")?;
+
+        Self::pre_analysis_from_value(result.object, prompt)
+            .context("Failed to parse pre-analysis JSON from LLM response")
+    }
+
+    fn pre_analysis_from_value(
+        value: serde_json::Value,
+        original_prompt: &str,
+    ) -> Result<PreAnalysis> {
+        let parsed: PreAnalysisResponse = serde_json::from_value(value)
+            .context("pre-analysis object did not match the expected response shape")?;
+        Self::pre_analysis_from_response(parsed, original_prompt)
+    }
+
+    fn pre_analysis_from_response(
+        parsed: PreAnalysisResponse,
+        original_prompt: &str,
+    ) -> Result<PreAnalysis> {
+        let intent = match parsed.intent.to_lowercase().as_str() {
+            "plan" => crate::prompts::AgentStyle::Plan,
+            "explore" => crate::prompts::AgentStyle::Explore,
+            "verification" => crate::prompts::AgentStyle::Verification,
+            "codereview" | "code review" => crate::prompts::AgentStyle::CodeReview,
+            _ => crate::prompts::AgentStyle::GeneralPurpose,
+        };
+
+        let goal_description = parsed.goal.description.clone();
+        let goal =
+            AgentGoal::new(goal_description.clone()).with_criteria(parsed.goal.success_criteria);
+
+        let complexity = match parsed.execution_plan.complexity.as_str() {
+            "Simple" => Complexity::Simple,
+            "Medium" => Complexity::Medium,
+            "Complex" => Complexity::Complex,
+            "VeryComplex" => Complexity::VeryComplex,
+            _ => Complexity::Medium,
+        };
+
+        let mut plan = ExecutionPlan::new(goal_description, complexity);
+        let mut seen_ids = std::collections::HashSet::new();
+        for step_resp in parsed.execution_plan.steps {
+            let id = claim_step_id(&mut seen_ids, step_resp.id)?;
+            let mut task = Task::new(id, step_resp.description);
+            if let Some(tool) = step_resp.tool {
+                task = task.with_tool(tool);
+            }
+            if !step_resp.dependencies.is_empty() {
+                task = task.with_dependencies(step_resp.dependencies);
+            }
+            if let Some(criteria) = step_resp.success_criteria {
+                task = task.with_success_criteria(criteria);
+            }
+            plan.add_step(task);
+        }
+        for tool in parsed.execution_plan.required_tools {
+            plan.add_required_tool(tool);
+        }
+
+        Ok(PreAnalysis {
+            intent,
+            requires_planning: parsed.requires_planning,
+            goal,
+            execution_plan: plan,
+            optimized_input: if parsed.optimized_input.is_empty() {
+                original_prompt.to_string()
+            } else {
+                parsed.optimized_input
+            },
+        })
+    }
+
+    fn pre_analysis_schema() -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "required": ["intent", "requires_planning", "goal", "execution_plan", "optimized_input"],
+            "properties": {
+                "intent": { "type": "string" },
+                "requires_planning": { "type": "boolean" },
+                "goal": {
+                    "type": "object",
+                    "required": ["description", "success_criteria"],
+                    "properties": {
+                        "description": { "type": "string", "minLength": 1 },
+                        "success_criteria": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    }
+                },
+                "execution_plan": {
+                    "type": "object",
+                    "required": ["complexity", "steps"],
+                    "properties": {
+                        "complexity": { "type": "string" },
+                        "steps": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["id", "description"],
+                                "properties": {
+                                    "id": { "type": "string" },
+                                    "description": { "type": "string" },
+                                    "tool": { "type": "string" },
+                                    "dependencies": {
+                                        "type": "array",
+                                        "items": { "type": "string" }
+                                    },
+                                    "success_criteria": { "type": "string" }
+                                }
+                            }
+                        },
+                        "required_tools": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    }
+                },
+                "optimized_input": { "type": "string" }
+            }
+        })
+    }
+
+    fn achievement_schema() -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["achieved", "progress", "remaining_criteria"],
+            "properties": {
+                "achieved": { "type": "boolean" },
+                "progress": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "remaining_criteria": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
+            }
+        })
+    }
+
+    fn achievement_from_value(value: serde_json::Value) -> Result<AchievementResult> {
+        let parsed: AchievementResponse = serde_json::from_value(value)
+            .context("achievement object did not match the expected response shape")?;
+        Ok(AchievementResult {
+            achieved: parsed.achieved,
+            progress: parsed.progress.clamp(0.0, 1.0),
+            remaining_criteria: parsed.remaining_criteria,
+        })
+    }
+
+    // ========================================================================
+    // JSON parsing helpers
+    // ========================================================================
+
+    fn parse_plan_response(text: &str) -> Result<ExecutionPlan> {
+        let parsed: PlanResponse = Self::parse_json_lenient(text)
+            .context("Failed to parse plan JSON from LLM response")?;
+
+        let complexity = match parsed.complexity.as_str() {
+            "Simple" => Complexity::Simple,
+            "Medium" => Complexity::Medium,
+            "Complex" => Complexity::Complex,
+            "VeryComplex" => Complexity::VeryComplex,
+            _ => Complexity::Medium,
+        };
+
+        let mut plan = ExecutionPlan::new(parsed.goal, complexity);
+        let mut seen_ids = std::collections::HashSet::new();
+
+        for step_resp in parsed.steps {
+            let id = claim_step_id(&mut seen_ids, step_resp.id)?;
+            let mut task = Task::new(id, step_resp.description);
+            if let Some(tool) = step_resp.tool {
+                task = task.with_tool(tool);
+            }
+            if !step_resp.dependencies.is_empty() {
+                task = task.with_dependencies(step_resp.dependencies);
+            }
+            if let Some(criteria) = step_resp.success_criteria {
+                task = task.with_success_criteria(criteria);
+            }
+            plan.add_step(task);
+        }
+
+        for tool in parsed.required_tools {
+            plan.add_required_tool(tool);
+        }
+
+        Ok(plan)
+    }
+
+    fn parse_goal_response(text: &str) -> Result<AgentGoal> {
+        let parsed: GoalResponse = Self::parse_json_lenient(text)
+            .context("Failed to parse goal JSON from LLM response")?;
+
+        Ok(AgentGoal::new(parsed.description).with_criteria(parsed.success_criteria))
+    }
+
+    #[cfg(test)]
+    fn parse_achievement_response(text: &str) -> Result<AchievementResult> {
+        let parsed: AchievementResponse = Self::parse_json_lenient(text)
+            .context("Failed to parse achievement JSON from LLM response")?;
+
+        Ok(AchievementResult {
+            achieved: parsed.achieved,
+            progress: parsed.progress.clamp(0.0, 1.0),
+            remaining_criteria: parsed.remaining_criteria,
+        })
+    }
+
+    /// Parse JSON from possibly-dirty LLM output into the target type.
+    ///
+    /// Uses the shared robust extractor ([`crate::llm::structured::extract_json_value`]),
+    /// which handles ```json fences, surrounding prose, and braces embedded in
+    /// strings — unlike the previous naive first-`{`/last-`}` slice, which broke
+    /// on fenced output or any `}` inside a string value.
+    fn parse_json_lenient<T: serde::de::DeserializeOwned>(text: &str) -> Result<T> {
+        let value = crate::llm::structured::extract_json_value(text)?;
+        Ok(serde_json::from_value(value)?)
+    }
+}
+
+fn planning_system_prompt(base: &str, language: Option<&str>) -> String {
+    match language.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(language) => format!(
+            "{}\n\n{}",
+            base.trim_end(),
+            crate::prompts::output_language_contract(language)
+        ),
+        None => base.to_owned(),
+    }
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn planning_system_prompt_appends_shared_language_contract() {
+        let prompt = planning_system_prompt("Base planner.", Some("zh-CN"));
+        assert!(prompt.starts_with("Base planner."));
+        assert!(prompt.contains("## Output Language"));
+        assert!(prompt.contains("zh-CN"));
+        assert_eq!(
+            planning_system_prompt("Base planner.", None),
+            "Base planner."
+        );
+    }
+
+    #[test]
+    fn test_parse_plan_response() {
+        let json = r#"{
+            "goal": "Build a REST API",
+            "complexity": "Complex",
+            "steps": [
+                {
+                    "id": "step-1",
+                    "description": "Set up project structure",
+                    "tool": "bash",
+                    "dependencies": [],
+                    "success_criteria": "Project directory created"
+                },
+                {
+                    "id": "step-2",
+                    "description": "Implement endpoints",
+                    "tool": "write",
+                    "dependencies": ["step-1"],
+                    "success_criteria": "Endpoints respond correctly"
+                }
+            ],
+            "required_tools": ["bash", "write", "read"]
+        }"#;
+
+        let plan = LlmPlanner::parse_plan_response(json).unwrap();
+        assert_eq!(plan.goal, "Build a REST API");
+        assert_eq!(plan.complexity, Complexity::Complex);
+        assert_eq!(plan.steps.len(), 2);
+        assert_eq!(plan.steps[0].id, "step-1");
+        assert_eq!(plan.steps[0].tool, Some("bash".to_string()));
+        assert_eq!(plan.steps[1].dependencies, vec!["step-1".to_string()]);
+        assert_eq!(plan.required_tools, vec!["bash", "write", "read"]);
+    }
+
+    #[test]
+    fn test_parse_plan_response_with_markdown_fences() {
+        let json = "```json\n{\"goal\": \"Test\", \"complexity\": \"Simple\", \"steps\": [{\"id\": \"step-1\", \"description\": \"Do it\"}], \"required_tools\": []}\n```";
+
+        let plan = LlmPlanner::parse_plan_response(json).unwrap();
+        assert_eq!(plan.goal, "Test");
+        assert_eq!(plan.complexity, Complexity::Simple);
+        assert_eq!(plan.steps.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_plan_response_invalid() {
+        let bad_json = "This is not JSON at all";
+        let result = LlmPlanner::parse_plan_response(bad_json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_plan_response_rejects_a_duplicated_step_id() {
+        let json = r#"{"goal":"g","complexity":"Simple","steps":[
+            {"id":"step-1","description":"a"},
+            {"id":"step-1","description":"b"}
+        ],"required_tools":[]}"#;
+        let err = LlmPlanner::parse_plan_response(json)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("duplicated"), "{err}");
+    }
+
+    #[test]
+    fn test_parse_plan_response_unknown_complexity() {
+        let json =
+            r#"{"goal": "Test", "complexity": "Unknown", "steps": [], "required_tools": []}"#;
+        let plan = LlmPlanner::parse_plan_response(json).unwrap();
+        assert_eq!(plan.complexity, Complexity::Medium); // falls back to Medium
+    }
+
+    #[test]
+    fn test_parse_goal_response() {
+        let json = r#"{
+            "description": "Deploy the application to production",
+            "success_criteria": [
+                "All tests pass",
+                "Application is accessible at production URL",
+                "Health check returns 200"
+            ]
+        }"#;
+
+        let goal = LlmPlanner::parse_goal_response(json).unwrap();
+        assert_eq!(goal.description, "Deploy the application to production");
+        assert_eq!(goal.success_criteria.len(), 3);
+        assert_eq!(goal.success_criteria[0], "All tests pass");
+    }
+
+    #[test]
+    fn test_parse_goal_response_invalid() {
+        let result = LlmPlanner::parse_goal_response("not json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_achievement_response() {
+        let json = r#"{
+            "achieved": false,
+            "progress": 0.65,
+            "remaining_criteria": ["Health check not verified"]
+        }"#;
+
+        let result = LlmPlanner::parse_achievement_response(json).unwrap();
+        assert!(!result.achieved);
+        assert!((result.progress - 0.65).abs() < f32::EPSILON);
+        assert_eq!(result.remaining_criteria, vec!["Health check not verified"]);
+    }
+
+    #[test]
+    fn test_parse_achievement_response_achieved() {
+        let json = r#"{"achieved": true, "progress": 1.0, "remaining_criteria": []}"#;
+        let result = LlmPlanner::parse_achievement_response(json).unwrap();
+        assert!(result.achieved);
+        assert!((result.progress - 1.0).abs() < f32::EPSILON);
+        assert!(result.remaining_criteria.is_empty());
+    }
+
+    #[test]
+    fn test_parse_achievement_response_clamps_progress() {
+        let json = r#"{"achieved": false, "progress": 1.5, "remaining_criteria": []}"#;
+        let result = LlmPlanner::parse_achievement_response(json).unwrap();
+        assert!((result.progress - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_fallback_plan() {
+        let short_prompt = "Fix bug";
+        let plan = LlmPlanner::fallback_plan(short_prompt);
+        assert_eq!(plan.complexity, Complexity::Simple);
+        assert_eq!(plan.steps.len(), 1);
+        assert_eq!(plan.goal, short_prompt);
+        assert_eq!(plan.steps[0].content, short_prompt);
+
+        let long_prompt = "Implement a comprehensive authentication system with OAuth2 support, JWT tokens, refresh token rotation, multi-factor authentication, and role-based access control across all API endpoints with proper audit logging and session management capabilities for both web and mobile clients, including password reset flows, account lockout policies, and integration with external identity providers such as Google, GitHub, and SAML-based enterprise SSO systems";
+        let plan = LlmPlanner::fallback_plan(long_prompt);
+        assert_eq!(plan.complexity, Complexity::Simple);
+        assert_eq!(plan.steps.len(), 1);
+        assert_eq!(plan.steps[0].content, long_prompt);
+        assert!(
+            !plan.steps[0].content.contains("Execute step"),
+            "fallback plans must not expose placeholder task text"
+        );
+
+        let plan = LlmPlanner::fallback_plan("   ");
+        assert_eq!(plan.goal, "Complete the requested task");
+        assert_eq!(plan.steps[0].content, "Complete the requested task");
+
+        let composed =
+            "A3S Desktop workbench context:\n- Active workbench: Office.\n\nUser task:\n规划引擎";
+        let plan = LlmPlanner::fallback_plan(composed);
+        assert_eq!(plan.goal, "规划引擎");
+        assert_eq!(plan.execution_context.as_deref(), Some(composed));
+        assert_eq!(plan.wire_goal(), composed);
+        assert_eq!(plan.product_goal(), "规划引擎");
+    }
+
+    #[test]
+    fn test_fallback_goal() {
+        let goal = LlmPlanner::fallback_goal("Fix the login bug");
+        assert_eq!(goal.description, "Fix the login bug");
+        assert!(
+            goal.success_criteria.is_empty(),
+            "fallback goals must not invent English success criteria"
+        );
+    }
+
+    #[test]
+    fn test_fallback_check_achievement_fails_closed_on_done_text() {
+        let goal = AgentGoal::new("Test task").with_criteria(vec!["Criterion 1".to_string()]);
+
+        let result = LlmPlanner::fallback_check_achievement(&goal, "The task is done.");
+        assert!(!result.achieved);
+        assert!(result.progress.abs() < f32::EPSILON);
+        assert_eq!(result.remaining_criteria, vec!["Criterion 1"]);
+    }
+
+    #[test]
+    fn test_fallback_check_achievement_rejects_negated_completion_text() {
+        let goal = AgentGoal::new("Test task").with_criteria(vec!["Criterion 1".to_string()]);
+
+        for state in [
+            "The task is not complete.",
+            "Verification is not done.",
+            "The implementation is unfinished.",
+        ] {
+            let result = LlmPlanner::fallback_check_achievement(&goal, state);
+            assert!(!result.achieved, "must fail closed for {state:?}");
+            assert_eq!(result.remaining_criteria, vec!["Criterion 1"]);
+        }
+    }
+
+    #[test]
+    fn test_fallback_check_achievement_not_done() {
+        let goal = AgentGoal::new("Test task")
+            .with_criteria(vec!["Criterion 1".to_string(), "Criterion 2".to_string()]);
+
+        let result = LlmPlanner::fallback_check_achievement(&goal, "Work in progress");
+        assert!(!result.achieved);
+        assert_eq!(result.remaining_criteria.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_json_lenient_plain() {
+        let v: serde_json::Value = LlmPlanner::parse_json_lenient("  {\"a\": 1}  ").unwrap();
+        assert_eq!(v["a"], 1);
+    }
+
+    #[test]
+    fn test_parse_json_lenient_with_fences() {
+        let text = "```json\n{\"a\": 1}\n```";
+        let v: serde_json::Value = LlmPlanner::parse_json_lenient(text).unwrap();
+        assert_eq!(v["a"], 1);
+    }
+
+    #[test]
+    fn test_parse_json_lenient_with_surrounding_prose() {
+        let text = "Here is the plan:\n{\"goal\": \"test\"}\nDone.";
+        let v: serde_json::Value = LlmPlanner::parse_json_lenient(text).unwrap();
+        assert_eq!(v["goal"], "test");
+    }
+
+    #[test]
+    fn test_parse_json_lenient_brace_inside_string_value() {
+        // The old naive first-`{`/last-`}` slice broke when a string value
+        // contained a `}` followed by trailing prose; the robust extractor
+        // balances braces while respecting string boundaries.
+        let text = "Result: {\"note\": \"use a closing brace } here\"} -- end.";
+        let v: serde_json::Value = LlmPlanner::parse_json_lenient(text).unwrap();
+        assert_eq!(v["note"], "use a closing brace } here");
+    }
+
+    #[test]
+    fn test_parse_json_lenient_fenced_with_trailing_prose() {
+        // ```json fence followed by an explanation. The naive parser's
+        // `rfind('}')` could grab a brace from the trailing prose.
+        let text = "```json\n{\"goal\": \"ship\"}\n```\nNote: revisit the `plan` later.";
+        let v: serde_json::Value = LlmPlanner::parse_json_lenient(text).unwrap();
+        assert_eq!(v["goal"], "ship");
+    }
+
+    #[test]
+    fn test_parse_json_lenient_rejects_non_json() {
+        let err = LlmPlanner::parse_json_lenient::<serde_json::Value>("no json here at all");
+        assert!(err.is_err());
+    }
+
+    /// Replays a fixed sequence of assistant text responses, one per call.
+    struct ReplayClient {
+        responses: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl ReplayClient {
+        fn new(responses: Vec<String>) -> Self {
+            Self {
+                responses: std::sync::Mutex::new(responses),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl LlmClient for ReplayClient {
+        async fn complete(
+            &self,
+            _messages: &[Message],
+            _system: Option<&str>,
+            _tools: &[crate::llm::ToolDefinition],
+        ) -> anyhow::Result<crate::llm::LlmResponse> {
+            let text = {
+                let mut r = self.responses.lock().unwrap();
+                if r.is_empty() {
+                    String::new()
+                } else {
+                    r.remove(0)
+                }
+            };
+            Ok(crate::llm::LlmResponse {
+                message: Message {
+                    role: "assistant".to_string(),
+                    content: vec![crate::llm::ContentBlock::Text { text }],
+                    reasoning_content: None,
+                    transcript_text: None,
+                    transcript_visibility: Default::default(),
+                },
+                usage: crate::llm::TokenUsage::default(),
+                stop_reason: None,
+                token_logprobs: Vec::new(),
+                meta: None,
+            })
+        }
+
+        async fn complete_streaming(
+            &self,
+            _messages: &[Message],
+            _system: Option<&str>,
+            _tools: &[crate::llm::ToolDefinition],
+            _cancel_token: tokio_util::sync::CancellationToken,
+        ) -> anyhow::Result<tokio::sync::mpsc::Receiver<crate::llm::StreamEvent>> {
+            anyhow::bail!("streaming not used in planner tests")
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pre_analyze_repairs_invalid_json() {
+        // First response is unparseable; pre_analyze must re-prompt and succeed
+        // on the second (valid) response.
+        let good = r#"{"intent":"explore","requires_planning":false,"goal":{"description":"Do x","success_criteria":["done"]},"execution_plan":{"complexity":"Simple","steps":[],"required_tools":[]},"optimized_input":"Do x carefully"}"#;
+        let client: Arc<dyn LlmClient> = Arc::new(ReplayClient::new(vec![
+            "Sorry — here's the plan, but not as JSON.".to_string(),
+            good.to_string(),
+        ]));
+        let pa = LlmPlanner::pre_analyze(&client, "do x", None)
+            .await
+            .unwrap();
+        assert_eq!(pa.optimized_input, "Do x carefully");
+    }
+
+    #[tokio::test]
+    async fn test_pre_analyze_first_try_with_fenced_json() {
+        // A single ```json-fenced response must parse on the first attempt
+        // (robust extractor), with no repair round needed.
+        let good = format!(
+            "```json\n{}\n```",
+            r#"{"intent":"plan","requires_planning":true,"goal":{"description":"g","success_criteria":[]},"execution_plan":{"complexity":"Medium","steps":[],"required_tools":[]},"optimized_input":"opt"}"#
+        );
+        let client: Arc<dyn LlmClient> = Arc::new(ReplayClient::new(vec![good]));
+        let pa = LlmPlanner::pre_analyze(&client, "do x", None)
+            .await
+            .unwrap();
+        assert_eq!(pa.optimized_input, "opt");
+    }
+}

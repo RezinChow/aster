@@ -1,0 +1,979 @@
+//! Agent-to-session factory operations.
+//!
+//! `Agent` is workspace-independent; this module owns the transition from an
+//! agent config/runtime to a workspace-bound `AgentSession`, including resume.
+//! It also implements the agent-side session registry. A session ID is reserved
+//! before configuration or runtime initialization begins, then atomically
+//! finalized to a `Weak<SessionCloseHandle>` after construction (and restore,
+//! for resumed sessions) is complete. The same registry lock establishes the
+//! admission boundary for `Agent::close`.
+
+use super::{
+    agent_binding, run_admission::RunAdmissionLease, session_builder,
+    session_close::SessionCloseHandle, session_config, session_persistence, Agent, AgentSession,
+    SessionOptions,
+};
+use crate::error::{CodeError, Result};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, Weak};
+
+mod fork;
+pub(super) use fork::fork_session_async;
+
+/// Agent-owned registry state guarded by `Agent::sessions`.
+///
+/// Building entries are reservations, not live sessions: they are deliberately
+/// omitted from `list_sessions` and cannot be targeted by `close_session`.
+/// Their only job is to prevent duplicate IDs and to make finalization atomic
+/// with the permanent agent-close boundary.
+#[derive(Default)]
+pub(super) struct SessionRegistry {
+    entries: HashMap<String, SessionRegistryEntry>,
+    next_reservation_id: u64,
+}
+
+enum SessionRegistryEntry {
+    Building(u64),
+    Live(Weak<SessionCloseHandle>),
+    Replacing {
+        reservation_id: u64,
+        current: Weak<SessionCloseHandle>,
+    },
+}
+
+impl SessionRegistry {
+    fn prune_dead_sessions(&mut self) {
+        let live: Vec<_> = self
+            .entries
+            .iter()
+            .filter_map(|(id, entry)| match entry {
+                SessionRegistryEntry::Live(weak) => Some((id.clone(), weak.clone())),
+                SessionRegistryEntry::Building(_) | SessionRegistryEntry::Replacing { .. } => None,
+            })
+            .collect();
+        for (id, weak) in live {
+            let Some(handle) = weak.upgrade() else {
+                self.entries.remove(&id);
+                continue;
+            };
+            if !handle.is_closed() {
+                continue;
+            }
+            let Ok(fence) = handle.run_admission.try_acquire(&id) else {
+                continue;
+            };
+            if fence.is_nonexecuting_fence_for(&handle.run_admission) {
+                // Keep the actual exclusive fence alive through the erase.
+                // A closed bit alone cannot retire a retained original owner.
+                self.entries.remove(&id);
+            }
+        }
+    }
+
+    fn remove_reservation(&mut self, session_id: &str, reservation_id: u64) {
+        let owned = matches!(
+            self.entries.get(session_id),
+            Some(SessionRegistryEntry::Building(current)) if *current == reservation_id
+        );
+        if owned {
+            self.entries.remove(session_id);
+        }
+    }
+}
+
+/// Reservation for an in-progress replacement of one live session.
+///
+/// Unlike a normal build reservation, dropping this restores the current live
+/// registry entry. This is the rollback boundary that keeps a failed model or
+/// effort switch from stranding the host with a closed session.
+struct SessionReplacementReservation {
+    registry: Arc<Mutex<SessionRegistry>>,
+    agent_closed: Arc<AtomicBool>,
+    session_id: String,
+    reservation_id: u64,
+    current: Weak<SessionCloseHandle>,
+    fence: RunAdmissionLease,
+    finalized: bool,
+}
+
+impl SessionReplacementReservation {
+    async fn finalize(mut self, replacement: &Arc<SessionCloseHandle>) -> Result<()> {
+        let current = {
+            let registry = self
+                .registry
+                .lock()
+                .map_err(|_| CodeError::Session("Poisoned session registry".into()))?;
+            if self.agent_closed.load(Ordering::Acquire) {
+                return Err(agent_closed_error());
+            }
+            if !replacement_reservation_is_owned(
+                &registry,
+                &self.session_id,
+                self.reservation_id,
+                &self.current,
+            ) {
+                return Err(CodeError::Session(format!(
+                    "Session replacement reservation was lost for '{}'",
+                    self.session_id
+                )));
+            }
+            self.current
+                .upgrade()
+                .ok_or_else(|| CodeError::SessionClosed {
+                    session_id: self.session_id.clone(),
+                })?
+        };
+        current.close_for_replacement(&self.fence).await?;
+        {
+            let mut registry = self
+                .registry
+                .lock()
+                .map_err(|_| CodeError::Session("Poisoned session registry".into()))?;
+            if self.agent_closed.load(Ordering::Acquire) {
+                return Err(agent_closed_error());
+            }
+            if !replacement_reservation_is_owned(
+                &registry,
+                &self.session_id,
+                self.reservation_id,
+                &self.current,
+            ) || !self.fence.is_nonexecuting_fence_for(&current.run_admission)
+            {
+                return Err(CodeError::Session(format!(
+                    "Session replacement reservation was lost for '{}'",
+                    self.session_id
+                )));
+            }
+            registry.entries.insert(
+                self.session_id.clone(),
+                SessionRegistryEntry::Live(Arc::downgrade(replacement)),
+            );
+        }
+        self.finalized = true;
+        Ok(())
+    }
+}
+
+impl Drop for SessionReplacementReservation {
+    fn drop(&mut self) {
+        if self.finalized {
+            return;
+        }
+        let Ok(mut registry) = self.registry.lock() else {
+            // Preserve the original occupied entry when rollback is unproved.
+            return;
+        };
+        if replacement_reservation_is_owned(
+            &registry,
+            &self.session_id,
+            self.reservation_id,
+            &self.current,
+        ) {
+            // Restore even a closed original, before the actual fence drops.
+            registry.entries.insert(
+                self.session_id.clone(),
+                SessionRegistryEntry::Live(self.current.clone()),
+            );
+        }
+    }
+}
+
+fn replacement_reservation_is_owned(
+    registry: &SessionRegistry,
+    session_id: &str,
+    reservation_id: u64,
+    original: &Weak<SessionCloseHandle>,
+) -> bool {
+    matches!(
+        registry.entries.get(session_id),
+        Some(SessionRegistryEntry::Replacing {
+            reservation_id: current,
+            current: registered,
+        }) if *current == reservation_id && Weak::ptr_eq(registered, original)
+    )
+}
+
+/// RAII reservation for one in-progress session build.
+///
+/// Dropping a failed or cancelled build releases only its own reservation.
+/// The monotonically increasing token prevents a stale drop from removing a
+/// future reservation for the same session ID.
+struct SessionReservation {
+    registry: Arc<Mutex<SessionRegistry>>,
+    agent_closed: Arc<AtomicBool>,
+    session_id: String,
+    reservation_id: u64,
+    finalized: bool,
+}
+
+impl SessionReservation {
+    fn finalize(mut self, handle: &Arc<SessionCloseHandle>) -> Result<()> {
+        let result = {
+            let mut registry = self
+                .registry
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            if self.agent_closed.load(Ordering::Acquire) {
+                registry.remove_reservation(&self.session_id, self.reservation_id);
+                Err(agent_closed_error())
+            } else {
+                let owns_reservation = matches!(
+                    registry.entries.get(&self.session_id),
+                    Some(SessionRegistryEntry::Building(current))
+                        if *current == self.reservation_id
+                );
+                if owns_reservation {
+                    registry.entries.insert(
+                        self.session_id.clone(),
+                        SessionRegistryEntry::Live(Arc::downgrade(handle)),
+                    );
+                    Ok(())
+                } else {
+                    Err(CodeError::Session(format!(
+                        "Session build reservation was lost for '{}'",
+                        self.session_id
+                    )))
+                }
+            }
+        };
+        self.finalized = true;
+        result
+    }
+}
+
+impl Drop for SessionReservation {
+    fn drop(&mut self) {
+        if self.finalized {
+            return;
+        }
+        let mut registry = self
+            .registry
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        registry.remove_reservation(&self.session_id, self.reservation_id);
+    }
+}
+
+pub(super) async fn refresh_mcp_tools(agent: &Agent) -> Result<()> {
+    if let Some(mcp) = &agent.global_mcp {
+        let fresh = mcp.get_all_tools().await;
+        *agent
+            .global_mcp_tools
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = fresh;
+    }
+    Ok(())
+}
+
+/// Reconcile the agent's shared global MCP manager with the desired server set.
+///
+/// Enabled servers are registered and best-effort connected; disabled or absent
+/// servers are removed. The tool-definition cache is refreshed afterward so
+/// **new** sessions see the updated catalog. Live sessions must also call
+/// [`AgentSession::republish_inherited_mcp_tools`] to update their executors.
+pub(super) async fn sync_global_mcp_servers(
+    agent: &Agent,
+    servers: Vec<crate::mcp::McpServerConfig>,
+) -> Result<()> {
+    bail_if_agent_closed(agent)?;
+    let Some(manager) = agent.global_mcp.as_ref() else {
+        return Err(crate::error::CodeError::Config(
+            "Agent has no global MCP manager to sync".into(),
+        ));
+    };
+
+    let desired: std::collections::HashMap<String, crate::mcp::McpServerConfig> = servers
+        .into_iter()
+        .filter(|server| server.enabled)
+        .map(|server| (server.name.clone(), server))
+        .collect();
+
+    let current = manager.all_configs().await;
+    for existing in &current {
+        if !desired.contains_key(&existing.name) {
+            if let Err(error) = manager.remove_server(&existing.name).await {
+                tracing::warn!(
+                    server = %existing.name,
+                    error = %error,
+                    "Failed to remove MCP server during global sync"
+                );
+            }
+        }
+    }
+
+    for (name, config) in &desired {
+        let existing = current.iter().find(|item| item.name == *name);
+        let config_changed = existing.is_none_or(|item| !mcp_server_config_eq(item, config));
+        if config_changed {
+            if existing.is_some() {
+                if let Err(error) = manager.remove_server(name).await {
+                    tracing::warn!(
+                        server = %name,
+                        error = %error,
+                        "Failed to replace MCP server during global sync"
+                    );
+                }
+            }
+            manager.register_server(config.clone()).await;
+        }
+
+        let needs_connect = config_changed || !manager.is_connected(name).await;
+        if !needs_connect {
+            continue;
+        }
+        // User-initiated connector sync can wait longer than Agent bootstrap:
+        // the host already paid for the mutation round-trip and needs a real
+        // connect attempt, not a silent 3s skip. Timeouts still record status.
+        const MCP_SYNC_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+        if let Err(error) = manager
+            .connect_with_timeout(name, MCP_SYNC_CONNECT_TIMEOUT)
+            .await
+        {
+            tracing::warn!(
+                server = %name,
+                error = %error,
+                "Failed to connect MCP server during global sync"
+            );
+        }
+    }
+
+    refresh_mcp_tools(agent).await
+}
+
+fn mcp_server_config_eq(
+    left: &crate::mcp::McpServerConfig,
+    right: &crate::mcp::McpServerConfig,
+) -> bool {
+    left.name == right.name
+        && left.enabled == right.enabled
+        && left.tool_timeout_secs == right.tool_timeout_secs
+        && left.env == right.env
+        && transport_eq(&left.transport, &right.transport)
+        && oauth_eq(left.oauth.as_ref(), right.oauth.as_ref())
+}
+
+fn transport_eq(
+    left: &crate::mcp::McpTransportConfig,
+    right: &crate::mcp::McpTransportConfig,
+) -> bool {
+    use crate::mcp::McpTransportConfig;
+    match (left, right) {
+        (
+            McpTransportConfig::Stdio {
+                command: lc,
+                args: la,
+            },
+            McpTransportConfig::Stdio {
+                command: rc,
+                args: ra,
+            },
+        ) => lc == rc && la == ra,
+        (
+            McpTransportConfig::Http {
+                url: lu,
+                headers: lh,
+            },
+            McpTransportConfig::Http {
+                url: ru,
+                headers: rh,
+            },
+        )
+        | (
+            McpTransportConfig::StreamableHttp {
+                url: lu,
+                headers: lh,
+            },
+            McpTransportConfig::StreamableHttp {
+                url: ru,
+                headers: rh,
+            },
+        ) => lu == ru && lh == rh,
+        _ => false,
+    }
+}
+
+fn oauth_eq(
+    left: Option<&crate::mcp::OAuthConfig>,
+    right: Option<&crate::mcp::OAuthConfig>,
+) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => {
+            left.auth_url == right.auth_url
+                && left.token_url == right.token_url
+                && left.client_id == right.client_id
+                && left.client_secret == right.client_secret
+                && left.scopes == right.scopes
+                && left.redirect_uri == right.redirect_uri
+                && left.access_token == right.access_token
+        }
+        _ => false,
+    }
+}
+
+pub(crate) fn create_session(
+    agent: &Agent,
+    workspace: impl Into<String>,
+    options: Option<SessionOptions>,
+) -> Result<AgentSession> {
+    bail_if_agent_closed(agent)?;
+
+    let merged_opts = session_builder::prepare_session_options(agent, options.unwrap_or_default());
+    let reservation = reserve_session(agent, required_session_id(&merged_opts)?)?;
+    let workspace = workspace.into();
+    let canonical = super::safe_canonicalize(std::path::Path::new(&workspace));
+    let resolved =
+        session_config::ResolvedSessionConfig::resolve_sync(agent, &canonical, merged_opts)?;
+    let session = session_builder::build_agent_session_sync(agent, workspace, resolved)?;
+    session.admit_configured_policy()?;
+    reservation.finalize(&session.close_handle)?;
+    Ok(session)
+}
+
+pub(super) async fn create_session_async(
+    agent: &Agent,
+    workspace: impl Into<String>,
+    options: Option<SessionOptions>,
+) -> Result<AgentSession> {
+    bail_if_agent_closed(agent)?;
+
+    let options = session_builder::prepare_session_options(agent, options.unwrap_or_default());
+    let reservation = reserve_session(agent, required_session_id(&options)?)?;
+    let workspace = workspace.into();
+    let canonical = super::safe_canonicalize(std::path::Path::new(&workspace));
+    let resolved =
+        session_config::ResolvedSessionConfig::resolve(agent, &canonical, options).await?;
+    let session = session_builder::build_agent_session(agent, workspace, resolved).await?;
+    if let Err(error) = session
+        .admit_configured_policy()
+        .and_then(|()| reservation.finalize(&session.close_handle))
+    {
+        session.close().await;
+        return Err(error);
+    }
+    Ok(session)
+}
+
+pub(super) async fn open_protocol_session_async(
+    agent: &Agent,
+    workspace: impl Into<String>,
+    mut options: SessionOptions,
+    create_if_missing: bool,
+) -> Result<Option<AgentSession>> {
+    bail_if_agent_closed(agent)?;
+    let workspace = workspace.into();
+    let session_id = options
+        .session_id
+        .clone()
+        .ok_or_else(|| CodeError::SessionConfiguration {
+            field: "session_id",
+            message: "protocol sessions require a host-selected session ID".to_string(),
+        })?;
+    let store = session_config::resolve_session_store(&agent.code_config, &options).await?;
+    let persisted = match &store {
+        Some(store) => store.exists(&session_id).await?,
+        None => false,
+    };
+    if !persisted && !create_if_missing {
+        return Ok(None);
+    }
+    if let Some(store) = store {
+        options = options.with_session_store(store);
+    }
+    if persisted {
+        Box::pin(resume_protocol_session_async(
+            agent,
+            &session_id,
+            workspace,
+            options,
+        ))
+        .await
+        .map(Some)
+    } else {
+        create_session_async(agent, workspace, Some(options))
+            .await
+            .map(Some)
+    }
+}
+
+fn reserve_session(agent: &Agent, session_id: &str) -> Result<SessionReservation> {
+    let registry = Arc::clone(&agent.sessions);
+    let agent_closed = Arc::clone(&agent.closed);
+    let mut sessions = registry.lock().unwrap_or_else(|poison| poison.into_inner());
+    if agent_closed.load(Ordering::Acquire) {
+        return Err(agent_closed_error());
+    }
+
+    sessions.prune_dead_sessions();
+    if sessions.entries.contains_key(session_id) {
+        return Err(CodeError::SessionConfiguration {
+            field: "session_id",
+            message: format!("session '{session_id}' is already live or being built"),
+        });
+    }
+
+    let reservation_id = sessions.next_reservation_id;
+    sessions.next_reservation_id =
+        sessions.next_reservation_id.checked_add(1).ok_or_else(|| {
+            CodeError::Session("Session build reservation counter exhausted".to_string())
+        })?;
+    sessions.entries.insert(
+        session_id.to_string(),
+        SessionRegistryEntry::Building(reservation_id),
+    );
+    drop(sessions);
+
+    Ok(SessionReservation {
+        registry,
+        agent_closed,
+        session_id: session_id.to_string(),
+        reservation_id,
+        finalized: false,
+    })
+}
+
+fn reserve_session_replacement(
+    agent: &Agent,
+    current: &AgentSession,
+) -> Result<SessionReplacementReservation> {
+    let session_id = current.session_id();
+    let registry = Arc::clone(&agent.sessions);
+    let agent_closed = Arc::clone(&agent.closed);
+    let mut sessions = registry.lock().unwrap_or_else(|poison| poison.into_inner());
+    if agent_closed.load(Ordering::Acquire) {
+        return Err(agent_closed_error());
+    }
+
+    sessions.prune_dead_sessions();
+    let current_handle = match sessions.entries.get(session_id) {
+        Some(SessionRegistryEntry::Live(weak)) => weak
+            .upgrade()
+            .filter(|handle| Arc::ptr_eq(handle, &current.close_handle))
+            .filter(|handle| !handle.is_closed()),
+        Some(SessionRegistryEntry::Building(_))
+        | Some(SessionRegistryEntry::Replacing { .. })
+        | None => None,
+    }
+    .ok_or_else(|| CodeError::SessionConfiguration {
+        field: "session_id",
+        message: format!(
+            "session '{session_id}' is not the registered live session or is already being replaced"
+        ),
+    })?;
+
+    let fence = current_handle.run_admission.try_acquire(session_id)?;
+    if !fence.is_nonexecuting_fence_for(&current_handle.run_admission) {
+        return Err(CodeError::SessionBusy {
+            session_id: session_id.to_string(),
+        });
+    }
+    let reservation_id = sessions.next_reservation_id;
+    sessions.next_reservation_id = sessions
+        .next_reservation_id
+        .checked_add(1)
+        .ok_or_else(|| CodeError::Session("Session build reservation counter exhausted".into()))?;
+    let current = Arc::downgrade(&current_handle);
+    sessions.entries.insert(
+        session_id.to_string(),
+        SessionRegistryEntry::Replacing {
+            reservation_id,
+            current: current.clone(),
+        },
+    );
+    drop(sessions);
+
+    Ok(SessionReplacementReservation {
+        registry,
+        agent_closed,
+        session_id: session_id.to_string(),
+        reservation_id,
+        current,
+        fence,
+        finalized: false,
+    })
+}
+
+fn required_session_id(options: &SessionOptions) -> Result<&str> {
+    options
+        .session_id
+        .as_deref()
+        .ok_or_else(|| CodeError::SessionConfiguration {
+            field: "session_id",
+            message: "a session id must be assigned before construction".to_string(),
+        })
+}
+
+fn bail_if_agent_closed(agent: &Agent) -> Result<()> {
+    if agent.closed.load(Ordering::Acquire) {
+        return Err(agent_closed_error());
+    }
+    Ok(())
+}
+
+fn agent_closed_error() -> CodeError {
+    CodeError::SessionClosed {
+        session_id: "<agent-closed>".to_string(),
+    }
+}
+
+pub(super) async fn list_sessions(agent: &Agent) -> Vec<String> {
+    let mut sessions = agent
+        .sessions
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    sessions.prune_dead_sessions();
+    let mut ids: Vec<String> = sessions
+        .entries
+        .iter()
+        .filter_map(|(id, entry)| match entry {
+            SessionRegistryEntry::Building(_) => None,
+            SessionRegistryEntry::Live(_) | SessionRegistryEntry::Replacing { .. } => {
+                Some(id.clone())
+            }
+        })
+        .collect();
+    ids.sort();
+    ids
+}
+
+pub(super) async fn close_session(agent: &Agent, session_id: &str) -> bool {
+    let handle: Option<Arc<SessionCloseHandle>> = {
+        let mut sessions = agent
+            .sessions
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        sessions.prune_dead_sessions();
+        match sessions.entries.get(session_id) {
+            Some(SessionRegistryEntry::Live(weak)) => Weak::upgrade(weak),
+            Some(SessionRegistryEntry::Replacing { current, .. }) => {
+                let handle = Weak::upgrade(current);
+                let original = current.clone();
+                // Invalidate the token without exposing an identity vacancy.
+                sessions
+                    .entries
+                    .insert(session_id.to_string(), SessionRegistryEntry::Live(original));
+                handle
+            }
+            Some(SessionRegistryEntry::Building(_)) | None => None,
+        }
+    };
+    match handle {
+        Some(handle) => {
+            let was_open = !handle.is_closed();
+            handle.close().await;
+            was_open
+        }
+        None => false,
+    }
+}
+
+pub(super) async fn close_agent(agent: &Agent) {
+    // Mark the agent closed while holding the same lock used by build
+    // reservation/finalization. This is the lifecycle linearization point:
+    // an admitted build either finalized first and is included below, or its
+    // later finalization observes the closed flag and is rejected.
+    let handles: Vec<Arc<SessionCloseHandle>> = {
+        let mut sessions = agent
+            .sessions
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if agent.closed.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        sessions.prune_dead_sessions();
+        for entry in sessions.entries.values_mut() {
+            if let SessionRegistryEntry::Replacing { current, .. } = entry {
+                *entry = SessionRegistryEntry::Live(current.clone());
+            }
+        }
+        sessions
+            .entries
+            .values()
+            .filter_map(|entry| match entry {
+                SessionRegistryEntry::Building(_) => None,
+                SessionRegistryEntry::Live(weak) => Weak::upgrade(weak),
+                SessionRegistryEntry::Replacing { current, .. } => Weak::upgrade(current),
+            })
+            .collect()
+    };
+    for handle in handles {
+        handle.close().await;
+    }
+
+    // Session cancellation releases queued admissions and normally settles
+    // active leases within the close grace period. Keep the agent-wide wait
+    // bounded as a final defense against a host-direct task that ignores
+    // cancellation.
+    if tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        agent.task_scheduler.shutdown(),
+    )
+    .await
+    .is_err()
+    {
+        tracing::warn!("Agent task scheduler did not drain before close timeout");
+    }
+
+    // Tear down global MCP connections so background workers exit.
+    if let Some(mcp) = &agent.global_mcp {
+        for name in mcp.list_connected().await {
+            if let Err(e) = mcp.disconnect(&name).await {
+                tracing::warn!(
+                    server = %name,
+                    error = %e,
+                    "Failed to disconnect MCP server during Agent::close"
+                );
+            }
+        }
+    }
+}
+
+pub(super) fn create_session_for_agent(
+    agent: &Agent,
+    workspace: impl Into<String>,
+    def: &crate::subagent::AgentDefinition,
+    extra: Option<SessionOptions>,
+) -> Result<AgentSession> {
+    let opts = agent_binding::apply_agent_definition(extra.unwrap_or_default(), def);
+    create_session(agent, workspace, Some(opts))
+}
+
+pub(super) async fn create_session_for_agent_async(
+    agent: &Agent,
+    workspace: impl Into<String>,
+    def: &crate::subagent::AgentDefinition,
+    extra: Option<SessionOptions>,
+) -> Result<AgentSession> {
+    let opts = agent_binding::apply_agent_definition(extra.unwrap_or_default(), def);
+    create_session_async(agent, workspace, Some(opts)).await
+}
+
+pub(super) fn resume_session(
+    agent: &Agent,
+    _session_id: &str,
+    _options: SessionOptions,
+) -> Result<AgentSession> {
+    bail_if_agent_closed(agent)?;
+    Err(CodeError::AsyncSessionBuildRequired {
+        resource: crate::error::SessionBuildResource::SessionStore,
+    })
+}
+
+pub(super) async fn resume_session_async(
+    agent: &Agent,
+    session_id: &str,
+    options: SessionOptions,
+) -> Result<AgentSession> {
+    resume_session_async_inner(agent, session_id, options, None).await
+}
+
+async fn resume_protocol_session_async(
+    agent: &Agent,
+    session_id: &str,
+    workspace: String,
+    options: SessionOptions,
+) -> Result<AgentSession> {
+    resume_session_async_inner(agent, session_id, options, Some(workspace)).await
+}
+
+pub(super) async fn restore_protocol_checkpoint_session_async(
+    agent: &Agent,
+    snapshot: crate::store::SessionSnapshotV1,
+    workspace: String,
+    mut options: SessionOptions,
+) -> Result<AgentSession> {
+    bail_if_agent_closed(agent)?;
+    let session_id = snapshot.session.id.clone();
+    snapshot
+        .validate_for_session(&session_id)
+        .map_err(|error| {
+            CodeError::Session(format!(
+                "Refusing invalid portable checkpoint snapshot for session {session_id}: {error:#}"
+            ))
+        })?;
+    let reservation = reserve_session(agent, &session_id)?;
+    options.session_id = Some(session_id);
+    if let Some(store) = session_config::resolve_session_store(&agent.code_config, &options).await?
+    {
+        options = options.with_session_store(store);
+    }
+    let session = build_session_from_snapshot(agent, snapshot, options, Some(workspace)).await?;
+    if let Err(error) = reservation.finalize(&session.close_handle) {
+        session.close().await;
+        return Err(error);
+    }
+    Ok(session)
+}
+
+pub(super) async fn load_protocol_session_snapshot_async(
+    agent: &Agent,
+    session_id: &str,
+    options: &SessionOptions,
+) -> Result<Option<crate::store::SessionSnapshotV1>> {
+    bail_if_agent_closed(agent)?;
+    let Some(store) = session_config::resolve_session_store(&agent.code_config, options).await?
+    else {
+        return Ok(None);
+    };
+    let snapshot = store.load_snapshot(session_id).await.map_err(|error| {
+        CodeError::Session(format!(
+            "Failed to inspect persisted session {session_id} before checkpoint admission: {error:#}"
+        ))
+    })?;
+    if let Some(snapshot) = &snapshot {
+        snapshot.validate_for_session(session_id).map_err(|error| {
+            CodeError::Session(format!(
+                "Refusing invalid persisted session {session_id} during checkpoint admission: {error:#}"
+            ))
+        })?;
+    }
+    Ok(snapshot)
+}
+
+async fn resume_session_async_inner(
+    agent: &Agent,
+    session_id: &str,
+    options: SessionOptions,
+    workspace_override: Option<String>,
+) -> Result<AgentSession> {
+    bail_if_agent_closed(agent)?;
+    let reservation = reserve_session(agent, session_id)?;
+
+    let session = build_resumed_session(agent, session_id, options, workspace_override).await?;
+    if let Err(error) = reservation.finalize(&session.close_handle) {
+        session.close().await;
+        return Err(error);
+    }
+
+    Ok(session)
+}
+
+pub(super) async fn replace_session_async(
+    agent: &Agent,
+    current: &AgentSession,
+    options: SessionOptions,
+) -> Result<AgentSession> {
+    bail_if_agent_closed(agent)?;
+    if current.is_closed() {
+        return Err(CodeError::SessionClosed {
+            session_id: current.session_id().to_string(),
+        });
+    }
+
+    let session_id = current.session_id().to_string();
+    let reservation = reserve_session_replacement(agent, current)?;
+    // Public `save()` takes its own admission lease. This reservation
+    // already holds the exclusive idle fence, so that second admit
+    // returns SessionBusy and the replacement never lands.
+    super::session_persistence::SessionPersistenceContext::from_session(current)
+        .save()
+        .await?;
+    let options = options.with_session_id(&session_id);
+    let replacement = build_resumed_session(agent, &session_id, options, None).await?;
+    if let Err(error) = reservation.finalize(&replacement.close_handle).await {
+        replacement.close().await;
+        return Err(error);
+    }
+    Ok(replacement)
+}
+
+async fn build_resumed_session(
+    agent: &Agent,
+    session_id: &str,
+    mut options: SessionOptions,
+    workspace_override: Option<String>,
+) -> Result<AgentSession> {
+    let store = session_config::resolve_session_store(&agent.code_config, &options)
+        .await?
+        .ok_or_else(|| crate::error::CodeError::SessionConfiguration {
+            field: "session_store",
+            message: "resume_session requires a configured session store".to_string(),
+        })?;
+
+    let snapshot = session_persistence::load_session_snapshot(&store, session_id).await?;
+    options = options.with_session_store(Arc::clone(&store));
+    build_session_from_snapshot(agent, snapshot, options, workspace_override).await
+}
+
+async fn build_session_from_snapshot(
+    agent: &Agent,
+    mut snapshot: crate::store::SessionSnapshotV1,
+    options: SessionOptions,
+    workspace_override: Option<String>,
+) -> Result<AgentSession> {
+    if let Some(workspace) = workspace_override {
+        session_persistence::restore_source(
+            &snapshot.session,
+            std::path::Path::new(&workspace),
+            options.work_policy.as_ref(),
+        )?;
+        restore_protocol_workspace(&snapshot, &workspace).await?;
+        snapshot.session.config.workspace = workspace;
+    }
+    let data = &snapshot.session;
+    let mut opts = session_persistence::apply_persisted_runtime_options(options, data)?;
+    session_persistence::ensure_artifact_restore_capacity(&mut opts, &snapshot);
+    let opts = session_builder::prepare_session_options(agent, opts);
+    let workspace = data.config.workspace.clone();
+    let canonical = super::safe_canonicalize(std::path::Path::new(&workspace));
+    let resolved = session_config::ResolvedSessionConfig::resolve(agent, &canonical, opts).await?;
+    let session = session_builder::build_agent_session(agent, workspace, resolved).await?;
+    if let Err(error) = session_persistence::restore_persisted_session_state(&session, snapshot)
+        .await
+        .and_then(|()| session.admit_configured_policy())
+    {
+        session.close().await;
+        return Err(error);
+    }
+
+    Ok(session)
+}
+
+async fn restore_protocol_workspace(
+    snapshot: &crate::store::SessionSnapshotV1,
+    workspace: &str,
+) -> Result<()> {
+    let result_tree = snapshot
+        .run_records
+        .iter()
+        .enumerate()
+        .filter_map(|(index, record)| {
+            record
+                .snapshot
+                .workspace_change_set
+                .as_ref()
+                .map(|change_set| {
+                    (
+                        (
+                            change_set.observed_at_ms,
+                            record.snapshot.updated_at_ms,
+                            index,
+                        ),
+                        change_set.result_tree.clone(),
+                    )
+                })
+        })
+        .max_by_key(|(order, _)| *order)
+        .map(|(_, result_tree)| result_tree);
+    let Some(result_tree) = result_tree else {
+        return Ok(());
+    };
+    let workspace = PathBuf::from(workspace);
+    tokio::task::spawn_blocking(move || {
+        crate::git::restore_workspace_tree(&workspace, &result_tree)
+    })
+    .await
+    .map_err(|error| CodeError::SessionConfiguration {
+        field: "workspace",
+        message: format!("could not join Agent Harness workspace restore: {error}"),
+    })?
+    .map_err(|error| CodeError::SessionConfiguration {
+        field: "workspace",
+        message: format!("could not restore Agent Harness workspace: {error}"),
+    })
+}
+
+#[cfg(test)]
+mod owner_identity_tests;

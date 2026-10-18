@@ -1,0 +1,1049 @@
+//! Session option builder interface.
+//!
+//! `SessionOptions` is the host-facing capability configuration for a session.
+//! Keeping the builder implementation here lets `agent_api.rs` keep the type
+//! shape visible while moving option construction behavior behind this module.
+
+use super::SessionOptions;
+use crate::prompts::{PlanningMode, SystemPromptSlots};
+use crate::queue::SessionQueueConfig;
+use crate::subagent::WorkerAgentSpec;
+use a3s_memory::MemoryStore;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+impl std::fmt::Debug for SessionOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionOptions")
+            .field("model", &self.model)
+            .field("task_priority", &self.task_priority)
+            .field("agent_dirs", &self.agent_dirs)
+            .field("worker_agents", &self.worker_agents.len())
+            .field("skill_dirs", &self.skill_dirs)
+            .field(
+                "command_env",
+                &self.command_env.as_ref().map(|env| env.len()),
+            )
+            .field("queue_config", &self.queue_config)
+            .field("search_config", &self.search_config)
+            .field("security_provider", &self.security_provider.is_some())
+            .field("llm_client", &self.llm_client.is_some())
+            .field("context_providers", &self.context_providers.len())
+            .field("cognitive_context", &self.cognitive_context)
+            .field("confirmation_manager", &self.confirmation_manager.is_some())
+            .field("permission_checker", &self.permission_checker.is_some())
+            .field("permission_policy", &self.permission_policy.is_some())
+            .field("planning_mode", &self.planning_mode)
+            .field("goal_tracking", &self.goal_tracking)
+            .field(
+                "skill_registry",
+                &self
+                    .skill_registry
+                    .as_ref()
+                    .map(|r| format!("{} skills", r.len())),
+            )
+            .field("host_skills", &self.host_skills.len())
+            .field(
+                "enforce_active_skill_tool_restrictions",
+                &self.enforce_active_skill_tool_restrictions,
+            )
+            .field("memory_store", &self.memory_store.is_some())
+            .field("durable_memory", &self.durable_memory)
+            .field("memory_observers", &self.memory_observers.len())
+            .field("memory_maintenance", &self.memory_maintenance)
+            .field("file_memory_dir", &self.file_memory_dir)
+            .field("session_store", &self.session_store.is_some())
+            .field(
+                "session_checkpoint_export_sink",
+                &self.session_checkpoint_export_sink.is_some(),
+            )
+            .field("file_session_store_dir", &self.file_session_store_dir)
+            .field("session_id", &self.session_id)
+            .field("rl_trajectory", &self.rl_trajectory)
+            .field("llm_logprobs", &self.llm_logprobs)
+            .field("llm_top_logprobs", &self.llm_top_logprobs)
+            .field("auto_save", &self.auto_save)
+            .field("artifact_store_limits", &self.artifact_store_limits)
+            .field("immutable_content_adapter", &self.immutable_content_adapter)
+            .field(
+                "tool_result_transform_policy",
+                &self.tool_result_transform_policy,
+            )
+            .field("tool_presentation_profile", &self.tool_presentation_profile)
+            .field("max_parse_retries", &self.max_parse_retries)
+            .field("tool_timeout_ms", &self.tool_timeout_ms)
+            .field("llm_api_timeout_ms", &self.llm_api_timeout_ms)
+            .field("circuit_breaker_threshold", &self.circuit_breaker_threshold)
+            .field(
+                "duplicate_tool_call_threshold",
+                &self.duplicate_tool_call_threshold,
+            )
+            .field("sandbox_handle", &self.sandbox_handle.is_some())
+            .field(
+                "allow_process_host_sandbox",
+                &self.allow_process_host_sandbox,
+            )
+            .field("workspace_services", &self.workspace_services.is_some())
+            .field(
+                "workspace_read_overlay",
+                &self.workspace_read_overlay.is_some(),
+            )
+            .field("workspace_retrieval", &self.workspace_retrieval)
+            .field("auto_compact", &self.auto_compact)
+            .field("auto_compact_threshold", &self.auto_compact_threshold)
+            .field("max_context_tokens", &self.max_context_tokens)
+            .field("continuation_enabled", &self.continuation_enabled)
+            .field("max_continuation_turns", &self.max_continuation_turns)
+            .field("mcp_manager", &self.mcp_manager.is_some())
+            .field("temperature", &self.temperature)
+            .field("thinking_budget", &self.thinking_budget)
+            .field("reasoning_effort", &self.reasoning_effort)
+            .field("max_tool_rounds", &self.max_tool_rounds)
+            .field("max_parallel_tasks", &self.max_parallel_tasks)
+            .field("auto_delegation", &self.auto_delegation)
+            .field("manual_delegation_enabled", &self.manual_delegation_enabled)
+            .field("auto_parallel_delegation", &self.auto_parallel_delegation)
+            .field("prompt_slots", &self.prompt_slots.is_some())
+            .field("work_policy", &self.work_policy)
+            .finish()
+    }
+}
+
+impl SessionOptions {
+    pub fn with_work_policy(mut self, policy: crate::WorkPolicyV1) -> Self {
+        self.work_policy = Some(policy);
+        self
+    }
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
+
+    /// Set the priority of top-level work submitted by this session.
+    pub fn with_task_priority(mut self, priority: crate::task_scheduler::TaskPriority) -> Self {
+        self.task_priority = priority;
+        self
+    }
+
+    pub fn with_agent_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.agent_dirs.push(dir.into());
+        self
+    }
+
+    /// Register a cattle-style worker with this session's task delegation registry.
+    pub fn with_worker_agent(mut self, spec: WorkerAgentSpec) -> Self {
+        self.worker_agents.push(spec);
+        self
+    }
+
+    /// Register multiple cattle-style workers with this session.
+    pub fn with_worker_agents<I>(mut self, specs: I) -> Self
+    where
+        I: IntoIterator<Item = WorkerAgentSpec>,
+    {
+        self.worker_agents.extend(specs);
+        self
+    }
+
+    pub fn with_queue_config(mut self, config: SessionQueueConfig) -> Self {
+        self.queue_config = Some(config);
+        self
+    }
+
+    /// Override the agent-level web-search configuration for this session.
+    ///
+    /// The configuration is value-typed and therefore safe to pass through
+    /// the Node, Python, and Go SDK boundaries. `None` keeps the agent/global
+    /// configuration unchanged.
+    pub fn with_search_config(mut self, config: crate::config::SearchConfig) -> Self {
+        self.search_config = Some(config);
+        self
+    }
+
+    /// Enable default security provider with taint tracking and output sanitization
+    pub fn with_default_security(mut self) -> Self {
+        self.security_provider = Some(Arc::new(crate::security::DefaultSecurityProvider::new()));
+        self
+    }
+
+    /// Set a custom security provider
+    pub fn with_security_provider(
+        mut self,
+        provider: Arc<dyn crate::security::SecurityProvider>,
+    ) -> Self {
+        self.security_provider = Some(provider);
+        self
+    }
+
+    /// Provide a custom LLM client for this session.
+    ///
+    /// When set, this client is used directly, overriding the `provider/model`
+    /// factory resolution. Use it to plug in a provider the built-in factory
+    /// does not cover, a deterministic record/replay client for tests, or an
+    /// HTTP-layer proxy/audit wrapper. Mirrors [`Self::with_workspace_backend`];
+    /// the `provider/model` config path remains the default when unset.
+    pub fn with_llm_client(mut self, client: Arc<dyn crate::llm::LlmClient>) -> Self {
+        self.llm_client = Some(client);
+        self
+    }
+
+    /// Add a file system context provider for simple RAG
+    pub fn with_fs_context(mut self, root_path: impl Into<PathBuf>) -> Self {
+        let config = crate::context::FileSystemContextConfig::new(root_path);
+        self.context_providers
+            .push(Arc::new(crate::context::FileSystemContextProvider::new(
+                config,
+            )));
+        self
+    }
+
+    /// Add a custom context provider
+    pub fn with_context_provider(
+        mut self,
+        provider: Arc<dyn crate::context::ContextProvider>,
+    ) -> Self {
+        self.context_providers.push(provider);
+        self
+    }
+
+    /// Bind this session to one exact A3S Use cognitive-package generation.
+    ///
+    /// The supplied runtime value contains a serializable immutable binding
+    /// and a host-owned provider. On restart the host must inject the same
+    /// binding again; Code never resolves `latest`, opens a package path, or
+    /// substitutes graph/personal-memory context.
+    pub fn with_cognitive_context(
+        mut self,
+        context: crate::cognitive_context::CognitiveContextSession,
+    ) -> Self {
+        self.cognitive_context = Some(context);
+        self
+    }
+
+    /// Set a confirmation manager for HITL
+    pub fn with_confirmation_manager(
+        mut self,
+        manager: Arc<dyn crate::hitl::ConfirmationProvider>,
+    ) -> Self {
+        self.confirmation_manager = Some(manager);
+        self
+    }
+
+    /// Set a confirmation policy for HITL
+    ///
+    /// The policy will be used to create a ConfirmationManager when the session is built.
+    /// This is the preferred way to configure HITL from the Node SDK.
+    pub fn with_confirmation_policy(mut self, policy: crate::hitl::ConfirmationPolicy) -> Self {
+        self.confirmation_policy = Some(policy);
+        self
+    }
+
+    /// Set a serializable permission policy for tool execution.
+    pub fn with_permission_policy(mut self, policy: crate::permissions::PermissionPolicy) -> Self {
+        self.permission_checker = Some(Arc::new(policy.clone()));
+        self.permission_policy = Some(policy);
+        self
+    }
+
+    /// Set a permission checker
+    pub fn with_permission_checker(
+        mut self,
+        checker: Arc<dyn crate::permissions::PermissionChecker>,
+    ) -> Self {
+        self.permission_checker = Some(checker);
+        self
+    }
+
+    /// Set planning mode
+    pub fn with_planning_mode(mut self, mode: PlanningMode) -> Self {
+        self.planning_mode = mode;
+        self
+    }
+
+    /// Enable planning (shortcut for `with_planning_mode(PlanningMode::Enabled)`)
+    pub fn with_planning(mut self, enabled: bool) -> Self {
+        self.planning_mode = if enabled {
+            PlanningMode::Enabled
+        } else {
+            PlanningMode::Disabled
+        };
+        self
+    }
+
+    /// Enable goal tracking
+    pub fn with_goal_tracking(mut self, enabled: bool) -> Self {
+        self.goal_tracking = enabled;
+        self
+    }
+
+    /// Add the compatibility built-in skill registry.
+    ///
+    /// A3S Code no longer ships embedded built-in skills, so this currently
+    /// installs an empty registry. Use skill directories, inline skills, or a
+    /// custom skill registry for reusable behavior.
+    pub fn with_builtin_skills(mut self) -> Self {
+        self.skill_registry = Some(Arc::new(crate::skills::SkillRegistry::with_builtins()));
+        self
+    }
+
+    /// Add a custom skill registry
+    pub fn with_skill_registry(mut self, registry: Arc<crate::skills::SkillRegistry>) -> Self {
+        self.skill_registry = Some(registry);
+        self
+    }
+
+    /// Register one host-owned skill after skill directories.
+    ///
+    /// Same-name directory skills do not replace it.
+    pub fn with_host_skill(mut self, skill: Arc<crate::skills::Skill>) -> Self {
+        self.host_skills.push(skill);
+        self
+    }
+
+    /// Enable or disable legacy global active-skill `allowed-tools` restrictions.
+    ///
+    /// The default is disabled: active skills do not block ordinary session
+    /// tools before the host permission/HITL approval chain runs.
+    pub fn with_active_skill_tool_restrictions(mut self, enabled: bool) -> Self {
+        self.enforce_active_skill_tool_restrictions = Some(enabled);
+        self
+    }
+
+    /// Add skill directories to scan for skill files (*.md).
+    /// Merged with any global `skill_dirs` from
+    /// [`CodeConfig`](crate::config::CodeConfig) at session build time.
+    pub fn with_skill_dirs(mut self, dirs: impl IntoIterator<Item = impl Into<PathBuf>>) -> Self {
+        self.skill_dirs.extend(dirs.into_iter().map(Into::into));
+        self
+    }
+
+    /// Keep exact managed files out of directory discovery and its refreshes.
+    /// Names from unrelated files still participate in conflict detection.
+    pub fn with_projected_skill_files(mut self, files: Vec<PathBuf>) -> Self {
+        self.projected_skill_files = files;
+        self
+    }
+
+    /// Merge environment variables into Bash / sandbox command execution.
+    ///
+    /// Replaces any previously configured `command_env` map.
+    pub fn with_command_env(mut self, env: HashMap<String, String>) -> Self {
+        self.command_env = Some(env);
+        self
+    }
+
+    /// Watch directories for later installs without loading them now. A
+    /// session created before its project/user skills directory exists still
+    /// sees the first `a3s code skills add` land there.
+    pub fn with_watch_skill_dirs(
+        mut self,
+        dirs: impl IntoIterator<Item = impl Into<std::path::PathBuf>>,
+    ) -> Self {
+        self.watch_skill_dirs
+            .extend(dirs.into_iter().map(Into::into));
+        self
+    }
+
+    /// Load skills from a directory (eager — scans immediately into a registry).
+    pub fn with_skills_from_dir(mut self, dir: impl AsRef<std::path::Path>) -> Self {
+        let registry = self
+            .skill_registry
+            .unwrap_or_else(|| Arc::new(crate::skills::SkillRegistry::new()));
+        if let Err(e) = registry.load_from_dir(&dir) {
+            tracing::error!(
+                dir = %dir.as_ref().display(),
+                error = %e,
+                "failed to load skill directory; skills from this path are not loaded"
+            );
+        }
+        self.skill_registry = Some(registry);
+        self
+    }
+
+    /// Set a custom memory store override.
+    ///
+    /// Sessions resolve a default memory store when no override is provided.
+    pub fn with_memory(mut self, store: Arc<dyn MemoryStore>) -> Self {
+        self.memory_store = Some(store);
+        self.file_memory_dir = None;
+        self
+    }
+
+    /// Install an exact, typed durable-memory repository binding.
+    ///
+    /// Serving mode is **active-only recall** (`HARNESS-CONV4` / `CAP-GA1`).
+    /// Candidate rows may still be written inactive until a host activates
+    /// them; there is no model-visible shadow-candidates serving mode.
+    /// The live repository is runtime-only, while its secret-free typed
+    /// identity is persisted; hosts restoring a session must inject the exact
+    /// same visible binding again.
+    pub fn with_durable_memory(
+        mut self,
+        binding: crate::durable_memory::DurableMemorySession,
+    ) -> Self {
+        self.durable_memory = Some(binding);
+        self
+    }
+
+    /// Use a file-based memory store at the given directory instead of the default.
+    ///
+    /// The store is created lazily when the session is built (requires async).
+    /// This stores the directory path; `FileMemoryStore::new()` is called during
+    /// session construction.
+    pub fn with_file_memory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.memory_store = None;
+        self.file_memory_dir = Some(dir.into());
+        self
+    }
+
+    /// Observe successful durable memory writes without replacing the memory
+    /// backend. Observers are best-effort derived projections: their failures
+    /// never undo a persisted memory.
+    pub fn with_memory_observer(
+        mut self,
+        observer: Arc<dyn crate::memory::MemoryObserver>,
+    ) -> Self {
+        self.memory_observers.push(observer);
+        self
+    }
+
+    /// Install typed scheduled memory jobs and their bounded close policy.
+    /// Built-in V1 pruning is included automatically when configured in
+    /// [`MemoryConfig`](crate::memory::MemoryConfig); verified semantic refresh
+    /// remains an explicit schedule in these options.
+    pub fn with_memory_maintenance(
+        mut self,
+        maintenance: crate::memory::MemoryMaintenanceOptions,
+    ) -> Self {
+        self.memory_maintenance = maintenance;
+        self
+    }
+
+    /// Set a session store for persistence
+    pub fn with_session_store(mut self, store: Arc<dyn crate::store::SessionStore>) -> Self {
+        self.session_store = Some(store);
+        self.file_session_store_dir = None;
+        self
+    }
+
+    /// Export exact portable checkpoints at completed tool-round boundaries.
+    ///
+    /// The sink receives an owned, canonical export only after all events from
+    /// that tool round have entered the matching Session snapshot. Sink errors
+    /// are warn-logged and never turn a healthy live Run into a failure.
+    pub fn with_session_checkpoint_export_sink(
+        mut self,
+        sink: Arc<dyn crate::session_checkpoint::SessionCheckpointExportSink>,
+    ) -> Self {
+        self.session_checkpoint_export_sink = Some(sink);
+        self
+    }
+
+    /// Use a file-based session store at the given directory.
+    ///
+    /// The path is a typed construction specification. No I/O occurs until
+    /// [`SessionBuilder::build`](super::SessionBuilder::build) is awaited.
+    pub fn with_file_session_store(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.session_store = None;
+        self.file_session_store_dir = Some(dir.into());
+        self
+    }
+
+    /// Set an explicit session ID (auto-generated UUID if not set)
+    pub fn with_session_id(mut self, id: impl Into<String>) -> Self {
+        self.session_id = Some(id.into());
+        self
+    }
+
+    /// Tag the session with a host-defined tenant id. Opaque to the
+    /// framework — propagated to `SessionData`, hooks, and traces.
+    pub fn with_tenant_id(mut self, tenant: impl Into<String>) -> Self {
+        self.tenant_id = Some(tenant.into());
+        self
+    }
+
+    /// Tag the session with the id of the principal (user / service
+    /// account / etc.) that triggered it.
+    pub fn with_principal(mut self, principal: impl Into<String>) -> Self {
+        self.principal = Some(principal.into());
+        self
+    }
+
+    /// Tag the session with the id of the agent template / definition it
+    /// was instantiated from.
+    pub fn with_agent_template_id(mut self, template_id: impl Into<String>) -> Self {
+        self.agent_template_id = Some(template_id.into());
+        self
+    }
+
+    /// Attach a distributed-trace correlation id so this session's events
+    /// can be joined with upstream/downstream work.
+    pub fn with_correlation_id(mut self, corr: impl Into<String>) -> Self {
+        self.correlation_id = Some(corr.into());
+        self
+    }
+
+    /// Install a host-supplied [`BudgetGuard`](crate::budget::BudgetGuard).
+    ///
+    /// The guard is consulted before every LLM call (and after, for
+    /// usage accounting). When unset, no budget enforcement happens.
+    pub fn with_budget_guard(mut self, guard: Arc<dyn crate::budget::BudgetGuard>) -> Self {
+        self.budget_guard = Some(guard);
+        self
+    }
+
+    /// Install a host-provided [`HostEnv`](crate::host_env::HostEnv) for
+    /// deterministic ID generation and time. Replaces the framework
+    /// default of `uuid::Uuid::new_v4()` + wall clock — used by
+    /// host replay infrastructure to recreate a run bit-identical on
+    /// another node.
+    pub fn with_host_env(mut self, env: Arc<crate::host_env::HostEnv>) -> Self {
+        self.host_env = Some(env);
+        self
+    }
+
+    /// Install FIFO retention caps for the session's in-memory stores.
+    ///
+    /// `None` selects [`SessionRetentionLimits::default`](crate::retention::SessionRetentionLimits::default),
+    /// which is finite. Pass [`SessionRetentionLimits::unbounded`](crate::retention::SessionRetentionLimits::unbounded)
+    /// to retain every record. Hosts running thousands of long-lived
+    /// sessions per node should set explicit caps.
+    pub fn with_retention_limits(
+        mut self,
+        limits: crate::retention::SessionRetentionLimits,
+    ) -> Self {
+        self.retention_limits = Some(limits);
+        self
+    }
+
+    /// Enable structured JSONL trajectory capture for this session.
+    ///
+    /// This is the preferred programmatic path for RL training and deployed
+    /// service data collection. Environment-only deployments can instead set
+    /// `A3S_CODE_TRAJECTORY_PATH`.
+    pub fn with_rl_trajectory(mut self, config: crate::rl_trajectory::RlTrajectoryConfig) -> Self {
+        self.rl_trajectory = Some(config);
+        self
+    }
+
+    /// Request token-level log probabilities from compatible LLM providers.
+    pub fn with_llm_logprobs(mut self, enabled: bool) -> Self {
+        self.llm_logprobs = Some(enabled);
+        self
+    }
+
+    /// Request up to `top_logprobs` alternative logprobs per generated token.
+    pub fn with_llm_top_logprobs(mut self, top_logprobs: usize) -> Self {
+        self.llm_logprobs = Some(true);
+        self.llm_top_logprobs = Some(top_logprobs);
+        self
+    }
+
+    /// Enable auto-save after each `send()` call
+    pub fn with_auto_save(mut self, enabled: bool) -> Self {
+        self.auto_save = enabled;
+        self
+    }
+
+    /// Set artifact retention limits for this session.
+    pub fn with_artifact_store_limits(mut self, limits: crate::tools::ArtifactStoreLimits) -> Self {
+        self.artifact_store_limits = Some(limits);
+        self
+    }
+
+    /// Install a session-scoped host adapter for authorized immutable Tool
+    /// content. Every raw output returned by a Tool writes through this port
+    /// before release; lossy projections expose its validated reference
+    /// instead of retaining a second local copy.
+    pub fn with_immutable_content_adapter(
+        mut self,
+        adapter: crate::tools::ImmutableContentAdapterSession,
+    ) -> Self {
+        self.immutable_content_adapter = Some(adapter);
+        self
+    }
+
+    /// Pin the deterministic projection policy for Tool results.
+    pub fn with_tool_result_transform_policy(
+        mut self,
+        policy: crate::tools::ToolResultTransformPolicyV1,
+    ) -> Self {
+        self.tool_result_transform_policy = Some(policy);
+        self
+    }
+
+    /// Select the typed model-facing Tool presentation profile.
+    pub fn with_tool_presentation_profile(
+        mut self,
+        profile: crate::tools::ToolPresentationProfileV1,
+    ) -> Self {
+        self.tool_presentation_profile = Some(profile);
+        self
+    }
+
+    /// Set the maximum number of consecutive malformed-tool-args errors before
+    /// the agent loop bails.
+    ///
+    /// Default: 2 (the LLM gets two chances to self-correct before the session
+    /// is aborted).
+    pub fn with_parse_retries(mut self, max: u32) -> Self {
+        self.max_parse_retries = Some(max);
+        self
+    }
+
+    /// Set a per-tool execution timeout.
+    ///
+    /// When set, each tool execution is wrapped in `tokio::time::timeout`.
+    /// A timeout produces an error message that is fed back to the LLM
+    /// (the session continues).
+    pub fn with_tool_timeout(mut self, timeout_ms: u64) -> Self {
+        self.tool_timeout_ms = Some(timeout_ms);
+        self
+    }
+
+    /// Set a per-model API HTTP timeout.
+    ///
+    /// This is separate from [`with_tool_timeout`](Self::with_tool_timeout):
+    /// tool calls may need long-running process limits while model API calls
+    /// should use provider/network-specific deadlines.
+    pub fn with_llm_api_timeout(mut self, timeout_ms: u64) -> Self {
+        self.llm_api_timeout_ms = Some(timeout_ms);
+        self
+    }
+
+    /// Set the circuit-breaker threshold.
+    ///
+    /// In non-streaming mode, the agent retries transient LLM API failures up
+    /// to this many times (with exponential backoff) before aborting.
+    /// Default: 3 attempts.
+    pub fn with_circuit_breaker(mut self, threshold: u32) -> Self {
+        self.circuit_breaker_threshold = Some(threshold);
+        self
+    }
+
+    /// Set the duplicate-tool-call threshold.
+    ///
+    /// When the same tool is called with identical arguments more than this
+    /// budget allows, the call is returned to the model as a failed tool result
+    /// instead of executing again. Default: 3.
+    pub fn with_duplicate_tool_call_threshold(mut self, threshold: u32) -> Self {
+        self.duplicate_tool_call_threshold = Some(threshold.max(1));
+        self
+    }
+
+    /// Enable all resilience defaults with sensible values:
+    ///
+    /// - `max_parse_retries = 2`
+    /// - `tool_timeout_ms = 120_000` (2 minutes)
+    /// - `llm_api_timeout_ms = 120_000` (2 minutes)
+    /// - `circuit_breaker_threshold = 3`
+    pub fn with_resilience_defaults(self) -> Self {
+        self.with_parse_retries(2)
+            .with_tool_timeout(120_000)
+            .with_llm_api_timeout(120_000)
+            .with_circuit_breaker(3)
+    }
+
+    /// Override the default native [`BashSandbox`] for this session.
+    ///
+    /// Local sessions automatically bind the A3S native sandbox. Use this
+    /// option only when the host owns another equivalent isolation boundary.
+    /// The host remains responsible for constructing and lifecycle-managing a
+    /// custom sandbox.
+    ///
+    /// [`BashSandbox`]: crate::sandbox::BashSandbox
+    pub fn with_sandbox_handle(mut self, handle: Arc<dyn crate::sandbox::BashSandbox>) -> Self {
+        self.sandbox_handle = Some(handle);
+        self
+    }
+
+    /// Allow a process-host Bash runner when the native sandbox cannot start.
+    ///
+    /// This does **not** weaken the native fail-closed default on developer
+    /// machines. It only applies when native initialization fails and the host
+    /// already provides an outer isolation boundary (Harbor task containers).
+    /// Equivalent environment opt-in:
+    /// `A3S_CODE_ALLOW_PROCESS_HOST_SANDBOX=1`.
+    pub fn with_allow_process_host_sandbox(mut self, allow: bool) -> Self {
+        self.allow_process_host_sandbox = allow;
+        self
+    }
+
+    /// Set the default local sandbox's network posture (closed set:
+    /// `deny` default, `mediated` arms Gate 4 forced-proxy egress).
+    /// Explicit host opt-in — arming makes in-sandbox egress available
+    /// through mediation where it was denied before.
+    pub fn with_sandbox_network_mode(mut self, mode: crate::sandbox::SandboxNetworkMode) -> Self {
+        self.sandbox_network = mode;
+        self
+    }
+
+    /// Origins (`host` or `host:port`) the armed mediator may let
+    /// through. Required (non-empty) for [`crate::sandbox::SandboxNetworkMode::Mediated`].
+    pub fn with_sandbox_network_allow(mut self, origins: Vec<String>) -> Self {
+        self.sandbox_network_allow = origins;
+        self
+    }
+
+    /// Provide a workspace backend for this session.
+    ///
+    /// Built-in tools keep their stable names and schemas, while their backing
+    /// implementation can target a DFS, browser workspace, remote runner, or
+    /// any other host-provided backend.
+    pub fn with_workspace_backend(
+        mut self,
+        services: Arc<crate::workspace::WorkspaceServices>,
+    ) -> Self {
+        self.workspace_services = Some(services);
+        self
+    }
+
+    /// Serve text reads from client-held file text before the workspace
+    /// backend. See [`crate::workspace::WorkspaceReadOverlay`].
+    pub fn with_workspace_read_overlay(
+        mut self,
+        overlay: Arc<dyn crate::workspace::WorkspaceReadOverlay>,
+    ) -> Self {
+        self.workspace_read_overlay = Some(overlay);
+        self
+    }
+
+    /// Enable session-bound semantic workspace indexing.
+    ///
+    /// The session builder returns without waiting for corpus embeddings. The
+    /// caller can observe partial readiness through
+    /// [`AgentSession::workspace_retrieval_status`](super::AgentSession::workspace_retrieval_status).
+    pub fn with_workspace_retrieval(
+        mut self,
+        options: crate::workspace::WorkspaceRetrievalOptions,
+    ) -> Self {
+        self.workspace_retrieval = Some(options);
+        self
+    }
+
+    /// Explicitly disable session-bound semantic workspace indexing.
+    ///
+    /// This clears an earlier [`Self::with_workspace_retrieval`] choice without
+    /// constructing a replacement backend or calling the embedding provider.
+    /// It is useful when a host applies layered configuration and a later,
+    /// trusted layer deliberately opts the session out.
+    pub fn without_workspace_retrieval(mut self) -> Self {
+        self.workspace_retrieval = None;
+        self
+    }
+
+    /// Enable session-bound Code Intelligence.
+    ///
+    /// The code_symbols, code_navigation, and code_diagnostics tools get a
+    /// real workspace runtime (the local language-runtime provider on the
+    /// shared manifest backend). Without this — and without host-supplied
+    /// workspace services that already carries a provider — those tools
+    /// answer "no CI runtime". Language servers are resolved lazily per
+    /// query, so enabling this does not start anything at session build.
+    pub fn with_code_intelligence(mut self) -> Self {
+        self.code_intelligence = true;
+        self
+    }
+
+    /// Enable auto-compaction when context usage exceeds threshold.
+    ///
+    /// When enabled, the agent loop automatically prunes large tool outputs
+    /// and summarizes old messages when context usage exceeds the threshold.
+    pub fn with_auto_compact(mut self, enabled: bool) -> Self {
+        self.auto_compact = enabled;
+        self
+    }
+
+    /// Set the auto-compact threshold (0.0 - 1.0). Default: 0.80 (80%).
+    pub fn with_auto_compact_threshold(mut self, threshold: f32) -> Self {
+        self.auto_compact_threshold = Some(threshold.clamp(0.0, 1.0));
+        self
+    }
+
+    /// Set the active model's context window for compaction accounting.
+    pub fn with_max_context_tokens(mut self, tokens: usize) -> Self {
+        self.max_context_tokens = Some(tokens);
+        self
+    }
+
+    /// Enable or disable continuation injection (default: enabled).
+    ///
+    /// When enabled, the loop injects a continuation message when the LLM stops
+    /// calling tools before the task appears complete, nudging it to keep working.
+    pub fn with_continuation(mut self, enabled: bool) -> Self {
+        self.continuation_enabled = Some(enabled);
+        self
+    }
+
+    /// Set the maximum number of continuation injections per execution (default: 3).
+    pub fn with_max_continuation_turns(mut self, turns: u32) -> Self {
+        self.max_continuation_turns = Some(turns);
+        self
+    }
+
+    /// Inherit tools from an existing MCP manager.
+    ///
+    /// The session reads the manager as a capability source but never mutates
+    /// or disconnects it. Live [`AgentSession::add_mcp_server`](super::AgentSession::add_mcp_server)
+    /// calls use a separate session-owned manager. Delegated child agents
+    /// inherit both sources, with session-owned tools taking precedence.
+    pub fn with_mcp(mut self, manager: Arc<crate::mcp::manager::McpManager>) -> Self {
+        self.mcp_manager = Some(manager);
+        self
+    }
+
+    pub fn with_temperature(mut self, temperature: f32) -> Self {
+        self.temperature = Some(temperature);
+        self
+    }
+
+    pub fn with_thinking_budget(mut self, budget: usize) -> Self {
+        self.thinking_budget = Some(budget);
+        self
+    }
+
+    /// Pass an effort token through to the provider's own parameter.
+    pub fn with_reasoning_effort(mut self, effort: impl Into<String>) -> Self {
+        let effort = effort.into();
+        self.reasoning_effort = (!effort.trim().is_empty()).then_some(effort);
+        self
+    }
+
+    /// Override the maximum number of tool execution rounds for this session.
+    ///
+    /// Useful when binding a markdown-defined subagent to a session —
+    /// pass the agent definition's `max_steps` value here to enforce its step budget.
+    pub fn with_max_tool_rounds(mut self, rounds: usize) -> Self {
+        self.max_tool_rounds = Some(rounds);
+        self
+    }
+
+    /// Override the maximum number of sibling parallel branches for this session.
+    pub fn with_max_parallel_tasks(mut self, tasks: usize) -> Self {
+        self.max_parallel_tasks = Some(tasks.max(1));
+        self
+    }
+
+    /// Override automatic subagent delegation for this session.
+    pub fn with_auto_delegation(mut self, config: crate::config::AutoDelegationConfig) -> Self {
+        self.auto_delegation = Some(config);
+        self
+    }
+
+    /// Enable or disable automatic subagent delegation for this session.
+    pub fn with_auto_delegation_enabled(mut self, enabled: bool) -> Self {
+        let mut config = self.auto_delegation.take().unwrap_or_default();
+        config.enabled = enabled;
+        self.auto_delegation = Some(config);
+        self
+    }
+
+    /// Enable or disable manual child-agent tools for this session.
+    ///
+    /// When false, the model-visible `task` tool
+    /// compatibility alias are not registered. Worker agents remain registered
+    /// for introspection and hosts that manage them directly. This is for cost
+    /// control or debugging; it is not a security sandbox for the parent agent.
+    pub fn with_manual_delegation_enabled(mut self, enabled: bool) -> Self {
+        if let Some(config) = &mut self.auto_delegation {
+            config.allow_manual_delegation = enabled;
+        }
+        self.manual_delegation_enabled = Some(enabled);
+        self
+    }
+
+    /// Globally enable or disable automatic parallel child-agent fan-out.
+    ///
+    /// Manual `task` fan-out calls remain available
+    /// when this is false.
+    pub fn with_auto_parallel_delegation(mut self, enabled: bool) -> Self {
+        if let Some(config) = &mut self.auto_delegation {
+            config.auto_parallel = enabled;
+        }
+        self.auto_parallel_delegation = Some(enabled);
+        self
+    }
+
+    /// Set slot-based system prompt customization for this session.
+    ///
+    /// Allows customizing role, guidelines, response style, output language,
+    /// and extra instructions without overriding the core agentic capabilities.
+    pub fn with_prompt_slots(mut self, slots: SystemPromptSlots) -> Self {
+        self.prompt_slots = Some(slots);
+        self
+    }
+
+    /// Pin user-facing replies to a BCP-47 language tag for this session.
+    ///
+    /// Merges into existing `prompt_slots` when present so hosts can set locale
+    /// without wiping other slot customizations.
+    pub fn with_output_language(mut self, language: impl Into<String>) -> Self {
+        let slots = self
+            .prompt_slots
+            .take()
+            .unwrap_or_default()
+            .with_output_language(language);
+        self.prompt_slots = Some(slots);
+        self
+    }
+
+    /// Replace the built-in hook engine with an external hook executor.
+    ///
+    /// All lifecycle events are forwarded to the executor instead of the
+    /// in-process `HookEngine`.
+    pub fn with_hook_executor(mut self, executor: Arc<dyn crate::hooks::HookExecutor>) -> Self {
+        self.hook_executor = Some(executor);
+        self
+    }
+
+    /// Isolate mutating writes in a git worktree. Non-git roots fail closed.
+    pub fn with_effect_isolation(mut self, enabled: bool) -> Self {
+        self.effect_isolation = enabled;
+        self
+    }
+
+    pub fn with_completion_waivers(
+        mut self,
+        waivers: Vec<crate::harness_loop::CompletionWaiverV1>,
+    ) -> Self {
+        self.completion_waivers = waivers;
+        self
+    }
+
+    /// Declare the workspace's suite verification contracts (host manifest).
+    ///
+    /// A contract admits one shell command as the project's test suite and
+    /// names the paths a passing run covers. When the model runs that command
+    /// through bash with exit 0 and every mutated path is covered, the gate
+    /// accepts the run as `Verified` instead of demanding a path-referencing
+    /// existence check. Contracts are host-authored; a session built without
+    /// them keeps the strict path-binding gate.
+    ///
+    /// Invalid contracts (empty id/command/covers) refuse session
+    /// construction instead of silently never binding.
+    pub fn with_verification_contracts(
+        mut self,
+        contracts: Vec<crate::verification::VerificationContractV1>,
+    ) -> Self {
+        self.verification_contracts = contracts;
+        self
+    }
+
+    /// One-contract convenience over
+    /// [`Self::with_verification_contracts`](Self::with_verification_contracts).
+    pub fn with_verification_contract(
+        mut self,
+        contract: crate::verification::VerificationContractV1,
+    ) -> Self {
+        self.verification_contracts.push(contract);
+        self
+    }
+
+    /// Require actual assistant delivery after a verified tool result.
+    /// Evidence-only hosts can retain automatic tool completion. This is a
+    /// host surface contract, never classification of words in a user prompt.
+    pub fn with_assistant_final_response(mut self, required: bool) -> Self {
+        self.require_assistant_final_response = Some(required);
+        self
+    }
+
+    pub fn with_plan_run(mut self, admission: crate::harness_loop::PlanRunAdmission) -> Self {
+        self.plan_run = admission;
+        self
+    }
+
+    pub fn with_path_rules(mut self, rules: Vec<crate::path_instructions::PathRule>) -> Self {
+        self.path_rules = rules;
+        self
+    }
+
+    /// Override the path-instruction byte budget for this session. `None`
+    /// (the default) keeps the product default. The value is validated at
+    /// session construction: zero or a budget above the hard ceiling fails
+    /// closed instead of clamping.
+    pub fn with_injection_budget(mut self, budget: usize) -> Self {
+        self.path_injection_budget = Some(budget);
+        self
+    }
+
+    pub fn with_verifier(mut self, enabled: bool) -> Self {
+        self.verifier_enabled = enabled;
+        self
+    }
+
+    /// Install a host-only [`CompletionAttestor`](crate::CompletionAttestor).
+    ///
+    /// Invoked with the live mutation digest and paths after they exist and
+    /// before the completion gate decides. The gate still requires a Passed,
+    /// digest-bound report — this is not an `Observe` / bypass mode (#160).
+    pub fn with_completion_attestor(
+        mut self,
+        attestor: std::sync::Arc<dyn crate::completion_attestor::CompletionAttestor>,
+    ) -> Self {
+        self.completion_attestor = Some(attestor);
+        self
+    }
+
+    /// Admit a Meta Harness compose recipe for this session's fact-log actor.
+    pub fn with_harness(mut self, harness: crate::meta_harness::HarnessComposeOptions) -> Self {
+        self.harness = Some(harness);
+        self
+    }
+
+    /// Install a host Moore-component registry for `host:<id>` mounts.
+    pub fn with_host_harness_registry(
+        mut self,
+        registry: std::sync::Arc<dyn crate::meta_harness::HostHarnessRegistry>,
+    ) -> Self {
+        self.host_harness_registry = Some(registry);
+        self
+    }
+
+    /// Install a full custom Meta Harness assembler (Rust embedders).
+    ///
+    /// Takes precedence over [`Self::with_harness`]. Kernel policy still
+    /// applies when the assembler returns a graph via
+    /// [`crate::meta_harness::admit_component_tree`] / `HarnessGraph`.
+    pub fn with_host_harness_assembler(
+        mut self,
+        assembler: std::sync::Arc<dyn crate::meta_harness::HostHarnessAssembler>,
+    ) -> Self {
+        self.host_harness_assembler = Some(assembler);
+        self
+    }
+
+    pub fn with_external_observations(
+        mut self,
+        observations: Vec<crate::external_observation::ExternalObservationV1>,
+    ) -> Self {
+        self.external_observations = observations;
+        self
+    }
+
+    pub fn with_outcome_ledger(mut self, ledger: crate::outcome_memory::OutcomeLedger) -> Self {
+        self.outcome_ledger = ledger;
+        self
+    }
+
+    pub fn with_read_only_session(mut self, read_only: bool) -> Self {
+        self.read_only_session = read_only;
+        self
+    }
+
+    pub(crate) fn session_id_hint(&self) -> String {
+        self.session_id
+            .clone()
+            .filter(|id| !id.trim().is_empty())
+            .unwrap_or_else(|| "session".to_string())
+    }
+
+    pub(crate) fn can_write_workspace(&self) -> bool {
+        !self.read_only_session
+    }
+}

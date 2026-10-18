@@ -1,0 +1,72 @@
+//! Session-local workspace text catalog and incremental lexical index.
+//!
+//! The catalog is intentionally independent from semantic embedding and model
+//! providers. It is the single source of chunk boundaries for lexical and
+//! future semantic retrieval.
+
+#[cfg(feature = "a3s-vec-fts")]
+mod a3s_vec;
+mod catalog;
+mod chunk;
+mod chunking_strategy;
+mod eligibility;
+mod hybrid_candidates;
+mod hybrid_query;
+mod hybrid_rank;
+mod hybrid_types;
+pub(crate) mod lexical;
+mod memory_vector_adapter;
+mod persistent;
+mod reconcile;
+mod rerank;
+mod runtime;
+mod semantic_batch;
+mod semantic_projection;
+mod semantic_query;
+mod semantic_runtime;
+mod semantic_status;
+mod semantic_types;
+mod types;
+mod vector_contract;
+mod verification;
+#[cfg(feature = "a3s-vec-fts")]
+mod wiki;
+
+pub use catalog::{ChunkCatalogSnapshot, WorkspaceChunkCatalog};
+pub(crate) use chunk::digest_content;
+pub use chunking_strategy::{
+    CustomWorkspaceChunkingStrategy, FixedWindowChunkingOptions, RecursiveChunkingOptions,
+    WorkspaceChunkRange, WorkspaceChunkingError, WorkspaceChunkingInput, WorkspaceChunkingStrategy,
+};
+pub use eligibility::WorkspaceEligibilityPolicy;
+pub use hybrid_types::{
+    WorkspaceHybridChannelRank, WorkspaceHybridChannelStatus, WorkspaceHybridFallbackReason,
+    WorkspaceHybridSearchHit, WorkspaceHybridSearchRequest, WorkspaceHybridSearchResult,
+    WorkspaceRerankAlgorithm, WorkspaceRerankFallbackReason, WorkspaceRerankMode,
+    WorkspaceRerankOptions, WorkspaceRerankStatus, WorkspaceRetrievalChannel,
+};
+pub use lexical::{LexicalSearchHit, LexicalSearchRequest, LexicalSearchResult};
+pub use persistent::{
+    WorkspacePersistentIndex, WorkspacePersistentIndexPhase, WorkspacePersistentIndexStatus,
+};
+pub(crate) use runtime::LocalWorkspaceCatalogRuntime;
+pub use semantic_runtime::WorkspaceRetrievalRuntime;
+pub use semantic_types::{
+    WorkspaceEmbeddingBatchMetrics, WorkspaceRetrievalError, WorkspaceRetrievalOptions,
+    WorkspaceRetrievalPhase, WorkspaceRetrievalResult, WorkspaceRetrievalStatus,
+    WorkspaceSemanticFallbackReason, WorkspaceSemanticIndexLimits, WorkspaceSemanticSearchHit,
+    WorkspaceSemanticSearchRequest, WorkspaceSemanticSearchResult,
+};
+pub use types::{
+    ChunkCatalogLimits, ChunkingConfig, WorkspaceChunk, WorkspaceChunkId, WorkspaceIndexError,
+    WorkspaceLexicalEngine,
+};
+pub(crate) use verification::retain_verified;
+#[cfg(feature = "a3s-vec-fts")]
+pub use wiki::{
+    WikiIndex, WikiReconcileReport, WikiSearchHit, WikiSearchPhase, WikiSearchResult,
+    WIKI_PASSAGE_CHARS,
+};
+
+#[cfg(test)]
+mod tests;

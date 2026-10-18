@@ -1,0 +1,47 @@
+[package]
+name = "a3s-use-browser"
+version = "0.3.2"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/A3S-Lab/Browser"
+homepage = "https://github.com/A3S-Lab/Browser"
+authors = ["A3S Lab"]
+rust-version = "1.82"
+description = "Provider-oriented browser rendering and session contracts for A3S"
+readme = "README.md"
+keywords = ["browser", "automation", "chrome", "a3s"]
+categories = ["web-programming", "api-bindings"]
+publish = false
+
+[features]
+default = ["chrome"]
+chrome = [
+    "dep:chromiumoxide",
+    "dep:fs2",
+    "dep:futures",
+    "dep:reqwest",
+    "dep:tracing",
+    "dep:which",
+    "dep:zip",
+]
+lightpanda = ["chrome"]
+
+[dependencies]
+async-trait = {workspace = true}
+chromiumoxide = {version = "0.7", features = ["tokio-runtime"], optional = true}
+fs2 = {workspace = true, optional = true}
+futures = {workspace = true, optional = true}
+reqwest = {version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"], optional = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+sha2 = {workspace = true}
+tokio = {version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "rt-multi-thread", "process", "sync", "time"]}
+tracing = {workspace = true, optional = true}
+url = {version = "2", features = ["serde"]}
+which = {version = "7", optional = true}
+zip = {version = "2", default-features = false, features = ["deflate"], optional = true}
+a3s-use-core = {path = "../use/core"}
+
+[dev-dependencies]
+tempfile = {workspace = true}
+tokio = {version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "rt-multi-thread", "process", "sync", "time"]}

@@ -1,0 +1,15 @@
+/target/
+**/target/
+.DS_Store
+
+.env
+.env.*
+!.env.example
+.a3s/
+.a3s-code/
+.a3s-test/
+!crates/**/fixtures/**/.a3s/
+!crates/**/fixtures/**/.a3s/**
+*.profraw
+*.profdata
+__pycache__/

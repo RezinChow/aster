@@ -1,0 +1,319 @@
+# A3S Code Performance Qualification
+
+Status: 9.1.2 tip L6 closed on 2026-10-03 for Code
+[`6ad2d6dc`](https://github.com/A3S-Lab/Code/commit/6ad2d6dcb2847bc15e6c8c6474d5cb1d87a554dc)
+— both `performance.yml` and `hermetic-integrations.yml` archived below.
+Prior tip L6 pairs remain on `b91462d3` / `ee8f68ad` / `91d34757`. Enterprise GA
+remains unclaimed: `TB-QUAL1` has no verifier receipt on this tip, and CAR is
+not certified.
+
+Tip [`2bd6a234`](https://github.com/A3S-Lab/Code/commit/2bd6a234d171f1484ac4cc29999d943085f17fd1)
+keeps that withhold. Standing-context admission is
+[`9fb1cb79`](https://github.com/A3S-Lab/Code/commit/9fb1cb7985226c7971ef59a20710b46391af2f2b).
+CI [`37103577874`](https://github.com/A3S-Lab/Code/actions/runs/37103577874)
+succeeded, and its hermetic integrations artifact has top-level `passed: true`
+on `s3-compat.json`, `headless-cdp.json`, and `opentelemetry.json`. Performance
+Qualification
+[`37103577761`](https://github.com/A3S-Lab/Code/actions/runs/37103577761)
+produced the nine release reports and each top-level `passed` is true. The
+F-table gate on this tip scored 44 of 44 kernel files at or above 95% line
+coverage (`content_digest.rs` 100.00%, `loop_checkpoint.rs` 96.74%, lowest
+`durable_memory.rs` 95.00%). An earlier instrumented run stopped on a contended
+repository lock before scoring; the rerun is the score above.
+`just layer-c-live-e2e` with `A3S_TEST_MODEL=boyue/bailian/deepseek-v4.1-flash`
+printed `LAYER_C_PASS model=boyue/bailian/deepseek-v4.1-flash` and exited 0.
+The same route served `deepseek-v4.1-flash` on the deep end-to-end receipt. A
+run that left the recipe default `boyue/deepseek-v4-flash` did not: the
+agent-protocol write suite observed reasoning events and no write tool. The
+`DM-PROD1` host pack on `3b2f72aa` is unchanged and does not cover this
+admission. Terminal-Bench was not started. There is no `v*` tag on this tip.
+
+Tip [`9f521169`](https://github.com/A3S-Lab/Code/commit/9f52116936bb30cfb816ee3f47d2b738dad276a9)
+keeps that withhold. CI
+[`37110650044`](https://github.com/A3S-Lab/Code/actions/runs/37110650044)
+succeeded. Its hermetic integrations artifact has top-level `passed: true` on
+`s3-compat.json`, `headless-cdp.json`, and `opentelemetry.json`. Performance
+Qualification
+[`37112230393`](https://github.com/A3S-Lab/Code/actions/runs/37112230393)
+was dispatched on this commit and produced the nine release reports; each
+top-level `passed` is true. The F-table gate scored 44 of 44 kernel files at
+or above 95% line coverage on the first instrumented run (`content_digest.rs`
+100.00%, `loop_checkpoint.rs` 96.74%, lowest `durable_memory.rs` 95.00%).
+`just layer-c-live-e2e` with `A3S_TEST_MODEL=boyue/bailian/deepseek-v4.1-flash`
+printed `LAYER_C_PASS model=boyue/bailian/deepseek-v4.1-flash` and exited 0.
+Every suite passed, with no retry. The clean deep end-to-end receipt is parent
+`5f5528f4`; each case served `deepseek-v4.1-flash`. The `DM-PROD1` host pack
+on `3b2f72aa` does not cover this tip. Terminal-Bench was not started. There
+is no `v*` tag.
+
+Changelog fold
+[`439cc740`](https://github.com/A3S-Lab/Code/commit/439cc740f2520806bb06f6d6391100c236be8d1f)
+keeps that withhold. Kernel sources are unchanged since `9f521169`. CI
+[`37117714232`](https://github.com/A3S-Lab/Code/actions/runs/37117714232)
+succeeded on attempt 2. Attempt 1 failed the Windows library test
+`baseline_sees_a_mode_change_on_an_already_dirty_file` with
+`PathDelta { paths: [], incomplete: true }`; the rerun is the score. Its
+hermetic integrations artifact has top-level `passed: true` on
+`s3-compat.json`, `headless-cdp.json`, and `opentelemetry.json`. Performance
+Qualification
+[`37117721745`](https://github.com/A3S-Lab/Code/actions/runs/37117721745)
+was dispatched on this commit and produced the nine release reports; each
+top-level `passed` is true. The F-table and Layer C were not re-run; those
+scores stay on `9f521169`. The `DM-PROD1` host pack on `3b2f72aa` does not
+cover this fold. Terminal-Bench was not started. There is no `v*` tag.
+
+This record is the human-readable companion to the machine-readable release
+profiles. It documents what was measured, what was deliberately excluded, and
+why the budgets are suitable regression ceilings rather than universal speed
+claims.
+
+## Authoritative runs and artifacts
+
+| Evidence                                                        | GitHub Actions run                                                        | Artifact                              | Archive SHA-256                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------ |
+| Nine release performance profiles (changelog fold `439cc740`)   | [`37117721745`](https://github.com/A3S-Lab/Code/actions/runs/37117721745) | `performance-37117721745-1`           | `sha256:c4742314329a60b97eee8cafaefd061ee34c8364e57fa1de84c58965c5c06b48` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (changelog fold `439cc740`, CI job) | [`37117714232`](https://github.com/A3S-Lab/Code/actions/runs/37117714232) | `hermetic-integrations-37117714232-1` | `sha256:a796bc2339adf47e6cf08a5edb054e7cf335d01bf168083860b5b51a4fe36a94` |
+| Nine release performance profiles (tip `9f521169`)              | [`37112230393`](https://github.com/A3S-Lab/Code/actions/runs/37112230393) | `performance-37112230393-1`           | `sha256:5147989419a3925091931b2e5484c808d5b692baf31f75d9b433d4113ceea05e` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (tip `9f521169`, CI job) | [`37110650044`](https://github.com/A3S-Lab/Code/actions/runs/37110650044) | `hermetic-integrations-37110650044-1` | `sha256:d0e786d34f7a1919b0afefc2429075628924a298f08b3e8985131b8de832a404` |
+| Nine release performance profiles (tip `2bd6a234`)              | [`37103577761`](https://github.com/A3S-Lab/Code/actions/runs/37103577761) | `performance-37103577761-1`           | `sha256:e13d4598fae533ad6c1ff4924158e0596c4cf71eb30ebaaa9c1877d7515ef017` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (tip `2bd6a234`, CI job) | [`37103577874`](https://github.com/A3S-Lab/Code/actions/runs/37103577874) | `hermetic-integrations-37103577874-1` | `sha256:71afbc50cd874fb2b4015560dc16f3d9bff3a511a6d358da84f99ea6bb16db42` |
+| Nine release performance profiles (9.1.2 tip `6ad2d6dc`)        | [`37082677055`](https://github.com/A3S-Lab/Code/actions/runs/37082677055) | `performance-37082677055-1`           | `sha256:5b2e717d581277e0e835888f87513f40e5cb829ca5a6811519089b2873418512` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (9.1.2 tip `6ad2d6dc`) | [`37082696544`](https://github.com/A3S-Lab/Code/actions/runs/37082696544) | `hermetic-integrations-37082696544-1` | `sha256:7ac2db6708bfc0e07c315b703df3ca83020ce85d12c8cd13f18b5753b42adb79` |
+| Nine release performance profiles (9.0.0 tip `b91462d3`)        | [`36160896419`](https://github.com/A3S-Lab/Code/actions/runs/36160896419) | `performance-36160896419-1`           | `11edc0a40a51cbfeb21aeaa3d285a912ab1c8d5b6b387af672c2fae0e1c3f778` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (9.0.0 tip `b91462d3`) | [`36165517450`](https://github.com/A3S-Lab/Code/actions/runs/36165517450) | `hermetic-integrations-36165517450-1` | `e64b01f81748078f47a78effd54572bef91a2dccacadbe8ad4f2f960dc1c338f` |
+| Nine release performance profiles (9.0.0 tip `ee8f68ad`)        | [`36092780724`](https://github.com/A3S-Lab/Code/actions/runs/36092780724) | `performance-36092780724-1`           | `731386c0407e38bf8a14bcec939c438fdcc86a1cea9fff1e4b2a1a5eec21656b` |
+| Nine release performance profiles (9.0.0 tip `91d34757`)        | [`36089389830`](https://github.com/A3S-Lab/Code/actions/runs/36089389830) | `performance-36089389830-1`           | `6f6abcd483e49cbe6ca26adea9bbab461fa4c51cab60c0961fde5f52b4e06349` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (9.0.0 tip `ee8f68ad`) | [`36122389323`](https://github.com/A3S-Lab/Code/actions/runs/36122389323) | `hermetic-integrations-36122389323-1` | `4ac6d54e8867a5365e12ab70124949756121de5ad1984f6a5be2d6e7492906d3` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (9.0.0 tip `91d34757`) | [`36089393353`](https://github.com/A3S-Lab/Code/actions/runs/36089393353) | `hermetic-integrations-36089393353-1` | `18f3d7a42e5a8bba0e828e1d4d4be8e472f18818993a3036da5712d23ad82620` |
+| Nine release performance profiles (9.0.0 `fa0a92ca`)            | [`35947891976`](https://github.com/A3S-Lab/Code/actions/runs/35947891976) | `performance-35947891976-1`           | `b5ce0281d5bad5ab47003bd34d93ab11bc7eab1ef8f37c24b10b8fe619010b73` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (9.0.0 `fa0a92ca`) | [`35947892108`](https://github.com/A3S-Lab/Code/actions/runs/35947892108) | `hermetic-integrations-35947892108-1` | `00ee5ea7eb32a09a9fd4cf8eacc40642c4d548319d01822ef3e809f753207269` |
+| Nine release performance profiles (prior tip `c9e26504`)        | [`35667548466`](https://github.com/A3S-Lab/Code/actions/runs/35667548466) | `performance-35667548466-1`           | `c4c96e0bf2544319354b09bdbf4e3954931eac4cd46d77b7a33ce044f1849c87` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (tip) | [`35667552718`](https://github.com/A3S-Lab/Code/actions/runs/35667552718) | `hermetic-integrations-35667552718-1` | `308370110f9f69cf8b71c75084e5853a0adbead77a46ca171338b5f9d9bef764` |
+| Nine release performance profiles (GA candidate `2858b228` line, tip `139c4680`) | [`36428840848`](https://github.com/A3S-Lab/Code/actions/runs/36428840848) | `performance-36428840848-1`           | `sha256:fc5fe4a8d0849a96f47ebc42c7ed3fc2a3831cf7560514640e8f9566656a7cee` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (GA candidate line) | [`36428848277`](https://github.com/A3S-Lab/Code/actions/runs/36428848277) | `hermetic-integrations-36428848277-1` | `sha256:58c6e91b4e57c06aa1020e3a75f09f252235120c743d60e229c81ca79dfdc666` |
+| Nine release performance profiles (tip `b6777f19`) | [`36667612027`](https://github.com/A3S-Lab/Code/actions/runs/36667612027) | `performance-36667612027-1` | `sha256:931285821aaa7aba2cc02ca404694c3b968985c90ce5ad66df7a3dda10e833fd` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry (tip `b6777f19`) | [`36792325441`](https://github.com/A3S-Lab/Code/actions/runs/36792325441) | `hermetic-integrations-36792325441-1` | `sha256:9e4126b05faad047f72f668eb30590ad87e15b718a6a5b890ab56e7d93739c7a` |
+| Nine release performance profiles (prior RC)                    | [`35639843682`](https://github.com/A3S-Lab/Code/actions/runs/35639843682) | `performance-35639843682-1`           | `17851eb61d21970a46582c277a5fe7704f38f098bfaea074feaf23b19a246a04` |
+| MinIO/S3-compat, controlled Chrome/CDP, and local OpenTelemetry | [`35642286881`](https://github.com/A3S-Lab/Code/actions/runs/35642286881) | `hermetic-integrations-35642286881-1` | `7cc70e465fe01d22a0ef59e190241b406b2e844cdcc80b76b03816c75074494b` |
+| Nine release performance profiles (including evaluation substrate) | [`33844533910`](https://github.com/A3S-Lab/Code/actions/runs/33844533910) | `performance-33844533910-1`           | `c6062c73f46fae51d665fc754a2bf7824db02648b1ccf5c6dbbf3ac3e92ff7e3` |
+| Seven release performance profiles                              | [`33304362997`](https://github.com/A3S-Lab/Code/actions/runs/33304362997) | `performance-33304362997-1`           | `0c3e497f546ed3917555036fe972a051f38c89d9062f62e0727a6990665bdf42` |
+| MinIO, controlled Chrome/CDP, and local OpenTelemetry Collector | [`32130843684`](https://github.com/A3S-Lab/Code/actions/runs/32130843684) | `hermetic-integrations-32130843684-1` | `7d6a3dea89bea20ffa9be82d0feab14f96a168196bba2f55b8cb2c7c89d2c975` |
+
+GitHub reported digests for the uploaded ZIP archives. The artifacts are
+retained for 30 days; the workflow also runs weekly and whenever a measured
+critical path changes, producing a refreshed independently downloadable record.
+
+Run `37117721745` on commit `439cc740` produced all nine performance reports with
+`passed: true` (agent-convergence, workspace-retrieval, workspace-retrieval-portable,
+flow-state-graph, code-intelligence, context-memory, durable-memory-semantic-refresh,
+persistence, evaluation-substrate). CI run `37117714232` on the same commit
+archived S3-compat, controlled CDP, and OpenTelemetry reports with `passed: true`.
+These rows do not replace the 9.1.2 tip record below, and they do not claim
+Enterprise GA.
+
+Run `37112230393` on commit `9f521169` produced all nine performance reports with
+`passed: true` (agent-convergence, workspace-retrieval, workspace-retrieval-portable,
+flow-state-graph, code-intelligence, context-memory, durable-memory-semantic-refresh,
+persistence, evaluation-substrate). CI run `37110650044` on the same commit
+archived S3-compat, controlled CDP, and OpenTelemetry reports with `passed: true`.
+These rows do not replace the 9.1.2 tip record below, and they do not claim
+Enterprise GA.
+
+Run `37103577761` on commit `2bd6a234` produced all nine performance reports with
+`passed: true` (agent-convergence, workspace-retrieval, workspace-retrieval-portable,
+flow-state-graph, code-intelligence, context-memory, durable-memory-semantic-refresh,
+persistence, evaluation-substrate). CI run `37103577874` on the same commit
+archived S3-compat, controlled CDP, and OpenTelemetry reports with `passed: true`.
+These rows do not replace the 9.1.2 tip record below, and they do not claim
+Enterprise GA.
+
+Run `37082677055` on commit `6ad2d6dc` produced all nine performance reports with
+`passed: true` (agent-convergence, workspace-retrieval, workspace-retrieval-portable,
+flow-state-graph, code-intelligence, context-memory, durable-memory-semantic-refresh,
+persistence, evaluation-substrate). Run `37082696544` on the same commit produced
+S3-compat, controlled CDP, and OpenTelemetry reports with `passed: true`.
+
+Run `36428840848` on commit `139c4680` (the 9.1.0 GA candidate line) produced all nine
+performance reports with `passed: true`; run `36428848277` produced the hermetic
+integrations reports with `passed: true`. These are the current-line L6 digests for the
+Enterprise GA board.
+
+Run `36667612027` on commit `b6777f19` produced all nine performance reports with
+`passed: true`. Run `36792325441` on the same commit produced S3-compat, controlled CDP,
+and OpenTelemetry reports with `passed: true`. Recording these digests leaves the
+enterprise-GA claim withheld.
+
+Run `36160896419` on commit `b91462d3` produced all nine performance reports with
+`passed: true` (agent-convergence, workspace-retrieval, workspace-retrieval-portable,
+flow-state-graph, code-intelligence, context-memory, durable-memory-semantic-refresh,
+persistence, evaluation-substrate).
+
+Run `36165517450` on commit `b91462d3` produced S3-compat, controlled CDP, and
+OpenTelemetry reports with `passed: true`. Hermetic integrations is the CI job
+that calls `hermetic-integrations.yml`.
+
+Run `35947891976` on commit `fa0a92ca` produced all nine performance reports with
+`passed: true` (agent-convergence, workspace-retrieval, workspace-retrieval-portable,
+flow-state-graph, code-intelligence, context-memory, durable-memory-semantic-refresh,
+persistence, evaluation-substrate).
+
+Run `35947892108` on commit `fa0a92ca` produced S3-compat, controlled CDP, and
+OpenTelemetry reports with `passed: true`.
+
+Run `35667548466` on commit `c9e26504` produced all nine performance reports with
+`passed: true` (agent-convergence, workspace-retrieval, workspace-retrieval-portable,
+flow-state-graph, code-intelligence, context-memory, durable-memory-semantic-refresh,
+persistence, evaluation-substrate).
+
+Run `35667552718` on commit `c9e26504` produced S3-compat, controlled CDP, and
+OpenTelemetry reports with `passed: true`.
+
+Run `35639843682` on commit `9b28f066` produced all nine performance reports with
+`passed: true` after standalone CI stripped monorepo path patches and
+re-locked `a3s-apofasi`, `a3s-sandbox`, and `a3s-vec`.
+
+Run `35642286881` on commit `515a50b0` produced S3-compat, controlled CDP, and
+OpenTelemetry reports with `passed: true` after aligning the hermetic access
+key with the in-repo `s3-compat` fixture (`a3s-code-akid`).
+
+## Measurement boundary
+
+- Every timed profile used a Rust release build on an x86-64 Linux runner with
+  four logical CPUs. Profiles that resolve `/proc/cpuinfo` reported an AMD EPYC
+  7763 64-Core Processor.
+- Each percentile profile performed three warmups and 20 measured samples,
+  except Workspace Retrieval, which performed 20 warmups and 100 measured
+  samples.
+- Provider and public-network latency was excluded. Workspace hybrid timing
+  included authoritative source rereads from the warm operating-system cache.
+  Durable semantic recall used a deterministic in-process embedding adapter,
+  the reopened file-repository replay view, and SQLite reads from the warm
+  operating-system cache.
+- Context and memory corpus construction was measured and reported separately,
+  but excluded from query latency. Code Intelligence workspace creation was
+  excluded; its manifest scan, language-server process start, source read, and
+  shutdown were measured explicitly.
+- File persistence included JSON serialization, filesystem I/O, and `fsync`.
+  The durable-memory profile separately measured source seeding, source reopen,
+  each refresh phase, and semantic-query percentiles. It closed and reopened
+  every repository/index/session owner but did not restart the operating-system
+  process. One-off refresh timings are observations, not percentile claims.
+  Flow/State Graph timing was an in-process CPU profile and excluded filesystem
+  I/O.
+- The convergence client was scripted. Its call, tool, token, and recovery
+  counts are deterministic work-amplification gates; its sub-millisecond-scale
+  fixture timings are not a model-latency claim.
+
+## Latency results
+
+All values below are milliseconds. A value written as `p50 / p95 / max` comes
+directly from the retained JSON report.
+
+| Profile and operation                            | Fixed workload                                               | Observed p50 / p95 / max                                    | Objective                          | Result                |
+| ------------------------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------------- | ---------------------------------- | --------------------- |
+| Workspace Retrieval exact cosine                 | 25,000 records, 384 dimensions, Top 20                       | 9.699 / 9.842 / 9.982                                       | p95 <= 30                          | Pass                  |
+| Workspace Retrieval hybrid, RRF-only             | Same corpus; current-source reads included                   | 33.140 / 38.412 / 40.641                                    | p95 <= 100                         | Pass                  |
+| Workspace Retrieval hybrid, deterministic rerank | Same corpus; at most 100 rerank candidates                   | 33.161 / 37.347 / 38.682                                    | p95 <= 100 and added p95 <= 10     | Pass; added p95 0.000 |
+| Flow projection                                  | 1,000 steps and 2,002 Flow events                            | 173.281 / 173.753 / 174.060                                 | p95 <= 2,000                       | Pass                  |
+| State Graph replay                               | 11,008 graph records                                         | 163.627 / 164.376 / 166.547                                 | p95 <= 2,000                       | Pass                  |
+| Code Intelligence cold document symbols          | 5,000-file workspace; process start and source read included | 753.704 single observation                                  | <= 5,000                           | Pass                  |
+| Code Intelligence warm document symbols          | 20 source-reading samples                                    | 0.732 / 0.746 / 0.753                                       | p95 <= 250                         | Pass                  |
+| Code Intelligence warm workspace symbols         | 20 source-reading samples                                    | 0.730 / 0.756 / 0.769                                       | p95 <= 250                         | Pass                  |
+| Context assembly                                 | 25,000 inputs, 20,000 unique items, 10 providers             | 176.929 / 185.148 / 186.522                                 | p95 <= 500                         | Pass                  |
+| In-memory recall through `AgentMemory`           | 2,500 memories, Top 20                                       | 0.142 / 0.153 / 0.161                                       | p95 <= 250                         | Pass                  |
+| Durable semantic recall through SQLite           | 10,000 active nodes, 384 dimensions, Top 8                   | 162.017 / 164.508 / 165.871                                 | p95 <= 1,000                       | Pass                  |
+| Memory session save / load                       | Approx. 1.25 MiB snapshot                                    | 0.093 / 0.107 / 0.383 save; 0.078 / 0.083 / 0.091 load      | each p95 <= 250                    | Pass                  |
+| File session save / load                         | 1,272,756-byte persisted snapshot; `fsync` included          | 2.406 / 2.598 / 5.591 save; 0.964 / 1.041 / 1.058 load      | save p95 <= 1,000; load p95 <= 500 | Pass                  |
+
+The file-save result is intentionally reported rather than normalized away.
+Hosted-runner `fsync` timing varies substantially across otherwise successful
+runs, so the contract uses a user-visible ceiling with headroom instead of
+publishing the fastest sample as an SLA.
+
+The change-scoped `evaluation-substrate-v1` profile now measures bounded
+evaluation-result publication, reopen/retention validation, and strict wire
+round trips without a provider or network. It is wired into the release
+workflow and increases the required report set from eight to nine. Hosted run
+[`33844533910`](https://github.com/A3S-Lab/Code/actions/runs/33844533910)
+produced all nine reports and passed the new profile on Linux x86-64 (four
+logical CPUs): result-write p95 137.600 ms, reopen/validation p95 0.865 ms,
+wire-round-trip p95 2.185 ms, 24 retained records, 15,511 persisted bytes,
+and two regular files. The profile intentionally excludes provider, network,
+and Cloud latency; those remain host qualification boundaries.
+
+## Deterministic work and resource results
+
+| Profile              | Evidence                                                                                                                                                                                                                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent convergence    | 4/4 cases passed with 9 scripted LLM calls, 8 tool attempts, 6 executed tool calls, and 235 accounted tokens. Duplicate calls stopped after the bounded guard path; checkpoint resume preserved accounting.                                                                                     |
+| Workspace Retrieval  | Document request amplification was exactly 1.0x for 25,000 admitted inputs; non-text inputs were zero. Published vector bytes were 40,177,548 against a 128 MiB vector ceiling. Maximum rerank scratch was 75,346 bytes against 4 MiB, with zero fallbacks and at most 50 evaluated candidates. |
+| Code Intelligence    | The manifest admitted 5,001 files in 55.522 ms. Cold start created one process; shutdown sent both protocol messages, observed one exit, and completed in 0.581 ms. Active and retained RSS deltas were both 8,089,600 bytes against 512 MiB and 256 MiB ceilings.                              |
+| Context and memory   | Context output was bounded to 64 items, 2,048 selected tokens, and 10,878 rendered bytes. Active and retained RSS deltas were 53,432,320 and 49,991,680 bytes against 512 MiB and 256 MiB ceilings. Recall ranked the independently marked target first.                                        |
+| Durable memory       | Initial publication read and embedded 10,000 nodes in 157 provider batches (569 ms). A stable tick did zero snapshot/provider/publication work (4 ms). One-node drift reused 9,999 vectors and made one provider request (517 ms); index-only drift reused all 10,000 vectors with zero provider calls (438 ms). Checkpoint recovery reopened both durable backends, read one 10,000-node snapshot with zero provider/publication work (118 ms), and the next stable tick again did zero work (4 ms). Source seed/reopen took 171.585/272.032 ms. The 915-byte secret-free checkpoint was synchronized before close. Total durable disk was 30,478,075 bytes against 193 MiB; active/retained RSS deltas were 136,953,856/136,921,088 bytes against 768/384 MiB. |
+| Flow and State Graph | Replay preserved 1,001 objects and 1,000 relations. Serialized events occupied 9,657,128 bytes against a 64 MiB ceiling.                                                                                                                                                                        |
+| Persistence          | Twenty-three generations overwrote one logical session without file accumulation. Memory and file stores both returned one session, preserved snapshot identity and byte shape, and left zero files and zero bytes after delete.                                                                |
+
+The change-scoped 2026-09-04 schema-v5 workspace-retrieval run qualifies the
+official a3s-vec FTS path alongside the existing A3S Memory semantic
+projection. The locked exact, identifier, CJK, hybrid, concurrent-replacement,
+and close gates pass. Native collection handles are flushed and closed before
+publication; a four-entry hot-handle cap plus transient cold opens keeps
+collection reopen cost bounded. Portable minimal builds pass the same lexical
+result contract and are identified in metadata as `portable_bm25_v1`. The schema-v5
+benchmark separates its 25,000-record exact-vector workload from the
+four-file/512-chunk native hybrid workload. See the
+[backend contract](WORKSPACE_RETRIEVAL_BACKENDS.md).
+
+## Hermetic integration results
+
+| Boundary        | Controlled evidence                                                                                                                                                                                                                                                     | Result |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| S3 workspace    | A pinned local MinIO service completed write, read, list, edit, patch, and cleanup through `S3WorkspaceBackend`.                                                                                                                                                        | Pass   |
+| Headless search | Workflow-managed Chrome used the production CDP path and Google parser against a controlled HTTPS fixture. The request log contains `www.google.com` search, completion, and async endpoints; the public search-engine network was excluded and browser cleanup passed. | Pass   |
+| OpenTelemetry   | A pinned local Collector received service `a3s-code-hermetic` and span `a3s.telemetry.qualification`. Initialization took 0.651 ms and shutdown took 2.158 ms against a 10,000 ms deadline.                                                                             | Pass   |
+
+These tests establish Code-owned transport, parsing, lifecycle, and cleanup.
+They do not claim that a public search engine, arbitrary S3 deployment, or
+remote Collector will always be available or have the same latency.
+
+## Why these budgets are reasonable
+
+The objectives correspond to user-visible boundaries and include substantial
+hosted-runner headroom:
+
+- interactive local retrieval should stay below 100 ms at the locked corpus;
+- local durable semantic recall should stay below 1 second at 10,000 active
+  nodes and 384 dimensions, while stable refresh ticks must perform zero
+  snapshot, provider, and publication work;
+- assembling a bounded model context should stay below 500 ms;
+- a 1,000-step graph projection or replay should stay below 2 seconds;
+- a cold controlled language-server request and clean shutdown each have a
+  5-second ceiling;
+- an atomic, synchronized approximately 1.25 MiB file snapshot should save
+  within 1 second;
+- memory ceilings prevent passing latency by retaining unbounded state.
+
+Changing a workload, inclusion rule, or budget requires changing the emitted
+profile and this record together. A job timeout remains only a hung-process
+guard and must not be presented as product latency.
+
+## Reproduce and inspect
+
+Dispatch the remote workflow so native compilation and release execution stay
+off the developer workstation:
+
+```bash
+gh workflow run performance.yml --repo A3S-Lab/Code
+gh run watch <run-id> --repo A3S-Lab/Code --exit-status
+gh run download <run-id> --repo A3S-Lab/Code
+```
+
+The current workflow requires exactly nine JSON files (including the native
+a3s-vec workspace and evaluation-substrate reports) and rejects any report
+whose top-level `passed` value is not `true`. The authoritative run above
+contains all nine reports, including the native workspace and evaluation
+substrate records; its archive digest can be checked before the 30-day
+retention window expires.
+The capability ledger explains how
+these profiles combine with deterministic correctness, SDK runtime, and
+external qualification evidence.

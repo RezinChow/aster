@@ -1,0 +1,287 @@
+[workspace]
+resolver = "3"
+exclude = ["crates/code/fixtures/s3-compat"]
+members = [
+    "apps/aster",
+    "crates/acl",
+    "crates/apofasi",
+    "crates/browser",
+    "crates/code/acp",
+    "crates/code/core",
+    "crates/common",
+    "crates/effect",
+    "crates/flow",
+    "crates/lane",
+    "crates/memory",
+    "crates/okf",
+    "crates/sandbox",
+    "crates/search",
+    "crates/terminal/crates/build/a3s-proto-build",
+    "crates/terminal/crates/codegen/a3s-acp-lib",
+    "crates/terminal/crates/codegen/a3s-agent-lifecycle",
+    "crates/terminal/crates/codegen/a3s-chat-state",
+    "crates/terminal/crates/codegen/a3s-code-active-sessions",
+    "crates/terminal/crates/codegen/a3s-code-agent",
+    "crates/terminal/crates/codegen/a3s-code-announcements",
+    "crates/terminal/crates/codegen/a3s-code-auth",
+    "crates/terminal/crates/codegen/a3s-code-bundle",
+    "crates/terminal/crates/codegen/a3s-code-config",
+    "crates/terminal/crates/codegen/a3s-code-config-types",
+    "crates/terminal/crates/codegen/a3s-code-dashboard-store",
+    "crates/terminal/crates/codegen/a3s-code-diag-server",
+    "crates/terminal/crates/codegen/a3s-code-env",
+    "crates/terminal/crates/codegen/a3s-code-extra-ca",
+    "crates/terminal/crates/codegen/a3s-code-feedback",
+    "crates/terminal/crates/codegen/a3s-code-file-lock",
+    "crates/terminal/crates/codegen/a3s-code-foreign-sessions",
+    "crates/terminal/crates/codegen/a3s-code-gboom",
+    "crates/terminal/crates/codegen/a3s-code-hooks",
+    "crates/terminal/crates/codegen/a3s-code-http",
+    "crates/terminal/crates/codegen/a3s-code-image",
+    "crates/terminal/crates/codegen/a3s-code-login",
+    "crates/terminal/crates/codegen/a3s-code-markdown",
+    "crates/terminal/crates/codegen/a3s-code-markdown-core",
+    "crates/terminal/crates/codegen/a3s-code-mcp",
+    "crates/terminal/crates/codegen/a3s-code-memory",
+    "crates/terminal/crates/codegen/a3s-code-mermaid",
+    "crates/terminal/crates/codegen/a3s-code-models",
+    "crates/terminal/crates/codegen/a3s-code-otel",
+    "crates/terminal/crates/codegen/a3s-code-pager",
+    "crates/terminal/crates/codegen/a3s-code-pager-diff",
+    "crates/terminal/crates/codegen/a3s-code-pager-minimal",
+    "crates/terminal/crates/codegen/a3s-code-pager-pty-harness",
+    "crates/terminal/crates/codegen/a3s-code-pager-render",
+    "crates/terminal/crates/codegen/a3s-code-paths",
+    "crates/terminal/crates/codegen/a3s-code-plugin-marketplace",
+    "crates/terminal/crates/codegen/a3s-code-sampler",
+    "crates/terminal/crates/codegen/a3s-code-sampling-types",
+    "crates/terminal/crates/codegen/a3s-code-sandbox",
+    "crates/terminal/crates/codegen/a3s-code-secrets",
+    "crates/terminal/crates/codegen/a3s-code-session-events",
+    "crates/terminal/crates/codegen/a3s-code-session-search",
+    "crates/terminal/crates/codegen/a3s-code-shared",
+    "crates/terminal/crates/codegen/a3s-code-shell",
+    "crates/terminal/crates/codegen/a3s-code-shell-base",
+    "crates/terminal/crates/codegen/a3s-code-shell-session-support",
+    "crates/terminal/crates/codegen/a3s-code-shell-terminal",
+    "crates/terminal/crates/codegen/a3s-code-status-line",
+    "crates/terminal/crates/codegen/a3s-code-subagent-resolution",
+    "crates/terminal/crates/codegen/a3s-code-telemetry",
+    "crates/terminal/crates/codegen/a3s-code-test-support",
+    "crates/terminal/crates/codegen/a3s-code-tools",
+    "crates/terminal/crates/codegen/a3s-code-tools-api",
+    "crates/terminal/crates/codegen/a3s-code-update",
+    "crates/terminal/crates/codegen/a3s-code-version",
+    "crates/terminal/crates/codegen/a3s-code-voice",
+    "crates/terminal/crates/codegen/a3s-code-workspace",
+    "crates/terminal/crates/codegen/a3s-code-workspace-client",
+    "crates/terminal/crates/codegen/a3s-code-workspace-daemon",
+    "crates/terminal/crates/codegen/a3s-code-workspace-types",
+    "crates/terminal/crates/codegen/a3s-codebase-graph",
+    "crates/terminal/crates/codegen/a3s-compaction-transcript",
+    "crates/terminal/crates/codegen/a3s-crash-handler",
+    "crates/terminal/crates/codegen/a3s-dirs",
+    "crates/terminal/crates/codegen/a3s-fast-worktree",
+    "crates/terminal/crates/codegen/a3s-file-utils",
+    "crates/terminal/crates/codegen/a3s-fsnotify",
+    "crates/terminal/crates/codegen/a3s-fuzzy-file-search",
+    "crates/terminal/crates/codegen/a3s-gix-status",
+    "crates/terminal/crates/codegen/a3s-hooks-plugins-types",
+    "crates/terminal/crates/codegen/a3s-hunk-tracker",
+    "crates/terminal/crates/codegen/a3s-mixpanel",
+    "crates/terminal/crates/codegen/a3s-prompt-queue",
+    "crates/terminal/crates/codegen/a3s-ratatui-inline",
+    "crates/terminal/crates/codegen/a3s-ratatui-textarea",
+    "crates/terminal/crates/codegen/a3s-sqlite-journal",
+    "crates/terminal/crates/codegen/a3s-system-power",
+    "crates/terminal/crates/codegen/a3s-token-estimation",
+    "crates/terminal/crates/codegen/a3s-tracing-macros",
+    "crates/terminal/crates/codegen/a3s-tty-utils",
+    "crates/terminal/crates/codegen/a3s-workflow",
+    "crates/terminal/crates/codegen/ptyctl",
+    "crates/terminal/crates/codegen/ptyctl-cli",
+    "crates/terminal/crates/common/a3s-circuit-breaker",
+    "crates/terminal/crates/common/a3s-code-compaction",
+    "crates/terminal/crates/common/a3s-computer-hub-core",
+    "crates/terminal/crates/common/a3s-computer-hub-mcp-adapter",
+    "crates/terminal/crates/common/a3s-computer-hub-sdk",
+    "crates/terminal/crates/common/a3s-interjection-core",
+    "crates/terminal/crates/common/a3s-message-delivery-core",
+    "crates/terminal/crates/common/a3s-test-utils",
+    "crates/terminal/crates/common/a3s-tool-protocol",
+    "crates/terminal/crates/common/a3s-tool-runtime",
+    "crates/terminal/crates/common/a3s-tool-types",
+    "crates/terminal/crates/common/a3s-tracing",
+    "crates/terminal/prod/mc/cli-chat-proxy-types",
+    "crates/terminal/third_party/dagre_rust",
+    "crates/terminal/third_party/graphlib_rust",
+    "crates/terminal/third_party/mermaid-to-svg",
+    "crates/terminal/third_party/ordered_hashmap",
+    "crates/updater",
+    "crates/use/core",
+    "crates/use/reconcile",
+    "crates/vec",
+    "apps/work/src-tauri",
+    "crates/boot",
+    "crates/boot/macros",
+    "crates/event",
+    "crates/orm",
+    "crates/flow-v2",
+    "crates/ocr",
+    "crates/use/extension",
+    "crates/use/tool-acquire",
+    "crates/terminal/third_party/portable-pty-work",
+    "crates/third-party/async-openai",
+    "crates/third-party/async-openai-macros",
+    "crates/office/crates/cli",
+    "crates/office/crates/core",
+    "crates/office/crates/formula-parser",
+    "crates/office/crates/web-kernel",
+]
+default-members = ["apps/aster", "crates/code/acp"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.97"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+agent-client-protocol = {features = ["unstable"], version = "0.10.4"}
+anyhow = {features = ["backtrace"], version = "1"}
+arc-swap = {version = "1.7"}
+async-openai = {features = ["responses"], version = "0.33.0"}
+async-stream = {version = "0.3"}
+async-trait = {version = "0.1"}
+axum = {features = ["macros", "ws"], version = "0.8"}
+axum-server = {features = ["tls-rustls"], version = "0.8"}
+backon = {version = "1.6"}
+base64 = {version = "0.22"}
+blake3 = {version = "1"}
+bytes = {features = ["serde"], version = "1"}
+chrono = {version = "0.4"}
+clap = {features = ["derive", "env"], version = "4"}
+criterion = {version = "0.6"}
+crossterm = {features = ["event-stream", "bracketed-paste"], version = "0.28"}
+dashmap = {version = "6"}
+dirs = {version = "5.0"}
+dunce = {version = "1"}
+filetime = {version = "0.2.25"}
+flate2 = {default-features = false, features = ["zlib-rs"], version = "1"}
+fs2 = {version = "0.4"}
+futures = {version = "0.3"}
+futures-util = {version = "0.3"}
+git2 = {default-features = false, features = ["vendored-libgit2"], version = "0.20"}
+glob = {version = "0.3"}
+globset = {version = "0.4"}
+http = {version = "1"}
+ignore = {version = "0.4"}
+image = {default-features = false, features = ["png"], version = "0.25.10"}
+indexmap = {features = ["serde"], version = "2"}
+libc = {version = "0.2"}
+log = {features = ["kv", "kv_unstable"], version = "0.4"}
+nix = {features = ["poll", "process", "signal", "sched", "term", "mount", "fs", "ioctl", "mman", "reboot", "user"], version = "0.30"}
+notify = {version = "8"}
+num_cpus = {version = "1"}
+obfstr = {version = "0.4"}
+opentelemetry = {version = "0.32"}
+opentelemetry_sdk = {features = ["spec_unstable_metrics_views", "testing"], version = "0.32.1"}
+parking_lot = {version = "0.12.4"}
+portable-pty = {version = "0.9"}
+pretty_assertions = {version = "1"}
+prometheus = {features = ["process"], version = "0.14"}
+prost = {version = "0.14"}
+pulldown-cmark = {version = "0.13"}
+rand = {version = "0.9"}
+ratatui = {features = ["crossterm", "unstable-widget-ref"], version = "0.29"}
+rcgen = {features = ["pem"], version = "0.13"}
+regex = {version = "1"}
+reqwest = {default-features = false, features = ["rustls-tls", "stream", "json", "multipart", "http2", "blocking", "socks"], version = "0.12"}
+reqwest-middleware = {features = ["json", "multipart"], version = "0.4.1"}
+rusqlite = {features = ["bundled"], version = "0.37"}
+rustls = {features = ["aws-lc-rs"], version = "0.23"}
+schemars = {version = "1"}
+semver = {version = "1"}
+serde = {features = ["derive"], version = "1"}
+serde_json = {version = "1"}
+serde_yaml = {version = "0.9"}
+serial_test = {version = "3"}
+sha2 = {version = "0.10"}
+shellexpand = {version = "3.1"}
+similar = {version = "2.7"}
+strum = {features = ["derive"], version = "0.27"}
+syntect = {default-features = false, features = ["default-onig"], version = "5.3"}
+tar = {version = "0.4"}
+tempfile = {version = "3"}
+textwrap = {version = "0.16"}
+thiserror = {version = "2"}
+tokio = {features = ["full"], version = "1"}
+tokio-stream = {features = ["net"], version = "0.1"}
+tokio-util = {features = ["rt"], version = "0.7"}
+toml = {version = "0.9"}
+tonic = {features = ["tls-aws-lc", "gzip", "deflate", "zstd"], version = "0.14"}
+tracing = {version = "0.1"}
+tracing-subscriber = {default-features = false, features = ["env-filter", "smallvec", "tracing-log", "std", "ansi"], version = "0.3.23"}
+unicode-segmentation = {version = "1.12.0"}
+unicode-width = {version = "0.2"}
+url = {version = "2"}
+urlencoding = {version = "2"}
+uuid = {features = ["serde", "v4", "v5"], version = "1"}
+walkdir = {version = "2"}
+webbrowser = {version = "1.0.4"}
+which = {version = "8"}
+windows = {features = ["Win32_Security", "Win32_Security_Authorization", "Win32_Foundation", "Win32_System_Threading", "Win32_System_JobObjects", "Win32_System_Console", "Win32_System_Pipes"], version = "0.61"}
+wiremock = {version = "0.6"}
+zstd = {version = "0.13"}
+
+[workspace.dependencies.a3s-office-formula-parser]
+path = "crates/office/crates/formula-parser"
+
+[workspace.dependencies.a3s-use-core]
+path = "crates/use/core"
+
+[workspace.dependencies.a3s-use-browser]
+path = "crates/browser"
+[workspace.lints.clippy]
+# prost 0.14 renders proto doc-comment bullet lists in a way that trips this
+# lint on generated code. Kept in sync with bazel/lint/linters.bzl.
+doc_lazy_continuation = "allow"
+doc_overindented_list_items = "allow"
+needless_lifetimes = "allow"
+single_range_in_vec_init = "allow"
+too_many_arguments = "allow"
+
+# Allow uninlined_format_args lint to prevent main from breaking after merges
+# When older branches (created before this lint was added to CI) get merged,
+# they pass their own CI because their CI config doesn't include this lint check.
+# However, once merged to main, the code violates main's lint rules, causing:
+# 1. Main's CI to fail
+# 2. All new branches based off main to fail CI
+# 3. Developers having to fix lint violations from other people's merged code
+# Without a merge-queue that runs main's CI checks on the PR branch,
+# these violations slip through and break the build for everyone.
+# TODO: -> "deny" once/if merge queue enabled
+uninlined_format_args = "allow"
+
+# The `fastrace::trace(properties = { … })` proc-macro expands `"{param}"`
+# into `format!("{}", param)`, which clippy flags as useless_format.
+# Suppressed until the upstream crate fixes its codegen (fixed in 0.7.16+).
+useless_format = "allow"
+
+[patch.crates-io]
+
+[patch.crates-io.async-openai]
+path = "crates/third-party/async-openai"
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.release-dist]
+inherits = "release"

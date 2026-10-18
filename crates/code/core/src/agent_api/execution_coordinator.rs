@@ -1,0 +1,570 @@
+//! Shared run identity and invocation assembly for Agent execution.
+//!
+//! This is the first incremental boundary of the execution coordinator. It
+//! owns the pieces that must be identical for blocking and streaming runs:
+//! attaching the run control inbox, binding checkpoint identity, and deriving
+//! an invocation from one run-owned cancellation token. Event collection and
+//! terminal cleanup remain in the mode-specific lifecycle adapters until their
+//! state machines can be migrated safely.
+
+use super::{
+    run_admission::{self, RunAdmissionLease},
+    run_lifecycle::RunControlState,
+    AgentSession,
+};
+use crate::agent::{AgentEvent, AgentLoop, InvocationContext};
+use crate::error::{CodeError, Result};
+use crate::run::RunTerminalTransition;
+use crate::run_control::RunControlInbox;
+use crate::tools::AgentEventBarrier;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tokio::sync::{broadcast, mpsc};
+use tokio::task::{AbortHandle, JoinHandle};
+use tokio_util::sync::CancellationToken;
+
+/// Shared identity boundary for one admitted Agent Run.
+///
+/// A coordinator is created after the Run has been reserved and before any
+/// provider call is started. Both blocking and streaming execution paths use
+/// this value, so run control, checkpoint identity, and cancellation cannot
+/// silently diverge between the two modes.
+#[derive(Clone)]
+#[allow(dead_code)]
+pub(super) struct ExecutionCoordinator {
+    session_id: String,
+    run_id: String,
+    cancellation: CancellationToken,
+    run_control: Arc<RunControlInbox>,
+    run_store: Arc<crate::run::InMemoryRunStore>,
+    terminal_settled: Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// Passive original inputs only. Labels are data, never owner binding proof.
+/// The owned prepare producer still requires T005's real once-bound protocol.
+pub(super) struct OwnedCoordinatorInputs {
+    session_id: String,
+    run_store: Arc<crate::run::InMemoryRunStore>,
+}
+
+impl OwnedCoordinatorInputs {
+    pub(super) fn capture_original(session: &AgentSession) -> Self {
+        Self {
+            session_id: session.session_id.clone(),
+            run_store: Arc::clone(&session.run_store),
+        }
+    }
+}
+
+struct CoordinatorPreparationDraft {
+    inputs: OwnedCoordinatorInputs,
+    run_id: String,
+    cancellation: CancellationToken,
+    run_control: Arc<RunControlInbox>,
+}
+
+impl CoordinatorPreparationDraft {
+    fn new(
+        inputs: OwnedCoordinatorInputs,
+        run_id: String,
+        agent_loop: &AgentLoop,
+        cancellation: CancellationToken,
+    ) -> Self {
+        let run_control = RunControlInbox::new_with_hook_executor(
+            inputs.session_id.clone(),
+            run_id.clone(),
+            cancellation.clone(),
+            agent_loop.hook_executor(),
+        );
+        Self {
+            inputs,
+            run_id,
+            cancellation,
+            run_control,
+        }
+    }
+
+    // Compatibility only: this attachment does not confer original binding.
+    // T005's unavailable attach_owned/once-bind producer must not fall back here.
+    async fn finish_legacy(
+        self,
+        state: RunControlState,
+        agent_loop: &mut AgentLoop,
+    ) -> ExecutionCoordinator {
+        state
+            .attach_run_control(&self.run_id, Arc::clone(&self.run_control))
+            .await;
+        self.finish_binding(agent_loop)
+    }
+
+    fn finish_binding(self, agent_loop: &mut AgentLoop) -> ExecutionCoordinator {
+        let invocation = agent_loop
+            .invocation_context(
+                self.run_id.clone(),
+                Some(self.inputs.session_id.as_str()),
+                None,
+                self.cancellation.clone(),
+            )
+            .with_run_control(Arc::clone(&self.run_control));
+        *agent_loop = invocation.bind_agent_loop(agent_loop);
+        agent_loop.set_checkpoint_run(&self.run_id);
+
+        ExecutionCoordinator {
+            session_id: self.inputs.session_id,
+            run_id: self.run_id,
+            cancellation: self.cancellation,
+            run_control: self.run_control,
+            run_store: self.inputs.run_store,
+            terminal_settled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl ExecutionCoordinator {
+    /// Acquire a task-scheduler lease using the coordinator's canonical error
+    /// mapping. Direct Tool calls use this primitive without taking the
+    /// transcript's single-flight Run lease.
+    pub(super) async fn acquire_task(
+        scheduler: &crate::task_scheduler::TaskScheduler,
+        priority: crate::task_scheduler::TaskPriority,
+        label: String,
+        session_id: &str,
+        cancellation: &CancellationToken,
+        closed: &AtomicBool,
+    ) -> Result<crate::task_scheduler::TaskLease> {
+        Self::acquire_task_with_quotas(
+            scheduler,
+            priority,
+            label,
+            &[],
+            session_id,
+            cancellation,
+            closed,
+        )
+        .await
+    }
+
+    /// Acquire a scheduler lease while atomically applying all supplied quota
+    /// dimensions. The empty slice preserves the legacy unconstrained path.
+    pub(super) async fn acquire_task_with_quotas(
+        scheduler: &crate::task_scheduler::TaskScheduler,
+        priority: crate::task_scheduler::TaskPriority,
+        label: String,
+        quotas: &[crate::task_scheduler::TaskSchedulerQuota],
+        session_id: &str,
+        cancellation: &CancellationToken,
+        closed: &AtomicBool,
+    ) -> Result<crate::task_scheduler::TaskLease> {
+        scheduler
+            .acquire_with_quotas(priority, label, quotas, None, cancellation)
+            .await
+            .map_err(|error| match error {
+                crate::task_scheduler::TaskSchedulerError::Cancelled
+                    if closed.load(Ordering::Acquire) =>
+                {
+                    CodeError::SessionClosed {
+                        session_id: session_id.to_owned(),
+                    }
+                }
+                crate::task_scheduler::TaskSchedulerError::Cancelled => {
+                    CodeError::TaskAdmissionCancelled {
+                        session_id: session_id.to_owned(),
+                    }
+                }
+                crate::task_scheduler::TaskSchedulerError::Closed => CodeError::TaskSchedulerClosed,
+                crate::task_scheduler::TaskSchedulerError::AtCapacity { limit } => {
+                    CodeError::TaskAdmissionLimit {
+                        session_id: session_id.to_owned(),
+                        limit,
+                    }
+                }
+                crate::task_scheduler::TaskSchedulerError::InvalidConfig(message) => {
+                    CodeError::Config(message)
+                }
+            })
+    }
+
+    /// Optional-scheduler counterpart of [`Self::acquire_task_with_quotas`].
+    pub(super) async fn acquire_optional_task_with_quotas(
+        scheduler: Option<&crate::task_scheduler::TaskScheduler>,
+        priority: crate::task_scheduler::TaskPriority,
+        label: String,
+        quotas: &[crate::task_scheduler::TaskSchedulerQuota],
+        session_id: &str,
+        cancellation: &CancellationToken,
+        closed: &AtomicBool,
+    ) -> Result<Option<crate::task_scheduler::TaskLease>> {
+        match scheduler {
+            Some(scheduler) => Self::acquire_task_with_quotas(
+                scheduler,
+                priority,
+                label,
+                quotas,
+                session_id,
+                cancellation,
+                closed,
+            )
+            .await
+            .map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// Admit one session operation before it can inspect or mutate run state.
+    ///
+    /// Admission is deliberately part of the coordinator boundary so every
+    /// public execution entrypoint uses the same close check, task-scheduler
+    /// lease, and single-flight semantics.
+    pub(super) async fn admit(
+        session: &AgentSession,
+        operation: &'static str,
+    ) -> Result<RunAdmissionLease> {
+        if session.is_closed() {
+            return Err(CodeError::SessionClosed {
+                session_id: session.session_id.clone(),
+            });
+        }
+        let lease = session.run_admission.try_acquire(&session.session_id)?;
+        let label = format!("{}:{operation}", session.session_id);
+        let task_lease = Self::acquire_task(
+            &session.task_scheduler,
+            session.task_priority,
+            label,
+            &session.session_id,
+            &session.session_cancel,
+            &session.closed,
+        )
+        .await?;
+        if session.is_closed() {
+            return Err(CodeError::SessionClosed {
+                session_id: session.session_id.clone(),
+            });
+        }
+        Ok(lease.attach_task_lease(task_lease))
+    }
+
+    /// Keep a stream's admission lease until its worker and event forwarder
+    /// have both settled. The public stream handle may be dropped without
+    /// accidentally admitting a second operation while detached work remains.
+    pub(super) fn supervise_stream(
+        handle: JoinHandle<()>,
+        worker_aborts: Vec<AbortHandle>,
+        lease: RunAdmissionLease,
+    ) -> JoinHandle<()> {
+        run_admission::guard_stream_handle(handle, worker_aborts, lease)
+    }
+
+    /// Attach one run's control and checkpoint identity to its pinned loop.
+    pub(super) async fn prepare(
+        session: &AgentSession,
+        run_id: impl Into<String>,
+        agent_loop: &mut AgentLoop,
+        cancellation: CancellationToken,
+    ) -> Self {
+        CoordinatorPreparationDraft::new(
+            OwnedCoordinatorInputs::capture_original(session),
+            run_id.into(),
+            agent_loop,
+            cancellation,
+        )
+        .finish_legacy(RunControlState::from_session(session), agent_loop)
+        .await
+    }
+
+    /// Construct one actual inbox and attach it to the already entered owner.
+    /// Final invocation assembly follows the owned attachment await.
+    pub(super) async fn prepare_owned(
+        inputs: OwnedCoordinatorInputs,
+        state: RunControlState,
+        original: &Arc<run_admission::OriginalExecutionContext>,
+        run_id: String,
+        agent_loop: &mut AgentLoop,
+        cancellation: CancellationToken,
+    ) -> Result<Self> {
+        original.validate_original_token(&cancellation)?;
+        let draft = CoordinatorPreparationDraft::new(inputs, run_id, agent_loop, cancellation);
+        original.bind_inbox_once(Arc::clone(&draft.run_control))?;
+        state
+            .attach_owned_run_control(&draft.run_id, Arc::clone(&draft.run_control))
+            .await?;
+        Ok(draft.finish_binding(agent_loop))
+    }
+
+    pub(super) fn run_id(&self) -> &str {
+        &self.run_id
+    }
+
+    pub(super) fn run_control(&self) -> Arc<RunControlInbox> {
+        Arc::clone(&self.run_control)
+    }
+
+    /// Select the terminal state for one execution result.
+    ///
+    /// Cancellation is sampled from the coordinator-owned token before any
+    /// lifecycle adapter clears the Session's active-token slot. This keeps
+    /// blocking and streaming paths identical when cancellation races with a
+    /// provider result or error.
+    pub(super) fn terminal_for(
+        &self,
+        succeeded: bool,
+        error: Option<String>,
+    ) -> RunTerminalTransition {
+        if self.cancellation.is_cancelled() {
+            RunTerminalTransition::Cancelled
+        } else if succeeded {
+            RunTerminalTransition::Completed
+        } else {
+            RunTerminalTransition::Failed(error.unwrap_or_else(|| "execution failed".to_owned()))
+        }
+    }
+
+    /// Apply the one terminal RunStore transition. Successful Runs are already
+    /// finalized by the normal `End` event path, so `Completed` intentionally
+    /// performs no second write. The atomic guard makes accidental duplicate
+    /// cleanup calls harmless and prevents a late failure from rewriting a
+    /// terminal cancellation.
+    pub(super) async fn settle_terminal(&self, transition: RunTerminalTransition) {
+        if self
+            .terminal_settled
+            .swap(true, std::sync::atomic::Ordering::AcqRel)
+        {
+            tracing::debug!(run_id = %self.run_id, "Ignored duplicate Run terminal transition");
+            return;
+        }
+        let _ = self
+            .run_store
+            .settle_terminal(&self.run_id, transition)
+            .await;
+    }
+
+    /// Safety net for detached execution: after every owned worker has been
+    /// joined, guarantee the Run reached a terminal state even when the
+    /// worker died before settling (panic, abort, or a missed error path).
+    ///
+    /// This is the KRN-2 invariant that a joined worker can never leave a
+    /// non-terminal Run behind released cleanup. It is idempotent with the
+    /// normal settle path: when the worker already settled, this call is the
+    /// duplicate the atomic guard ignores.
+    pub(super) async fn ensure_settled_after_join(&self) {
+        let transition = self.terminal_for(
+            false,
+            Some("execution worker ended without a terminal result".to_owned()),
+        );
+        self.settle_terminal(transition).await;
+    }
+
+    /// Build the invocation context used by blocking and streaming workers.
+    pub(super) fn invocation(
+        &self,
+        agent_loop: &AgentLoop,
+        runtime_tx: Option<mpsc::Sender<AgentEvent>>,
+        agent_event_tx: broadcast::Sender<AgentEvent>,
+        agent_event_barrier: AgentEventBarrier,
+    ) -> InvocationContext {
+        self.invocation_base(agent_loop, runtime_tx)
+            .with_agent_events(agent_event_tx, agent_event_barrier)
+    }
+
+    /// Fact tools retain their existing broadcast relay in the ToolContext.
+    /// That lane has no acknowledgement receiver; never invent a barrier.
+    pub(super) fn fact_invocation(
+        &self,
+        agent_loop: &AgentLoop,
+        runtime_tx: Option<mpsc::Sender<AgentEvent>>,
+    ) -> InvocationContext {
+        self.invocation_base(agent_loop, runtime_tx)
+    }
+
+    fn invocation_base(
+        &self,
+        agent_loop: &AgentLoop,
+        runtime_tx: Option<mpsc::Sender<AgentEvent>>,
+    ) -> InvocationContext {
+        agent_loop
+            .invocation_context(
+                self.run_id.clone(),
+                Some(&self.session_id),
+                runtime_tx,
+                self.cancellation.clone(),
+            )
+            .with_run_control(Arc::clone(&self.run_control))
+    }
+
+    #[cfg(test)]
+    fn identity(&self) -> (&str, &str) {
+        (&self.session_id, &self.run_id)
+    }
+}
+
+// Separate from the legacy allow(dead_code) impl: unused T002 definitions
+// remain visible to compiler diagnostics until coordinated production wiring.
+impl ExecutionCoordinator {
+    /// Non-activating T002 component. Canonical production callers switch only
+    /// with the coordinated T004–T007 ownership repair.
+    pub(super) fn prepare_original_handoff(
+        session: &AgentSession,
+        lease: RunAdmissionLease,
+        mode: run_admission::ExecutionMode,
+        original_cancel: CancellationToken,
+    ) -> Result<(
+        run_admission::OriginalWorkerHandoff,
+        run_admission::OwnedWorkerStart,
+        Arc<run_admission::OriginalExecutionContext>,
+    )> {
+        run_admission::OriginalWorkerHandoff::prepare(session, lease, mode, original_cancel)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coordinator_stores_one_session_and_run_identity() {
+        let cancellation = CancellationToken::new();
+        let run_control = RunControlInbox::new(
+            "session-1".to_owned(),
+            "run-1".to_owned(),
+            cancellation.clone(),
+        );
+        let coordinator = ExecutionCoordinator {
+            session_id: "session-1".to_owned(),
+            run_id: "run-1".to_owned(),
+            cancellation,
+            run_control,
+            run_store: Arc::new(crate::run::InMemoryRunStore::new()),
+            terminal_settled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        };
+
+        assert_eq!(coordinator.identity(), ("session-1", "run-1"));
+    }
+
+    #[test]
+    fn terminal_transition_is_deterministic_and_cancellation_wins() {
+        let cancellation = CancellationToken::new();
+        let run_control = RunControlInbox::new(
+            "session-1".to_owned(),
+            "run-1".to_owned(),
+            cancellation.clone(),
+        );
+        let coordinator = ExecutionCoordinator {
+            session_id: "session-1".to_owned(),
+            run_id: "run-1".to_owned(),
+            cancellation: cancellation.clone(),
+            run_control,
+            run_store: Arc::new(crate::run::InMemoryRunStore::new()),
+            terminal_settled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        };
+
+        assert_eq!(
+            coordinator.terminal_for(true, None),
+            RunTerminalTransition::Completed
+        );
+        assert_eq!(
+            coordinator.terminal_for(false, Some("boom".to_owned())),
+            RunTerminalTransition::Failed("boom".to_owned())
+        );
+        cancellation.cancel();
+        assert_eq!(
+            coordinator.terminal_for(true, None),
+            RunTerminalTransition::Cancelled
+        );
+    }
+
+    #[tokio::test]
+    async fn terminal_transition_updates_the_run_store_once() {
+        let cancellation = CancellationToken::new();
+        let run_control = RunControlInbox::new(
+            "session-1".to_owned(),
+            "run-1".to_owned(),
+            cancellation.clone(),
+        );
+        let run_store = Arc::new(crate::run::InMemoryRunStore::new());
+        run_store
+            .create_run_with_id("run-1".to_owned(), "session-1", "prompt")
+            .await;
+        let coordinator = ExecutionCoordinator {
+            session_id: "session-1".to_owned(),
+            run_id: "run-1".to_owned(),
+            cancellation,
+            run_control,
+            run_store: Arc::clone(&run_store),
+            terminal_settled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        };
+
+        coordinator
+            .settle_terminal(RunTerminalTransition::Failed("boom".to_owned()))
+            .await;
+        coordinator
+            .settle_terminal(RunTerminalTransition::Cancelled)
+            .await;
+
+        let snapshot = run_store.snapshot("run-1").await.unwrap();
+        assert_eq!(snapshot.status, crate::run::RunStatus::Failed);
+        assert_eq!(snapshot.error.as_deref(), Some("boom"));
+    }
+
+    #[tokio::test]
+    async fn a_joined_worker_can_never_leave_a_non_terminal_run() {
+        let cancellation = CancellationToken::new();
+        let run_control = RunControlInbox::new(
+            "session-1".to_owned(),
+            "run-1".to_owned(),
+            cancellation.clone(),
+        );
+        let run_store = Arc::new(crate::run::InMemoryRunStore::new());
+        run_store
+            .create_run_with_id("run-1".to_owned(), "session-1", "prompt")
+            .await;
+        let coordinator = ExecutionCoordinator {
+            session_id: "session-1".to_owned(),
+            run_id: "run-1".to_owned(),
+            cancellation,
+            run_control,
+            run_store: Arc::clone(&run_store),
+            terminal_settled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        };
+
+        // A worker that never settled (panic/abort path) still gets one
+        // terminal transition from the join safety net.
+        coordinator.ensure_settled_after_join().await;
+        let snapshot = run_store.snapshot("run-1").await.unwrap();
+        assert_eq!(snapshot.status, crate::run::RunStatus::Failed);
+        assert!(snapshot.error.is_some());
+
+        // The safety net never rewrites an already-settled Run.
+        coordinator
+            .settle_terminal(RunTerminalTransition::Cancelled)
+            .await;
+        let snapshot = run_store.snapshot("run-1").await.unwrap();
+        assert_eq!(snapshot.status, crate::run::RunStatus::Failed);
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_join_settles_to_cancelled() {
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let run_control = RunControlInbox::new(
+            "session-1".to_owned(),
+            "run-1".to_owned(),
+            cancellation.clone(),
+        );
+        let run_store = Arc::new(crate::run::InMemoryRunStore::new());
+        run_store
+            .create_run_with_id("run-1".to_owned(), "session-1", "prompt")
+            .await;
+        let coordinator = ExecutionCoordinator {
+            session_id: "session-1".to_owned(),
+            run_id: "run-1".to_owned(),
+            cancellation,
+            run_control,
+            run_store: Arc::clone(&run_store),
+            terminal_settled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        };
+
+        coordinator.ensure_settled_after_join().await;
+        let snapshot = run_store.snapshot("run-1").await.unwrap();
+        assert_eq!(snapshot.status, crate::run::RunStatus::Cancelled);
+    }
+}

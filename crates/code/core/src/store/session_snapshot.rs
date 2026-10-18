@@ -1,0 +1,460 @@
+use super::SessionData;
+use crate::run::RunRecord;
+use crate::subagent_task_tracker::SubagentTaskSnapshot;
+use crate::tools::{ArtifactStore, ArtifactStoreLimits, ToolArtifact};
+use crate::trace::TraceEvent;
+use crate::verification::VerificationReport;
+use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+
+/// Highest schema version; unbound snapshots preserve the legacy v1 wire.
+pub const SESSION_SNAPSHOT_SCHEMA_VERSION: u32 = 2;
+
+/// A complete, versioned persistence generation for one session.
+///
+/// Stores commit this value as a unit so conversation state and its related
+/// runtime records cannot be observed from different save generations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionSnapshotV1 {
+    pub schema_version: u32,
+    pub session: SessionData,
+    #[serde(default)]
+    pub artifacts: Vec<ToolArtifact>,
+    /// Retention roots for reference-aware artifact GC (STORE-GC2).
+    #[serde(default)]
+    pub retained_artifact_uris: Vec<String>,
+    #[serde(default)]
+    pub trace_events: Vec<TraceEvent>,
+    #[serde(default)]
+    pub run_records: Vec<RunRecord>,
+    #[serde(default)]
+    pub verification_reports: Vec<VerificationReport>,
+    #[serde(default)]
+    pub subagent_tasks: Vec<SubagentTaskSnapshot>,
+    /// Sticky reply / multi-scenario review findings (optional for older snaps).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_review: Option<crate::session_review::SessionReviewStoreV1>,
+}
+
+impl SessionSnapshotV1 {
+    pub(crate) fn schema_for(session: &SessionData) -> u32 {
+        if session.durable_source.is_some() {
+            SESSION_SNAPSHOT_SCHEMA_VERSION
+        } else {
+            1
+        }
+    }
+
+    pub fn new(
+        session: SessionData,
+        artifacts: &ArtifactStore,
+        trace_events: Vec<TraceEvent>,
+        run_records: Vec<RunRecord>,
+        verification_reports: Vec<VerificationReport>,
+        subagent_tasks: Vec<SubagentTaskSnapshot>,
+    ) -> Self {
+        let mut retained_artifact_uris: Vec<String> =
+            artifacts.retained_uris().into_iter().collect();
+        retained_artifact_uris.sort();
+        Self {
+            schema_version: Self::schema_for(&session),
+            session,
+            artifacts: artifacts.artifacts(),
+            retained_artifact_uris,
+            trace_events,
+            run_records,
+            verification_reports,
+            subagent_tasks,
+            session_review: None,
+        }
+    }
+
+    pub fn session_only(session: SessionData) -> Self {
+        Self::new(
+            session,
+            &ArtifactStore::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+    }
+
+    /// Rebind a complete snapshot to a new session and workspace.
+    ///
+    /// Session forks retain historical artifacts, traces, run ids, and child
+    /// session ids. Top-level run ownership and subagent parent ownership must
+    /// move with the new session or the aggregate would no longer be loadable.
+    pub fn fork_for_session(
+        mut self,
+        session_id: impl Into<String>,
+        workspace: impl Into<String>,
+    ) -> Result<Self> {
+        let source_session_id = self.session.id.clone();
+        self.validate_for_session(&source_session_id)?;
+
+        let session_id = session_id.into();
+        if self.session.durable_source.is_some() {
+            bail!("durable session fork requires explicit source admission");
+        }
+        if session_id.trim().is_empty() {
+            bail!("forked session id cannot be empty");
+        }
+
+        self.session.id = session_id.clone();
+        self.session.config.workspace = workspace.into();
+        self.rebind_session_owners()?;
+        Ok(self)
+    }
+
+    /// The runtime adapter has verified the source and admitted the new policy.
+    pub(crate) fn fork_with_runtime_state(mut self, mut target: SessionData) -> Result<Self> {
+        self.validate_for_session(&self.session.id)?;
+        target.messages = self.session.messages;
+        target.context_usage = self.session.context_usage;
+        target.total_usage = self.session.total_usage;
+        target.total_cost = self.session.total_cost;
+        target.cost_records = self.session.cost_records;
+        target.tasks = self.session.tasks;
+        self.session = target;
+        self.schema_version = Self::schema_for(&self.session);
+        self.rebind_session_owners()?;
+        Ok(self)
+    }
+
+    fn rebind_session_owners(&mut self) -> Result<()> {
+        let session_id = self.session.id.clone();
+        for record in &mut self.run_records {
+            record.snapshot.session_id.clone_from(&session_id);
+        }
+        for task in &mut self.subagent_tasks {
+            if !task.parent_session_id.is_empty() {
+                task.parent_session_id.clone_from(&session_id);
+            }
+        }
+
+        if let Some(review) = &mut self.session_review {
+            review.rebind_session(&session_id)?;
+        }
+        self.validate_for_session(&session_id)
+    }
+
+    pub fn artifact_store(&self) -> ArtifactStore {
+        artifact_store_from_with_retention(&self.artifacts, &self.retained_artifact_uris)
+    }
+
+    pub(crate) fn artifact_store_requirements(&self) -> ArtifactStoreLimits {
+        artifact_store_requirements(&self.artifacts)
+    }
+
+    pub fn ensure_loadable(&self) -> Result<()> {
+        let expected = Self::schema_for(&self.session);
+        if self.schema_version != expected {
+            bail!(
+                "unsupported session snapshot schema version {}; expected {}",
+                self.schema_version,
+                expected
+            );
+        }
+        if let Some(source) = &self.session.durable_source {
+            source.validate()?;
+        }
+        Ok(())
+    }
+
+    /// Validate relationships that must hold within one persisted generation.
+    ///
+    /// Event buffers may be FIFO-trimmed, so their first sequence is allowed
+    /// to be greater than zero and `event_count` is allowed to exceed the
+    /// retained length. It must, however, remain a valid next-sequence cursor
+    /// for every retained event.
+    pub fn validate_invariants(&self) -> Result<()> {
+        self.session
+            .config
+            .tool_result_transform_policy
+            .validate()
+            .map_err(|error| {
+                anyhow::anyhow!(
+                    "session snapshot {:?} has an invalid Tool result transform policy: {error}",
+                    self.session.id
+                )
+            })?;
+        if let Some(binding) = &self.session.durable_memory_binding {
+            binding.validate().map_err(|error| {
+                anyhow::anyhow!(
+                    "session snapshot {:?} has an invalid durable-memory binding: {error}",
+                    self.session.id
+                )
+            })?;
+            if self.session.tenant_id.as_deref() != Some(binding.namespace().tenant_id()) {
+                bail!(
+                    "session snapshot {:?} tenant identity does not match its durable-memory binding",
+                    self.session.id
+                );
+            }
+            if self.session.principal.as_deref() != Some(binding.namespace().principal_id()) {
+                bail!(
+                    "session snapshot {:?} principal identity does not match its durable-memory binding",
+                    self.session.id
+                );
+            }
+        }
+        if let Some(binding) = &self.session.cognitive_package_binding {
+            binding.validate().map_err(|error| {
+                anyhow::anyhow!(
+                    "session snapshot {:?} has an invalid cognitive package binding: {error}",
+                    self.session.id
+                )
+            })?;
+        }
+        if let Some(binding) = &self.session.immutable_content_adapter_binding {
+            binding.validate().map_err(|error| {
+                anyhow::anyhow!(
+                    "session snapshot {:?} has an invalid immutable-content adapter binding: {error}",
+                    self.session.id
+                )
+            })?;
+        }
+        let mut run_ids = HashSet::with_capacity(self.run_records.len());
+
+        for (run_index, record) in self.run_records.iter().enumerate() {
+            let run_id = &record.snapshot.id;
+            if let Some(binding) = &record.snapshot.cognitive_package_binding {
+                binding.validate().map_err(|error| {
+                    anyhow::anyhow!(
+                        "run {:?} at record {} has an invalid cognitive package binding: {error}",
+                        run_id,
+                        run_index
+                    )
+                })?;
+            }
+            if let Some(binding) = &record.snapshot.capability_binding {
+                binding.validate().map_err(|error| {
+                    anyhow::anyhow!(
+                        "run {:?} at record {} has an invalid capability binding: {error}",
+                        run_id,
+                        run_index
+                    )
+                })?;
+            }
+            if !run_ids.insert(run_id.as_str()) {
+                bail!(
+                    "session snapshot {:?} contains duplicate run id {:?} at run record {}",
+                    self.session.id,
+                    run_id,
+                    run_index
+                );
+            }
+
+            if record.snapshot.session_id != self.session.id {
+                bail!(
+                    "run {:?} at record {} belongs to session {:?}, but snapshot belongs to session {:?}",
+                    run_id,
+                    run_index,
+                    record.snapshot.session_id,
+                    self.session.id
+                );
+            }
+
+            let mut previous_sequence = None;
+            // Snapshots written before Run-level binding evidence was added
+            // may still carry repeated cognitive events. Keep those loadable
+            // when the events agree with each other; new snapshots bind the
+            // value directly on RunSnapshot and no longer compare old Runs to
+            // the Session's latest catalog generation.
+            let mut legacy_event_binding = None;
+            for (event_index, event) in record.events.iter().enumerate() {
+                if let Some(previous) = previous_sequence {
+                    if event.sequence <= previous {
+                        bail!(
+                            "run {:?} event {} has sequence {}, which is not strictly greater than previous sequence {}",
+                            run_id,
+                            event_index,
+                            event.sequence,
+                            previous
+                        );
+                    }
+                }
+                previous_sequence = Some(event.sequence);
+                if let crate::agent::AgentEvent::CognitiveContextBound { binding } = &event.event {
+                    binding.validate().map_err(|error| {
+                        anyhow::anyhow!(
+                            "run {:?} event {} has an invalid cognitive package binding: {error}",
+                            run_id,
+                            event_index
+                        )
+                    })?;
+                    match &record.snapshot.cognitive_package_binding {
+                        Some(expected) if expected == binding => {}
+                        Some(_) => bail!(
+                            "run {:?} event {} carries a cognitive generation different from its admitted Run binding",
+                            run_id,
+                            event_index
+                        ),
+                        None => match &legacy_event_binding {
+                            Some(expected) if expected == binding => {}
+                            Some(_) => bail!(
+                                "legacy run {:?} event {} changes cognitive generation within one Run",
+                                run_id,
+                                event_index
+                            ),
+                            None => legacy_event_binding = Some(binding.clone()),
+                        },
+                    }
+                }
+                if let crate::agent::AgentEvent::ToolEnd { metadata, .. } = &event.event {
+                    validate_tool_result_transform_metadata(
+                        &self.session.id,
+                        run_id,
+                        event_index,
+                        metadata.as_ref(),
+                        &self.session.config.tool_result_transform_policy,
+                    )?;
+                }
+            }
+
+            if let Some(max_sequence) = previous_sequence {
+                let minimum_event_count = max_sequence.checked_add(1).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "run {:?} retained event sequence {} cannot be represented by event_count",
+                        run_id,
+                        max_sequence
+                    )
+                })?;
+                if record.snapshot.event_count < minimum_event_count {
+                    bail!(
+                        "run {:?} event_count {} does not cover retained event sequence {}; expected at least {}",
+                        run_id,
+                        record.snapshot.event_count,
+                        max_sequence,
+                        minimum_event_count
+                    );
+                }
+            }
+        }
+
+        for (task_index, task) in self.subagent_tasks.iter().enumerate() {
+            // Older snapshots can contain an empty parent when progress/end
+            // arrived before SubagentStart. A non-empty parent is authoritative
+            // and must identify the session that owns this task tracker.
+            if !task.parent_session_id.is_empty() && task.parent_session_id != self.session.id {
+                bail!(
+                    "subagent task {:?} at record {} belongs to parent session {:?}, but snapshot belongs to session {:?}",
+                    task.task_id,
+                    task_index,
+                    task.parent_session_id,
+                    self.session.id
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate this snapshot for a load request targeting `session_id`.
+    pub fn validate_for_session(&self, session_id: &str) -> Result<()> {
+        self.ensure_loadable()?;
+        if self.session.id != session_id {
+            bail!(
+                "requested session {:?}, but snapshot payload belongs to session {:?}",
+                session_id,
+                self.session.id
+            );
+        }
+        self.validate_invariants()
+    }
+}
+
+fn validate_tool_result_transform_metadata(
+    session_id: &str,
+    run_id: &str,
+    event_index: usize,
+    metadata: Option<&serde_json::Value>,
+    policy: &crate::tools::ToolResultTransformPolicyV1,
+) -> Result<()> {
+    let Some(encoded_binding) = metadata
+        .and_then(|value| value.get(crate::tools::TOOL_RESULT_TRANSFORM_BINDING_METADATA_KEY))
+    else {
+        return Ok(());
+    };
+    let binding: crate::tools::ToolResultTransformBindingV1 =
+        serde_json::from_value(encoded_binding.clone()).map_err(|error| {
+            anyhow::anyhow!(
+                "run {:?} event {} in session {:?} has malformed Tool result transform binding: {error}",
+                run_id,
+                event_index,
+                session_id
+            )
+        })?;
+    binding.validate_for_policy(policy).map_err(|error| {
+        anyhow::anyhow!(
+            "run {:?} event {} in session {:?} has invalid Tool result transform binding: {error}",
+            run_id,
+            event_index,
+            session_id
+        )
+    })?;
+
+    let encoded_evidence = metadata
+        .and_then(|value| value.get("a3s_tool_result_evidence"))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "run {:?} event {} in session {:?} has a Tool result transform binding without Tool result evidence",
+                run_id,
+                event_index,
+                session_id
+            )
+        })?;
+    let evidence: crate::tools::ToolResultEvidenceV1 =
+        serde_json::from_value(encoded_evidence.clone()).map_err(|error| {
+            anyhow::anyhow!(
+                "run {:?} event {} in session {:?} has malformed Tool result evidence: {error}",
+                run_id,
+                event_index,
+                session_id
+            )
+        })?;
+    if evidence.schema != crate::tools::TOOL_RESULT_EVIDENCE_SCHEMA_V1
+        || evidence.transform_algorithm.as_deref() != Some(binding.transform_algorithm.as_str())
+    {
+        anyhow::bail!(
+            "run {:?} event {} in session {:?} has Tool result evidence that does not match its transform binding",
+            run_id,
+            event_index,
+            session_id
+        );
+    }
+    Ok(())
+}
+
+pub(super) fn artifact_store_from_with_retention(
+    artifacts: &[ToolArtifact],
+    retained_uris: &[String],
+) -> ArtifactStore {
+    // A snapshot is an authoritative persisted generation. Rehydrating it
+    // through the default in-memory limits must not silently evict records
+    // that were accepted by a store configured with larger limits.
+    let defaults = ArtifactStoreLimits::default();
+    let requirements = artifact_store_requirements(artifacts);
+    let store = ArtifactStore::with_limits(ArtifactStoreLimits {
+        max_artifacts: defaults.max_artifacts.max(requirements.max_artifacts),
+        max_bytes: defaults.max_bytes.max(requirements.max_bytes),
+    });
+    for artifact in artifacts {
+        store.put(artifact.clone());
+    }
+    if !retained_uris.is_empty() {
+        store.set_retained_uris(retained_uris.iter().cloned());
+    }
+    store
+}
+
+fn artifact_store_requirements(artifacts: &[ToolArtifact]) -> ArtifactStoreLimits {
+    ArtifactStoreLimits {
+        max_artifacts: artifacts.len(),
+        max_bytes: artifacts.iter().fold(0usize, |total, artifact| {
+            total.saturating_add(artifact.content.len())
+        }),
+    }
+}

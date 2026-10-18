@@ -1,0 +1,741 @@
+//! Scoped governance kernel for model, nested orchestrator, and host-direct
+//! tool invocations.
+
+use super::hook_runtime::PermissionHookDecision;
+use super::tool_result_runtime::NormalizedToolResult;
+use super::{AgentEvent, AgentLoop};
+use crate::budget::BudgetDecision;
+use crate::harness_evidence::{ToolRequestOriginV1, ToolRequestSnapshotV1};
+use crate::safety_gate::{ToolGateApproval, ToolGateDecision, ToolGateInput, ToolSafetyGate};
+use crate::tool_confirmation::{
+    ToolConfirmationRequest, ToolConfirmationResolution, ToolConfirmationRuntime,
+};
+use crate::tool_name::canonical_tool_name;
+use crate::tools::{
+    HostDirectPolicy, InvocationOrigin, ToolCapabilities, ToolContext, ToolInvocation,
+    ToolInvocationLifecycle, ToolInvocationState, ToolInvocationTerminal, ToolInvoker, ToolResult,
+};
+use async_trait::async_trait;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::mpsc;
+
+struct ScopedToolInvoker {
+    agent: AgentLoop,
+    session_id: String,
+    /// Weak so a tool context retained after the call cannot keep the host
+    /// channel open. The run's own senders keep it alive while the call runs.
+    event_tx: Option<mpsc::WeakSender<AgentEvent>>,
+}
+
+impl ScopedToolInvoker {
+    fn new(
+        agent: &AgentLoop,
+        session_id: Option<&str>,
+        event_tx: &Option<mpsc::Sender<AgentEvent>>,
+    ) -> Self {
+        let mut agent = agent.clone();
+        // The clone carried the run's host sender. Drop that strong ref; the
+        // run still owns the channel.
+        agent.retire_fact_host_events();
+        Self {
+            agent,
+            session_id: session_id.unwrap_or("").to_string(),
+            event_tx: event_tx.as_ref().map(mpsc::Sender::downgrade),
+        }
+    }
+
+    fn events(&self) -> Option<mpsc::Sender<AgentEvent>> {
+        self.event_tx.as_ref().and_then(mpsc::WeakSender::upgrade)
+    }
+
+    fn canonicalize_invocation_name(invocation: &mut ToolInvocation) {
+        let canonical = canonical_tool_name(&invocation.name);
+        if canonical != invocation.name {
+            invocation.name = canonical.to_string();
+        }
+    }
+
+    async fn decide_gate(
+        &self,
+        invocation: &mut ToolInvocation,
+    ) -> Result<ToolGateDecision, String> {
+        Self::canonicalize_invocation_name(invocation);
+        let hook_decision = self
+            .agent
+            .fire_pre_tool_use(
+                &self.session_id,
+                &invocation.name,
+                &invocation.args,
+                invocation.recent_tools.clone(),
+            )
+            .await;
+        if let Some(updated_args) = hook_decision.updated_args {
+            invocation.args = updated_args;
+            self.agent
+                .tool_executor
+                .registry()
+                .validate_arguments(&invocation.name, &invocation.args)?;
+        }
+        let pre_tool_denial = hook_decision.denial;
+        self.emit_tool_request_bound(invocation).await?;
+
+        let host_direct_policy = match invocation.origin {
+            InvocationOrigin::HostDirect(policy) | InvocationOrigin::HostDirectNested(policy) => {
+                Some(policy)
+            }
+            InvocationOrigin::Nested
+            | InvocationOrigin::RuntimeInternal
+            | InvocationOrigin::Agent => None,
+        };
+        if invocation.origin == InvocationOrigin::RuntimeInternal {
+            return Ok(match pre_tool_denial {
+                Some(feedback) => feedback.into_gate_decision(&invocation.name),
+                None => ToolGateDecision::Execute {
+                    reason: ToolGateApproval::RuntimeInternal,
+                },
+            });
+        }
+        if matches!(
+            host_direct_policy,
+            Some(HostDirectPolicy::TrustedControlPlane)
+        ) {
+            return Ok(match pre_tool_denial {
+                Some(feedback) => feedback.into_gate_decision(&invocation.name),
+                None => ToolGateDecision::Execute {
+                    reason: ToolGateApproval::HostDirectTrusted,
+                },
+            });
+        }
+
+        Ok(ToolSafetyGate::new(&self.agent.config)
+            .decide(ToolGateInput {
+                tool_name: &invocation.name,
+                args: &invocation.args,
+                pre_tool_denial,
+                tool_requires_confirmation: self
+                    .agent
+                    .tool_executor
+                    .registry()
+                    .requires_confirmation(&invocation.name, &invocation.args),
+            })
+            .await)
+    }
+
+    async fn emit_tool_request_bound(&self, invocation: &ToolInvocation) -> Result<(), String> {
+        let identity = invocation
+            .idempotency_identity((!self.session_id.is_empty()).then_some(self.session_id.as_str()))
+            .map_err(|error| format!("Failed to derive Tool request identity: {error}"))?;
+        tracing::trace!(
+            tool_id = invocation.id.as_str(),
+            idempotency_key = identity.key(),
+            "Tool request identity bound at the governed value boundary"
+        );
+        let Some(tx) = self.events() else {
+            return Ok(());
+        };
+        let origin = match invocation.origin {
+            InvocationOrigin::Agent => ToolRequestOriginV1::Agent,
+            InvocationOrigin::Nested => ToolRequestOriginV1::Nested,
+            // Runtime internals are represented as nested in the public event
+            // protocol: they have a parent tool and no independent host/model
+            // authority surface.
+            InvocationOrigin::RuntimeInternal => ToolRequestOriginV1::Nested,
+            InvocationOrigin::HostDirect(HostDirectPolicy::TrustedControlPlane) => {
+                ToolRequestOriginV1::HostDirectTrusted
+            }
+            InvocationOrigin::HostDirect(HostDirectPolicy::GovernedControlPlane) => {
+                ToolRequestOriginV1::HostDirectGoverned
+            }
+            InvocationOrigin::HostDirectNested(HostDirectPolicy::TrustedControlPlane) => {
+                ToolRequestOriginV1::HostDirectNestedTrusted
+            }
+            InvocationOrigin::HostDirectNested(HostDirectPolicy::GovernedControlPlane) => {
+                ToolRequestOriginV1::HostDirectNestedGoverned
+            }
+        };
+        let snapshot = ToolRequestSnapshotV1::capture(
+            &invocation.id,
+            &invocation.name,
+            &invocation.args,
+            origin,
+        )
+        .map_err(|error| format!("Failed to bind Tool request evidence: {error}"))?;
+        tx.send(AgentEvent::ToolRequestBound {
+            tool_id: invocation.id.clone(),
+            tool_name: invocation.name.clone(),
+            snapshot,
+        })
+        .await
+        .ok();
+        Ok(())
+    }
+
+    async fn resolve_gate(
+        &self,
+        invocation: &ToolInvocation,
+        ctx: &ToolContext,
+        lifecycle: &mut ToolInvocationLifecycle,
+        decision: ToolGateDecision,
+    ) -> NormalizedToolResult {
+        match decision {
+            ToolGateDecision::Deny {
+                output,
+                event_reason,
+                reason,
+                error_kind,
+            } => {
+                tracing::info!(
+                    tool_name = invocation.name.as_str(),
+                    gate_reason = reason.as_str(),
+                    origin = ?invocation.origin,
+                    "Tool denied by invocation gateway"
+                );
+                self.emit_permission_denied(invocation, event_reason).await;
+                lifecycle.terminal(ToolInvocationTerminal::Rejected);
+                NormalizedToolResult::denied_with_error_kind(output, error_kind)
+            }
+            ToolGateDecision::Execute { reason } => {
+                tracing::info!(
+                    tool_name = invocation.name.as_str(),
+                    gate_reason = reason.as_str(),
+                    origin = ?invocation.origin,
+                    "Tool approved by invocation gateway"
+                );
+                self.execute_budgeted(invocation, ctx, lifecycle).await
+            }
+            ToolGateDecision::Confirm {
+                timeout_ms,
+                timeout_action,
+            } => {
+                match self
+                    .agent
+                    .fire_permission_request(
+                        &self.session_id,
+                        &invocation.id,
+                        &invocation.name,
+                        &invocation.args,
+                    )
+                    .await
+                {
+                    PermissionHookDecision::Allow => {
+                        return self.execute_budgeted(invocation, ctx, lifecycle).await;
+                    }
+                    PermissionHookDecision::Deny(reason) => {
+                        self.emit_permission_denied(invocation, reason.clone())
+                            .await;
+                        lifecycle.terminal(ToolInvocationTerminal::Rejected);
+                        return NormalizedToolResult::denied(format!(
+                            "Tool '{}' denied by permission hook: {reason}",
+                            invocation.name
+                        ));
+                    }
+                    PermissionHookDecision::Continue => {}
+                }
+                let confirmation = if let Some(manager) =
+                    self.agent.config.confirmation_manager.as_ref()
+                {
+                    let events = self.events();
+                    let runtime = ToolConfirmationRuntime::new(manager.as_ref(), events.as_ref());
+                    runtime
+                        .resolve_with_cancellation(
+                            ToolConfirmationRequest {
+                                tool_id: &invocation.id,
+                                tool_name: &invocation.name,
+                                args: &invocation.args,
+                                timeout_ms,
+                                timeout_action,
+                            },
+                            &ctx.cancellation_token(),
+                        )
+                        .await
+                } else {
+                    ToolConfirmationResolution::Rejected {
+                        output: format!(
+                            "Tool '{}' requires confirmation but no HITL confirmation manager is configured.",
+                            invocation.name
+                        ),
+                    }
+                };
+
+                match confirmation {
+                    ToolConfirmationResolution::Approved => {
+                        self.execute_budgeted(invocation, ctx, lifecycle).await
+                    }
+                    ToolConfirmationResolution::Rejected { output } => {
+                        if ctx.is_cancelled() {
+                            lifecycle.terminal(ToolInvocationTerminal::Cancelled);
+                        } else {
+                            lifecycle.terminal(ToolInvocationTerminal::Rejected);
+                        }
+                        NormalizedToolResult::denied(output)
+                    }
+                }
+            }
+        }
+    }
+
+    async fn execute_budgeted(
+        &self,
+        invocation: &ToolInvocation,
+        ctx: &ToolContext,
+        lifecycle: &mut ToolInvocationLifecycle,
+    ) -> NormalizedToolResult {
+        if let Some(denied) = self.check_before_tool(invocation).await {
+            lifecycle.terminal(ToolInvocationTerminal::Rejected);
+            return denied;
+        }
+
+        debug_assert!(lifecycle.transition(ToolInvocationState::Running).is_ok());
+
+        if let Some(tx) = self.events() {
+            tx.send(AgentEvent::ToolExecutionStart {
+                id: invocation.id.clone(),
+                name: invocation.name.clone(),
+                args: invocation.args.clone(),
+            })
+            .await
+            .ok();
+        }
+
+        let existing_llm_client = ctx.llm_client();
+        let model_generation_admission = ctx.model_generation_admission().unwrap_or_else(|| {
+            self.agent
+                .model_generation_admission_for_client(existing_llm_client.as_ref())
+        });
+        // Claim an outer permit before constructing the provider facade. The
+        // facade consumes it for the first underlying generation, then
+        // releases it before any structured repair call can acquire again.
+        let preadmitted = ctx.model_generation_permit(&model_generation_admission);
+        let events = self.events();
+        let llm_client = self.agent.scoped_llm_client_for_tool_context(
+            (!self.session_id.is_empty()).then_some(self.session_id.as_str()),
+            &events,
+            &ctx.cancellation_token(),
+            model_generation_admission.clone(),
+            preadmitted,
+            existing_llm_client,
+        );
+        let governed_ctx = ctx
+            .clone()
+            .with_llm_client(llm_client)
+            .with_model_generation_admission(model_generation_admission);
+        let stream_ctx = self.agent.streaming_tool_context(
+            &governed_ctx,
+            &events,
+            &invocation.id,
+            &invocation.name,
+        );
+        let result = NormalizedToolResult::from_execution(
+            self.agent
+                .execute_tool_queued_or_direct(
+                    &self.agent.tool_executor,
+                    &invocation.name,
+                    &invocation.args,
+                    &stream_ctx,
+                )
+                .await,
+        );
+        let terminal = if ctx.is_cancelled() {
+            ToolInvocationTerminal::Cancelled
+        } else if result.is_error {
+            ToolInvocationTerminal::Failed
+        } else {
+            ToolInvocationTerminal::Completed
+        };
+        lifecycle.terminal(terminal);
+        result
+    }
+
+    async fn check_before_tool(&self, invocation: &ToolInvocation) -> Option<NormalizedToolResult> {
+        let guard = self.agent.config.budget_guard.as_ref()?;
+        match guard
+            .check_before_tool(&self.session_id, &invocation.name)
+            .await
+        {
+            BudgetDecision::Allow => None,
+            BudgetDecision::SoftLimit {
+                resource,
+                consumed,
+                limit,
+                message,
+            } => {
+                self.emit_budget_event(resource, "soft", consumed, limit, message)
+                    .await;
+                None
+            }
+            BudgetDecision::Deny { resource, reason } => {
+                self.emit_budget_event(resource.clone(), "hard", 0.0, 0.0, Some(reason.clone()))
+                    .await;
+                Some(NormalizedToolResult::denied(
+                    crate::error::CodeError::BudgetExhausted { resource, reason }.to_string(),
+                ))
+            }
+        }
+    }
+
+    async fn emit_permission_denied(&self, invocation: &ToolInvocation, reason: String) {
+        if let Some(tx) = self.events() {
+            tx.send(AgentEvent::PermissionDenied {
+                tool_id: invocation.id.clone(),
+                tool_name: invocation.name.clone(),
+                args: invocation.args.clone(),
+                reason,
+            })
+            .await
+            .ok();
+        }
+    }
+
+    async fn emit_budget_event(
+        &self,
+        resource: String,
+        kind: &str,
+        consumed: f64,
+        limit: f64,
+        message: Option<String>,
+    ) {
+        if let Some(tx) = self.events() {
+            tx.send(AgentEvent::BudgetThresholdHit {
+                resource,
+                kind: kind.to_string(),
+                consumed,
+                limit,
+                message,
+            })
+            .await
+            .ok();
+        }
+    }
+
+    async fn emit_nested_tool_end(&self, invocation: &ToolInvocation, result: &ToolResult) {
+        if !invocation.origin.is_nested() {
+            return;
+        }
+        if let Some(tx) = self.events() {
+            tx.send(AgentEvent::ToolEnd {
+                id: invocation.id.clone(),
+                name: invocation.name.clone(),
+                args: Some(invocation.args.clone()),
+                output: result.output.clone(),
+                exit_code: result.exit_code,
+                metadata: result.metadata.clone(),
+                error_kind: result.error_kind.clone(),
+            })
+            .await
+            .ok();
+        }
+    }
+
+    async fn finish(
+        &self,
+        invocation: &ToolInvocation,
+        started: Instant,
+        normalized: NormalizedToolResult,
+        cancellation: &tokio_util::sync::CancellationToken,
+    ) -> ToolResult {
+        self.agent
+            .track_tool_result(&invocation.name, &invocation.args, normalized.exit_code);
+
+        let mut result = normalized.into_tool_result(invocation.name.clone());
+        if let Some(provider) = &self.agent.config.security_provider {
+            result.output = crate::security::sanitize_tainted_text(
+                provider.as_ref(),
+                crate::security::TaintedValue::untrusted(result.output),
+            )
+            .into_parts()
+            .0;
+            result.error_kind = result
+                .error_kind
+                .as_ref()
+                .map(|kind| crate::security::sanitize_tool_error_kind(provider.as_ref(), kind));
+        }
+        // Governed finish always counts as redaction review for the prompt
+        // boundary: either SecurityProvider sanitized, or the host opted out.
+
+        let post_hook = self.agent.fire_post_tool_use(
+            &self.session_id,
+            &invocation.name,
+            &invocation.args,
+            &result.output,
+            result.exit_code == 0,
+            started.elapsed().as_millis() as u64,
+        );
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {}
+            _ = post_hook => {}
+        }
+        result
+    }
+}
+
+#[async_trait]
+impl ToolInvoker for ScopedToolInvoker {
+    async fn invoke(&self, mut invocation: ToolInvocation, ctx: &ToolContext) -> ToolResult {
+        Self::canonicalize_invocation_name(&mut invocation);
+        let started = Instant::now();
+        let mut lifecycle = ToolInvocationLifecycle::new();
+        let cancellation = ctx.cancellation_token();
+        let invocation_ctx = match ctx.enter_tool_invocation(&invocation.name) {
+            Ok(ctx) => ctx,
+            Err(message) => {
+                lifecycle.terminal(ToolInvocationTerminal::Failed);
+                let result = self
+                    .finish(
+                        &invocation,
+                        started,
+                        NormalizedToolResult::denied(message),
+                        &cancellation,
+                    )
+                    .await;
+                self.emit_nested_tool_end(&invocation, &result).await;
+                return result;
+            }
+        };
+        debug_assert!(lifecycle.transition(ToolInvocationState::Admitted).is_ok());
+        let cancellation = invocation_ctx.cancellation_token();
+        if ctx.verifier_read_only() {
+            let declared_read_only = self
+                .agent
+                .tool_executor
+                .registry()
+                .capabilities(&invocation.name, &invocation.args)
+                .is_some_and(|capabilities| capabilities.read_only);
+            if !crate::read_only_verifier::nested_call_allowed(
+                &invocation.name,
+                &invocation.args,
+                declared_read_only,
+            ) {
+                lifecycle.terminal(ToolInvocationTerminal::Failed);
+                let result = self
+                    .finish(
+                        &invocation,
+                        started,
+                        NormalizedToolResult::denied(
+                            "verifier role cannot mutate the workspace".to_string(),
+                        ),
+                        &cancellation,
+                    )
+                    .await;
+                self.emit_nested_tool_end(&invocation, &result).await;
+                return result;
+            }
+        }
+        if let Err(message) = self
+            .agent
+            .tool_executor
+            .registry()
+            .validate_arguments(&invocation.name, &invocation.args)
+        {
+            lifecycle.terminal(ToolInvocationTerminal::Failed);
+            let result = self
+                .finish(
+                    &invocation,
+                    started,
+                    NormalizedToolResult::invalid_arguments(&invocation.name, message),
+                    &cancellation,
+                )
+                .await;
+            self.emit_nested_tool_end(&invocation, &result).await;
+            return result;
+        }
+        debug_assert!(lifecycle
+            .transition(ToolInvocationState::GatePending)
+            .is_ok());
+        let decision = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                None
+            }
+            decision = self.decide_gate(&mut invocation) => Some(decision),
+        };
+        let normalized = match decision {
+            Some(Ok(decision)) => {
+                // Once execution starts, its deadline wrapper owns
+                // cancellation and settlement. Do not drop that future from an
+                // outer select: blocking VMs and process-backed tools need a
+                // chance to observe their invocation token and terminate.
+                self.resolve_gate(&invocation, &invocation_ctx, &mut lifecycle, decision)
+                    .await
+            }
+            Some(Err(message)) => {
+                lifecycle.terminal(ToolInvocationTerminal::Failed);
+                NormalizedToolResult::invalid_arguments(&invocation.name, message)
+            }
+            None => {
+                lifecycle.terminal(ToolInvocationTerminal::Cancelled);
+                NormalizedToolResult::denied(format!(
+                    "Tool '{}' cancelled by caller",
+                    invocation.name
+                ))
+            }
+        };
+        debug_assert!(matches!(
+            lifecycle.state(),
+            ToolInvocationState::Terminal(_)
+        ));
+        let result = self
+            .finish(&invocation, started, normalized, &cancellation)
+            .await;
+        // Tools such as `task` emit their terminal high-level event through a
+        // run-owned broadcast channel, while the caller emits `ToolEnd` on the
+        // runtime mpsc channel after this method returns. Acknowledging the
+        // broadcast drain here preserves that causal order across channels.
+        invocation_ctx.flush_agent_events().await;
+        // Model and host-direct invocations have an outer runtime owner that
+        // emits their ToolEnd after this method returns. Nested orchestrator
+        // calls do not, so close only those lifecycles here. Besides keeping
+        // start/end IDs paired, this exposes successful nested source-tool
+        // metadata to delegated-task evidence collection.
+        self.emit_nested_tool_end(&invocation, &result).await;
+        result
+    }
+
+    fn available_tools(&self) -> Vec<String> {
+        let mut tools = self.agent.tool_executor.registry().list();
+        if let Some(permission_checker) = &self.agent.config.permission_checker {
+            tools.retain(|tool| permission_checker.expose_to_model(tool));
+        }
+        tools
+    }
+
+    fn capabilities(&self, name: &str, args: &serde_json::Value) -> Option<ToolCapabilities> {
+        self.agent.tool_executor.registry().capabilities(name, args)
+    }
+}
+
+impl crate::agent::TurnEngine {
+    pub(crate) fn scoped_tool_invoker(
+        &self,
+        session_id: Option<&str>,
+        event_tx: &Option<mpsc::Sender<AgentEvent>>,
+    ) -> Arc<dyn ToolInvoker> {
+        Arc::new(ScopedToolInvoker::new(self, session_id, event_tx))
+    }
+
+    pub(super) async fn invoke_model_tool(
+        &self,
+        invocation: ToolInvocation,
+        session_id: Option<&str>,
+        event_tx: &Option<mpsc::Sender<AgentEvent>>,
+        cancel_token: &tokio_util::sync::CancellationToken,
+        base_context: &ToolContext,
+    ) -> NormalizedToolResult {
+        debug_assert_eq!(invocation.origin, InvocationOrigin::Agent);
+        let invoker = self.scoped_tool_invoker(session_id, event_tx);
+        let run_id = self
+            .checkpoint_run_id
+            .clone()
+            .unwrap_or_else(|| format!("standalone-{}", uuid::Uuid::new_v4()));
+        let run_context =
+            self.invocation_context(run_id, session_id, event_tx.clone(), cancel_token.clone());
+        let ctx = run_context
+            .bind_tool_context(base_context.clone().without_host_direct_policy())
+            .with_tool_invoker(Arc::clone(&invoker));
+        NormalizedToolResult::from_tool_result(invoker.invoke(invocation, &ctx).await)
+    }
+
+    pub(crate) async fn invoke_host_tool(
+        &self,
+        invocation: ToolInvocation,
+        session_id: &str,
+        event_tx: &Option<mpsc::Sender<AgentEvent>>,
+        cancel_token: &tokio_util::sync::CancellationToken,
+        base_context: &ToolContext,
+    ) -> ToolResult {
+        debug_assert!(matches!(invocation.origin, InvocationOrigin::HostDirect(_)));
+        let host_direct_policy = match invocation.origin {
+            InvocationOrigin::HostDirect(policy) => policy,
+            _ => HostDirectPolicy::GovernedControlPlane,
+        };
+        let invoker = self.scoped_tool_invoker(Some(session_id), event_tx);
+        let ctx = base_context
+            .clone()
+            .with_session_id(session_id)
+            .with_cancellation(cancel_token.clone())
+            .with_host_direct_policy(host_direct_policy)
+            .with_tool_invoker(Arc::clone(&invoker));
+        invoker.invoke(invocation, &ctx).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::MockLlmClient;
+    use super::super::{AgentConfig, AgentLoop};
+    use crate::tools::{Tool, ToolContext, ToolExecutor, ToolOutput};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    struct MarkerWrite;
+
+    #[async_trait::async_trait]
+    impl Tool for MarkerWrite {
+        fn name(&self) -> &str {
+            "marker_write"
+        }
+
+        fn description(&self) -> &str {
+            "writes a marker file"
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({"type": "object"})
+        }
+
+        async fn execute(
+            &self,
+            _args: &serde_json::Value,
+            ctx: &ToolContext,
+        ) -> anyhow::Result<ToolOutput> {
+            std::fs::write(ctx.workspace.join("marker.txt"), "written\n")?;
+            Ok(ToolOutput::success("wrote marker"))
+        }
+    }
+
+    fn program_args() -> serde_json::Value {
+        serde_json::json!({
+            "type": "script",
+            "language": "javascript",
+            "source": "async function run(ctx) { return await ctx.tool('marker_write', {}); }",
+            "allowed_tools": ["marker_write"]
+        })
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn verifier_program_cannot_write_through_a_nested_tool() {
+        let root = tempfile::tempdir().unwrap();
+        let marker = root.path().join("marker.txt");
+        let executor = Arc::new(ToolExecutor::new(root.path().to_string_lossy().to_string()));
+        executor.register_dynamic_tool(Arc::new(MarkerWrite));
+        let agent = AgentLoop::new(
+            Arc::new(MockLlmClient::new(vec![])),
+            executor,
+            ToolContext::new(root.path().to_path_buf()),
+            AgentConfig::default(),
+        );
+        let cancellation = tokio_util::sync::CancellationToken::new();
+        let ctx = ToolContext::new(PathBuf::from(root.path())).with_verifier_read_only(true);
+        let result = agent
+            .invoke_host_tool(
+                crate::tools::ToolInvocation::host_direct(
+                    "host-program",
+                    "program",
+                    program_args(),
+                ),
+                "verifier-program",
+                &None,
+                &cancellation,
+                &ctx,
+            )
+            .await;
+        assert!(
+            result.output.contains("verifier role cannot mutate"),
+            "{}",
+            result.output
+        );
+        assert!(!result.output.contains("wrote marker"), "{}", result.output);
+        assert!(!marker.exists(), "nested write landed: {}", result.output);
+    }
+}

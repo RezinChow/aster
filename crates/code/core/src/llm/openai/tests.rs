@@ -1,0 +1,1415 @@
+use super::*;
+use crate::llm::types::{Message, ToolDefinition};
+use futures::StreamExt;
+
+mod stream_text;
+
+fn make_client() -> OpenAiClient {
+    OpenAiClient::new("test-key".to_string(), "gpt-test".to_string())
+}
+
+#[test]
+fn reasoning_model_sends_reasoning_effort_and_keeps_output_room() {
+    let client =
+        OpenAiClient::new("k".to_string(), "gpt-5.4".to_string()).with_reasoning_effort("max");
+    let req = client.build_chat_request(&[Message::user("fix it")], None, &[], None);
+    assert_eq!(req["reasoning_effort"], "xhigh");
+    assert!(req["max_tokens"].as_u64().unwrap() >= 65_536);
+}
+
+#[test]
+fn deepseek_model_sends_thinking_effort_without_an_output_floor() {
+    let client = OpenAiClient::new("k".to_string(), "deepseek-v4-flash".to_string())
+        .with_reasoning_effort("max");
+    let req = client.build_chat_request(&[Message::user("fix it")], None, &[], None);
+    assert_eq!(req["reasoning_effort"], "max");
+    assert_eq!(req["thinking"]["type"], "enabled");
+    assert_eq!(req["top_p"], 0.95);
+    assert!(req.get("max_tokens").is_none());
+
+    let disabled = OpenAiClient::new("k".to_string(), "deepseek-v4-flash".to_string())
+        .with_reasoning_effort("none");
+    let off = disabled.build_chat_request(&[Message::user("fix it")], None, &[], None);
+    assert_eq!(off["reasoning_effort"], "none");
+    assert_eq!(off["thinking"]["type"], "disabled");
+    assert!(off.get("top_p").is_none());
+}
+
+#[test]
+fn plain_chat_model_omits_reasoning_effort() {
+    let client =
+        OpenAiClient::new("k".to_string(), "gpt-4o".to_string()).with_reasoning_effort("high");
+    let req = client.build_chat_request(&[Message::user("hi")], None, &[], None);
+    assert!(req.get("reasoning_effort").is_none());
+    assert!(req.get("max_tokens").is_none());
+}
+
+#[test]
+fn zhipu_client_sends_glm_reasoning_effort() {
+    let client = OpenAiClient::new("k".to_string(), "glm-5.3".to_string())
+        .with_provider_name("zhipu")
+        .with_reasoning_effort("low");
+    let req = client.build_chat_request(&[Message::user("hi")], None, &[], None);
+    assert_eq!(req["reasoning_effort"], "low");
+    assert!(req["max_tokens"].as_u64().unwrap() >= 65_536);
+}
+
+// --- streaming reasoning-channel regression -----------------------------
+// Reasoning models (glm5.1/zhipu) stream chain-of-thought under `reasoning`.
+// It must land in reasoning_content, NEVER in the text content — otherwise
+// response.text() looks like a finished answer and the agent loop terminates
+// before the model emits its tool call (asset-diagnose "未返回结构化输出").
+
+struct MockSseHttp {
+    chunks: Vec<bytes::Bytes>,
+}
+
+struct PendingSseHttp;
+
+struct FailingSseHttp {
+    chunks: Vec<String>,
+}
+
+struct ChunksThenPendingSseHttp {
+    chunks: Vec<String>,
+}
+
+struct StatusHttp {
+    status: u16,
+}
+
+#[async_trait::async_trait]
+impl crate::llm::http::HttpClient for StatusHttp {
+    async fn post(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+        Ok(crate::llm::http::HttpResponse {
+            status: self.status,
+            body: "provider error".to_string(),
+            retry_after: None,
+        })
+    }
+
+    async fn post_streaming(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+        Ok(crate::llm::http::StreamingHttpResponse {
+            status: self.status,
+            retry_after: None,
+            byte_stream: Box::pin(futures::stream::empty()),
+            error_body: "provider error".to_string(),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::llm::http::HttpClient for MockSseHttp {
+    async fn post(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+        anyhow::bail!("post is unused in the streaming test")
+    }
+
+    async fn post_streaming(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+        let items: Vec<anyhow::Result<bytes::Bytes>> =
+            self.chunks.iter().cloned().map(Ok).collect();
+        Ok(crate::llm::http::StreamingHttpResponse {
+            status: 200,
+            retry_after: None,
+            byte_stream: Box::pin(futures::stream::iter(items)),
+            error_body: String::new(),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::llm::http::HttpClient for PendingSseHttp {
+    async fn post(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+        anyhow::bail!("post is unused in the streaming cancellation test")
+    }
+
+    async fn post_streaming(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+        Ok(crate::llm::http::StreamingHttpResponse {
+            status: 200,
+            retry_after: None,
+            byte_stream: Box::pin(futures::stream::pending()),
+            error_body: String::new(),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::llm::http::HttpClient for FailingSseHttp {
+    async fn post(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+        anyhow::bail!("post is unused in the interrupted streaming test")
+    }
+
+    async fn post_streaming(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+        let mut items = self
+            .chunks
+            .iter()
+            .map(|chunk| Ok(bytes::Bytes::from(chunk.clone())))
+            .collect::<Vec<anyhow::Result<bytes::Bytes>>>();
+        items.push(Err(anyhow::anyhow!("connection reset")));
+        Ok(crate::llm::http::StreamingHttpResponse {
+            status: 200,
+            retry_after: None,
+            byte_stream: Box::pin(futures::stream::iter(items)),
+            error_body: String::new(),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::llm::http::HttpClient for ChunksThenPendingSseHttp {
+    async fn post(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+        anyhow::bail!("post is unused in the pending streaming tests")
+    }
+
+    async fn post_streaming(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+        let items = self
+            .chunks
+            .iter()
+            .map(|chunk| Ok(bytes::Bytes::from(chunk.clone())))
+            .collect::<Vec<anyhow::Result<bytes::Bytes>>>();
+        Ok(crate::llm::http::StreamingHttpResponse {
+            status: 200,
+            retry_after: None,
+            byte_stream: Box::pin(futures::stream::iter(items).chain(futures::stream::pending())),
+            error_body: String::new(),
+        })
+    }
+}
+
+/// Yields scripted chunks. After each chunk is consumed, `parked` fires
+/// before the next chunk is taken, so a test can observe that a trailing CR
+/// produced no stream event.
+struct ScriptedSseHttp {
+    incoming: std::sync::Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<Option<bytes::Bytes>>>>,
+    parked: std::sync::Arc<tokio::sync::Notify>,
+}
+
+#[async_trait::async_trait]
+impl crate::llm::http::HttpClient for ScriptedSseHttp {
+    async fn post(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+        anyhow::bail!("post is unused in the scripted streaming test")
+    }
+
+    async fn post_streaming(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+        let rx = self
+            .incoming
+            .lock()
+            .expect("scripted sse lock")
+            .take()
+            .expect("one scripted stream");
+        let parked = std::sync::Arc::clone(&self.parked);
+        let byte_stream =
+            futures::stream::unfold((rx, parked, false), |(mut rx, parked, seen)| async move {
+                if seen {
+                    parked.notify_one();
+                }
+                match rx.recv().await {
+                    Some(Some(bytes)) => {
+                        Some((Ok::<bytes::Bytes, anyhow::Error>(bytes), (rx, parked, true)))
+                    }
+                    _ => None,
+                }
+            });
+        Ok(crate::llm::http::StreamingHttpResponse {
+            status: 200,
+            retry_after: None,
+            byte_stream: Box::pin(byte_stream),
+            error_body: String::new(),
+        })
+    }
+}
+
+fn glm_client(chunks: Vec<String>) -> OpenAiClient {
+    OpenAiClient::new("k".to_string(), "glm-test".to_string()).with_http_client(
+        std::sync::Arc::new(MockSseHttp {
+            chunks: chunks.into_iter().map(bytes::Bytes::from).collect(),
+        }),
+    )
+}
+
+fn byte_chunk_client(chunks: Vec<bytes::Bytes>) -> OpenAiClient {
+    OpenAiClient::new("k".to_string(), "glm-test".to_string())
+        .with_http_client(std::sync::Arc::new(MockSseHttp { chunks }))
+}
+
+async fn drain_to_done(client: &OpenAiClient) -> crate::llm::LlmResponse {
+    use crate::llm::{LlmClient, StreamEvent};
+    let mut rx = client
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("stream opened");
+    let mut done = None;
+    while let Some(ev) = rx.recv().await {
+        if let StreamEvent::Done(resp) = ev {
+            done = Some(resp);
+        }
+    }
+    done.expect("a Done event")
+}
+
+#[tokio::test]
+async fn streaming_parser_closes_when_caller_cancels() {
+    use crate::llm::LlmClient;
+
+    let client = OpenAiClient::new("k".to_string(), "model".to_string())
+        .with_http_client(std::sync::Arc::new(PendingSseHttp));
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let mut rx = client
+        .complete_streaming(&[Message::user("go")], None, &[], cancellation.clone())
+        .await
+        .expect("stream opened");
+
+    cancellation.cancel();
+
+    let next = tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv())
+        .await
+        .expect("provider parser must stop after cancellation");
+    assert!(next.is_none());
+}
+
+#[tokio::test]
+async fn non_retryable_http_status_preserves_provider_and_status() {
+    use crate::llm::{LlmClient, NonRetryableLlmError};
+
+    let client = OpenAiClient::new("k".to_string(), "model".to_string())
+        .with_retry_config(crate::retry::RetryConfig::disabled())
+        .with_http_client(std::sync::Arc::new(StatusHttp { status: 402 }));
+    let error = client
+        .complete(&[Message::user("go")], None, &[])
+        .await
+        .expect_err("billing failure must fail without a retry");
+    let typed = error
+        .downcast_ref::<NonRetryableLlmError>()
+        .expect("provider status must remain typed");
+    assert_eq!(typed.provider(), Some("openai"));
+    assert_eq!(typed.status(), Some(402));
+}
+
+#[tokio::test]
+async fn streaming_transport_error_after_partial_delta_does_not_emit_done() {
+    use crate::llm::{LlmClient, StreamEvent};
+
+    let client = OpenAiClient::new("k".to_string(), "model".to_string()).with_http_client(
+        std::sync::Arc::new(FailingSseHttp {
+            chunks: vec![
+                "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n".to_string(),
+            ],
+        }),
+    );
+    let mut rx = client
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("stream opened");
+
+    let mut text = String::new();
+    let mut saw_done = false;
+    while let Some(event) = rx.recv().await {
+        match event {
+            StreamEvent::TextDelta(delta) => text.push_str(&delta),
+            StreamEvent::Done(_) => saw_done = true,
+            _ => {}
+        }
+    }
+
+    assert_eq!(text, "partial");
+    assert!(
+        !saw_done,
+        "a failed transport must close without Done so the agent retries the turn"
+    );
+}
+
+#[tokio::test]
+async fn streaming_clean_eof_after_partial_delta_does_not_emit_done() {
+    use crate::llm::{LlmClient, StreamEvent};
+
+    let client = glm_client(vec![
+        "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n".to_string(),
+    ]);
+    let mut rx = client
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("stream opened");
+
+    let mut text = String::new();
+    let mut saw_done = false;
+    while let Some(event) = rx.recv().await {
+        match event {
+            StreamEvent::TextDelta(delta) => text.push_str(&delta),
+            StreamEvent::Done(_) => saw_done = true,
+            _ => {}
+        }
+    }
+
+    assert_eq!(text, "partial");
+    assert!(
+        !saw_done,
+        "EOF without protocol terminal evidence must close without Done"
+    );
+}
+
+#[tokio::test]
+async fn streaming_transport_error_after_finish_reason_can_finalize() {
+    let client = OpenAiClient::new("k".to_string(), "model".to_string()).with_http_client(
+        std::sync::Arc::new(FailingSseHttp {
+            chunks: vec![
+                "data: {\"choices\":[{\"delta\":{\"content\":\"complete\"}}]}\n\n".to_string(),
+                "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n".to_string(),
+            ],
+        }),
+    );
+
+    let response = drain_to_done(&client).await;
+    assert_eq!(response.text(), "complete");
+    assert_eq!(response.stop_reason.as_deref(), Some("stop"));
+}
+
+#[tokio::test]
+async fn streaming_clean_eof_after_finish_reason_can_finalize() {
+    let client = glm_client(vec![
+        "data: {\"choices\":[{\"delta\":{\"content\":\"complete\"}}]}\n\n".to_string(),
+        "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n".to_string(),
+    ]);
+
+    let response = drain_to_done(&client).await;
+    assert_eq!(response.text(), "complete");
+    assert_eq!(response.stop_reason.as_deref(), Some("stop"));
+}
+
+/// Tool arguments arrive as an incremental JSON string; non-empty arguments
+/// that fail to parse are truncation evidence. Finalizing the buffered
+/// content as Done would make a cut-mid-call stream indistinguishable from
+/// a complete response, so the parser must close WITHOUT Done and let the
+/// caller retry.
+#[tokio::test]
+async fn streaming_truncated_tool_args_after_finish_reason_does_not_finalize() {
+    use crate::llm::{LlmClient, StreamEvent};
+
+    let client = glm_client(vec![
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"function\":{\"name\":\"bash\",\"arguments\":\"{\\\"comm\"}}]}}]}\n\n".to_string(),
+        "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n".to_string(),
+    ]);
+    let mut rx = client
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("stream opened");
+
+    let mut saw_done = false;
+    while let Some(event) = rx.recv().await {
+        if matches!(event, StreamEvent::Done(_)) {
+            saw_done = true;
+        }
+    }
+    assert!(
+        !saw_done,
+        "unparseable tool arguments must close without Done so the cut stream retries"
+    );
+}
+
+#[tokio::test]
+async fn streaming_partial_response_is_not_finalized_after_cancellation() {
+    use crate::llm::{LlmClient, StreamEvent};
+
+    let client = OpenAiClient::new("k".to_string(), "model".to_string()).with_http_client(
+        std::sync::Arc::new(ChunksThenPendingSseHttp {
+            chunks: vec![
+                "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n".to_string(),
+            ],
+        }),
+    );
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let mut rx = client
+        .complete_streaming(&[Message::user("go")], None, &[], cancellation.clone())
+        .await
+        .expect("stream opened");
+
+    assert!(matches!(
+        rx.recv().await,
+        Some(StreamEvent::TextDelta(text)) if text == "partial"
+    ));
+    cancellation.cancel();
+
+    let next = tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv())
+        .await
+        .expect("provider parser must stop after cancellation");
+    assert!(next.is_none(), "cancellation must not synthesize Done");
+}
+
+#[tokio::test]
+async fn streaming_done_closes_before_pending_transport_and_emits_once() {
+    use crate::llm::{LlmClient, StreamEvent};
+
+    let client = OpenAiClient::new("k".to_string(), "model".to_string()).with_http_client(
+        std::sync::Arc::new(ChunksThenPendingSseHttp {
+            chunks: vec![
+                "data: {\"choices\":[{\"delta\":{\"content\":\"complete\"}}]}\n\n".to_string(),
+                "data: [DONE]\n\n".to_string(),
+                "data: [DONE]\n\n".to_string(),
+            ],
+        }),
+    );
+    let mut rx = client
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("stream opened");
+
+    let events = tokio::time::timeout(std::time::Duration::from_secs(1), async move {
+        let mut events = Vec::new();
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+        events
+    })
+    .await
+    .expect("[DONE] must close the parser without waiting for transport EOF");
+    let done = events
+        .into_iter()
+        .filter_map(|event| match event {
+            StreamEvent::Done(response) => Some(response),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(done.len(), 1, "[DONE] must emit exactly one final response");
+    assert_eq!(done[0].text(), "complete");
+}
+
+#[tokio::test]
+async fn streaming_parser_preserves_unicode_split_across_transport_chunks() {
+    let wire = concat!(
+        "data: {\"id\":\"response-1\",\"object\":\"chat.completion.chunk\",",
+        "\"model\":\"glm-test\",\"choices\":[{\"index\":0,\"delta\":",
+        "{\"content\":\"维护治理\"},\"finish_reason\":null}]}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let split = wire.find("治理").unwrap() + 1;
+    let chunks = vec![
+        bytes::Bytes::copy_from_slice(&wire.as_bytes()[..split]),
+        bytes::Bytes::copy_from_slice(&wire.as_bytes()[split..]),
+    ];
+
+    let response = drain_to_done(&byte_chunk_client(chunks)).await;
+
+    assert_eq!(response.text(), "维护治理");
+    assert!(!response.text().contains('\u{fffd}'));
+}
+
+#[tokio::test]
+async fn streaming_reasoning_does_not_leak_into_content_and_keeps_tool_call() {
+    let chunks = vec![
+            "data: {\"choices\":[{\"delta\":{\"reasoning\":\"Let me plan the workers\"}}]}\n\n"
+                .to_string(),
+            "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"function\":{\"name\":\"parallel_task\",\"arguments\":\"{}\"}}]}}]}\n\n"
+                .to_string(),
+            "data: [DONE]\n\n".to_string(),
+        ];
+    let resp = drain_to_done(&glm_client(chunks)).await;
+    // Reasoning must NOT appear as text content.
+    assert_eq!(resp.message.text(), "", "reasoning leaked into content");
+    assert_eq!(
+        resp.message.reasoning_content.as_deref(),
+        Some("Let me plan the workers")
+    );
+    // The tool call still survives, so the agent can act.
+    let calls = resp.message.tool_calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].name, "parallel_task");
+}
+
+#[tokio::test]
+async fn streaming_reasoning_only_turn_yields_empty_text() {
+    // A pure "thinking" turn (reasoning, no content, no tool call) must yield empty
+    // text() so the agent loop's looks_incomplete("")==true path CONTINUES instead of
+    // terminating prematurely — the multi-worker diagnose failure root cause.
+    let chunks = vec![
+        "data: {\"choices\":[{\"delta\":{\"reasoning\":\"still thinking, no answer yet\"}}]}\n\n"
+            .to_string(),
+        "data: [DONE]\n\n".to_string(),
+    ];
+    let resp = drain_to_done(&glm_client(chunks)).await;
+    assert_eq!(resp.message.text(), "");
+    assert_eq!(
+        resp.message.reasoning_content.as_deref(),
+        Some("still thinking, no answer yet")
+    );
+    assert!(resp.message.tool_calls().is_empty());
+}
+
+#[tokio::test]
+async fn streaming_collects_token_logprobs() {
+    let chunks = vec![
+            "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"},\"logprobs\":{\"content\":[{\"token\":\"hello\",\"logprob\":-0.2,\"bytes\":[104,101,108,108,111],\"top_logprobs\":[{\"token\":\"hi\",\"logprob\":-1.2,\"bytes\":[104,105]}]}]}}]}\n\n"
+                .to_string(),
+            "data: {\"choices\":[{\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n"
+                .to_string(),
+            "data: [DONE]\n\n".to_string(),
+        ];
+    let resp = drain_to_done(&glm_client(chunks).with_logprobs(true)).await;
+    assert_eq!(resp.text(), "hello");
+    assert_eq!(resp.token_logprobs.len(), 1);
+    assert_eq!(resp.token_logprobs[0].token, "hello");
+    assert_eq!(resp.token_logprobs[0].logprob, -0.2);
+    assert_eq!(
+        resp.token_logprobs[0].bytes.as_deref(),
+        Some(&[104, 101, 108, 108, 111][..])
+    );
+    assert_eq!(resp.token_logprobs[0].top_logprobs[0].token, "hi");
+    assert_eq!(resp.token_logprobs[0].top_logprobs[0].logprob, -1.2);
+}
+
+#[tokio::test]
+async fn streaming_accepts_sse_data_without_space_after_colon() {
+    let chunks = vec![
+            "data:{\"choices\":[{\"delta\":{\"content\":\"hello\"},\"finish_reason\":null}],\"usage\":null}\n\n"
+                .to_string(),
+            "data:{\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n"
+                .to_string(),
+            "data:[DONE]\n\n".to_string(),
+        ];
+    let resp = drain_to_done(&glm_client(chunks)).await;
+    assert_eq!(resp.text(), "hello");
+    assert_eq!(resp.usage.prompt_tokens, 1);
+    assert_eq!(resp.usage.completion_tokens, 1);
+    assert_eq!(resp.usage.total_tokens, 2);
+    assert_eq!(resp.stop_reason.as_deref(), Some("stop"));
+}
+
+fn openai_hello_sse(separator: &str) -> String {
+    let delta = r#"{"choices":[{"delta":{"content":"hello"}}]}"#;
+    let done = "[DONE]";
+    format!("data: {delta}{separator}{separator}data: {done}{separator}{separator}")
+}
+
+async fn openai_text_deltas(chunks: Vec<String>) -> (Vec<String>, crate::llm::LlmResponse) {
+    use crate::llm::{LlmClient, StreamEvent};
+    let mut rx = glm_client(chunks)
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("stream opened");
+    let mut deltas = Vec::new();
+    let mut done = None;
+    while let Some(event) = rx.recv().await {
+        match event {
+            StreamEvent::TextDelta(delta) => deltas.push(delta),
+            StreamEvent::Done(response) => {
+                done = Some(response);
+                break;
+            }
+            _ => {}
+        }
+    }
+    (deltas, done.expect("Done"))
+}
+
+#[tokio::test]
+async fn streaming_crlf_data_frame_matches_lf_payload() {
+    let (lf_deltas, lf) = openai_text_deltas(vec![openai_hello_sse("\n")]).await;
+    let (crlf_deltas, crlf) = openai_text_deltas(vec![openai_hello_sse("\r\n")]).await;
+    assert_eq!(lf_deltas, vec!["hello".to_string()]);
+    assert_eq!(crlf_deltas, lf_deltas);
+    assert_eq!(lf.text(), "hello");
+    assert_eq!(crlf.text(), lf.text());
+    assert!(!crlf.text().contains('\r'));
+}
+
+#[tokio::test]
+async fn streaming_split_cr_does_not_emit_partial_event() {
+    use crate::llm::{LlmClient, StreamEvent};
+
+    let wire = openai_hello_sse("\r\n");
+    let blank = wire.find("\r\n\r\n").expect("crlf blank line");
+    let head = wire[..blank + 3].to_string();
+    assert!(head.ends_with('\r'), "the held suffix is a bare CR");
+    let tail = wire[blank + 3..].to_string();
+
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let parked = std::sync::Arc::new(tokio::sync::Notify::new());
+    let client = OpenAiClient::new("k".to_string(), "glm-test".to_string()).with_http_client(
+        std::sync::Arc::new(ScriptedSseHttp {
+            incoming: std::sync::Mutex::new(Some(rx)),
+            parked: std::sync::Arc::clone(&parked),
+        }),
+    );
+    let mut events = client
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("stream opened");
+
+    tx.send(Some(bytes::Bytes::from(head)))
+        .expect("reader accepts the partial frame");
+    tokio::time::timeout(std::time::Duration::from_secs(2), parked.notified())
+        .await
+        .expect("reader parked while the buffer ends on CR");
+    assert!(
+        matches!(
+            events.try_recv(),
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+        ),
+        "a buffer ending on CR must not emit a partial event"
+    );
+
+    tx.send(Some(bytes::Bytes::from(tail)))
+        .expect("reader accepts the rest of the frame");
+    tx.send(None).expect("close the scripted stream");
+    let mut deltas = Vec::new();
+    let mut done = None;
+    let finished = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while let Some(event) = events.recv().await {
+            match event {
+                StreamEvent::TextDelta(delta) => deltas.push(delta),
+                StreamEvent::Done(response) => {
+                    done = Some(response);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    })
+    .await;
+    assert!(finished.is_ok(), "the completed CRLF frame must finish");
+    assert_eq!(deltas, vec!["hello".to_string()]);
+    let response = done.expect("Done");
+    assert_eq!(response.text(), "hello");
+    assert!(!response.text().contains('\r'));
+}
+
+/// Gateways commonly re-send `"name":""` on argument-only deltas. The accumulated
+/// name must survive so the next request does not poison with an empty function.name.
+#[tokio::test]
+async fn streaming_empty_continuation_name_does_not_wipe_tool_name() {
+    let chunks = vec![
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_write\",\"function\":{\"name\":\"write\",\"arguments\":\"\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"\",\"arguments\":\"{\\\"path\\\":\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"\\\"t.txt\\\"}\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}]}\n\n".to_string(),
+        "data: [DONE]\n\n".to_string(),
+    ];
+    let resp = drain_to_done(&glm_client(chunks)).await;
+    let calls = resp.message.tool_calls();
+    assert_eq!(calls.len(), 1, "expected one accumulated tool call");
+    assert_eq!(calls[0].id, "call_write");
+    assert_eq!(
+        calls[0].name, "write",
+        "empty continuation name must not wipe the accumulated tool name"
+    );
+    assert!(
+        calls[0].args.to_string().contains("t.txt"),
+        "argument fragments must still accumulate: {}",
+        calls[0].args
+    );
+}
+
+/// Gateways may omit a tool-call id or re-send `"id":""` on later deltas. Never
+/// wipe a bound id, and synthesize a stable id when the stream never provided one.
+#[tokio::test]
+async fn streaming_empty_or_missing_id_still_emits_usable_tool_call() {
+    let chunks = vec![
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"\",\"function\":{\"name\":\"search\",\"arguments\":\"\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"\",\"function\":{\"arguments\":\"{\\\"mode\\\":\\\"semantic\\\"}\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}]}\n\n".to_string(),
+        "data: [DONE]\n\n".to_string(),
+    ];
+    let resp = drain_to_done(&glm_client(chunks)).await;
+    let calls = resp.message.tool_calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].name, "search");
+    assert!(
+        !calls[0].id.trim().is_empty(),
+        "finalized tool call must carry a non-empty id (got {:?})",
+        calls[0].id
+    );
+    assert_eq!(calls[0].id, "call_0");
+}
+
+#[tokio::test]
+async fn streaming_cancels_http_request_before_transport_returns() {
+    use crate::llm::{HttpClientError, LlmClient};
+
+    struct HangUntilCancelledHttp;
+
+    #[async_trait::async_trait]
+    impl crate::llm::http::HttpClient for HangUntilCancelledHttp {
+        async fn post(
+            &self,
+            _url: &str,
+            _headers: Vec<(&str, &str)>,
+            _body: &serde_json::Value,
+            _cancel: tokio_util::sync::CancellationToken,
+        ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+            anyhow::bail!("unused")
+        }
+
+        async fn post_streaming(
+            &self,
+            _url: &str,
+            _headers: Vec<(&str, &str)>,
+            _body: &serde_json::Value,
+            cancel: tokio_util::sync::CancellationToken,
+        ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+            cancel.cancelled().await;
+            futures::future::pending::<()>().await;
+            unreachable!()
+        }
+    }
+
+    let client = OpenAiClient::new("k".into(), "model".into())
+        .with_retry_config(crate::retry::RetryConfig::disabled())
+        .with_http_client(std::sync::Arc::new(HangUntilCancelledHttp));
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let cancel = cancellation.clone();
+    let request = tokio::spawn(async move {
+        client
+            .complete_streaming(&[Message::user("go")], None, &[], cancellation)
+            .await
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    cancel.cancel();
+    let error = request
+        .await
+        .expect("join")
+        .expect_err("cancelled streaming HTTP must fail closed");
+    assert!(error.downcast_ref::<HttpClientError>().is_some());
+}
+
+#[tokio::test]
+async fn streaming_retryable_and_fatal_transport_errors_are_classified() {
+    use crate::llm::{http::HttpClientError, LlmClient};
+
+    struct TransportErrorHttp {
+        message: &'static str,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::llm::http::HttpClient for TransportErrorHttp {
+        async fn post(
+            &self,
+            _url: &str,
+            _headers: Vec<(&str, &str)>,
+            _body: &serde_json::Value,
+            _cancel: tokio_util::sync::CancellationToken,
+        ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+            anyhow::bail!("unused")
+        }
+
+        async fn post_streaming(
+            &self,
+            _url: &str,
+            _headers: Vec<(&str, &str)>,
+            _body: &serde_json::Value,
+            _cancel: tokio_util::sync::CancellationToken,
+        ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+            Err(anyhow::Error::new(HttpClientError::transport(
+                "stream",
+                self.message,
+            )))
+        }
+    }
+
+    let retryable = OpenAiClient::new("k".into(), "model".into())
+        .with_retry_config(crate::retry::RetryConfig::disabled())
+        .with_http_client(std::sync::Arc::new(TransportErrorHttp {
+            message: "timed out: upstream stalled",
+        }));
+    assert!(retryable
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .is_err());
+
+    let fatal = OpenAiClient::new("k".into(), "model".into())
+        .with_retry_config(crate::retry::RetryConfig::disabled())
+        .with_http_client(std::sync::Arc::new(TransportErrorHttp {
+            message: "connection refused",
+        }));
+    assert!(fatal
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn streaming_non_retryable_http_status_preserves_provider_error() {
+    use crate::llm::{LlmClient, NonRetryableLlmError};
+
+    let client = OpenAiClient::new("k".into(), "model".into())
+        .with_retry_config(crate::retry::RetryConfig::disabled())
+        .with_http_client(std::sync::Arc::new(StatusHttp { status: 402 }));
+    let error = client
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect_err("billing failure must fail without opening a stream");
+    let typed = error
+        .downcast_ref::<NonRetryableLlmError>()
+        .expect("provider status must remain typed");
+    assert_eq!(typed.status(), Some(402));
+}
+
+#[tokio::test]
+async fn streaming_message_snapshot_path_keeps_reasoning_and_content_separate() {
+    let chunks = vec![
+        concat!(
+            "data: {\"id\":\"resp-msg\",\"object\":\"chat.completion.chunk\",\"model\":\"glm-test\",",
+            "\"choices\":[{\"message\":{\"content\":\"final answer\",\"reasoning_content\":\"plan first\",",
+            "\"tool_calls\":[{\"id\":\"call_m\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"q\\\":1}\"}}]},",
+            "\"finish_reason\":\"tool_calls\"}],",
+            "\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":2,\"total_tokens\":0,\"total_characters\":9,",
+            "\"prompt_tokens_details\":{\"cached_tokens\":1}}}\n\n"
+        )
+        .to_string(),
+        "data: [DONE]\n\n".to_string(),
+    ];
+    let resp = drain_to_done(&glm_client(chunks)).await;
+    assert_eq!(resp.text(), "final answer");
+    assert_eq!(
+        resp.message.reasoning_content.as_deref(),
+        Some("plan first")
+    );
+    assert_eq!(resp.usage.total_tokens, 9);
+    assert_eq!(resp.usage.cache_read_tokens, Some(1));
+    let calls = resp.message.tool_calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].name, "lookup");
+}
+
+#[tokio::test]
+async fn streaming_tool_argument_deltas_emit_after_tool_start() {
+    use crate::llm::{LlmClient, StreamEvent};
+
+    let chunks = vec![
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"function\":{\"name\":\"write\",\"arguments\":\"{\\\"p\\\"\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\":\\\"a.txt\\\"}\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}]}\n\n".to_string(),
+        "data: [DONE]\n\n".to_string(),
+    ];
+    let mut rx = glm_client(chunks)
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("open");
+    let mut saw_start = false;
+    let mut saw_delta = false;
+    let mut done = None;
+    while let Some(event) = rx.recv().await {
+        match event {
+            StreamEvent::ToolUseStart { name, .. } => {
+                saw_start = true;
+                assert_eq!(name, "write");
+            }
+            StreamEvent::ToolUseInputDelta { delta, .. } => {
+                saw_delta = true;
+                assert!(
+                    delta.contains("a.txt") || delta.contains("\\\"p\\\"") || delta.contains("{")
+                );
+            }
+            StreamEvent::Done(response) => done = Some(response),
+            _ => {}
+        }
+    }
+    assert!(saw_start);
+    assert!(saw_delta);
+    let resp = done.expect("done");
+    assert_eq!(resp.message.tool_calls().len(), 1);
+}
+
+#[tokio::test]
+async fn streaming_trailing_message_chunk_without_sse_framing_finalizes() {
+    let trailing = r#"{"choices":[{"message":{"content":"trailing","reasoning_content":"think","tool_calls":[{"id":"call_t","function":{"name":"lookup","arguments":"{\"q\":1}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":0,"total_characters":7}}"#;
+    let resp = drain_to_done(&glm_client(vec![trailing.to_string()])).await;
+    assert_eq!(resp.text(), "trailing");
+    assert_eq!(resp.message.reasoning_content.as_deref(), Some("think"));
+    assert_eq!(resp.usage.total_tokens, 7);
+    assert_eq!(resp.message.tool_calls()[0].name, "lookup");
+}
+
+#[tokio::test]
+async fn streaming_trailing_full_response_object_without_sse_framing_finalizes() {
+    // Invalid `delta` type fails OpenAiStreamChunk deserialize; OpenAiResponse ignores
+    // unknown fields, so the full-completion trailing branch runs.
+    let trailing = r#"{"id":"full-1","object":"chat.completion","model":"glm-test","choices":[{"message":{"content":"full","reasoning_content":"r","tool_calls":[{"id":"call_f","function":{"name":"ping","arguments":"{}"}}]},"delta":"force-response-branch","finish_reason":"tool_calls","logprobs":{"content":[{"token":"full","logprob":-0.5,"bytes":null,"top_logprobs":[]}]}}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":0,"total_characters":11,"prompt_tokens_details":{"cached_tokens":2}}}"#;
+    let resp = drain_to_done(&glm_client(vec![trailing.to_string()])).await;
+    assert_eq!(resp.text(), "full");
+    assert_eq!(resp.message.reasoning_content.as_deref(), Some("r"));
+    assert_eq!(resp.usage.total_tokens, 11);
+    assert_eq!(resp.usage.cache_read_tokens, Some(2));
+    assert_eq!(resp.message.tool_calls()[0].name, "ping");
+}
+
+#[tokio::test]
+async fn streaming_trailing_delta_path_without_sse_framing_finalizes() {
+    let trailing =
+        "{\"choices\":[{\"delta\":{\"content\":\"d\",\"reasoning_content\":\"rd\"},\"finish_reason\":\"stop\"}]}";
+    let resp = drain_to_done(&glm_client(vec![trailing.to_string()])).await;
+    assert_eq!(resp.text(), "d");
+    assert_eq!(resp.message.reasoning_content.as_deref(), Some("rd"));
+}
+
+#[tokio::test]
+async fn streaming_invalid_utf8_and_empty_stream_close_without_done() {
+    use crate::llm::{LlmClient, StreamEvent};
+
+    let mut saw_done = false;
+    let mut rx = byte_chunk_client(vec![bytes::Bytes::from_static(&[0xff, 0xfe, 0xfd])])
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("open");
+    while let Some(event) = rx.recv().await {
+        if matches!(event, StreamEvent::Done(_)) {
+            saw_done = true;
+        }
+    }
+    assert!(!saw_done);
+
+    let mut rx = glm_client(vec!["not-json-and-not-an-event".into()])
+        .complete_streaming(
+            &[Message::user("go")],
+            None,
+            &[],
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        .expect("open");
+    saw_done = false;
+    while let Some(event) = rx.recv().await {
+        if matches!(event, StreamEvent::Done(_)) {
+            saw_done = true;
+        }
+    }
+    assert!(!saw_done);
+}
+
+#[tokio::test]
+async fn streaming_conflicting_tool_identity_is_ignored() {
+    let chunks = vec![
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_a\",\"function\":{\"name\":\"alpha\",\"arguments\":\"{\\\"x\\\":\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_b\",\"function\":{\"name\":\"beta\",\"arguments\":\"1}\"}}]}}]}\n\n"
+            .to_string(),
+        "data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}]}\n\n".to_string(),
+        "data: [DONE]\n\n".to_string(),
+    ];
+    let resp = drain_to_done(&glm_client(chunks)).await;
+    let calls = resp.message.tool_calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].id, "call_a");
+    assert_eq!(calls[0].name, "alpha");
+}
+
+#[test]
+fn test_apply_directive_forced_function_tool_choice() {
+    let mut req = serde_json::json!({ "model": "m" });
+    OpenAiClient::apply_directive(
+        &mut req,
+        &structured::StructuredDirective {
+            force_tool: Some("emit_person".to_string()),
+            response_format: None,
+            validation_schema: Some(serde_json::json!({ "type": "object" })),
+        },
+    );
+    assert_eq!(req["tool_choice"]["type"], "function");
+    assert_eq!(req["tool_choice"]["function"]["name"], "emit_person");
+    assert!(req.get("response_format").is_none());
+    assert!(req.get("validation_schema").is_none());
+}
+
+#[test]
+fn test_apply_directive_json_schema_strict() {
+    let mut req = serde_json::json!({});
+    OpenAiClient::apply_directive(
+        &mut req,
+        &structured::StructuredDirective {
+            force_tool: None,
+            response_format: Some(structured::ResponseFormat::JsonSchema {
+                name: "person".to_string(),
+                schema: serde_json::json!({ "type": "object" }),
+            }),
+            validation_schema: None,
+        },
+    );
+    assert_eq!(req["response_format"]["type"], "json_schema");
+    assert_eq!(req["response_format"]["json_schema"]["name"], "person");
+    assert_eq!(req["response_format"]["json_schema"]["strict"], true);
+    assert!(req.get("tool_choice").is_none());
+}
+
+#[test]
+fn test_apply_directive_json_object() {
+    let mut req = serde_json::json!({});
+    OpenAiClient::apply_directive(
+        &mut req,
+        &structured::StructuredDirective {
+            force_tool: None,
+            response_format: Some(structured::ResponseFormat::JsonObject),
+            validation_schema: None,
+        },
+    );
+    assert_eq!(req["response_format"]["type"], "json_object");
+}
+
+#[test]
+fn test_build_chat_request_applies_directive_and_system() {
+    let req = make_client().build_chat_request(
+        &[Message::user("hi")],
+        Some("sys"),
+        &[ToolDefinition {
+            name: "emit_x".to_string(),
+            description: "emit".to_string(),
+            parameters: serde_json::json!({ "type": "object" }),
+        }],
+        Some(&structured::StructuredDirective {
+            force_tool: Some("emit_x".to_string()),
+            response_format: None,
+            validation_schema: None,
+        }),
+    );
+    assert_eq!(req["messages"][0]["role"], "system");
+    assert_eq!(req["tool_choice"]["function"]["name"], "emit_x");
+    assert_eq!(req["tools"][0]["function"]["name"], "emit_x");
+}
+
+#[test]
+fn test_build_chat_request_without_directive_is_plain() {
+    let req = make_client().build_chat_request(&[Message::user("hi")], None, &[], None);
+    assert!(req.get("tool_choice").is_none());
+    assert!(req.get("response_format").is_none());
+    assert!(req.get("logprobs").is_none());
+    assert!(req.get("top_logprobs").is_none());
+}
+
+#[test]
+fn test_build_chat_request_includes_logprob_options_when_enabled() {
+    let req = make_client().with_top_logprobs(1).build_chat_request(
+        &[Message::user("hi")],
+        None,
+        &[],
+        None,
+    );
+    assert_eq!(req["logprobs"], true);
+    assert_eq!(req["top_logprobs"], 1);
+}
+
+#[test]
+fn test_parse_openai_token_logprobs() {
+    let parsed = openai_logprobs_to_token_logprobs(&OpenAiChoiceLogprobs {
+        content: Some(vec![OpenAiTokenLogprob {
+            token: "hello".to_string(),
+            logprob: -0.25,
+            bytes: Some(vec![104, 101, 108, 108, 111]),
+            top_logprobs: vec![OpenAiTopLogprob {
+                token: "hi".to_string(),
+                logprob: -1.5,
+                bytes: Some(vec![104, 105]),
+            }],
+        }]),
+    });
+    assert_eq!(parsed.len(), 1);
+    assert_eq!(parsed[0].token, "hello");
+    assert_eq!(parsed[0].logprob, -0.25);
+    assert_eq!(
+        parsed[0].bytes.as_deref(),
+        Some(&[104, 101, 108, 108, 111][..])
+    );
+    assert_eq!(parsed[0].top_logprobs[0].token, "hi");
+    assert_eq!(parsed[0].top_logprobs[0].logprob, -1.5);
+}
+
+#[test]
+fn test_native_structured_support_is_json_schema() {
+    assert_eq!(
+        make_client().native_structured_support(),
+        structured::NativeStructuredSupport::JsonSchema
+    );
+}
+
+struct CountingHttp {
+    hits: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    status: u16,
+    retry_after: Option<String>,
+    body: String,
+    fail: Option<String>,
+}
+
+#[async_trait::async_trait]
+impl crate::llm::http::HttpClient for CountingHttp {
+    async fn post(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::HttpResponse> {
+        self.hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if let Some(message) = &self.fail {
+            return Err(anyhow::Error::new(
+                crate::llm::http::HttpClientError::transport("HTTP request", message.clone()),
+            ));
+        }
+        Ok(crate::llm::http::HttpResponse {
+            status: self.status,
+            body: self.body.clone(),
+            retry_after: self.retry_after.clone(),
+        })
+    }
+
+    async fn post_streaming(
+        &self,
+        _url: &str,
+        _headers: Vec<(&str, &str)>,
+        _body: &serde_json::Value,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<crate::llm::http::StreamingHttpResponse> {
+        Ok(crate::llm::http::StreamingHttpResponse {
+            status: 500,
+            retry_after: None,
+            byte_stream: Box::pin(futures::stream::empty()),
+            error_body: "unused".into(),
+        })
+    }
+}
+
+fn retry_client(http: std::sync::Arc<CountingHttp>, max_retries: u32) -> OpenAiClient {
+    OpenAiClient::new("test-key".into(), "gpt-test".into())
+        .with_http_client(http)
+        .with_retry_config(crate::retry::RetryConfig {
+            max_retries,
+            base_delay_ms: 1,
+            max_delay_ms: 5,
+            ..crate::retry::RetryConfig::default()
+        })
+}
+
+#[tokio::test]
+async fn nonstreaming_retry_waits_for_retry_after_and_skips_terminal_failures() {
+    let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let http = std::sync::Arc::new(CountingHttp {
+        hits: std::sync::Arc::clone(&hits),
+        status: 429,
+        retry_after: Some("0.05".into()),
+        body: "slow".into(),
+        fail: None,
+    });
+    // The first response is always 429, so a second attempt still fails.
+    // The wait is what this case locks: Retry-After, not the 1ms backoff.
+    let started = tokio::time::Instant::now();
+    let error = retry_client(http, 1)
+        .complete(&[Message::user("hi")], None, &[])
+        .await
+        .expect_err("still limited");
+    assert!(error.to_string().contains("429") || error.to_string().contains("slow"));
+    assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert!(started.elapsed() >= std::time::Duration::from_millis(40));
+
+    let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let http = std::sync::Arc::new(CountingHttp {
+        hits: std::sync::Arc::clone(&hits),
+        status: 400,
+        retry_after: Some("30".into()),
+        body: "bad request".into(),
+        fail: None,
+    });
+    let started = tokio::time::Instant::now();
+    let error = retry_client(http, 3)
+        .complete(&[Message::user("hi")], None, &[])
+        .await
+        .expect_err("terminal");
+    assert!(error.to_string().contains("400"));
+    assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(started.elapsed() < std::time::Duration::from_millis(100));
+
+    let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let http = std::sync::Arc::new(CountingHttp {
+        hits: std::sync::Arc::clone(&hits),
+        status: 200,
+        retry_after: None,
+        body: String::new(),
+        fail: Some("connection refused".into()),
+    });
+    let error = retry_client(http, 3)
+        .complete(&[Message::user("hi")], None, &[])
+        .await
+        .expect_err("connect");
+    assert!(error.to_string().contains("connection refused"));
+    assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[test]
+fn test_native_structured_support_can_be_overridden() {
+    assert_eq!(
+        make_client()
+            .with_native_structured_support(structured::NativeStructuredSupport::None)
+            .native_structured_support(),
+        structured::NativeStructuredSupport::None
+    );
+}
+
+#[test]
+fn a_text_only_model_receives_a_note_instead_of_image_parts() {
+    let messages = [
+        Message::tool_result_with_images(
+            "call-1",
+            "[Image: image/png (4 bytes)]",
+            &[Attachment::png(vec![1, 2, 3, 4])],
+            false,
+        ),
+        Message {
+            role: "user".to_string(),
+            content: vec![ContentBlock::Image {
+                source: ImageSource {
+                    source_type: "base64".to_string(),
+                    media_type: "image/png".to_string(),
+                    data: "AQID".to_string(),
+                },
+            }],
+            reasoning_content: None,
+            transcript_text: None,
+            transcript_visibility: Default::default(),
+        },
+    ];
+
+    let wire = serde_json::to_string(
+        &make_client()
+            .with_text_only_input(true)
+            .convert_messages(&messages),
+    )
+    .unwrap();
+    assert!(!wire.contains("image_url"), "{wire}");
+    assert!(wire.contains(IMAGE_WITHHELD), "{wire}");
+    assert!(wire.contains("[Image: image/png (4 bytes)]"), "{wire}");
+
+    let vision = serde_json::to_string(&make_client().convert_messages(&messages)).unwrap();
+    assert!(vision.contains("image_url"), "{vision}");
+}

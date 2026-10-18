@@ -1,0 +1,956 @@
+use super::watcher::normalize_file_changes;
+use super::*;
+use notify::{
+    event::{ModifyKind, RenameMode},
+    Event, EventKind,
+};
+use std::collections::HashSet;
+
+fn write(path: &Path, body: &[u8]) {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    // Flush to durable storage so FS events fire under a busy test suite.
+    use std::io::Write as _;
+    let mut file = std::fs::File::create(path).unwrap();
+    file.write_all(body).unwrap();
+    file.sync_all().unwrap();
+}
+
+fn git_available() -> bool {
+    let mut command = std::process::Command::new("git");
+    crate::tools::process::output_std_child(&mut command)
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn run_git(root: &Path, args: &[&str]) {
+    let mut command = std::process::Command::new("git");
+    command.arg("-C").arg(root).args(args);
+    let status = crate::tools::process::status_std_child(&mut command).unwrap();
+    assert!(
+        status.success(),
+        "git command failed: git -C {root:?} {args:?}"
+    );
+}
+
+fn test_file(path: &str) -> LocalWorkspaceFile {
+    LocalWorkspaceFile {
+        path: path.to_string(),
+        size: 0,
+        modified_ms: None,
+        language: None,
+        status: LocalWorkspaceFileStatus::Unknown,
+        binary: false,
+        generated: false,
+    }
+}
+
+#[test]
+fn manifest_classifies_non_text_assets_before_workspace_retrieval() {
+    let workspace = tempfile::tempdir().unwrap();
+    write(&workspace.path().join("src/lib.rs"), b"pub fn text() {}\n");
+    write(
+        &workspace.path().join("architecture.pdf"),
+        b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n",
+    );
+    write(
+        &workspace.path().join("recording.mp3"),
+        &[b'I', b'D', b'3', 0xff, 0xfb, 0x90, 0x64],
+    );
+    write(
+        &workspace.path().join("opaque.asset"),
+        &[0x89, b'A', b'S', b'S', b'E', b'T'],
+    );
+    write(
+        &workspace.path().join("payload.bin"),
+        b"ASCII_BYTES_STILL_BELONG_TO_A_NON_TEXT_CONTAINER",
+    );
+
+    let files = scan_workspace_files(workspace.path());
+    let by_path = files
+        .iter()
+        .map(|file| (file.path.as_str(), file))
+        .collect::<HashMap<_, _>>();
+
+    assert!(!by_path["src/lib.rs"].binary);
+    for path in [
+        "architecture.pdf",
+        "recording.mp3",
+        "opaque.asset",
+        "payload.bin",
+    ] {
+        assert!(by_path[path].binary, "{path} must not enter text retrieval");
+    }
+}
+
+#[test]
+fn manifest_index_reduces_glob_candidates() {
+    let files = vec![
+        test_file("src/main.rs"),
+        test_file("crates/demo/src/lib.rs"),
+        test_file("README.md"),
+        test_file("docs/README.md"),
+    ];
+    let index = ManifestIndex::build(&files);
+
+    let exact = candidate_indices_for_glob(&index, &WorkspacePath::root(), "src/main.rs")
+        .iter()
+        .collect::<Vec<_>>();
+    assert_eq!(exact, vec![0]);
+
+    let basename = candidate_indices_for_glob(&index, &WorkspacePath::root(), "**/README.md")
+        .iter()
+        .collect::<Vec<_>>();
+    assert_eq!(basename, vec![2, 3]);
+
+    let extension = candidate_indices_for_glob(&index, &WorkspacePath::root(), "**/*.rs")
+        .iter()
+        .collect::<Vec<_>>();
+    assert_eq!(extension, vec![0, 1]);
+}
+
+#[test]
+fn recent_files_are_bounded_and_ranked_by_heat() {
+    let mut recent = RecentFiles::default();
+    for index in 0..(RECENT_FILE_LIMIT + 5) {
+        recent.touch(format!("src/file_{index:03}.rs"), index as u64);
+    }
+    recent.touch("src/file_000.rs".to_string(), 10_000);
+    recent.touch("src/file_000.rs".to_string(), 10_001);
+
+    let entries = recent.entries(None, usize::MAX, 10_001);
+
+    assert_eq!(entries.len(), RECENT_FILE_LIMIT);
+    assert_eq!(entries[0].path, "src/file_000.rs");
+    assert_eq!(entries[0].touch_count, 2);
+}
+
+fn grep_candidate_order(paths: &[&str], recent: &[(&str, usize)], dirty: &[&str]) -> Vec<usize> {
+    let files = paths.iter().copied().map(test_file).collect::<Vec<_>>();
+    let index = ManifestIndex::build(&files);
+    let candidates = CandidateIndices::Indexed(&index.all);
+    let recent_ranks = recent
+        .iter()
+        .map(|(path, rank)| ((*path).to_string(), *rank))
+        .collect();
+    let dirty = dirty.iter().map(|path| (*path).to_string()).collect();
+    order_grep_candidates(&candidates, &index, &recent_ranks, &dirty)
+}
+
+#[test]
+fn recent_files_stay_ahead_of_uncommitted_files() {
+    assert_eq!(
+        grep_candidate_order(&["a.rs", "b.rs", "c.rs"], &[("a.rs", 0)], &["c.rs"]),
+        vec![0, 2, 1]
+    );
+    assert_eq!(
+        grep_candidate_order(&["a.rs", "b.rs", "c.rs"], &[("a.rs", 0)], &["a.rs", "c.rs"]),
+        vec![0, 2, 1]
+    );
+}
+
+#[test]
+fn recent_window_empty_puts_uncommitted_files_first() {
+    assert_eq!(
+        grep_candidate_order(&["a.rs", "b.rs", "c.rs"], &[], &["c.rs", "b.rs"]),
+        vec![1, 2, 0]
+    );
+}
+
+#[test]
+fn recent_order_is_unchanged_without_uncommitted_files() {
+    assert_eq!(
+        grep_candidate_order(&["a.rs", "b.rs", "c.rs"], &[("a.rs", 0)], &[]),
+        vec![0, 1, 2]
+    );
+}
+
+#[test]
+fn recent_order_stays_when_git_status_fails() {
+    let temp = tempfile::tempdir().unwrap();
+    assert!(crate::git::dirty_paths(temp.path()).is_err());
+    assert_eq!(
+        grep_candidate_order(&["a.rs", "b.rs", "c.rs"], &[("a.rs", 0)], &[]),
+        vec![0, 1, 2]
+    );
+}
+
+fn dirty_order_changes(paths: &[&str], recent: &[&str], allowed: Option<&[&str]>) -> bool {
+    let files = paths.iter().copied().map(test_file).collect::<Vec<_>>();
+    let index = ManifestIndex::build(&files);
+    let candidates = CandidateIndices::Indexed(&index.all);
+    let recent_ranks = recent
+        .iter()
+        .enumerate()
+        .map(|(rank, path)| ((*path).to_string(), rank))
+        .collect();
+    let allowed: Option<std::collections::BTreeSet<String>> =
+        allowed.map(|paths| paths.iter().map(|path| (*path).to_string()).collect());
+    dirty_order_can_change(&candidates, &files, &recent_ranks, allowed.as_ref())
+}
+
+#[test]
+fn dirty_order_is_skipped_when_every_candidate_is_recent() {
+    assert!(!dirty_order_changes(
+        &["a.rs", "b.rs"],
+        &["a.rs", "b.rs"],
+        None
+    ));
+}
+
+#[test]
+fn dirty_order_runs_when_a_candidate_is_outside_the_recent_window() {
+    assert!(dirty_order_changes(&["a.rs", "b.rs"], &["a.rs"], None));
+}
+
+#[test]
+fn dirty_order_is_skipped_when_the_cold_candidate_is_filtered_out() {
+    assert!(!dirty_order_changes(
+        &["a.rs", "b.rs"],
+        &["a.rs"],
+        Some(&["a.rs"])
+    ));
+}
+
+#[tokio::test]
+async fn manifest_search_matches_glob_and_grep() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        &temp.path().join("src/main.rs"),
+        b"fn main() {\n    println!(\"hello\");\n}\n",
+    );
+    write(&temp.path().join("README.md"), b"hello from docs\n");
+
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let mut rx = backend.manifest().subscribe();
+    tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        rx.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    let glob = backend
+        .glob(WorkspaceGlobRequest {
+            base: backend.normalize("src").unwrap(),
+            pattern: "*.rs".to_string(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(glob.matches[0].as_str(), "src/main.rs");
+
+    let grep = backend
+        .grep(WorkspaceGrepRequest {
+            base: WorkspacePath::root(),
+            pattern: "hello".to_string(),
+            glob: Some("*.rs".to_string()),
+            context_lines: 0,
+            case_insensitive: false,
+            max_output_size: 1024,
+        })
+        .await
+        .unwrap();
+    assert_eq!(grep.match_count, 1);
+    assert_eq!(grep.file_count, 1);
+    assert!(grep.output.contains("src/main.rs:2"));
+
+    let metadata_only = backend
+        .grep_with_sources(WorkspaceGrepRequest {
+            base: WorkspacePath::root(),
+            pattern: "hello".to_string(),
+            glob: None,
+            context_lines: 0,
+            case_insensitive: false,
+            max_output_size: 0,
+        })
+        .await
+        .unwrap();
+    assert_eq!(metadata_only.result.match_count, 2);
+    assert_eq!(metadata_only.result.file_count, 2);
+    assert!(metadata_only.result.output.is_empty());
+    assert!(!metadata_only.result.truncated);
+    assert_eq!(
+        metadata_only.matched_paths.unwrap(),
+        vec![
+            WorkspacePath::from_normalized("README.md"),
+            WorkspacePath::from_normalized("src/main.rs")
+        ]
+    );
+}
+
+#[tokio::test]
+async fn deferred_manifest_keeps_fallback_search_ready_until_one_way_activation() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    write(&temp.path().join("src/main.rs"), b"fn main() {}\n");
+
+    let backend = ManifestWorkspaceBackend::new_deferred(temp.path());
+    let manifest = backend.manifest();
+    let mut snapshots = manifest.subscribe();
+
+    assert!(!manifest.is_active());
+    assert_eq!(manifest.snapshot().version, 0);
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert_eq!(manifest.snapshot().version, 0);
+    assert!(snapshots.try_recv().is_err());
+
+    // Manifest-backed search deliberately falls back to the local backend
+    // while discovery is deferred, so latency-sensitive hosts remain usable.
+    let glob = backend
+        .glob(WorkspaceGlobRequest {
+            base: WorkspacePath::root(),
+            pattern: "**/*.rs".to_string(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(glob.matches[0].as_str(), "src/main.rs");
+    assert_eq!(manifest.snapshot().version, 0);
+
+    assert!(manifest.activate());
+    assert!(manifest.is_active());
+    assert!(!manifest.activate());
+    let ready = tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        snapshots.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(ready.version > 0);
+    assert!(ready.files.iter().any(|file| file.path == "src/main.rs"));
+}
+
+#[cfg(feature = "a3s-vec-fts")]
+#[tokio::test]
+async fn automatic_persistent_retrieval_uses_portable_cold_admission() {
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        &temp.path().join("src/main.rs"),
+        b"fn main() {\n    acceptance();\n}\n",
+    );
+
+    let backend = ManifestWorkspaceBackend::new_deferred(temp.path());
+    backend
+        .configure_persistent_index(temp.path().join(".a3s-code/index"))
+        .unwrap();
+    let catalog = backend.chunk_catalog();
+    assert_eq!(catalog.lexical_engine(), WorkspaceLexicalEngine::A3sVec);
+    assert!(backend.persistent_index().is_some());
+
+    backend.manifest().activate();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if catalog.snapshot().unwrap().file_count() == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn eager_manifest_is_active_at_construction() {
+    let temp = tempfile::tempdir().unwrap();
+    let manifest = LocalWorkspaceManifest::start(temp.path());
+
+    assert!(manifest.is_active());
+    assert!(!manifest.activate());
+}
+
+#[tokio::test]
+async fn manifest_grep_reports_a_file_it_skipped_for_size() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    let mut big = vec![b'a'; 16 * 1024 * 1024];
+    big.extend_from_slice(b"\nNEEDLE\n");
+    write(&temp.path().join("logs/big.log"), &big);
+    write(&temp.path().join("README.md"), b"hello\n");
+
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let mut rx = backend.manifest().subscribe();
+    tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        rx.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    let outcome = backend
+        .grep_with_sources(WorkspaceGrepRequest {
+            base: WorkspacePath::root(),
+            pattern: "NEEDLE".to_string(),
+            glob: None,
+            context_lines: 0,
+            case_insensitive: false,
+            max_output_size: 1024,
+        })
+        .await
+        .unwrap();
+    assert_eq!(outcome.result.match_count, 0);
+    assert_eq!(
+        outcome.skipped_oversize,
+        vec![WorkspacePath::from_normalized("logs/big.log")]
+    );
+}
+
+#[tokio::test]
+async fn manifest_credential_boundary_filters_sensitive_grep_candidates() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        &temp.path().join("src/lib.rs"),
+        b"pub const BOUNDARY_TOKEN_NAME: &str = \"external\";\n",
+    );
+    write(
+        &temp.path().join("apps/api/.env.local"),
+        b"BOUNDARY_TOKEN_NAME=secret\n",
+    );
+
+    let backend = ManifestWorkspaceBackend::new_with_access_policy(
+        temp.path(),
+        LocalWorkspaceAccessPolicy::CredentialBoundary,
+    );
+    let mut rx = backend.manifest().subscribe();
+    tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        rx.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    let grep = backend
+        .grep(WorkspaceGrepRequest {
+            base: WorkspacePath::root(),
+            pattern: "BOUNDARY_TOKEN_NAME".to_string(),
+            glob: None,
+            context_lines: 0,
+            case_insensitive: false,
+            max_output_size: 1024,
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(grep.match_count, 1);
+    assert_eq!(grep.file_count, 1);
+    assert!(grep.output.contains("src/lib.rs"));
+    assert!(!grep.output.contains("secret"));
+    assert!(!grep.output.contains(".env"));
+}
+
+#[cfg(any(unix, windows))]
+#[tokio::test]
+async fn source_egress_catalog_does_not_change_ordinary_workspace_reads() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("src")).unwrap();
+    write(&temp.path().join(".env"), b"TOKEN=tool-governed\n");
+    std::fs::hard_link(
+        temp.path().join(".env"),
+        temp.path().join("src/apparently-safe.rs"),
+    )
+    .unwrap();
+    write(&temp.path().join("src/safe.rs"), b"pub fn safe() {}\n");
+
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let secret = backend.normalize(".env").unwrap();
+
+    assert_eq!(
+        backend.read_text(&secret).await.unwrap(),
+        "TOKEN=tool-governed\n"
+    );
+    assert_eq!(
+        backend
+            .read_text(&backend.normalize("src/apparently-safe.rs").unwrap())
+            .await
+            .unwrap(),
+        "TOKEN=tool-governed\n"
+    );
+
+    let catalog = backend.chunk_catalog();
+    let snapshot = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let snapshot = catalog.snapshot().unwrap();
+            if snapshot.source_revision() > 0 && snapshot.failed_file_count() == 1 {
+                break snapshot;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(snapshot.paths(), vec!["src/safe.rs".to_owned()]);
+}
+
+#[tokio::test]
+async fn host_can_configure_the_manifest_catalog_exactly_once_before_services_attach() {
+    let temp = tempfile::tempdir().unwrap();
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let strategy = WorkspaceChunkingStrategy::FixedWindow(
+        crate::FixedWindowChunkingOptions::new(512, 64).unwrap(),
+    );
+
+    let catalog = backend
+        .configure_chunk_catalog(
+            strategy.clone(),
+            ChunkingConfig::default(),
+            ChunkCatalogLimits::default(),
+        )
+        .unwrap();
+
+    assert!(Arc::ptr_eq(&catalog, &backend.chunk_catalog()));
+    let debug = format!("{catalog:?}");
+    assert!(debug.contains("FixedWindow"), "{debug}");
+    assert!(debug.contains("target_bytes: 512"), "{debug}");
+    assert!(backend
+        .configure_chunk_catalog(
+            strategy,
+            ChunkingConfig::default(),
+            ChunkCatalogLimits::default(),
+        )
+        .is_err());
+}
+
+#[tokio::test]
+async fn configuring_chunk_catalog_does_not_open_durable_a3s_vec() {
+    let temp = tempfile::tempdir().unwrap();
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    backend
+        .configure_chunk_catalog(
+            WorkspaceChunkingStrategy::Lines,
+            ChunkingConfig::default(),
+            ChunkCatalogLimits::default(),
+        )
+        .unwrap();
+    let _ = backend.chunk_catalog();
+    assert!(
+        backend.persistent_index().is_none(),
+        "catalog enable must not attach durable FTS"
+    );
+    assert!(
+        !temp.path().join(".a3s-code").join("index").exists(),
+        "catalog enable must not create the durable index directory"
+    );
+}
+
+#[tokio::test]
+async fn manifest_backend_read_write_touch_recent_files() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    write(&temp.path().join("src/main.rs"), b"fn main() {}\n");
+
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let mut rx = backend.manifest().subscribe();
+    tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        rx.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    let path = backend.normalize("src/main.rs").unwrap();
+    backend.read_text(&path).await.unwrap();
+    assert_eq!(
+        backend.manifest().recent_file_paths(4),
+        vec!["src/main.rs".to_string()]
+    );
+
+    backend
+        .write_text(&path, "fn main() { println!(\"hi\"); }\n")
+        .await
+        .unwrap();
+    let entries = backend.manifest().recent_file_entries(4);
+    assert_eq!(entries[0].path, "src/main.rs");
+    assert_eq!(entries[0].touch_count, 2);
+}
+
+#[tokio::test]
+async fn manifest_glob_prioritizes_recent_matching_files() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    write(&temp.path().join("src/a.rs"), b"pub fn a() {}\n");
+    write(&temp.path().join("src/z.rs"), b"pub fn z() {}\n");
+
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let mut rx = backend.manifest().subscribe();
+    tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        rx.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    backend.manifest().touch_file("src/z.rs");
+    let glob = backend
+        .glob(WorkspaceGlobRequest {
+            base: WorkspacePath::root(),
+            pattern: "**/*.rs".to_string(),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(glob.matches[0].as_str(), "src/z.rs");
+    assert_eq!(glob.matches[1].as_str(), "src/a.rs");
+}
+
+#[tokio::test]
+async fn manifest_grep_prioritizes_recent_matches_when_truncated() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    write(
+        &temp.path().join("src/a.rs"),
+        b"pub const HIT: &str = \"a\";\n",
+    );
+    write(
+        &temp.path().join("src/z.rs"),
+        b"pub const HIT: &str = \"z\";\n",
+    );
+
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let mut rx = backend.manifest().subscribe();
+    tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        rx.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    backend.manifest().touch_file("src/z.rs");
+    let grep = backend
+        .grep(WorkspaceGrepRequest {
+            base: WorkspacePath::root(),
+            pattern: "HIT".to_string(),
+            glob: Some("**/*.rs".to_string()),
+            context_lines: 0,
+            case_insensitive: false,
+            max_output_size: 1,
+        })
+        .await
+        .unwrap();
+
+    assert!(grep.truncated);
+    assert!(grep.output.starts_with(">src/z.rs:"), "{}", grep.output);
+}
+
+#[tokio::test]
+async fn manifest_grep_prioritizes_a_cold_dirty_file_when_truncated() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    if !git_available() {
+        return;
+    }
+    let temp = tempfile::tempdir().unwrap();
+    run_git(temp.path(), &["init"]);
+    run_git(temp.path(), &["config", "core.autocrlf", "false"]);
+    write(
+        &temp.path().join("src/a.rs"),
+        b"pub const HIT: &str = \"a\";\n",
+    );
+    write(
+        &temp.path().join("src/z.rs"),
+        b"pub const HIT: &str = \"z\";\n",
+    );
+    run_git(temp.path(), &["add", "src/a.rs", "src/z.rs"]);
+    run_git(
+        temp.path(),
+        &[
+            "-c",
+            "user.email=a3s@example.com",
+            "-c",
+            "user.name=a3s",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-m",
+            "add both",
+        ],
+    );
+    write(
+        &temp.path().join("src/z.rs"),
+        b"pub const HIT: &str = \"dirty\";\n",
+    );
+
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let mut rx = backend.manifest().subscribe();
+    tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        rx.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    let grep = backend
+        .grep(WorkspaceGrepRequest {
+            base: WorkspacePath::root(),
+            pattern: "HIT".to_string(),
+            glob: Some("**/*.rs".to_string()),
+            context_lines: 0,
+            case_insensitive: false,
+            max_output_size: 1,
+        })
+        .await
+        .unwrap();
+
+    assert!(grep.truncated);
+    assert!(grep.output.starts_with(">src/z.rs:"), "{}", grep.output);
+}
+
+#[tokio::test]
+async fn manifest_refreshes_after_file_event() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    write(&temp.path().join("README.md"), b"# hello\n");
+    let manifest = LocalWorkspaceManifest::start(temp.path());
+    let mut rx = manifest.subscribe();
+    let initial = tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        rx.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(initial.files.iter().any(|file| file.path == "README.md"));
+
+    write(&temp.path().join("src/lib.rs"), b"pub fn lib() {}\n");
+    let updated = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let snapshot = rx.recv().await.unwrap();
+            if snapshot.files.iter().any(|file| file.path == "src/lib.rs") {
+                break snapshot;
+            }
+        }
+    })
+    .await
+    .unwrap();
+
+    assert!(updated.version > initial.version);
+}
+
+#[test]
+fn file_change_batch_normalizes_and_merges_duplicate_events() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let created = root.join("src/new.rs");
+    let changed = root.join("src/lib.rs");
+    let ephemeral = root.join("src/ephemeral.rs");
+    let events = vec![
+        Event::new(EventKind::Create(notify::event::CreateKind::File)).add_path(created.clone()),
+        Event::new(EventKind::Modify(ModifyKind::Any)).add_path(created.clone()),
+        Event::new(EventKind::Modify(ModifyKind::Any)).add_path(changed.clone()),
+        Event::new(EventKind::Modify(ModifyKind::Any)).add_path(changed),
+        Event::new(EventKind::Create(notify::event::CreateKind::File)).add_path(ephemeral.clone()),
+        Event::new(EventKind::Remove(notify::event::RemoveKind::File)).add_path(ephemeral),
+    ];
+
+    let changes = normalize_file_changes(&root, &events, &HashSet::new());
+
+    assert_eq!(
+        changes,
+        vec![
+            WorkspaceFileChange {
+                path: WorkspacePath::from_normalized("src/new.rs"),
+                kind: WorkspaceFileChangeKind::Created,
+            },
+            WorkspaceFileChange {
+                path: WorkspacePath::from_normalized("src/lib.rs"),
+                kind: WorkspaceFileChangeKind::Changed,
+            },
+        ]
+    );
+}
+
+#[test]
+fn file_change_batch_treats_create_for_known_file_as_change() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let existing = root.join("src/lib.rs");
+    let events =
+        vec![Event::new(EventKind::Create(notify::event::CreateKind::File)).add_path(existing)];
+    let known_paths = HashSet::from(["src/lib.rs".to_string()]);
+
+    assert_eq!(
+        normalize_file_changes(&root, &events, &known_paths),
+        vec![WorkspaceFileChange {
+            path: WorkspacePath::from_normalized("src/lib.rs"),
+            kind: WorkspaceFileChangeKind::Changed,
+        }]
+    );
+}
+
+#[test]
+fn file_change_batch_reports_create_delete_and_rename_in_order() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let created = root.join("src/created.rs");
+    let deleted = root.join("src/deleted.rs");
+    let rename_from = root.join("src/old.rs");
+    let rename_to = root.join("src/new.rs");
+    let events = vec![
+        Event::new(EventKind::Create(notify::event::CreateKind::File)).add_path(created),
+        Event::new(EventKind::Remove(notify::event::RemoveKind::File)).add_path(deleted),
+        Event::new(EventKind::Modify(ModifyKind::Name(RenameMode::Both)))
+            .add_path(rename_from)
+            .add_path(rename_to),
+    ];
+
+    let known_paths = HashSet::from(["src/new.rs".to_string()]);
+    let changes = normalize_file_changes(&root, &events, &known_paths);
+
+    assert_eq!(
+        changes,
+        vec![
+            WorkspaceFileChange {
+                path: WorkspacePath::from_normalized("src/created.rs"),
+                kind: WorkspaceFileChangeKind::Created,
+            },
+            WorkspaceFileChange {
+                path: WorkspacePath::from_normalized("src/deleted.rs"),
+                kind: WorkspaceFileChangeKind::Deleted,
+            },
+            WorkspaceFileChange {
+                path: WorkspacePath::from_normalized("src/old.rs"),
+                kind: WorkspaceFileChangeKind::Deleted,
+            },
+            WorkspaceFileChange {
+                path: WorkspacePath::from_normalized("src/new.rs"),
+                kind: WorkspaceFileChangeKind::Created,
+            },
+        ]
+    );
+}
+
+#[test]
+fn file_change_batch_ignores_external_and_invalid_paths() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let outside = root.parent().unwrap().join("outside.rs");
+    let invalid = root.join("../escape.rs");
+    let ignored = root.join("node_modules/package/index.js");
+    let control_plane = root.join(".a3s-code/index/CURRENT");
+    let events = vec![
+        Event::new(EventKind::Modify(ModifyKind::Any)).add_path(outside),
+        Event::new(EventKind::Modify(ModifyKind::Any)).add_path(invalid),
+        Event::new(EventKind::Modify(ModifyKind::Any)).add_path(ignored),
+        Event::new(EventKind::Modify(ModifyKind::Any)).add_path(control_plane),
+        Event::new(EventKind::Modify(ModifyKind::Any)).add_path(root.clone()),
+    ];
+
+    assert!(normalize_file_changes(&root, &events, &HashSet::new()).is_empty());
+}
+
+#[tokio::test]
+async fn manifest_change_subscription_reports_same_size_content_changes() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("src/lib.rs");
+    write(&path, b"aaaa\n");
+    let manifest = LocalWorkspaceManifest::start(temp.path());
+    let mut snapshots = manifest.subscribe();
+    let mut changes = manifest.subscribe_changes();
+    tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(5)),
+        snapshots.recv(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    let received = tokio::time::timeout(
+        crate::test_support::external_resource_start_timeout(Duration::from_secs(30)),
+        async {
+            let contents = [b"bbbb\n".as_slice(), b"cccc\n".as_slice()];
+            let mut attempt = 0;
+            loop {
+                assert!(attempt < 60, "no content change was observed");
+                write(&path, contents[attempt % contents.len()]);
+                attempt += 1;
+                match tokio::time::timeout(Duration::from_millis(750), changes.recv()).await {
+                    Ok(Ok(change)) if change.path.as_str() == "src/lib.rs" => break change,
+                    Ok(Ok(_)) | Ok(Err(_)) | Err(_) => {}
+                }
+            }
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(received.kind, WorkspaceFileChangeKind::Changed);
+}
+
+#[tokio::test]
+async fn manifest_search_falls_back_before_initial_scan() {
+    let _permit = crate::test_support::resource_intensive_test_permit().await;
+    let temp = tempfile::tempdir().unwrap();
+    write(&temp.path().join("src/main.rs"), b"fn main() {}\n");
+    let backend = ManifestWorkspaceBackend::new(temp.path());
+    let glob = backend
+        .glob(WorkspaceGlobRequest {
+            base: backend.normalize("src").unwrap(),
+            pattern: "*.rs".to_string(),
+        })
+        .await
+        .unwrap();
+    assert!(glob
+        .matches
+        .iter()
+        .any(|path| path.as_str() == "src/main.rs"));
+}
+
+#[test]
+fn scan_includes_files_inside_nested_git_workspaces() {
+    if !git_available() {
+        return;
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    run_git(temp.path(), &["init"]);
+    write(&temp.path().join("README.md"), b"# root\n");
+
+    let nested = temp.path().join("vendor/child");
+    std::fs::create_dir_all(&nested).unwrap();
+    run_git(&nested, &["init"]);
+    write(&nested.join("src/lib.rs"), b"pub fn child() {}\n");
+
+    let files = scan_workspace_files(temp.path());
+    assert!(files.iter().any(|file| file.path == "README.md"));
+    assert!(files
+        .iter()
+        .any(|file| file.path == "vendor/child/src/lib.rs"));
+}
+
+#[tokio::test]
+async fn navigation_snapshot_shares_original_generation_and_filters_deleted_recent_paths() {
+    let root = tempfile::tempdir().unwrap();
+    let manifest = LocalWorkspaceManifest::start_deferred(root.path());
+    update_state(
+        &manifest.state,
+        vec![test_file("old/main.rs"), test_file("keep/lib.rs")],
+    );
+    manifest.touch_file("old/main.rs");
+    manifest.touch_file("keep/lib.rs");
+    let (before, recent) = manifest.navigation_snapshot(12).unwrap();
+    let (same, _) = manifest.navigation_snapshot(12).unwrap();
+    assert!(Arc::ptr_eq(&before, &same), "no full-tree snapshot clone");
+    assert_eq!(recent.len(), 2);
+    update_state(&manifest.state, vec![test_file("keep/lib.rs")]);
+    let (after, recent) = manifest.navigation_snapshot(12).unwrap();
+    assert!(after.version > before.version);
+    assert_eq!(
+        before.files.len(),
+        2,
+        "previous immutable generation remains valid"
+    );
+    assert_eq!(after.files.len(), 1);
+    assert_eq!(recent.len(), 1);
+    assert_eq!(recent[0].path, "keep/lib.rs");
+    assert_eq!(manifest.recent_file_paths(12), vec!["keep/lib.rs"]);
+    assert!(!manifest.is_active());
+}

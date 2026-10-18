@@ -1,0 +1,1210 @@
+//! Agent Loop Implementation
+//!
+//! The agent loop handles the core conversation cycle:
+//! 1. User sends a prompt
+//! 2. LLM generates a response (possibly with tool calls)
+//! 3. If tool calls present, execute them and send results back
+//! 4. Repeat until LLM returns without tool calls
+//!
+//! This implements agentic behavior where the LLM can use tools
+//! to accomplish tasks agentically.
+
+use crate::context::ContextProvider;
+use crate::hitl::ConfirmationProvider;
+use crate::hooks::HookExecutor;
+#[cfg(test)]
+use crate::llm::LlmResponse;
+use crate::llm::{LlmClient, Message, TokenUsage, ToolDefinition};
+use crate::permissions::{PermissionChecker, PermissionPolicy};
+use crate::planning::{AgentGoal, ExecutionPlan, TaskStatus};
+use crate::prompts::{PlanningMode, SystemPromptSlots};
+use crate::queue::{SessionCommand, SessionQueueConfig};
+use crate::session_lane_queue::SessionLaneQueue;
+use crate::subagent::AgentRegistry;
+use crate::tools::{ToolContext, ToolExecutor};
+use anyhow::Result;
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::sync::Arc;
+
+mod auto_delegation;
+mod completion_runtime;
+mod context_perception;
+mod execution_entry;
+mod execution_mode;
+mod execution_state;
+pub(crate) use execution_state::ExecutionSeed;
+pub(crate) use execution_state::READ_ONLY_EVIDENCE_LIMIT;
+pub(crate) use loop_runtime::READ_ONLY_EVIDENCE_FINALIZATION;
+mod hook_runtime;
+mod invocation_context;
+pub(crate) use invocation_context::InvocationContext;
+mod llm_invoker;
+pub(crate) use llm_invoker::{
+    FactAccountingDisposition, FactModelAccountingObservation, FactModelCallOutcome,
+    FactModelFrame, FactOutputObservation, FactProjectionObservation, FactStoreObservation,
+};
+pub use llm_invoker::{FactModelBinding, FactModelBindingRequest};
+mod model_middleware_obs;
+pub use model_middleware_obs::ModelMiddlewareHealthSnapshot;
+pub(crate) use model_middleware_obs::ModelMiddlewareObs;
+mod llm_turn;
+mod loop_builder;
+mod loop_runtime;
+mod memory_extraction_runtime;
+mod parallel_tool_runtime;
+#[cfg(test)]
+mod plan_execution;
+mod planning_runtime;
+mod project_context;
+mod prompt_runtime;
+mod queue_forwarder;
+mod telemetry_runtime;
+mod tool_completion_runtime;
+mod tool_execution_runtime;
+pub(crate) use tool_execution_runtime::execute_tool_with_deadline;
+mod tool_guard_runtime;
+mod tool_invoker;
+mod tool_result_runtime;
+mod tool_turn;
+mod turn_context;
+
+/// Maximum number of tool execution rounds before stopping
+pub(crate) const MAX_TOOL_ROUNDS: usize = 50;
+
+/// Window used when auto-compact is on and the model has no configured context.
+pub(crate) const UNKNOWN_MODEL_CONTEXT_TOKENS: usize = 128_000;
+
+/// Explicit option, then the model's configured window, then a fallback.
+///
+/// Auto-compact uses the conservative unknown window so a missing catalog
+/// entry compacts before the provider rejects the prompt. Sessions that leave
+/// auto-compact off keep the historical default.
+pub(crate) fn resolve_context_window(
+    explicit: Option<usize>,
+    configured: Option<usize>,
+    auto_compact: bool,
+    default_window: usize,
+) -> usize {
+    explicit.or(configured).unwrap_or(if auto_compact {
+        UNKNOWN_MODEL_CONTEXT_TOKENS
+    } else {
+        default_window
+    })
+}
+
+/// Vendor-documented context window for a model whose ACL block omits one.
+///
+/// DeepSeek's model page lists 1M tokens for Flash and Pro. The legacy Flash
+/// ids are served by that same Flash model. Any other id stays `None`, and
+/// auto-compact keeps the conservative unknown-model window.
+pub fn documented_context_tokens(model_name: &str) -> Option<usize> {
+    let id = model_name
+        .rsplit(['/', ':'])
+        .next()
+        .unwrap_or(model_name)
+        .trim()
+        .to_ascii_lowercase();
+    match id.as_str() {
+        "deepseek-flash"
+        | "deepseek-v4-flash"
+        | "deepseek-v4-flash-vision-exp"
+        | "deepseek-v4.1-flash"
+        | "deepseek-v4-pro" => Some(1_000_000),
+        _ => None,
+    }
+}
+
+/// Context window used for compaction accounting.
+///
+/// An explicit session option wins, then a positive ACL `limit.context`,
+/// then [`documented_context_tokens`].
+pub fn context_window_for_model(
+    explicit: Option<usize>,
+    configured: Option<usize>,
+    model_name: &str,
+    auto_compact: bool,
+    default_window: usize,
+) -> usize {
+    resolve_context_window(
+        explicit,
+        configured.or_else(|| documented_context_tokens(model_name)),
+        auto_compact,
+        default_window,
+    )
+}
+
+/// Character budget for the fact-log compactor.
+///
+/// About four characters per token, measured at the auto-compact threshold of
+/// the resolved window. Auto-compact stays off this path until the host
+/// enables it.
+pub(crate) fn fact_compact_char_budget(auto_compact: bool, window: usize, threshold: f32) -> usize {
+    if !auto_compact {
+        return 1_000_000;
+    }
+    let tokens = (window as f32 * threshold).max(1.0) as usize;
+    tokens.saturating_mul(4).max(1)
+}
+
+/// Prompt-token watermark for fact-log auto-compact. `None` leaves compaction off.
+pub(crate) fn fact_compact_after_tokens(
+    auto_compact: bool,
+    window: usize,
+    threshold: f32,
+) -> Option<u64> {
+    if !auto_compact {
+        return None;
+    }
+    Some((window as f32 * threshold).max(1.0) as u64)
+}
+
+/// Recent transcript kept verbatim after compaction: one fifth of the window.
+pub(crate) fn fact_compact_keep_tokens(window: usize) -> usize {
+    window.saturating_div(5).max(1)
+}
+pub(crate) const DEFAULT_MAX_PARALLEL_TASKS: usize = 8;
+
+/// Internal agent loop configuration.
+#[derive(Clone)]
+pub(crate) struct AgentConfig {
+    /// Slot-based system prompt customization.
+    ///
+    /// Users can customize specific parts (role, guidelines, response style, extra)
+    /// without overriding the core agentic capabilities. The default agentic core
+    /// (tool usage, autonomous behavior, completion criteria) is always preserved.
+    pub prompt_slots: SystemPromptSlots,
+    pub work_policy: Option<crate::WorkPolicyV1>,
+    /// Trusted host bounds for automatic Goal ticks; child runs never inherit them.
+    pub goal_control: Option<crate::goal_control::GoalContinuationPolicyV1>,
+    #[doc(hidden)]
+    pub durable_source: Option<crate::store::SessionFactSourceV1>,
+    pub tools: Vec<ToolDefinition>,
+    /// Immutable model-facing Tool presentation policy for this loop.
+    /// Execution continues through the separately owned `ToolExecutor`.
+    pub tool_presentation_profile: crate::tools::ToolPresentationProfileV1,
+    pub max_tool_rounds: usize,
+    /// Optional security provider for input taint tracking and output sanitization
+    pub security_provider: Option<Arc<dyn crate::security::SecurityProvider>>,
+    /// Optional permission checker for tool execution control
+    pub permission_checker: Option<Arc<dyn PermissionChecker>>,
+    /// Serializable permission policy used to build the checker, when available.
+    pub permission_policy: Option<PermissionPolicy>,
+    /// Optional confirmation manager for HITL (Human-in-the-Loop)
+    pub confirmation_manager: Option<Arc<dyn ConfirmationProvider>>,
+    /// Child-local resolution policy for `Ask` decisions.
+    ///
+    /// This marker remains separate from `confirmation_manager` because both
+    /// `deny_on_ask` and `inherit_parent` intentionally start without a
+    /// child-local provider and must be distinguished when the parent boundary
+    /// is composed into a delegated run.
+    pub confirmation_inheritance: Option<crate::subagent::ConfirmationInheritance>,
+    /// Serializable confirmation policy used to build the manager, when available.
+    pub confirmation_policy: Option<crate::hitl::ConfirmationPolicy>,
+    /// Serializable queue configuration used to build the optional command queue.
+    pub queue_config: Option<SessionQueueConfig>,
+    /// Context providers for augmenting prompts with external context
+    pub context_providers: Vec<Arc<dyn ContextProvider>>,
+    /// Planning mode — Auto (detect from message), Enabled, or Disabled.
+    pub planning_mode: PlanningMode,
+    /// Enable goal tracking
+    pub goal_tracking: bool,
+    /// Optional hook engine for firing lifecycle events (PreToolUse, PostToolUse, etc.)
+    pub hook_engine: Option<Arc<dyn HookExecutor>>,
+    /// Optional structured JSONL trajectory recorder for RL training and service data capture.
+    pub rl_trajectory_recorder: crate::rl_trajectory::RlTrajectoryRecorder,
+    /// Optional skill registry for tool permission enforcement
+    pub skill_registry: Option<Arc<crate::skills::SkillRegistry>>,
+    /// When true, active skill `allowed-tools` restrict ordinary session tool calls.
+    ///
+    /// The default is false: active skills may inject instructions, but ordinary
+    /// tool calls continue to the host permission/HITL approval chain.
+    /// Skill invocations still enable this for their child execution context.
+    pub enforce_active_skill_tool_restrictions: bool,
+    /// Max consecutive malformed-tool-args errors before aborting (default: 2).
+    ///
+    /// When the LLM returns tool arguments with `__parse_error`, the error is
+    /// fed back as a tool result. After this many consecutive parse errors the
+    /// loop bails instead of retrying indefinitely.
+    pub max_parse_retries: u32,
+    /// Per-tool execution timeout in milliseconds (`None` = no timeout).
+    ///
+    /// This applies only after permission/HITL approval has completed. HITL
+    /// confirmation waiting is governed by `ConfirmationPolicy` and must not
+    /// consume this tool execution budget. A timeout produces an error result
+    /// sent back to the LLM rather than crashing the session.
+    pub tool_timeout_ms: Option<u64>,
+    /// Per-model API HTTP timeout in milliseconds (`None` = no timeout).
+    ///
+    /// This is intentionally separate from `tool_timeout_ms`: slow shell/web
+    /// tools and slow model providers have different operational envelopes.
+    pub llm_api_timeout_ms: Option<u64>,
+    /// Maximum number of sibling branches/tools to run concurrently in bounded
+    /// parallel fan-out paths.
+    pub max_parallel_tasks: usize,
+    /// Runtime-driven automatic child-agent delegation.
+    pub auto_delegation: crate::config::AutoDelegationConfig,
+    /// Available child agents for automatic delegation.
+    pub agent_registry: Option<Arc<AgentRegistry>>,
+    /// Circuit-breaker threshold: max consecutive LLM API failures before
+    /// aborting (default: 3).
+    ///
+    /// In non-streaming mode, transient LLM failures are retried up to this
+    /// many times (with short exponential backoff) before the loop bails.
+    /// In streaming mode, any failure is fatal (events cannot be replayed).
+    pub circuit_breaker_threshold: u32,
+    /// Max consecutive identical tool signatures before aborting (default: 3).
+    ///
+    /// A tool signature is the exact combination of tool name + compact JSON
+    /// arguments. This prevents the agent from getting stuck repeating the same
+    /// tool call in a loop, for example repeatedly fetching the same URL.
+    pub duplicate_tool_call_threshold: u32,
+    /// Enable auto-compaction when context usage exceeds threshold.
+    pub auto_compact: bool,
+    /// Context usage percentage threshold to trigger auto-compaction (0.0 - 1.0).
+    /// Default: 0.80 (80%).
+    pub auto_compact_threshold: f32,
+    /// Maximum context window size in tokens (used for auto-compact calculation).
+    /// Default: 200_000.
+    pub max_context_tokens: usize,
+    /// Agent memory for recall and completed-turn extraction.
+    ///
+    /// Session construction resolves a default memory store; this remains
+    /// optional for lower-level/manual `AgentLoop` construction.
+    pub memory: Option<Arc<crate::memory::AgentMemory>>,
+    /// Inject a continuation message when the LLM stops calling tools before the
+    /// task is complete. Enabled by default. Set to `false` to disable.
+    ///
+    /// When enabled, if the LLM produces a response with no tool calls but the
+    /// response text looks like an intermediate step (not a final answer), the
+    /// loop injects [`crate::prompts::CONTINUATION`] as a user message and
+    /// continues for up to `max_continuation_turns` additional turns.
+    pub continuation_enabled: bool,
+    /// Maximum number of continuation injections per execution (default: 3).
+    ///
+    /// Prevents infinite loops when the LLM repeatedly stops without completing.
+    pub max_continuation_turns: u32,
+    /// Maximum execution time in milliseconds (`None` = no timeout).
+    ///
+    /// When set, the execution loop, active LLM attempts, and retry backoff
+    /// share this deadline. If execution exceeds it, the loop bails with an
+    /// error instead of allowing a provider call or retry sleep to overrun the
+    /// run's quota.
+    pub max_execution_time_ms: Option<u64>,
+    /// Host-supplied budget guard consulted before every LLM call (and
+    /// after, for usage accounting). `None` means no enforcement.
+    pub budget_guard: Option<Arc<dyn crate::budget::BudgetGuard>>,
+    /// Host-provided ID generator + clock. Defaults to wall-clock UUIDs.
+    /// Replace via [`SessionOptions::with_host_env`](crate::agent_api::SessionOptions::with_host_env)
+    /// when deterministic replay is needed.
+    pub host_env: Arc<crate::host_env::HostEnv>,
+    /// Host-confirmed waivers. Assistant text cannot populate this list.
+    pub completion_waivers: Vec<crate::harness_loop::CompletionWaiverV1>,
+    /// Host-declared suite verification contracts. The model cannot add one;
+    /// a contract binds a Passed report only from a real host-bash run with
+    /// exit 0 whose effect digest matches the mutation ledger.
+    pub verification_contracts: Vec<crate::verification::VerificationContractV1>,
+    /// Interactive hosts require the assistant to deliver the user's reply
+    /// after verification; a verified tool effect alone is not that reply.
+    pub require_assistant_final_response: bool,
+    /// Distinguishes an ordinary run from a plan-mode implementation admission.
+    pub plan_run: crate::harness_loop::PlanRunAdmission,
+    /// Path-scoped rules injected only when a turn targets a matching path.
+    pub path_rules: Vec<crate::path_instructions::PathRule>,
+    /// Explicit per-session injection byte budget. `None` keeps the
+    /// product default ([`crate::path_instructions::INJECTION_BYTE_BUDGET`]).
+    /// Zero or a value above the hard ceiling refuses session construction.
+    pub path_injection_budget: Option<usize>,
+    /// Opt-in read-only verifier. Default sessions do not spend a second model call.
+    pub verifier_enabled: bool,
+    /// Host-only completion attestor. Invoked with the live mutation digest
+    /// before the gate decides. Not a tool and not model-grantable (#160).
+    pub completion_attestor: Option<Arc<dyn crate::completion_attestor::CompletionAttestor>>,
+    /// Optional Meta Harness compose recipe for fact-log control.
+    pub harness: Option<crate::meta_harness::HarnessComposeOptions>,
+    /// Host Moore component registry for `host:<id>` mounts in compose.
+    pub host_harness_registry: Option<Arc<dyn crate::meta_harness::HostHarnessRegistry>>,
+    /// Full custom graph assembler (Rust embedders). Takes precedence over
+    /// [`Self::harness`] when set.
+    pub host_harness_assembler: Option<Arc<dyn crate::meta_harness::HostHarnessAssembler>>,
+    /// Host-supplied external observations bound into this run.
+    pub external_observations: Vec<crate::external_observation::ExternalObservationV1>,
+    /// Outcome-conditioned constraints the promoting host has already recorded.
+    pub outcome_ledger: crate::outcome_memory::OutcomeLedger,
+}
+
+impl std::fmt::Debug for AgentConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentConfig")
+            .field("prompt_slots", &self.prompt_slots)
+            .field("work_policy", &self.work_policy)
+            .field("tools", &self.tools)
+            .field("tool_presentation_profile", &self.tool_presentation_profile)
+            .field("max_tool_rounds", &self.max_tool_rounds)
+            .field("security_provider", &self.security_provider.is_some())
+            .field("permission_checker", &self.permission_checker.is_some())
+            .field("permission_policy", &self.permission_policy.is_some())
+            .field("confirmation_manager", &self.confirmation_manager.is_some())
+            .field("confirmation_inheritance", &self.confirmation_inheritance)
+            .field("confirmation_policy", &self.confirmation_policy.is_some())
+            .field("queue_config", &self.queue_config.is_some())
+            .field("context_providers", &self.context_providers.len())
+            .field("planning_mode", &self.planning_mode)
+            .field("goal_tracking", &self.goal_tracking)
+            .field("hook_engine", &self.hook_engine.is_some())
+            .field("rl_trajectory", &self.rl_trajectory_recorder.is_enabled())
+            .field(
+                "skill_registry",
+                &self.skill_registry.as_ref().map(|r| r.len()),
+            )
+            .field(
+                "enforce_active_skill_tool_restrictions",
+                &self.enforce_active_skill_tool_restrictions,
+            )
+            .field("max_parse_retries", &self.max_parse_retries)
+            .field("tool_timeout_ms", &self.tool_timeout_ms)
+            .field("llm_api_timeout_ms", &self.llm_api_timeout_ms)
+            .field("max_parallel_tasks", &self.max_parallel_tasks)
+            .field("auto_delegation", &self.auto_delegation)
+            .field(
+                "agent_registry",
+                &self.agent_registry.as_ref().map(|registry| registry.len()),
+            )
+            .field("circuit_breaker_threshold", &self.circuit_breaker_threshold)
+            .field(
+                "duplicate_tool_call_threshold",
+                &self.duplicate_tool_call_threshold,
+            )
+            .field("auto_compact", &self.auto_compact)
+            .field("auto_compact_threshold", &self.auto_compact_threshold)
+            .field("max_context_tokens", &self.max_context_tokens)
+            .field("continuation_enabled", &self.continuation_enabled)
+            .field("max_continuation_turns", &self.max_continuation_turns)
+            .field("memory", &self.memory.is_some())
+            .finish()
+    }
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        Self {
+            prompt_slots: SystemPromptSlots::default(),
+            work_policy: None,
+            goal_control: None,
+            durable_source: None,
+            tools: Vec::new(), // Tools are provided by ToolExecutor
+            tool_presentation_profile: crate::tools::ToolPresentationProfileV1::default(),
+            max_tool_rounds: MAX_TOOL_ROUNDS,
+            security_provider: None,
+            permission_checker: None,
+            permission_policy: None,
+            confirmation_manager: None,
+            confirmation_inheritance: None,
+            confirmation_policy: None,
+            queue_config: None,
+            context_providers: Vec::new(),
+            planning_mode: PlanningMode::default(),
+            goal_tracking: false,
+            hook_engine: None,
+            rl_trajectory_recorder: crate::rl_trajectory::RlTrajectoryRecorder::disabled(),
+            skill_registry: Some(Arc::new(crate::skills::SkillRegistry::with_builtins())),
+            enforce_active_skill_tool_restrictions: false,
+            max_parse_retries: 2,
+            tool_timeout_ms: None,
+            llm_api_timeout_ms: None,
+            max_parallel_tasks: DEFAULT_MAX_PARALLEL_TASKS,
+            auto_delegation: crate::config::AutoDelegationConfig::default(),
+            agent_registry: None,
+            circuit_breaker_threshold: 3,
+            duplicate_tool_call_threshold: 3,
+            auto_compact: false,
+            auto_compact_threshold: 0.80,
+            max_context_tokens: 200_000,
+            memory: None,
+            continuation_enabled: true,
+            max_continuation_turns: 3,
+            max_execution_time_ms: None,
+            budget_guard: None,
+            host_env: Arc::new(crate::host_env::HostEnv::system()),
+            completion_waivers: Vec::new(),
+            verification_contracts: Vec::new(),
+            require_assistant_final_response: false,
+            plan_run: crate::harness_loop::PlanRunAdmission::ordinary(),
+            path_rules: Vec::new(),
+            path_injection_budget: None,
+            verifier_enabled: false,
+            completion_attestor: None,
+            harness: None,
+            host_harness_registry: None,
+            host_harness_assembler: None,
+            external_observations: Vec::new(),
+            outcome_ledger: crate::outcome_memory::OutcomeLedger::default(),
+        }
+    }
+}
+
+/// Events emitted during agent execution
+///
+/// Subscribe via [`crate::AgentSession::stream`].
+/// New variants may be added in minor releases — always include a wildcard arm
+/// (`_ => {}`) when matching.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+#[non_exhaustive]
+pub enum AgentEvent {
+    /// Agent started processing
+    #[serde(rename = "agent_start")]
+    Start { prompt: String },
+
+    /// Runtime agent style/mode selected for the current execution.
+    #[serde(rename = "agent_mode_changed")]
+    AgentModeChanged {
+        /// Stable UI/runtime mode label, e.g. "general", "planning", "explore".
+        mode: String,
+        /// Canonical built-in agent name associated with this mode.
+        agent: String,
+        /// Human-readable explanation of the selected style.
+        description: String,
+    },
+
+    /// LLM turn started. The same turn number is emitted again when an
+    /// interrupted response stream is retried; consumers should roll back
+    /// provisional output from that turn before applying replacement deltas.
+    #[serde(rename = "turn_start")]
+    TurnStart { turn: usize },
+
+    /// Text delta from streaming
+    #[serde(rename = "text_delta")]
+    TextDelta { text: String },
+
+    /// Reasoning/thinking delta from streaming (for models like kimi, deepseek)
+    #[serde(rename = "reasoning_delta")]
+    ReasoningDelta { text: String },
+
+    /// The model started preparing a streamed tool call.
+    #[serde(rename = "tool_start")]
+    ToolStart { id: String, name: String },
+
+    /// Tool input delta from streaming (partial JSON arguments)
+    #[serde(rename = "tool_input_delta")]
+    ToolInputDelta {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        delta: String,
+    },
+
+    /// Digest-only evidence for a validated Tool request after pre-tool hooks
+    /// have applied their final argument projection and before governance can
+    /// deny, confirm, or execute it.
+    #[serde(rename = "tool_request_bound")]
+    ToolRequestBound {
+        tool_id: String,
+        tool_name: String,
+        snapshot: crate::harness_evidence::ToolRequestSnapshotV1,
+    },
+
+    /// A fully prepared tool call passed safety/confirmation and began execution.
+    #[serde(rename = "tool_execution_start")]
+    ToolExecutionStart {
+        id: String,
+        name: String,
+        args: serde_json::Value,
+    },
+
+    /// Tool execution completed
+    #[serde(rename = "tool_end")]
+    ToolEnd {
+        id: String,
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        args: Option<serde_json::Value>,
+        output: String,
+        exit_code: i32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        metadata: Option<serde_json::Value>,
+        /// Structured discriminant set by tools that mapped their failure
+        /// into a typed [`ToolErrorKind`](crate::tools::ToolErrorKind)
+        /// (e.g. `edit` / `patch` on a `WorkspaceError::VersionConflict`).
+        /// `None` on success or untyped failure.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error_kind: Option<crate::tools::ToolErrorKind>,
+    },
+
+    /// Intermediate tool output (streaming delta)
+    #[serde(rename = "tool_output_delta")]
+    ToolOutputDelta {
+        id: String,
+        name: String,
+        delta: String,
+    },
+
+    /// LLM turn completed
+    #[serde(rename = "turn_end")]
+    TurnEnd { turn: usize, usage: TokenUsage },
+
+    /// Agent completed
+    #[serde(rename = "agent_end")]
+    End {
+        text: String,
+        usage: TokenUsage,
+        verification_summary: Box<crate::verification::VerificationSummary>,
+        /// How the run closed at the completion gate. Defaults to
+        /// `Narrative` so stored events from before the field existed (and
+        /// non-fact-path emitters) replay unchanged.
+        #[serde(default)]
+        completion_terminal: crate::harness_loop::CompletionTerminal,
+        /// Why the harness stopped the run short, when it did. Absent on a
+        /// model-initiated stop.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        forced_stop: Option<crate::harness_loop::ForcedStop>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        meta: Option<crate::llm::LlmResponseMeta>,
+    },
+
+    /// Error occurred
+    #[serde(rename = "error")]
+    Error { message: String },
+
+    /// Tool execution requires confirmation (HITL)
+    #[serde(rename = "confirmation_required")]
+    ConfirmationRequired {
+        tool_id: String,
+        tool_name: String,
+        args: serde_json::Value,
+        timeout_ms: u64,
+    },
+
+    /// Confirmation received from user (HITL)
+    #[serde(rename = "confirmation_received")]
+    ConfirmationReceived {
+        tool_id: String,
+        approved: bool,
+        reason: Option<String>,
+    },
+
+    /// Confirmation timed out (HITL)
+    #[serde(rename = "confirmation_timeout")]
+    ConfirmationTimeout {
+        tool_id: String,
+        action_taken: String, // "rejected" or "auto_approved"
+    },
+
+    /// Structured question. Distinct from permission `Ask` and from steer.
+    #[serde(rename = "user_question")]
+    UserQuestion {
+        question_id: String,
+        question: String,
+        options: Vec<String>,
+        #[serde(default)]
+        allow_free_text: bool,
+        /// OpenUI Lang source. Present only for
+        /// `ask_user_form`; the answer then carries the submitted values JSON.
+        #[serde(default)]
+        form: Option<String>,
+    },
+
+    /// External task pending (needs SDK processing)
+    #[serde(rename = "external_task_pending")]
+    ExternalTaskPending {
+        task_id: String,
+        session_id: String,
+        lane: crate::queue::SessionLane,
+        command_type: String,
+        payload: serde_json::Value,
+        timeout_ms: u64,
+    },
+
+    /// External task completed
+    #[serde(rename = "external_task_completed")]
+    ExternalTaskCompleted {
+        task_id: String,
+        session_id: String,
+        success: bool,
+    },
+
+    /// Tool execution denied by permission policy
+    #[serde(rename = "permission_denied")]
+    PermissionDenied {
+        tool_id: String,
+        tool_name: String,
+        args: serde_json::Value,
+        reason: String,
+    },
+
+    /// Context resolution started
+    #[serde(rename = "context_resolving")]
+    ContextResolving { providers: Vec<String> },
+
+    /// Context resolution completed
+    #[serde(rename = "context_resolved")]
+    ContextResolved {
+        total_items: usize,
+        total_tokens: usize,
+    },
+
+    /// The model-visible capability surface observed before a provider call.
+    /// Repeated calls reuse the digest until tools, policy, workspace services,
+    /// or retrieval readiness/generation changes.
+    #[serde(rename = "run_capability_bound")]
+    RunCapabilityBound {
+        call_sequence: u64,
+        snapshot: crate::harness_evidence::RunCapabilitySnapshotV1,
+    },
+
+    /// The frozen presentation-profile identity, candidate definition cost,
+    /// and exact presented definition cost for one model call.
+    #[serde(rename = "model_presentation_bound")]
+    ModelPresentationBound {
+        snapshot: crate::harness_evidence::ModelPresentationSnapshotV1,
+    },
+
+    /// Bounded content-addressed evidence for the actual provider-neutral
+    /// arguments submitted to one model call.
+    #[serde(rename = "model_input_bound")]
+    ModelInputBound {
+        snapshot: crate::harness_evidence::ModelInputSnapshotV1,
+    },
+
+    /// Per-call correlation between repeated Tool-result context, Code's
+    /// prompt estimate, and the normalized usage report returned by the
+    /// provider-neutral model client.
+    #[serde(rename = "model_usage_bound")]
+    ModelUsageBound {
+        snapshot: crate::harness_evidence::ModelUsageSnapshotV1,
+    },
+
+    /// Automatic compaction started or finished in the fact log.
+    #[serde(rename = "auto_compact")]
+    AutoCompact {
+        phase: String,
+        tokens_used: u64,
+        context_window: u64,
+        tokens_after: u64,
+    },
+
+    /// One run is using the exact cognitive-package generation retained by
+    /// the surrounding session snapshot.
+    #[serde(rename = "cognitive_context_bound")]
+    CognitiveContextBound {
+        binding: crate::cognitive_context::CognitivePackageBindingV1,
+    },
+
+    // ========================================================================
+    // a3s-lane integration events
+    // ========================================================================
+    /// Command moved to dead letter queue after exhausting retries
+    #[serde(rename = "command_dead_lettered")]
+    CommandDeadLettered {
+        command_id: String,
+        command_type: String,
+        lane: String,
+        error: String,
+        attempts: u32,
+    },
+
+    /// Command retry attempt
+    #[serde(rename = "command_retry")]
+    CommandRetry {
+        command_id: String,
+        command_type: String,
+        lane: String,
+        attempt: u32,
+        delay_ms: u64,
+    },
+
+    /// Queue alert (depth warning, latency alert, etc.)
+    #[serde(rename = "queue_alert")]
+    QueueAlert {
+        level: String,
+        alert_type: String,
+        message: String,
+    },
+
+    // ========================================================================
+    // Task tracking events
+    // ========================================================================
+    /// Task list updated
+    #[serde(rename = "task_updated")]
+    TaskUpdated {
+        session_id: String,
+        tasks: Vec<crate::planning::Task>,
+    },
+
+    // ========================================================================
+    // Memory System events (Phase 3)
+    // ========================================================================
+    /// Memory stored
+    #[serde(rename = "memory_stored")]
+    MemoryStored {
+        memory_id: String,
+        memory_type: String,
+        importance: f32,
+        tags: Vec<String>,
+    },
+
+    /// Memory recalled
+    #[serde(rename = "memory_recalled")]
+    MemoryRecalled {
+        memory_id: String,
+        content: String,
+        relevance: f32,
+    },
+
+    /// Memories searched
+    #[serde(rename = "memories_searched")]
+    MemoriesSearched {
+        query: Option<String>,
+        tags: Vec<String>,
+        result_count: usize,
+    },
+
+    /// Memory cleared
+    #[serde(rename = "memory_cleared")]
+    MemoryCleared {
+        tier: String, // "long_term", "short_term", "working"
+        count: u64,
+    },
+
+    // ========================================================================
+    // Subagent events
+    // ========================================================================
+    /// Subagent task started
+    #[serde(rename = "subagent_start")]
+    SubagentStart {
+        /// Unique task identifier
+        task_id: String,
+        /// Child session ID
+        session_id: String,
+        /// Parent session ID
+        parent_session_id: String,
+        /// Agent type (e.g., "explore", "general")
+        agent: String,
+        /// Short description of the task
+        description: String,
+        /// Wall-clock start timestamp in milliseconds since Unix epoch.
+        #[serde(default)]
+        started_ms: u64,
+    },
+
+    /// Subagent task progress update
+    #[serde(rename = "subagent_progress")]
+    SubagentProgress {
+        /// Task identifier
+        task_id: String,
+        /// Child session ID
+        session_id: String,
+        /// Progress status message
+        status: String,
+        /// Additional metadata
+        metadata: serde_json::Value,
+    },
+
+    /// Subagent task completed
+    #[serde(rename = "subagent_end")]
+    SubagentEnd {
+        /// Task identifier
+        task_id: String,
+        /// Child session ID
+        session_id: String,
+        /// Agent type
+        agent: String,
+        /// Task output/result
+        output: String,
+        /// Whether the task succeeded
+        success: bool,
+        /// Wall-clock finish timestamp in milliseconds since Unix epoch.
+        #[serde(default)]
+        finished_ms: u64,
+    },
+
+    // ========================================================================
+    // Planning and Goal Tracking Events (Phase 1)
+    // ========================================================================
+    /// Planning phase started
+    #[serde(rename = "planning_start")]
+    PlanningStart { prompt: String },
+
+    /// Planning phase completed
+    #[serde(rename = "planning_end")]
+    PlanningEnd {
+        plan: ExecutionPlan,
+        estimated_steps: usize,
+    },
+
+    /// Step execution started
+    #[serde(rename = "step_start")]
+    StepStart {
+        step_id: String,
+        description: String,
+        step_number: usize,
+        total_steps: usize,
+    },
+
+    /// Step execution completed
+    #[serde(rename = "step_end")]
+    StepEnd {
+        step_id: String,
+        status: TaskStatus,
+        step_number: usize,
+        total_steps: usize,
+    },
+
+    /// Goal extracted from prompt
+    #[serde(rename = "goal_extracted")]
+    GoalExtracted { goal: AgentGoal },
+
+    /// Goal progress update
+    #[serde(rename = "goal_progress")]
+    GoalProgress {
+        goal: String,
+        progress: f32,
+        completed_steps: usize,
+        total_steps: usize,
+    },
+
+    /// Goal achieved
+    #[serde(rename = "goal_achieved")]
+    GoalAchieved {
+        goal: String,
+        total_steps: usize,
+        duration_ms: i64,
+    },
+
+    // ========================================================================
+    // Context Compaction events
+    // ========================================================================
+    /// Context automatically compacted due to high usage
+    #[serde(rename = "context_compacted")]
+    ContextCompacted {
+        session_id: String,
+        before_messages: usize,
+        after_messages: usize,
+        percent_before: f32,
+        /// Cumulative continuation summary when message history was reduced.
+        /// Prune-only compactions omit this field.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        summary: Option<String>,
+    },
+
+    // ========================================================================
+    // In-flight run control events
+    // ========================================================================
+    /// A host steer/interrupt request was consumed at a loop safe point.
+    #[serde(rename = "run_control_applied")]
+    RunControlApplied {
+        request_id: String,
+        operation: crate::run_control::RunControlOperation,
+        turn_id: Option<String>,
+        turn_revision: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        input: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+
+    // ========================================================================
+    // Persistence events
+    // ========================================================================
+    /// Session persistence failed — SDK clients should handle this
+    #[serde(rename = "persistence_failed")]
+    PersistenceFailed {
+        session_id: String,
+        operation: String,
+        error: String,
+    },
+
+    // ========================================================================
+    // Cluster / platform events
+    //
+    // These variants are emitted by the host platform via
+    // `HookExecutor` and are not produced by the agent loop itself. They
+    // give in-session code a uniform way to observe platform-level
+    // decisions (budget exhaustion, scheduled passivation, peer
+    // invocations) without coupling to the host's transport.
+    // ========================================================================
+    /// A budget threshold was crossed for this session/tenant.
+    ///
+    /// Emitted by a host `BudgetGuard` impl when LLM/tool spend hits a
+    /// soft or hard threshold. The session is **not** automatically
+    /// halted — `kind` lets in-session policy decide (e.g. fast-compact
+    /// at "soft", refuse next LLM call at "hard").
+    #[serde(rename = "budget_threshold_hit")]
+    BudgetThresholdHit {
+        /// Logical resource: "llm_tokens", "tool_calls", "wall_time",
+        /// "usd_cost", or host-defined.
+        resource: String,
+        /// "soft" or "hard"; host-defined semantics beyond that.
+        kind: String,
+        /// Current consumed amount in the same unit as `limit`.
+        consumed: f64,
+        /// Threshold that was crossed.
+        limit: f64,
+        /// Optional explanation for logs / UI.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+    },
+
+    /// The host is asking the session to release in-memory state.
+    ///
+    /// Emitted before the host calls `session.close()` or moves the
+    /// session to another node. Session code that holds large caches
+    /// can react (flush to memory store, drop derived state). The
+    /// framework does not act on this event itself.
+    #[serde(rename = "passivation_requested")]
+    PassivationRequested {
+        /// "idle_reaper", "node_drain", "migration", "manual", or
+        /// host-defined.
+        reason: String,
+        /// Optional deadline (Unix epoch ms) before forced close.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        deadline_ms: Option<u64>,
+    },
+
+    /// Another session in the cluster has invoked this one.
+    ///
+    /// Lets in-session hooks distinguish "human-driven send" from
+    /// "peer-driven send" without inspecting prompts. The host routes
+    /// the actual prompt through the normal `send` / `stream` path;
+    /// this event is metadata only.
+    #[serde(rename = "peer_invocation")]
+    PeerInvocation {
+        /// Session id of the invoking peer (cluster-stable).
+        from_session_id: String,
+        /// Optional tenant of the invoking peer.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        from_tenant_id: Option<String>,
+        /// Distributed-trace correlation id linking the two sessions.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        correlation_id: Option<String>,
+    },
+}
+
+/// Result of agent execution
+#[derive(Debug, Clone)]
+pub struct AgentResult {
+    pub text: String,
+    pub messages: Vec<Message>,
+    pub usage: TokenUsage,
+    pub tool_calls_count: usize,
+    pub verification_reports: Vec<crate::verification::VerificationReport>,
+    /// How the run was allowed to finish. Incomplete mutations do not produce this value.
+    pub completion: crate::harness_loop::CompletionTerminal,
+    /// Set when the harness stopped the run short (budget deny, read-only
+    /// evidence ceiling) so clients can surface why the turn ended.
+    pub forced_stop: Option<crate::harness_loop::ForcedStop>,
+    /// `ordinary` or `plan_implementation`. A plan-exit claim without a digest stays ordinary.
+    pub run_admission: String,
+}
+
+/// An execution error paired with the usage and tool-call accounting that was
+/// completed before the failure.
+///
+/// Agent execution still returns an error: this type only prevents already
+/// incurred work from disappearing when a provider call, tool round, or
+/// capability boundary fails. Rust callers can downcast the returned
+/// `anyhow::Error` to this type when they need the partial accounting.
+#[derive(Debug)]
+pub struct AgentExecutionFailure {
+    source: anyhow::Error,
+    usage: TokenUsage,
+    tool_calls_count: usize,
+}
+
+impl AgentExecutionFailure {
+    pub(crate) fn new(source: anyhow::Error, usage: TokenUsage, tool_calls_count: usize) -> Self {
+        Self {
+            source,
+            usage,
+            tool_calls_count,
+        }
+    }
+
+    /// Usage reported by provider calls that completed before the failure.
+    pub fn usage(&self) -> &TokenUsage {
+        &self.usage
+    }
+
+    /// Tool calls admitted before the failure, including failed tool calls.
+    pub fn tool_calls_count(&self) -> usize {
+        self.tool_calls_count
+    }
+
+    #[cfg(test)]
+    pub(crate) fn add_tool_calls(&mut self, count: usize) {
+        self.tool_calls_count = self.tool_calls_count.saturating_add(count);
+    }
+}
+
+impl std::fmt::Display for AgentExecutionFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.source.fmt(f)
+    }
+}
+
+impl std::error::Error for AgentExecutionFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.source.as_ref())
+    }
+}
+
+impl AgentResult {
+    pub fn verification_summary(&self) -> crate::verification::VerificationSummary {
+        crate::verification::VerificationSummary::from_reports(&self.verification_reports)
+    }
+
+    pub fn verification_summary_text(&self) -> String {
+        crate::verification::format_verification_summary(&self.verification_summary())
+    }
+
+    pub fn has_pending_verification(&self) -> bool {
+        matches!(
+            self.verification_summary().status,
+            crate::verification::VerificationStatus::NeedsReview
+        )
+    }
+}
+
+// ============================================================================
+// ToolCommand — bridges ToolExecutor to SessionCommand for queue submission
+// ============================================================================
+
+/// Adapter that implements `SessionCommand` for tool execution via the queue.
+///
+/// Wraps a `ToolExecutor` call so it can be submitted to `SessionLaneQueue`.
+pub struct ToolCommand {
+    tool_executor: Arc<ToolExecutor>,
+    tool_name: String,
+    tool_args: Value,
+    tool_context: ToolContext,
+    tool_timeout_ms: Option<u64>,
+}
+
+impl ToolCommand {
+    /// Create a new ToolCommand
+    pub fn new(
+        tool_executor: Arc<ToolExecutor>,
+        tool_name: String,
+        tool_args: Value,
+        tool_context: ToolContext,
+        tool_timeout_ms: Option<u64>,
+    ) -> Self {
+        Self {
+            tool_executor,
+            tool_name,
+            tool_args,
+            tool_context,
+            tool_timeout_ms,
+        }
+    }
+}
+
+#[async_trait]
+impl SessionCommand for ToolCommand {
+    async fn execute(&self) -> Result<Value> {
+        if self.tool_context.is_cancelled() {
+            anyhow::bail!("Tool '{}' cancelled before queue execution", self.tool_name);
+        }
+
+        let result = tool_execution_runtime::execute_tool_with_deadline(
+            self.tool_executor.as_ref(),
+            &self.tool_name,
+            &self.tool_args,
+            &self.tool_context,
+            self.tool_timeout_ms,
+        )
+        .await?;
+        let images = result
+            .images
+            .iter()
+            .map(|image| {
+                serde_json::json!({
+                    "data": image.base64_data(),
+                    "media_type": image.media_type,
+                })
+            })
+            .collect::<Vec<_>>();
+        Ok(serde_json::json!({
+            "output": result.output,
+            "exit_code": result.exit_code,
+            "metadata": result.metadata,
+            "images": images,
+            "error_kind": result.error_kind,
+        }))
+    }
+
+    fn command_type(&self) -> &str {
+        &self.tool_name
+    }
+
+    fn payload(&self) -> Value {
+        self.tool_args.clone()
+    }
+}
+
+// ============================================================================
+// TurnEngine
+// ============================================================================
+
+/// Inner turn engine. Session sends and child runs enter through `FactRun`;
+/// this type only supplies the configuration, tools and model port a run borrows.
+#[derive(Clone)]
+pub(crate) struct TurnEngine {
+    llm_client: Arc<dyn LlmClient>,
+    model_generation_admission: crate::llm::ModelGenerationAdmission,
+    /// Whether the surrounding session explicitly owns this admission gate.
+    /// Compatibility/standalone loops keep the historical per-facade gate so
+    /// detached maintenance work (for example background memory extraction)
+    /// cannot stall the foreground turn.
+    shared_model_generation_admission: bool,
+    /// Secret-free middleware stage counters shared with the session when
+    /// installed via [`AgentLoop::with_model_middleware_obs`].
+    middleware_obs: Arc<ModelMiddlewareObs>,
+    tool_executor: Arc<ToolExecutor>,
+    tool_context: ToolContext,
+    config: AgentConfig,
+    /// Optional lane queue for priority-based tool execution
+    command_queue: Option<Arc<SessionLaneQueue>>,
+    /// Optional sink for per-tool-round checkpoints. Populated by
+    /// `build_agent_loop` when the session has a configured
+    /// `SessionStore`. The agent loop uses
+    /// [`AgentLoop::set_checkpoint_run`] to bind a run id before
+    /// `execute_with_session`, then persists a checkpoint after each
+    /// completed tool round.
+    pub(crate) checkpoint_sink: Option<Arc<dyn crate::loop_checkpoint::LoopCheckpointSink>>,
+    /// Run id under which checkpoints are stored. Reset per execution
+    /// via [`AgentLoop::set_checkpoint_run`].
+    pub(crate) checkpoint_run_id: Option<String>,
+    /// Complete immutable capability identity captured from the admitted Run.
+    /// Compatibility loops without a scoped Run leave this empty.
+    pub(crate) checkpoint_capability_binding: Option<crate::capability::RunCapabilityBindingV1>,
+    /// The invocation shared by every model helper in the currently scoped
+    /// run. Base session loops keep this empty and bind it on execution.
+    bound_invocation: Option<InvocationContext>,
+    /// Weak capability parent used to create and close one real Turn scope per
+    /// provider/tool iteration. It never extends the admitted Run lease.
+    capability_runtime: Option<crate::capability::AgentCapabilityRuntime>,
+    /// The capability turn of the current fact-run tool round. The next model
+    /// call closes it, so that call sees a closed turn while run-owned effects
+    /// stay on the run scope.
+    pub(crate) fact_turn:
+        Arc<tokio::sync::Mutex<Option<crate::capability::AgentCapabilityOperation>>>,
+    /// Set for a `task` or `skill` child run: its composed permission checker
+    /// holds the parent boundary and decides alone.
+    child_run: bool,
+}
+
+/// Previous name of [`TurnEngine`]. Call sites still use it; it is the same type.
+pub(crate) type AgentLoop = TurnEngine;
+
+#[cfg(test)]
+pub(crate) mod tests;
+
+#[cfg(test)]
+mod extra_agent_tests;
+
+#[cfg(test)]
+mod model_retry_soak;
+
+#[cfg(test)]
+mod conversation_compaction_soak;

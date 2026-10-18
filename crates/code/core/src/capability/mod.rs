@@ -1,0 +1,115 @@
+//! Immutable, source-owned capability identity and scoped lifecycle kernel.
+//!
+//! This module deliberately contains no package resolution, runtime
+//! activation, or mutable latest-value registry. A capability source submits
+//! one complete contribution, and [`CapabilitySet`] freezes the validated
+//! descriptors behind an [`std::sync::Arc`]. Typed scopes add monotonic
+//! ceilings, borrowed leases, reversible effects, and bounded structured
+//! teardown. Closed runtime values and typestate transactions publish one
+//! complete projected generation through a short catalog CAS.
+
+mod agent_execution;
+mod ceiling;
+mod descriptor;
+mod effect;
+mod error;
+#[cfg(feature = "dynamic-workflow")]
+mod flow_binding;
+mod id;
+mod knowledge_surface_binding;
+mod lease;
+mod projection;
+mod projection_error;
+mod readiness;
+mod run_binding;
+mod runtime;
+mod scope;
+mod scope_error;
+mod scoped_tool;
+mod sdk_batch;
+mod set;
+mod source;
+mod supervisor;
+mod transaction;
+mod ui_binding;
+mod value;
+mod workspace_access;
+
+#[cfg(test)]
+#[path = "selection_identity_tests.rs"]
+mod selection_identity_tests;
+
+pub use crate::mcp::McpBinding;
+pub(crate) use agent_execution::{
+    AgentCapabilityOperation, AgentCapabilityRuntime, AgentCapabilitySubtask, AgentCapabilityTurn,
+    AgentToolCapabilityContext,
+};
+pub use ceiling::{
+    CapabilityCeiling, CapabilityExecutionCeiling, GovernanceCapabilityCeiling,
+    WorkspaceCapabilityCeiling, CAPABILITY_CEILING_SCHEMA,
+};
+pub use descriptor::{CapabilityContribution, CapabilityDescriptor, MAX_CAPABILITY_DEPENDENCIES};
+pub use effect::{CapabilityEffect, CapabilityEffectError};
+pub use error::CapabilitySetError;
+#[cfg(feature = "dynamic-workflow")]
+pub use flow_binding::FlowBinding;
+pub use id::{
+    CapabilityId, CapabilityKind, CapabilitySourceId, CodeCatalogGeneration,
+    ReconciledPackageGeneration, Sha256Digest, UseCapabilityGeneration, UsePackageGeneration,
+    MAX_CAPABILITY_IDENTIFIER_BYTES, USE_CAPABILITY_SNAPSHOT_CURSOR_SCHEMA,
+    USE_SELECTION_CURSOR_SCHEMA,
+};
+pub use knowledge_surface_binding::{
+    KnowledgeSurfaceBinding, KnowledgeSurfaceBindingError, KnowledgeSurfaceBindingSpec,
+    KNOWLEDGE_SURFACE_BINDING_SCHEMA, MAX_KNOWLEDGE_SURFACE_PROJECTIONS,
+};
+pub use lease::{CapabilityLease, RetainedUseGeneration};
+pub use projection::{
+    CapabilityCatalog, CapabilityCatalogStamp, CapabilityCleanupReport, CapabilityCommitReceipt,
+    CapabilityProjection, CapabilityProjectionLease,
+};
+pub use projection_error::{CapabilityAdapterError, CapabilityProjectionError};
+pub use readiness::{
+    CapabilityReadinessPlan, CAPABILITY_READINESS_PLAN_SCHEMA, MAX_CAPABILITY_READINESS_WAVES,
+};
+pub use run_binding::{
+    RunCapabilityBindingError, RunCapabilityBindingV1, RunUseCapabilityGenerationV1,
+    CAPABILITY_CEILING_DIGEST_DOMAIN, RUN_CAPABILITY_BINDING_SCHEMA,
+};
+pub use runtime::{
+    CapabilityRuntimeError, SessionCapabilityBatch, SessionCapabilityRun, UseGenerationLeaseError,
+    UseGenerationLeaseProvider,
+};
+pub use scope::{
+    CapabilityScope, CapabilityScopeHandle, CapabilityScopeId, CapabilityScopeKind, Run, ScopeKind,
+    Session, Subtask, Turn,
+};
+pub use scope_error::CapabilityScopeError;
+pub(crate) use scoped_tool::ScopedProjectedTool;
+pub use sdk_batch::{
+    SdkCapabilityBatchError, SdkCapabilityBatchV1, SdkCapabilityCommitReceiptV1,
+    SdkSkillCapabilityV1, SDK_CAPABILITY_BATCH_SCHEMA,
+};
+pub use set::{
+    CapabilitySet, CAPABILITY_SET_DIGEST_DOMAIN, CAPABILITY_SET_SCHEMA, MAX_CAPABILITIES,
+    MAX_CAPABILITY_CANONICAL_BYTES, MAX_CAPABILITY_DEPENDENCY_EDGES, MAX_CAPABILITY_SOURCES,
+};
+pub use source::{CapabilitySource, CapabilitySourceClass};
+pub(crate) use supervisor::SupervisedTaskSpawner;
+pub use supervisor::{
+    ScopeClosePolicy, ScopeCloseReport, SupervisedTaskId, DEFAULT_SCOPE_CLOSE_TIMEOUT,
+    MAX_SCOPE_CHILDREN, MAX_SCOPE_CLOSE_TIMEOUT, MAX_SCOPE_EFFECTS, MAX_SCOPE_TASKS,
+};
+pub use transaction::{
+    CapabilityProjectionAdapter, CapabilityTxn, Prepared, PreparedCapability, Staged, Validated,
+    MAX_CAPABILITY_TRANSACTION_EFFECTS,
+};
+pub use ui_binding::{
+    UiAsset, UiAssetKind, UiBinding, UiBindingError, UiBindingSpec, UiDocument,
+    MAX_UI_ASSETS_PER_KIND, MAX_UI_ASSET_BYTES, MAX_UI_DOCUMENT_BYTES, UI_BINDING_SCHEMA,
+    UI_DOCUMENT_SCHEMA,
+};
+pub use value::CapabilityValue;
+pub use workspace_access::{
+    WorkspaceOperation, WorkspaceOperationAccess, WorkspaceOperationBinding,
+};

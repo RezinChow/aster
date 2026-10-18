@@ -1,0 +1,473 @@
+//! Native Rust implementations of all built-in tools
+//!
+//! These replace the previous `a3s-tools` binary backend with direct Rust
+//! implementations that execute in-process. Each tool implements the `Tool` trait.
+
+pub mod ask_user;
+pub mod ask_user_form;
+pub(crate) mod background;
+pub(crate) mod bash;
+mod batch;
+mod bm25;
+mod code_intelligence;
+mod download;
+mod edit;
+mod generate_object;
+pub(crate) mod git;
+mod glob_tool;
+mod grep;
+mod hybrid_search;
+mod ls;
+mod patch;
+pub(crate) mod read;
+mod safe_http;
+mod search;
+mod search_fallback;
+mod semantic_search;
+mod update_plan;
+mod web_fetch;
+mod web_search;
+mod write;
+
+pub(crate) use read::{MAX_BATCH_READ_FILES, MAX_BATCH_READ_PATH_BYTES};
+
+#[cfg(test)]
+pub(crate) use batch::{BatchTool, MAX_BATCH_INVOCATIONS};
+#[cfg(test)]
+pub(crate) use read::read_image_file;
+#[cfg(test)]
+pub(crate) use safe_http::{
+    get_with_redirects_observed, set_resolution_script, RedirectQueryPolicy, ResolutionScript,
+    SafeHttpError,
+};
+#[cfg(test)]
+pub(crate) use web_fetch::WebFetchTool;
+#[cfg(test)]
+pub(crate) use web_search::bridge_search_config;
+#[cfg(test)]
+pub(crate) use write::WriteTool;
+
+use super::registry::ToolRegistry;
+use std::sync::Arc;
+
+/// Normalize a source URL before it can enter durable tool/task metadata.
+/// Credentials, query strings, and fragments are intentionally excluded.
+pub(crate) fn safe_http_source_url(value: &str) -> Option<String> {
+    let mut url = reqwest::Url::parse(value.trim()).ok()?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str()?.is_empty() {
+        return None;
+    }
+    url.set_username("").ok()?;
+    url.set_password(None).ok()?;
+    url.set_query(None);
+    url.set_fragment(None);
+    Some(url.to_string())
+}
+
+/// Register all baseline built-in tools with the registry, gated by
+/// workspace capabilities.
+///
+/// Tools whose required capability is missing are not registered, so the model
+/// never sees a tool the backend cannot service. `web_fetch` and `web_search`
+/// have no workspace capability and are always registered.
+///
+/// Note: `batch` is NOT registered here — it requires an `Arc<ToolRegistry>`
+/// and must be registered after the registry is wrapped in an Arc.
+pub fn register_builtins(
+    registry: &ToolRegistry,
+    workspace_services: &crate::workspace::WorkspaceServices,
+) {
+    let capabilities = workspace_services.capabilities();
+    if capabilities.read {
+        registry.register_builtin(Arc::new(read::ReadTool));
+        registry.register_builtin(Arc::new(ls::LsTool));
+    }
+    if capabilities.write {
+        registry.register_builtin(Arc::new(write::WriteTool));
+        if workspace_services.local_root().is_some() {
+            registry.register_builtin(Arc::new(download::DownloadTool));
+        }
+    }
+    if capabilities.read && capabilities.write {
+        registry.register_builtin(Arc::new(edit::EditTool));
+        registry.register_builtin(Arc::new(patch::PatchTool));
+    }
+    if capabilities.exec {
+        registry.register_builtin(Arc::new(bash::BashTool));
+        // WC-BG1: background execution rides the same exec capability gate
+        // as bash — it spawns shell commands.
+        registry.register_builtin(Arc::new(background::BackgroundTool::default()));
+    }
+    let retrieval = workspace_services.workspace_retrieval();
+    let semantic_enabled = capabilities.read && retrieval.is_some();
+    // Prefer durable FTS at call time when this workspace can host one. Do not
+    // open native indexes during tool registration (Loading / session build).
+    let persistent_backend_enabled = capabilities.read && workspace_services.local_root().is_some();
+    if capabilities.search || semantic_enabled || persistent_backend_enabled {
+        let mut search = search::SearchTool::new(capabilities.read)
+            .with_backend_search(capabilities.search)
+            .with_semantic(semantic_enabled)
+            .with_persistent_backend(persistent_backend_enabled);
+        if let Some(runtime) = retrieval {
+            search = search.with_retrieval_runtime(runtime);
+        }
+        registry.register_builtin(Arc::new(search));
+    }
+    if workspace_services.code_intelligence().is_some() {
+        code_intelligence::register(registry);
+    }
+    if capabilities.git {
+        registry.register_builtin(Arc::new(git::GitTool));
+    }
+    registry.register_builtin(Arc::new(web_fetch::WebFetchTool));
+    registry.register_builtin(Arc::new(web_search::WebSearchTool::new()));
+    // Session checklist updates (no workspace capability gate).
+    registry.register_builtin(Arc::new(update_plan::UpdatePlanTool));
+    registry.register_builtin(Arc::new(ask_user::AskUserTool));
+    registry.register_builtin(Arc::new(ask_user_form::AskUserFormTool));
+}
+
+#[cfg(test)]
+pub(crate) fn repository_tool_parameter_schemas() -> Vec<(String, serde_json::Value)> {
+    use crate::tools::Tool;
+
+    let read = read::ReadTool;
+    let search = search::SearchTool::new(true);
+    let edit = edit::EditTool;
+    vec![
+        (read.name().to_string(), read.parameters()),
+        (search.name().to_string(), search.parameters()),
+        (edit.name().to_string(), edit.parameters()),
+    ]
+}
+
+/// Register the batch tool. Must be called after the registry is wrapped in Arc.
+pub fn register_batch(registry: &Arc<ToolRegistry>) {
+    registry.register_builtin(Arc::new(batch::BatchTool::new_registry_bound(Arc::clone(
+        registry,
+    ))));
+}
+
+/// Register the programmatic tool calling wrapper.
+pub fn register_program(registry: &Arc<ToolRegistry>) {
+    register_program_with_catalog(
+        registry,
+        crate::program::ProgramCatalog::with_builtin_programs(),
+    );
+}
+
+/// Register the programmatic tool calling wrapper with a custom catalog.
+pub fn register_program_with_catalog(
+    registry: &Arc<ToolRegistry>,
+    catalog: crate::program::ProgramCatalog,
+) {
+    registry.register_builtin(Arc::new(
+        crate::tools::ProgramTool::with_catalog_registry_bound(Arc::clone(registry), catalog),
+    ));
+}
+
+/// Register the canonical `task` tool (multi-item fan-out included).
+///
+/// Model-visible `parallel_task` is not registered (`HARNESS-CONV4`).
+/// Must be called after the registry is wrapped in Arc. Requires an LLM client
+/// and the workspace path so child agent loops can be spawned inline.
+/// Optionally accepts an MCP manager so child sessions inherit MCP tools.
+pub fn register_task(
+    registry: &Arc<ToolRegistry>,
+    llm_client: Arc<dyn crate::llm::LlmClient>,
+    agent_registry: Arc<crate::subagent::AgentRegistry>,
+    workspace: String,
+) {
+    register_task_with_mcp(
+        registry,
+        llm_client,
+        agent_registry,
+        workspace,
+        None,
+        None,
+        None,
+    );
+}
+
+/// Register the task delegation tools with optional MCP manager and parent context.
+///
+/// When `mcp_manager` is provided, delegated child sessions will have access
+/// to all MCP tools from connected servers.
+/// When `parent_context` is provided, child runs inherit parent capabilities.
+/// When `subagent_tracker` is provided, each task registers a
+/// `CancellationToken` against it so callers can cancel by `task_id`.
+pub fn register_task_with_mcp(
+    registry: &Arc<ToolRegistry>,
+    llm_client: Arc<dyn crate::llm::LlmClient>,
+    agent_registry: Arc<crate::subagent::AgentRegistry>,
+    workspace: String,
+    mcp_manager: Option<Arc<crate::mcp::manager::McpManager>>,
+    parent_context: Option<crate::child_run::ChildRunContext>,
+    subagent_tracker: Option<Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>>,
+) {
+    register_task_with_mcp_managers(
+        registry,
+        llm_client,
+        agent_registry,
+        workspace,
+        mcp_manager.into_iter().collect(),
+        parent_context,
+        subagent_tracker,
+    );
+}
+
+/// Register task delegation tools with ordered MCP capability sources.
+///
+/// Each manager keeps ownership of its own connections. Later sources shadow
+/// earlier sources on identical fully-qualified tool names inside child runs.
+pub fn register_task_with_mcp_managers(
+    registry: &Arc<ToolRegistry>,
+    llm_client: Arc<dyn crate::llm::LlmClient>,
+    agent_registry: Arc<crate::subagent::AgentRegistry>,
+    workspace: String,
+    mcp_managers: Vec<Arc<crate::mcp::manager::McpManager>>,
+    parent_context: Option<crate::child_run::ChildRunContext>,
+    subagent_tracker: Option<Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>>,
+) {
+    register_task_internal(
+        registry,
+        llm_client,
+        agent_registry,
+        workspace,
+        mcp_managers,
+        Vec::new(),
+        Vec::new(),
+        parent_context,
+        subagent_tracker,
+        None,
+    );
+}
+
+/// Register session task tools with the owning agent's shared scheduler.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn register_task_with_mcp_managers_and_scheduler(
+    registry: &Arc<ToolRegistry>,
+    llm_client: Arc<dyn crate::llm::LlmClient>,
+    agent_registry: Arc<crate::subagent::AgentRegistry>,
+    workspace: String,
+    mcp_managers: Vec<Arc<crate::mcp::manager::McpManager>>,
+    parent_context: Option<crate::child_run::ChildRunContext>,
+    subagent_tracker: Option<Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>>,
+    task_scheduler: Arc<crate::task_scheduler::TaskScheduler>,
+) {
+    register_task_with_mcp_sources_and_scheduler(
+        registry,
+        llm_client,
+        agent_registry,
+        workspace,
+        mcp_managers,
+        Vec::new(),
+        Vec::new(),
+        parent_context,
+        subagent_tracker,
+        task_scheduler,
+    );
+}
+
+/// Register Run-frozen task tools with compatibility managers, exact MCP
+/// bindings and accepted projected Tool wrappers.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn register_task_with_mcp_sources_and_scheduler(
+    registry: &Arc<ToolRegistry>,
+    llm_client: Arc<dyn crate::llm::LlmClient>,
+    agent_registry: Arc<crate::subagent::AgentRegistry>,
+    workspace: String,
+    mcp_managers: Vec<Arc<crate::mcp::manager::McpManager>>,
+    mcp_bindings: Vec<Arc<crate::mcp::McpBinding>>,
+    projected_tools: Vec<Arc<dyn super::Tool>>,
+    parent_context: Option<crate::child_run::ChildRunContext>,
+    subagent_tracker: Option<Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>>,
+    task_scheduler: Arc<crate::task_scheduler::TaskScheduler>,
+) {
+    register_task_internal(
+        registry,
+        llm_client,
+        agent_registry,
+        workspace,
+        mcp_managers,
+        mcp_bindings,
+        projected_tools,
+        parent_context,
+        subagent_tracker,
+        Some(task_scheduler),
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn register_task_internal(
+    registry: &Arc<ToolRegistry>,
+    llm_client: Arc<dyn crate::llm::LlmClient>,
+    agent_registry: Arc<crate::subagent::AgentRegistry>,
+    workspace: String,
+    mcp_managers: Vec<Arc<crate::mcp::manager::McpManager>>,
+    mcp_bindings: Vec<Arc<crate::mcp::McpBinding>>,
+    projected_tools: Vec<Arc<dyn super::Tool>>,
+    parent_context: Option<crate::child_run::ChildRunContext>,
+    subagent_tracker: Option<Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>>,
+    task_scheduler: Option<Arc<crate::task_scheduler::TaskScheduler>>,
+) {
+    use crate::tools::task::{TaskExecutor, TaskTool};
+    let mut executor =
+        TaskExecutor::with_mcp_managers(agent_registry, llm_client, workspace, mcp_managers)
+            .with_projected_mcp_bindings(mcp_bindings)
+            .with_scoped_tools(projected_tools);
+    if let Some(ctx) = parent_context {
+        executor = executor.with_parent_context(ctx);
+    }
+    if let Some(tracker) = subagent_tracker {
+        executor = executor.with_subagent_tracker(tracker);
+    }
+    if let Some(task_scheduler) = task_scheduler {
+        // Model-visible task tools run inside an already-admitted parent turn.
+        // Only their detached background branch needs another global slot.
+        executor = executor.with_task_scheduler(task_scheduler, false);
+    }
+    let executor = Arc::new(executor);
+    registry.register_builtin(Arc::new(TaskTool::new(Arc::clone(&executor))));
+    // `parallel_task` is removed from the model-visible registry (`HARNESS-CONV4`).
+    // Fan-out uses the unified `task` tool; the historical ParallelTaskTool type
+    // stays crate-internal for unit tests only.
+}
+
+/// Register the Skill tool for skill-based tool access control.
+pub(crate) fn register_skill(
+    registry: &Arc<ToolRegistry>,
+    llm_client: Arc<dyn crate::llm::LlmClient>,
+    skill_registry: Arc<crate::skills::SkillRegistry>,
+    tool_executor: Arc<crate::tools::ToolExecutor>,
+    base_config: crate::agent::AgentConfig,
+) {
+    use crate::tools::skill::{SearchSkillsTool, SkillTool};
+    registry.register_builtin(Arc::new(SearchSkillsTool::new(Arc::clone(&skill_registry))));
+    registry.register_builtin(Arc::new(SkillTool::new_registry_bound(
+        skill_registry,
+        llm_client,
+        tool_executor,
+        base_config,
+    )));
+}
+
+/// Register the `generate_object` tool for structured JSON output.
+///
+/// Must be called after the registry is wrapped in Arc. Requires an LLM client
+/// so the tool can make its own LLM calls for object generation.
+pub fn register_generate_object(
+    registry: &Arc<ToolRegistry>,
+    llm_client: Arc<dyn crate::llm::LlmClient>,
+) {
+    registry.register_builtin(Arc::new(generate_object::GenerateObjectTool::new(
+        llm_client,
+    )));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::register_builtins;
+    use super::safe_http_source_url;
+    use crate::tools::registry::ToolRegistry;
+    use crate::workspace::{
+        ChunkCatalogLimits, ChunkingConfig, ManifestWorkspaceBackend, WorkspaceChunkingStrategy,
+        WorkspaceServices,
+    };
+    use std::sync::Arc;
+
+    #[test]
+    fn safe_source_url_removes_credentials_query_and_fragment() {
+        assert_eq!(
+            safe_http_source_url(
+                "HTTPS://user:password@Example.COM/report?access_token=secret#section"
+            )
+            .as_deref(),
+            Some("https://example.com/report")
+        );
+        assert!(safe_http_source_url("file:///tmp/source").is_none());
+    }
+
+    #[tokio::test]
+    async fn register_builtins_does_not_open_durable_a3s_vec() {
+        let temp = tempfile::tempdir().unwrap();
+        let backend = ManifestWorkspaceBackend::new(temp.path());
+        backend
+            .configure_chunk_catalog(
+                WorkspaceChunkingStrategy::Lines,
+                ChunkingConfig::default(),
+                ChunkCatalogLimits::default(),
+            )
+            .unwrap();
+        let services = WorkspaceServices::local_with_retrieval_backend(Arc::clone(&backend));
+        let registry = ToolRegistry::new(temp.path().to_path_buf());
+        register_builtins(&registry, &services);
+        assert!(
+            backend.persistent_index().is_none(),
+            "tool registration must not attach durable FTS"
+        );
+        assert!(
+            !temp.path().join(".a3s-code").join("index").exists(),
+            "tool registration must not create the durable index directory"
+        );
+        assert!(
+            registry.get("search").is_some(),
+            "local workspaces still register search for demand-driven durable FTS"
+        );
+    }
+
+    #[test]
+    fn register_builtins_hides_disabled_capabilities() {
+        use crate::workspace::{
+            LocalWorkspaceBackend, WorkspaceCapabilities, WorkspaceFileSystem, WorkspaceRef,
+        };
+
+        let temp = tempfile::tempdir().unwrap();
+        let backend = Arc::new(LocalWorkspaceBackend::new(temp.path().to_path_buf()));
+        let fs: Arc<dyn WorkspaceFileSystem> = backend;
+        let services = WorkspaceServices::builder(
+            WorkspaceRef::new("ws", temp.path().display().to_string()),
+            fs,
+        )
+        .capabilities(WorkspaceCapabilities {
+            read: true,
+            write: false,
+            exec: false,
+            search: false,
+            git: false,
+            code_intelligence: false,
+        })
+        .build();
+        let registry = ToolRegistry::new(temp.path().to_path_buf());
+        register_builtins(&registry, &services);
+
+        for present in [
+            "read",
+            "ls",
+            "web_fetch",
+            "web_search",
+            "update_plan",
+            "ask_user",
+            "ask_user_form",
+        ] {
+            assert!(registry.contains(present), "{present} must stay registered");
+        }
+        for absent in [
+            "write",
+            "edit",
+            "patch",
+            "bash",
+            "git",
+            "download",
+            "code_symbols",
+            "code_navigation",
+            "code_diagnostics",
+            "parallel_task",
+        ] {
+            assert!(
+                !registry.contains(absent),
+                "{absent} must stay absent when its capability is off"
+            );
+        }
+    }
+}

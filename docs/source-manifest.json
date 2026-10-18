@@ -1,0 +1,1070 @@
+{
+  "snapshot_date": "2026-10-18",
+  "note": "Local source snapshots include working-tree changes. All members are maintained in this repository and cannot be published independently.",
+  "packages": [
+    {
+      "package": "aster",
+      "version": "0.1.0",
+      "path": "apps/aster",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-pager-bin",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "5469f0f4de48e06cf64b5a30b9bc6644a122d5b8bc2fed233b613bacbbadc644"
+    },
+    {
+      "path": "apps/work/src-tauri",
+      "source": "git@github.com:aster-ai-lab/work.git",
+      "revision": "4bb27b9b7c4d9b88d7edb8159f4a7b92ad4a3cff",
+      "package": "aster-dream",
+      "version": "2.1.3"
+    },
+    {
+      "package": "a3s-acl",
+      "version": "0.3.0",
+      "path": "crates/acl",
+      "source": "../a3s/crates/acl",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "c72cc92d4dde9eed844964158adcc2d2e4621cfe3ff1ce7fdc95144b4ad5101f"
+    },
+    {
+      "package": "a3s-apofasi",
+      "version": "0.1.1",
+      "path": "crates/apofasi",
+      "source": "../a3s/crates/apofasi",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "6941da4b24359fb2f7fb82e68b647a0eab1140270346945147e6aa1e884282e4"
+    },
+    {
+      "path": "crates/boot",
+      "source": "/Users/roylin/.cargo/git/checkouts/boot-7d9ab1c200bbaba0/ac36050",
+      "revision": "ac3605043b5212b507d1fdb09e46f5647f90c389",
+      "package": "a3s-boot",
+      "version": "0.2.0"
+    },
+    {
+      "path": "crates/boot/macros",
+      "source": "/Users/roylin/.cargo/git/checkouts/boot-7d9ab1c200bbaba0/ac36050",
+      "revision": "ac3605043b5212b507d1fdb09e46f5647f90c389",
+      "package": "a3s-boot-macros",
+      "version": "0.1.2"
+    },
+    {
+      "package": "a3s-use-browser",
+      "version": "0.3.2",
+      "path": "crates/browser",
+      "source": "../a3s/crates/browser/crates/browser",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "64d88878c60c01d6cc512f77ed06123e1fcd379a9592983b041c830c249ec64c"
+    },
+    {
+      "package": "a3s-code-acp",
+      "version": "9.1.4",
+      "path": "crates/code/acp",
+      "source": "../a3s/apps/code/acp",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "17f5c4f7db93b35dc571006b2946ff536c8d2c621f80da394a152cc81aaa245f"
+    },
+    {
+      "package": "a3s-code-core",
+      "version": "9.1.4",
+      "path": "crates/code/core",
+      "source": "../a3s/apps/code/core",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "cf8454fe19b1fee3c83d09c695f9967f68b0975d844bf7f60501a4eebbafa4c8"
+    },
+    {
+      "package": "a3s-common",
+      "version": "0.1.1",
+      "path": "crates/common",
+      "source": "https://crates.io/crates/a3s-common/0.1.1",
+      "revision": null,
+      "source_manifest_sha256": "5cf4569e997baebbbd685eb14566a52cc769909aa0f8e7af8568f75f7f435470"
+    },
+    {
+      "package": "a3s-effect",
+      "version": "0.2.1",
+      "path": "crates/effect",
+      "source": "../a3s/crates/effect",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "3fc2a25c7056992a3ec571f2c6cb8ab9de353f8ecb15be8fbb16a94c9324f899"
+    },
+    {
+      "path": "crates/event",
+      "source": "/tmp/aster-import/a3s-event-0.3.0",
+      "revision": "crates.io/a3s-event/0.3.0",
+      "package": "a3s-event",
+      "version": "0.3.0"
+    },
+    {
+      "package": "aster-flow-legacy",
+      "version": "1.1.0",
+      "path": "crates/flow",
+      "source": "https://github.com/A3S-Lab/Flow",
+      "revision": "2948ad51a1395177764766c3ddf7e44338f9e374",
+      "source_manifest_sha256": "7fb72fae5f99be4b72cb4f5569c822a53afdfe4c3497e80fb34292e4466e9a34"
+    },
+    {
+      "path": "crates/flow-v2",
+      "source": "apps/work/vendor/crates/flow",
+      "revision": null,
+      "package": "a3s-flow",
+      "version": "2.0.0"
+    },
+    {
+      "package": "a3s-lane",
+      "version": "0.5.1",
+      "path": "crates/lane",
+      "source": "https://crates.io/crates/a3s-lane/0.5.1",
+      "revision": null,
+      "source_manifest_sha256": "9c33ecb3cef56e67051d342d829dd5f962074186f312a510eac7981b81edce56"
+    },
+    {
+      "package": "a3s-memory",
+      "version": "0.1.5",
+      "path": "crates/memory",
+      "source": "../a3s/crates/memory",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "faab75fedc68f0e4edfdd1abfe540e8457f0528346b100b7358298a6bd5d4152"
+    },
+    {
+      "path": "crates/ocr",
+      "source": "apps/work/vendor/crates/ocr",
+      "revision": null,
+      "package": "a3s-use-ocr",
+      "version": "0.3.2"
+    },
+    {
+      "path": "crates/office/crates/cli",
+      "source": "../a3s/packages/office/crates/cli",
+      "revision": null,
+      "package": "a3s-office-cli",
+      "version": "0.45.0"
+    },
+    {
+      "path": "crates/office/crates/core",
+      "source": "../a3s/packages/office/crates/core",
+      "revision": null,
+      "package": "a3s-office",
+      "version": "0.45.0"
+    },
+    {
+      "path": "crates/office/crates/formula-parser",
+      "source": "../a3s/packages/office/crates/formula-parser",
+      "revision": null,
+      "package": "a3s-office-formula-parser",
+      "version": "0.45.0"
+    },
+    {
+      "path": "crates/office/crates/web-kernel",
+      "source": "../a3s/packages/office/crates/web-kernel",
+      "revision": null,
+      "package": "a3s-office-web-kernel",
+      "version": "0.45.0"
+    },
+    {
+      "package": "a3s-okf",
+      "version": "0.1.0",
+      "path": "crates/okf",
+      "source": "../a3s/crates/okf",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "1021d5aa099a818b860331bc4d3c9ea40dc2890bc9a7543b48aaa93187da72d6"
+    },
+    {
+      "path": "crates/orm",
+      "source": "/Users/roylin/.cargo/git/checkouts/orm-0627553974caac07/4c0cd9e",
+      "revision": "4c0cd9eb1ed586e27a5fd0446a92824717eb095e",
+      "package": "a3s-orm",
+      "version": "0.3.1"
+    },
+    {
+      "package": "a3s-sandbox",
+      "version": "0.2.3",
+      "path": "crates/sandbox",
+      "source": "../a3s/crates/sandbox",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "740f564b33009066b8b86f3b3e0accb811d4ab12ef9f1366b8b9c2b680a0ed4b"
+    },
+    {
+      "package": "a3s-search",
+      "version": "3.4.0",
+      "path": "crates/search",
+      "source": "../a3s/crates/search",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "a9957e25059f3d41012a7a0ea31191185a5f9c083e1f1bfc52b0270d27cbb0bb"
+    },
+    {
+      "package": "a3s-proto-build",
+      "version": "0.0.0",
+      "path": "crates/terminal/crates/build/a3s-proto-build",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/build/a3s-proto-build",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "7b364dd6207ef4431853bd55a4eb6477eeae523f5059a1a4713d37a725993482"
+    },
+    {
+      "package": "a3s-acp-lib",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-acp-lib",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-acp-lib",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "f60d77f1cf20fc53034eae3d0225330e073609d76a2b3db41cc17358c9a65a61"
+    },
+    {
+      "package": "a3s-agent-lifecycle",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-agent-lifecycle",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-agent-lifecycle",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "11eea3001d6197bf03451091fd67e6ec2284fa47cf8ab7a7f5d3c69ad5998319"
+    },
+    {
+      "package": "a3s-chat-state",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-chat-state",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-chat-state",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "27e9297403ef4b11866e775bad0546a9c0f2f84e5cd806c1e5d05f89220391b3"
+    },
+    {
+      "package": "a3s-code-active-sessions",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-active-sessions",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-active-sessions",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "facd7ab9ae620f35156cbda681abb2ea8c92c172771e22dca67a75e07db59f6d"
+    },
+    {
+      "package": "a3s-code-agent",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-agent",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-agent",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "c77c9494af4a8e21327bc8c5be4a52408cee9d9f197f52660cd4b00e5d5b590c"
+    },
+    {
+      "package": "a3s-code-announcements",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-announcements",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-announcements",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "48a4ad9fc4472be1f0e42d8e636be51527b6323eb22048e676cc3648b0d59037"
+    },
+    {
+      "package": "a3s-code-auth",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-auth",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-auth",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "b0993e614f7116afb17e7bb41b048625810c7af195ac69dee44ff0e1a2bd2b55"
+    },
+    {
+      "package": "a3s-code-bundle",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-bundle",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-bundle",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "af300ac02968ca8e8bdbbdc4d49c5b362eb63cf116f6249a7ba69c952e99fb44"
+    },
+    {
+      "package": "a3s-code-config",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-config",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-config",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "c9ccacc4daddea707f8112bae0e5180e09023f1433948da727fda76ef50fa504"
+    },
+    {
+      "package": "a3s-code-config-types",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-config-types",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-config-types",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "95a8815f277aaee3a8d3f87215ee482b957f9f674d45ed4e3c300161bfa6f8cd"
+    },
+    {
+      "package": "a3s-code-dashboard-store",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-dashboard-store",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-dashboard-store",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "8e3f761b3f5b0a0ef826db3ee8a3b736f59ca97cfb0cfe6675294d94ec3fb642"
+    },
+    {
+      "package": "a3s-code-diag-server",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-diag-server",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-diag-server",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "bf35d023f3383e83a8a19c317e7b33503fa646f4dc4b9a511f661da32743b7d0"
+    },
+    {
+      "package": "a3s-code-env",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-env",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-env",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "609373d4d186a8a66fb284b13eff50de3a60aa6788e9a12ccfa564be1fd075a2"
+    },
+    {
+      "package": "a3s-code-extra-ca",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-extra-ca",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-extra-ca",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "217008b057ddd68b8f82f97c99ecea965ec4568e146e9c3188a548f468a7fe55"
+    },
+    {
+      "package": "a3s-code-feedback",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-feedback",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-feedback",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "cc1ed02f193154b6eabf77bbab2ffc7533113963d54ba62d31f0f4ff485378db"
+    },
+    {
+      "package": "a3s-code-file-lock",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-file-lock",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-file-lock",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "5f61c9f50d8a58f57f5b48969135729b81a0ba9883380545414d81f2b7753482"
+    },
+    {
+      "package": "a3s-code-foreign-sessions",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-foreign-sessions",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-foreign-sessions",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "a217d4f6cb9222b311403cf8cb56084727baa702f77985ae847bfb3823fe5a40"
+    },
+    {
+      "package": "a3s-code-gboom",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-gboom",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-gboom",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "963a88df44e85ee607b5d55dcbb2eb88f6b9209a919f996326dcac7b5c1c0f6f"
+    },
+    {
+      "package": "a3s-code-hooks",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-hooks",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-hooks",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "5d3d1173e70f66886a98d9d5d4de366842883c669cfe5bc8185f4d3993d741c6"
+    },
+    {
+      "package": "a3s-code-http",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-http",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-http",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "62990e4bd2042dcc049783762a0ea1df624a789e817f277b0f2c060b5fd96dfc"
+    },
+    {
+      "package": "a3s-code-image",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-image",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-image",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "2ac7bef554fcb96e12208e369c4524b7daf4af1f62264f4add7d28778ce3507c"
+    },
+    {
+      "package": "a3s-code-login",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-login",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-login",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "b0b9b8690404d27a316d40200e954d7bb3145af60b8368a10d6e775304d778bb"
+    },
+    {
+      "package": "a3s-code-markdown",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-markdown",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-markdown",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "c0d33c2e9e7435f961841bd7e38c0076b68660da4897cfb5ca4e7d009f5a3dc3"
+    },
+    {
+      "package": "a3s-code-markdown-core",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-markdown-core",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-markdown-core",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "2b34bc292f67c1a14b903020338cac3546a7081f30b1a3f6936968a0572e5c0b"
+    },
+    {
+      "package": "a3s-code-mcp",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-mcp",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-mcp",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "63f648ae87e891b729402bb6b8c6df0ab2435703c3fdcfa078e4a35fc436183a"
+    },
+    {
+      "package": "a3s-code-memory",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-memory",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-memory",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "1961130524d7142536f5737ea3867eb98e69ad55b9e880d213f874d417ca8fc9"
+    },
+    {
+      "package": "a3s-code-mermaid",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-mermaid",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-mermaid",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "f8dda6dcddae94a87cf1fe4e3493d314f2243be1ab75ed0d6d0cce81a51a97c6"
+    },
+    {
+      "package": "a3s-code-models",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-models",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-models",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "e3f47a707d5d0b600a45b9621e43fa9010689c946f1e6185dd195835c938fb05"
+    },
+    {
+      "package": "a3s-code-otel",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-otel",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-otel",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "aaec1c85d3464639c87410733231c505e99f2fedff47008929a91eda163469f7"
+    },
+    {
+      "package": "a3s-code-pager",
+      "version": "9.1.4",
+      "path": "crates/terminal/crates/codegen/a3s-code-pager",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-pager",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "19b9ff2b099f39397dbd4307f93e1944892e3405f100baa0ec488660945d14ff"
+    },
+    {
+      "package": "a3s-code-pager-diff",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-pager-diff",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-pager-diff",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "512c2d9ed1c87cd91f185466c794c63f17454acb9169ba8d240d42b2a9366b84"
+    },
+    {
+      "package": "a3s-code-pager-minimal",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-pager-minimal",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-pager-minimal",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "12ce2f9986d2224559cd68b9495cb2adba15872f57c21ae0c3ad8eab06ed88db"
+    },
+    {
+      "package": "a3s-code-pager-pty-harness",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-pager-pty-harness",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-pager-pty-harness",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "04f59b22d58a77b760a40c0586c0c9db9027f09287358d46ab6767c4dc0e3cf6"
+    },
+    {
+      "package": "a3s-code-pager-render",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-pager-render",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-pager-render",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "829a1ba700a264e698e665c2643516f9ad946df62e3ab1cf674455754c19a648"
+    },
+    {
+      "package": "a3s-code-paths",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-paths",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-paths",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "43d0f3e6b77944de2b47e80181c03e164e36bea463043434654f6323250d95ea"
+    },
+    {
+      "package": "a3s-code-plugin-marketplace",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-plugin-marketplace",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-plugin-marketplace",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "8245f2657c4d5c68ea56cf0613e8a9299774a147a9f3e9358f51275ff660ffa9"
+    },
+    {
+      "package": "a3s-code-sampler",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-sampler",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-sampler",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "d6d12e27b0e4416005c4d4b920b3e1900967cc716f41b73ad527d53091e41f10"
+    },
+    {
+      "package": "a3s-code-sampling-types",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-sampling-types",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-sampling-types",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "e2b83b7b7af1988ccd8c7bffc2f815d712827ac29e7d3c02dcebd95b557b693f"
+    },
+    {
+      "package": "a3s-code-sandbox",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-sandbox",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-sandbox",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "3e6a92f7a90e38ea56f3586d83bb3b8a7b56ae1199c72d0e8b183ae998f0825b"
+    },
+    {
+      "package": "a3s-code-secrets",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-secrets",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-secrets",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "e0eb91adbaa53e32264383defa34c1b260c536d0c051e9c4c945134d47f3b535"
+    },
+    {
+      "package": "a3s-code-session-events",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-session-events",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-session-events",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "fd12b0a8630033d042ebcd1206afc66d84baae0f58623382287042d44e3b571f"
+    },
+    {
+      "package": "a3s-code-session-search",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-session-search",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-session-search",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "46a10bbb67914fff8a913c2cd7ffe918984d04ebd2cbe6c033c0aec4063c3ee5"
+    },
+    {
+      "package": "a3s-code-shared",
+      "version": "0.0.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-shared",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-shared",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "5870060e432f817ce8e464cbf664b1afaaa6457dcac7a67b611b60c8f4759a27"
+    },
+    {
+      "package": "a3s-code-shell",
+      "version": "1.0.41",
+      "path": "crates/terminal/crates/codegen/a3s-code-shell",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-shell",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "ebb8022b6d8a99bad7c634797400e16978393e7dd34314819e7be5b7c7c105a3"
+    },
+    {
+      "package": "a3s-code-shell-base",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-shell-base",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-shell-base",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "c19b278abdbf0a9592a11fa60a167909fc2e80a711d11f13d73ab84d7f6b4d93"
+    },
+    {
+      "package": "a3s-code-shell-session-support",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-shell-session-support",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-shell-session-support",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "c020cd8fd0907198748f763b5b5d45e58b53c4583f26c8b21189e5d160931b2c"
+    },
+    {
+      "package": "a3s-code-shell-terminal",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-shell-terminal",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-shell-terminal",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "5a1771f41c1f7aacfd5ce8496b86c5a4d939d1d8de6b0885e52167ee23775997"
+    },
+    {
+      "package": "a3s-code-status-line",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-status-line",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-status-line",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "be09311fd7cc13cf3ef0d1b3ff05bcd471f4880e9259c145c4b9d017e377c5f8"
+    },
+    {
+      "package": "a3s-code-subagent-resolution",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-subagent-resolution",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-subagent-resolution",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "105c32edbad2ddc38bf94f8eedfd41acfec44d3e15f19b07572ab19b1d1f7291"
+    },
+    {
+      "package": "a3s-code-telemetry",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-telemetry",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-telemetry",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "bf81ce526402efe900673ca6357d3d13e12e52cbdacbb1858c818e5a972253aa"
+    },
+    {
+      "package": "a3s-code-test-support",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-test-support",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-test-support",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "b9eafc15862f6a30f712a789386e563bc678db774aaf42181260533627a7f1dc"
+    },
+    {
+      "package": "a3s-code-tools",
+      "version": "0.1.220-alpha.4",
+      "path": "crates/terminal/crates/codegen/a3s-code-tools",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-tools",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "fe0e137953cb419bf3bbbd2cdacbae0654ed351c13e203b6224a107f82d75baf"
+    },
+    {
+      "package": "a3s-code-tools-api",
+      "version": "0.1.220-alpha.4",
+      "path": "crates/terminal/crates/codegen/a3s-code-tools-api",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-tools-api",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "03764e4a6ece55f9b59d5d68506b281723bf4593ed8bcd943ad1578f363056cd"
+    },
+    {
+      "package": "a3s-code-update",
+      "version": "0.1.220-alpha.4",
+      "path": "crates/terminal/crates/codegen/a3s-code-update",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-update",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "8aa19a65637bf2e7350f716a845f954ae8e27d0557afd037c529344bf460e6b1"
+    },
+    {
+      "package": "a3s-code-version",
+      "version": "9.1.4",
+      "path": "crates/terminal/crates/codegen/a3s-code-version",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-version",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "8bee35f06df096d1bd7505b8f1d062b014ffd7c202f411a27b73165b2e08d30b"
+    },
+    {
+      "package": "a3s-code-voice",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-voice",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-voice",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "68b7ba2af3e1d8bd3b9712bfea4c41dd27c9ac629615aea9e1a507292d963048"
+    },
+    {
+      "package": "a3s-code-workspace",
+      "version": "0.1.220-alpha.4",
+      "path": "crates/terminal/crates/codegen/a3s-code-workspace",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-workspace",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "38c500a5f9ab420362c1fee59d3ebc86575256676e51d501cc23a72b3912d4e4"
+    },
+    {
+      "package": "a3s-code-workspace-client",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-workspace-client",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-workspace-client",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "aad398ce3c197ba2dcff8c99b0ba52e10de140e364fc9a609f6285e6a79f7269"
+    },
+    {
+      "package": "a3s-code-workspace-daemon",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-workspace-daemon",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-workspace-daemon",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "6fdc0b4765f808393b0ce1de6401343d614987bc243bc23c457bcdec817017ec"
+    },
+    {
+      "package": "a3s-code-workspace-types",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-code-workspace-types",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-code-workspace-types",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "08e075a3de0d8d3f798eeb524b3582a0baafc0e8f66c47d75e2c05c5232da0a0"
+    },
+    {
+      "package": "a3s-codebase-graph",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-codebase-graph",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-codebase-graph",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "aeffd59a75c63a0b76659d619dad4eee829dc1c0cd52a45951473774d40f958b"
+    },
+    {
+      "package": "a3s-compaction-transcript",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-compaction-transcript",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-compaction-transcript",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "8f4cffcc57968397ed6dfe5464b46620a0b734b631abb88eb4e292e9595a5b0c"
+    },
+    {
+      "package": "a3s-crash-handler",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-crash-handler",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-crash-handler",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "5b8371d8cf0b4ba119df9dfd7d25dec08f1615a29ba1a89a8975e14bdddb018d"
+    },
+    {
+      "package": "a3s-dirs",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-dirs",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-dirs",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "d6017b8f25e66c1c62b64cb9072dd39f40fcb4aba0f6f7b8437147bb8c5626bc"
+    },
+    {
+      "package": "a3s-fast-worktree",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-fast-worktree",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-fast-worktree",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "c4a44ee64cf04904d42d4dd372d1ed32e05ce099ac5e0f9f904e310c565211e0"
+    },
+    {
+      "package": "a3s-file-utils",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-file-utils",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-file-utils",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "782bb83beb38e72a2476b355863af7f09e725c31db0c6c9418d7a7a05772185f"
+    },
+    {
+      "package": "a3s-fsnotify",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-fsnotify",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-fsnotify",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "7e7707f881eb17d0c3bf80bd6756507c039e781c653e63d75470e80320eff409"
+    },
+    {
+      "package": "a3s-fuzzy-file-search",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-fuzzy-file-search",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-fuzzy-file-search",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "f1fb41e5d253b0329259493281ff88047913e2213c83015395eb4d8ed66e6694"
+    },
+    {
+      "package": "a3s-gix-status",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-gix-status",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-gix-status",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "455022aafeb9ad373244e2b0cab7c68d4d445f1fc8cc5bc1e10d79899c38076b"
+    },
+    {
+      "package": "a3s-hooks-plugins-types",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-hooks-plugins-types",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-hooks-plugins-types",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "53b2a67aa36aeadc6f79ef795eaed1760e17811150568398acdbe82804449be6"
+    },
+    {
+      "package": "a3s-hunk-tracker",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-hunk-tracker",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-hunk-tracker",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "f5a47d4d3df56e65672fc49862ce5827400892d2f82b83cc5dbe26d7b382070b"
+    },
+    {
+      "package": "a3s-mixpanel",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-mixpanel",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-mixpanel",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "b06b77b66989986b4fc5cd28383250aefd9c77041e452610c2beabbeefbd9695"
+    },
+    {
+      "package": "a3s-prompt-queue",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-prompt-queue",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-prompt-queue",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "fb135ac06a75d8c8c20b6bfb8d6015795832ca057677141ee5039620ebe37cbb"
+    },
+    {
+      "package": "a3s-ratatui-inline",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-ratatui-inline",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-ratatui-inline",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "7c45c2a766b21ada90ae8089d1dd5d3bcf594da9660fd35effe91e29dab2ac54"
+    },
+    {
+      "package": "a3s-ratatui-textarea",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-ratatui-textarea",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-ratatui-textarea",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "4e891b3d2c4e3e8004fd30b6763955f8e0328ebc0ccc563e5d84a82cfc3985f1"
+    },
+    {
+      "package": "a3s-sqlite-journal",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-sqlite-journal",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-sqlite-journal",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "0d1173e8c72ad9a9a1a1d573d92a742711a7fa1f0500ae19d559a9aba614b409"
+    },
+    {
+      "package": "a3s-system-power",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-system-power",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-system-power",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "bf54a0d65682823c77ab19e30cbf9aa2c0460024ba94f26eaac7711b13589d38"
+    },
+    {
+      "package": "a3s-token-estimation",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-token-estimation",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-token-estimation",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "90ee1d93095ce82563b128da783e63d1fa25aae0d83775def753f205863f2041"
+    },
+    {
+      "package": "a3s-tracing-macros",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-tracing-macros",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-tracing-macros",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "e0701a366de411ea849120d4afecf0a62b810331b322f0a75d3c6f076c45aeca"
+    },
+    {
+      "package": "a3s-tty-utils",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-tty-utils",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-tty-utils",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "a8f0ccea3c7ba1feffc244ce4dd70182eadff0d1f7dd3598232d4fec7e2fb4df"
+    },
+    {
+      "package": "a3s-workflow",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/a3s-workflow",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/a3s-workflow",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "fcded118ebbcd869160506a70d5494ffd154a2208bfbb9d60c335a95c0ee8d4b"
+    },
+    {
+      "package": "ptyctl",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/ptyctl",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/ptyctl",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "8d8158fdd33a02ac54e8748d8de9bab0477d6f6269e4b04f76424c2d996625db"
+    },
+    {
+      "package": "ptyctl-cli",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/codegen/ptyctl-cli",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/codegen/ptyctl-cli",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "70bc18560d1360bb90799f9eb25f5539240245614a20e7d826b142551c7ce40f"
+    },
+    {
+      "package": "a3s-circuit-breaker",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-circuit-breaker",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-circuit-breaker",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "1cb3021ebb0fdab2a63e5198a6611e9732b683b52486f8bd23e0e66bddf206dd"
+    },
+    {
+      "package": "a3s-code-compaction",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-code-compaction",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-code-compaction",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "3083ff6008eaaf028aa0243f47e0576c8105262a5ed765543f40f057f47b045d"
+    },
+    {
+      "package": "a3s-computer-hub-core",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-computer-hub-core",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-computer-hub-core",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "52fdfc0dc647565a8f1ec8e89d7e1dcd941d4010b891d6c8ae9e95ca6d54dc9a"
+    },
+    {
+      "package": "a3s-computer-hub-mcp-adapter",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-computer-hub-mcp-adapter",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-computer-hub-mcp-adapter",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "d2004ebb79b16318d23d4e15092501a050e40f71aeae6dcb8d3e1bcd48e4ff9c"
+    },
+    {
+      "package": "a3s-computer-hub-sdk",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-computer-hub-sdk",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-computer-hub-sdk",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "939464a7aa8bdac068a2403df4541769161c5e6dd0f84b6574276045b4841ca4"
+    },
+    {
+      "package": "a3s-interjection-core",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-interjection-core",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-interjection-core",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "dbe945c63b18fded65d853fee2b4a464d6e36a9047ff4c2ecff3a5541eacdfc6"
+    },
+    {
+      "package": "a3s-message-delivery-core",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-message-delivery-core",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-message-delivery-core",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "ff91c1fc284a7c5d5538ec2d7888d9bebe05b38b642e839515300d3008cff0c9"
+    },
+    {
+      "package": "a3s-test-utils",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-test-utils",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-test-utils",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "8cea52d03169ee1a9d201389d7903211ce9dbf85068d02df38b355512e67cb93"
+    },
+    {
+      "package": "a3s-tool-protocol",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-tool-protocol",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-tool-protocol",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "8c99aff752aeb0e2f77288cd277e2d00898adfbbe7fadc65c6a36547009a10ae"
+    },
+    {
+      "package": "a3s-tool-runtime",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-tool-runtime",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-tool-runtime",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "77620db3c867210a3d10fda2165bcf881a74227b3becb6d1634635dcda1fc8c0"
+    },
+    {
+      "package": "a3s-tool-types",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-tool-types",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-tool-types",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "998f6a303a51e8b118473ea6e26325a3040826d281e7d6325cce0fc50108c521"
+    },
+    {
+      "package": "a3s-tracing",
+      "version": "0.1.0",
+      "path": "crates/terminal/crates/common/a3s-tracing",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/crates/common/a3s-tracing",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "906779fc14a09817fac2af9a8f6137c78099530d1cbeaa822aab06bf0dc29fb8"
+    },
+    {
+      "package": "prod-mc-cli-chat-proxy-types",
+      "version": "0.1.0",
+      "path": "crates/terminal/prod/mc/cli-chat-proxy-types",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/prod/mc/cli-chat-proxy-types",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "2c0f45c8f33b3780c8167f6e9860d46bb26a899de4b8a113e51f19bcc3e03b79"
+    },
+    {
+      "package": "dagre_rust",
+      "version": "0.0.5",
+      "path": "crates/terminal/third_party/dagre_rust",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/third_party/dagre_rust",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "a1943c70b76b45cb7b8a5dd6d4769a9826e0af916945a042bd7f3b791a20a860"
+    },
+    {
+      "package": "graphlib_rust",
+      "version": "0.0.2",
+      "path": "crates/terminal/third_party/graphlib_rust",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/third_party/graphlib_rust",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "088a1d961866580d8a7c5119a86e33d312cd43ac11d997bbdaff2851101ec6a3"
+    },
+    {
+      "package": "mermaid-to-svg",
+      "version": "0.1.0",
+      "path": "crates/terminal/third_party/mermaid-to-svg",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/third_party/mermaid-to-svg",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "1627b5aa5ff3cb38406f662331f4bce13db9eb7489667d4e7479c3597cbdb9c2"
+    },
+    {
+      "package": "ordered_hashmap",
+      "version": "0.0.3",
+      "path": "crates/terminal/third_party/ordered_hashmap",
+      "source": "../a3s/apps/code/vendor/a3s-code-ui/third_party/ordered_hashmap",
+      "revision": "d6bac5d85b7ff2bd587b43a2ff8219edac656268",
+      "source_manifest_sha256": "f648ce1064ff1f46a507c1fc4bf7c72aabef8c816da1158e50586f13c013f724"
+    },
+    {
+      "path": "crates/terminal/third_party/portable-pty-work",
+      "source": "apps/work/vendor/portable-pty",
+      "revision": null,
+      "package": "aster-work-pty",
+      "version": "0.9.0"
+    },
+    {
+      "path": "crates/third-party/async-openai",
+      "source": "/Users/roylin/.cargo/git/checkouts/async-openai-80cbf7d6f25979e0/95b52eb/async-openai",
+      "revision": "95b52ebdedf42143083cf3d6f0e0be7c84e9c808",
+      "package": "async-openai",
+      "version": "0.33.1"
+    },
+    {
+      "path": "crates/third-party/async-openai-macros",
+      "source": "/Users/roylin/.cargo/git/checkouts/async-openai-80cbf7d6f25979e0/95b52eb/async-openai-macros",
+      "revision": "95b52ebdedf42143083cf3d6f0e0be7c84e9c808",
+      "package": "async-openai-macros",
+      "version": "0.1.1"
+    },
+    {
+      "package": "a3s-updater",
+      "version": "0.2.0",
+      "path": "crates/updater",
+      "source": "https://crates.io/crates/a3s-updater/0.2.0",
+      "revision": null,
+      "source_manifest_sha256": "c881c1a176f99938b2e0f3bc1d23ebd453f0c0f98ee07145f35cf8071f6a00ed"
+    },
+    {
+      "package": "a3s-use-core",
+      "version": "0.2.4",
+      "path": "crates/use/core",
+      "source": "../a3s/crates/use/crates/core",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "aae431d638af4ddc54e6bb47f62c30833dafcb98bd2fbf7ffaa306b1ba37ea77"
+    },
+    {
+      "path": "crates/use/extension",
+      "source": "apps/work/vendor/crates/use/crates/extension",
+      "revision": null,
+      "package": "a3s-use-extension",
+      "version": "0.3.3"
+    },
+    {
+      "package": "a3s-use-reconcile",
+      "version": "0.2.10",
+      "path": "crates/use/reconcile",
+      "source": "../a3s/crates/use/crates/reconcile",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "2549162ac8b018f1cf09fb2c447c0198dfe3d1500568dde5435e9ff4c787f1db"
+    },
+    {
+      "path": "crates/use/tool-acquire",
+      "source": "apps/work/vendor/crates/use/crates/tool-acquire",
+      "revision": null,
+      "package": "a3s-use-tool-acquire",
+      "version": "0.2.4"
+    },
+    {
+      "package": "a3s-vec",
+      "version": "0.1.8",
+      "path": "crates/vec",
+      "source": "../a3s/crates/vec",
+      "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
+      "source_manifest_sha256": "28111e8b7e94a865adfef866630e48e4d2661455355c298453ce6971203e3775"
+    }
+  ]
+}

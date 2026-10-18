@@ -1,0 +1,478 @@
+use super::*;
+
+impl AgentSession {
+    /// Install or replace a runtime budget guard. Takes effect on the
+    /// next `send` / `stream` call (the guard is consulted at agent-
+    /// loop build time, not on the live execution). Setting `None`
+    /// clears the override so `config.budget_guard` takes over again.
+    ///
+    /// This is the entry point SDKs use to wire a host-supplied guard
+    /// after the session has already been constructed — useful when
+    /// the guard's transport (e.g. a JS callable) cannot live inside
+    /// the value-typed `SessionOptions`.
+    pub fn set_budget_guard(
+        &self,
+        guard: Option<Arc<dyn crate::budget::BudgetGuard>>,
+    ) -> crate::error::Result<()> {
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_budget_guard
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            *slot = guard;
+            drop(slot);
+            // Delegated children own a pre-built TaskExecutor. Refresh its parent
+            // context so the next run cannot bypass a runtime-installed ledger.
+            // SkillTool likewise owns a child AgentConfig captured at registration
+            // time, so it must be refreshed from the same runtime source of truth.
+            self.refresh_task_delegation_tools();
+            self.refresh_skill_tools();
+        })
+    }
+
+    /// Record a kept, reverted, or rejected constraint against a change-set
+    /// digest. The next agent-loop build serves only Accept records. A
+    /// secret-shaped constraint is not stored.
+    pub fn record_outcome(
+        &self,
+        outcome: crate::outcome_memory::OutcomeKind,
+        change_digest: &str,
+        constraint: &str,
+    ) -> crate::error::Result<bool> {
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_outcome_ledger
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut ledger = slot
+                .clone()
+                .unwrap_or_else(|| self.config.outcome_ledger.clone());
+            let stored = match outcome {
+                crate::outcome_memory::OutcomeKind::Accept => {
+                    ledger.accept(change_digest, constraint)
+                }
+                crate::outcome_memory::OutcomeKind::Revert => {
+                    ledger.revert(change_digest, constraint)
+                }
+                crate::outcome_memory::OutcomeKind::Reject => {
+                    ledger.reject(change_digest, constraint)
+                }
+            };
+            if stored {
+                *slot = Some(ledger);
+            }
+            stored
+        })
+    }
+
+    /// Remember the promoted isolation digest without activating recall.
+    pub fn note_promoted_digest(&self, digest: &str) -> crate::error::Result<bool> {
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_outcome_ledger
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut ledger = slot
+                .clone()
+                .unwrap_or_else(|| self.config.outcome_ledger.clone());
+            let stored = ledger.note_promoted(digest);
+            if stored {
+                *slot = Some(ledger);
+            }
+            stored
+        })
+    }
+
+    /// Ledger the next turn will serve, including host records made since
+    /// session construction.
+    pub fn outcome_ledger_snapshot(&self) -> crate::outcome_memory::OutcomeLedger {
+        self.runtime_outcome_ledger
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+            .unwrap_or_else(|| self.config.outcome_ledger.clone())
+    }
+
+    pub(crate) fn outcome_ledger_override(&self) -> Option<crate::outcome_memory::OutcomeLedger> {
+        self.runtime_outcome_ledger
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    /// Return the currently-installed runtime budget guard, if any.
+    /// `None` means the loop falls back to `config.budget_guard`.
+    pub fn budget_guard(&self) -> Option<Arc<dyn crate::budget::BudgetGuard>> {
+        self.runtime_budget_guard
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
+    /// Override specialty prompt style for subsequent turns without rebuilding
+    /// the session. Pass `Some(AgentStyle::Plan)` for Plan; pass `None` to clear
+    /// specialty style back to GeneralPurpose. Takes effect on the next
+    /// `send` / `stream` via agent-loop build (`PROMPT-ALIGN1` hot path).
+    pub fn set_agent_style(
+        &self,
+        style: Option<crate::prompts::AgentStyle>,
+    ) -> crate::error::Result<()> {
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_agent_style
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            *slot = Some(style);
+            Ok(())
+        })?
+    }
+
+    /// Override planning mode for subsequent turns without rebuilding the
+    /// session. Durable `/goal` hosts use this to keep maker planning Enabled
+    /// while forcing verifier turns onto Disabled so Flash cannot stall in a
+    /// plan-only wave. Takes effect on the next `send` / `stream`.
+    pub fn set_planning_mode(
+        &self,
+        mode: crate::prompts::PlanningMode,
+    ) -> crate::error::Result<()> {
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_planning_mode
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            *slot = Some(mode);
+            Ok(())
+        })?
+    }
+
+    /// Record a permission posture for the next fact-run admission.
+    ///
+    /// The open run keeps the policy, tool catalog, step limit, and completion
+    /// gate it froze at open. `yolo` adds execute-lane allow rules. A deny
+    /// rule on that policy still wins.
+    pub fn set_permission_posture(&self, posture: &str) -> crate::error::Result<()> {
+        self.set_permission_policy(crate::permissions::policy_for_posture(posture))
+    }
+
+    /// Store the exact policy the next fact-run admission freezes.
+    ///
+    /// Callers attach deny rules after [`crate::permissions::policy_for_posture`].
+    /// Deny is evaluated before allow, including a `yolo` execute lane.
+    pub fn set_permission_policy(
+        &self,
+        policy: crate::permissions::PermissionPolicy,
+    ) -> crate::error::Result<()> {
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_permission_policy
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            *slot = Some(policy);
+            Ok(())
+        })?
+    }
+
+    /// Policy the next [`super::conversation_runtime::FactSession`] admission reads.
+    pub(crate) fn runtime_permission_policy(&self) -> Option<crate::permissions::PermissionPolicy> {
+        self.runtime_permission_policy
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .clone()
+    }
+
+    /// Clear a prior [`Self::set_planning_mode`] override so the next loop
+    /// uses the session-built `config.planning_mode` again.
+    pub fn clear_planning_mode_override(&self) -> crate::error::Result<()> {
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_planning_mode
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            *slot = None;
+            Ok(())
+        })?
+    }
+
+    /// Pin or clear the user-facing reply language for subsequent turns without
+    /// rebuilding the session. Pass `Some("zh-CN")` to pin; pass `None` to clear
+    /// the runtime override so `prompt_slots.output_language` applies again.
+    /// Takes effect on the next `send` / `stream`.
+    pub fn set_output_language(
+        &self,
+        language: Option<impl Into<String>>,
+    ) -> crate::error::Result<()> {
+        let language = language.map(Into::into).and_then(|value| {
+            let trimmed = value.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        });
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_output_language
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            *slot = Some(language);
+            Ok(())
+        })?
+    }
+
+    /// Runtime agent-style override. Outer `None` means unset; inner value is
+    /// the style (or cleared specialty when `Some(None)`).
+    pub(crate) fn runtime_agent_style_override(
+        &self,
+    ) -> Option<Option<crate::prompts::AgentStyle>> {
+        *self
+            .runtime_agent_style
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Runtime planning-mode override. `None` means unset.
+    pub(crate) fn runtime_planning_mode_override(&self) -> Option<crate::prompts::PlanningMode> {
+        *self
+            .runtime_planning_mode
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Runtime reply-language override. Outer `None` means unset; inner value
+    /// is the BCP-47 tag (or cleared pin when `Some(None)`).
+    pub(crate) fn runtime_output_language_override(&self) -> Option<Option<String>> {
+        self.runtime_output_language
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
+    /// Install or clear the host-owned live checkpoint export sink (SDK-CP1).
+    ///
+    /// Takes effect on the next `send` / `stream` that opens a checkpoint
+    /// channel. Callback-backed SDK hosts use this after session construction
+    /// because value-typed `SessionOptions` cannot carry language callables.
+    pub fn set_session_checkpoint_export_sink(
+        &self,
+        sink: Option<Arc<dyn crate::session_checkpoint::SessionCheckpointExportSink>>,
+    ) -> crate::error::Result<()> {
+        self.close_handle.mutate_immediate(|| {
+            let mut slot = self
+                .runtime_session_checkpoint_export_sink
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            *slot = sink;
+        })
+    }
+
+    /// Return the currently installed live checkpoint export sink, if any.
+    pub fn session_checkpoint_export_sink(
+        &self,
+    ) -> Option<Arc<dyn crate::session_checkpoint::SessionCheckpointExportSink>> {
+        self.runtime_session_checkpoint_export_sink
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
+    /// Return pending HITL tool confirmations for this session.
+    pub async fn pending_confirmations(&self) -> Vec<PendingConfirmationInfo> {
+        HitlControl::from_session(self)
+            .pending_confirmations()
+            .await
+    }
+
+    /// Resolve a pending HITL tool confirmation.
+    ///
+    /// Returns `Ok(true)` when a pending confirmation was found and completed,
+    /// `Ok(false)` when the tool ID is not pending or HITL is not configured.
+    pub async fn confirm_tool_use(
+        &self,
+        tool_id: &str,
+        approved: bool,
+        reason: Option<String>,
+    ) -> Result<bool> {
+        if let Some(manager) = &self.config.confirmation_manager {
+            if manager
+                .confirm(tool_id, approved, reason.clone())
+                .await
+                .map_err(crate::error::CodeError::Session)?
+            {
+                return Ok(true);
+            }
+        }
+        let run = super::conversation_runtime::FactSession::from(self).open()?;
+        Ok(run.confirm_if_pending(tool_id, approved).await?)
+    }
+
+    /// Cancel all pending HITL confirmations for this session.
+    pub async fn cancel_confirmations(&self) -> usize {
+        HitlControl::from_session(self).cancel_confirmations().await
+    }
+
+    /// Return structured verification reports recorded for this session.
+    pub fn verification_reports(&self) -> Vec<crate::verification::VerificationReport> {
+        VerificationRuntime::from_session(self).reports()
+    }
+
+    /// Return a structured summary of all verification reports recorded for this session.
+    pub fn verification_summary(&self) -> crate::verification::VerificationSummary {
+        VerificationRuntime::from_session(self).summary()
+    }
+
+    /// Return a concise human-readable verification summary for this session.
+    pub fn verification_summary_text(&self) -> String {
+        VerificationRuntime::from_session(self).summary_text()
+    }
+
+    /// Add externally produced verification reports to this session's completion evidence.
+    ///
+    /// The next `send` or `stream` copies these onto the fact surface before
+    /// replaying unsettled mutations. A Passed report whose `effect_digest`
+    /// matches the open mutation can close that turn's completion gate.
+    pub fn record_verification_reports(
+        &self,
+        reports: impl IntoIterator<Item = crate::verification::VerificationReport>,
+    ) {
+        VerificationRuntime::from_session(self).record(reports);
+    }
+
+    /// Register a hook for lifecycle event interception.
+    pub fn register_hook(&self, hook: crate::hooks::Hook) -> crate::error::Result<()> {
+        self.close_handle.mutate_immediate(|| {
+            self.ensure_compatibility_name_available(
+                crate::capability::CapabilityKind::Hook,
+                &hook.id,
+            )?;
+            HookControl::from_session(self).register_hook(hook);
+            Ok(())
+        })?
+    }
+
+    /// Unregister a hook by ID.
+    pub fn unregister_hook(
+        &self,
+        hook_id: &str,
+    ) -> crate::error::Result<Option<crate::hooks::Hook>> {
+        self.close_handle.mutate_immediate(|| {
+            self.ensure_compatibility_name_available(
+                crate::capability::CapabilityKind::Hook,
+                hook_id,
+            )?;
+            Ok(HookControl::from_session(self).unregister_hook(hook_id))
+        })?
+    }
+
+    /// Register a handler for a specific hook.
+    pub fn register_hook_handler(
+        &self,
+        hook_id: &str,
+        handler: Arc<dyn crate::hooks::HookHandler>,
+    ) -> crate::error::Result<()> {
+        let mut pending_handler = Some(handler);
+        let retired = self.close_handle.mutate_immediate(|| {
+            self.ensure_compatibility_name_available(
+                crate::capability::CapabilityKind::Hook,
+                hook_id,
+            )?;
+            let handler = pending_handler.take().ok_or_else(|| {
+                crate::error::CodeError::Capability(
+                    crate::capability::CapabilityRuntimeError::RuntimeValueInvalid {
+                        kind: crate::capability::CapabilityKind::Hook,
+                        public_name: hook_id.to_owned(),
+                        message: "Hook handler mutation was already consumed".to_owned(),
+                    },
+                )
+            })?;
+            Ok::<_, crate::error::CodeError>(
+                HookControl::from_session(self).register_hook_handler(hook_id, handler),
+            )
+        })??;
+        drop(retired);
+        Ok(())
+    }
+
+    /// Unregister a hook handler by hook ID.
+    pub fn unregister_hook_handler(&self, hook_id: &str) -> crate::error::Result<()> {
+        let retired = self.close_handle.mutate_immediate(|| {
+            self.ensure_compatibility_name_available(
+                crate::capability::CapabilityKind::Hook,
+                hook_id,
+            )?;
+            Ok::<_, crate::error::CodeError>(
+                HookControl::from_session(self).unregister_hook_handler(hook_id),
+            )
+        })??;
+        drop(retired);
+        Ok(())
+    }
+
+    /// Atomically add or replace a complete Hook definition and handler pair.
+    ///
+    /// Official SDK bridges use this method so a newly admitted Run cannot
+    /// observe the definition without its matching callback. Passing `None`
+    /// intentionally registers an event-only Hook with no gating handler.
+    pub fn register_hook_registration(
+        &self,
+        hook: crate::hooks::Hook,
+        handler: Option<Arc<dyn crate::hooks::HookHandler>>,
+    ) -> crate::error::Result<()> {
+        let mut pending_handler = Some(handler);
+        let retired = self.close_handle.mutate_immediate(|| {
+            self.ensure_compatibility_name_available(
+                crate::capability::CapabilityKind::Hook,
+                &hook.id,
+            )?;
+            let handler = pending_handler.take().ok_or_else(|| {
+                crate::error::CodeError::Capability(
+                    crate::capability::CapabilityRuntimeError::RuntimeValueInvalid {
+                        kind: crate::capability::CapabilityKind::Hook,
+                        public_name: hook.id.clone(),
+                        message: "Hook registration was already consumed".to_owned(),
+                    },
+                )
+            })?;
+            Ok::<_, crate::error::CodeError>(
+                HookControl::from_session(self).register_hook_registration(hook, handler),
+            )
+        })??;
+        drop(retired);
+        Ok(())
+    }
+
+    /// Atomically remove a complete Hook definition and handler pair.
+    pub fn unregister_hook_registration(
+        &self,
+        hook_id: &str,
+    ) -> crate::error::Result<Option<crate::hooks::Hook>> {
+        let (retired_hook, retired_handler) = self.close_handle.mutate_immediate(|| {
+            self.ensure_compatibility_name_available(
+                crate::capability::CapabilityKind::Hook,
+                hook_id,
+            )?;
+            Ok::<_, crate::error::CodeError>(
+                HookControl::from_session(self).unregister_hook_registration(hook_id),
+            )
+        })??;
+        let removed = retired_hook.as_deref().cloned();
+        drop((retired_hook, retired_handler));
+        Ok(removed)
+    }
+
+    /// Get the number of registered hooks.
+    pub fn hook_count(&self) -> usize {
+        HookControl::from_session(self).hook_count()
+    }
+
+    /// Run verification commands through the session's tool execution path.
+    pub async fn verify_commands(
+        &self,
+        subject: &str,
+        commands: &[crate::verification::VerificationCommand],
+    ) -> Result<crate::verification::VerificationReport> {
+        VerificationRuntime::from_session(self)
+            .verify_commands(subject, commands)
+            .await
+    }
+
+    /// Return project-aware verification command presets for this workspace.
+    pub fn verification_presets(&self) -> Vec<crate::verification::VerificationPreset> {
+        VerificationRuntime::from_session(self).presets()
+    }
+}

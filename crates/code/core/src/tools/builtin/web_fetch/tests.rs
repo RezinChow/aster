@@ -1,0 +1,481 @@
+use super::super::safe_http::{build_proxy_client, parse_macos_proxy, validate_resolved_addresses};
+#[cfg(unix)]
+use super::super::safe_http::{command_output_with_timeout, SYSTEM_PROXY_LOOKUP_TIMEOUT};
+use super::*;
+use std::net::SocketAddr;
+
+#[test]
+fn test_html_to_text_basic() {
+    let html = "<p>Hello <b>world</b></p>";
+    let text = html_to_text(html);
+    assert!(text.contains("Hello"));
+    assert!(text.contains("world"));
+    assert!(!text.contains("<p>"));
+    assert!(!text.contains("<b>"));
+}
+
+#[test]
+fn test_html_to_text_entities() {
+    let html = "foo &amp; bar &lt; baz &gt; qux";
+    let text = html_to_text(html);
+    assert!(text.contains("foo & bar < baz > qux"));
+}
+
+#[test]
+fn test_html_to_text_strips_script() {
+    let html = "<p>before</p><script>alert('xss')</script><p>after</p>";
+    let text = html_to_text(html);
+    assert!(text.contains("before"));
+    assert!(text.contains("after"));
+    assert!(!text.contains("alert"));
+}
+
+#[test]
+fn test_html_to_text_multibyte_utf8() {
+    let html = "<p>Diseño español — café résumé naïve</p>";
+    let text = html_to_text(html);
+    assert!(text.contains("Diseño"));
+    assert!(text.contains("café"));
+    assert!(text.contains("résumé"));
+}
+
+#[test]
+fn test_html_refresh_location_handles_static_doc_redirect() {
+    let html = r#"<!doctype html><html>
+          <meta http-equiv="refresh" content="0; url=/docs/current/overview.html">
+          <h1>Redirecting&hellip;</h1>
+        </html>"#;
+
+    assert_eq!(
+        html_refresh_location(html).as_deref(),
+        Some("/docs/current/overview.html")
+    );
+}
+
+#[tokio::test]
+async fn test_web_fetch_invalid_url() {
+    let tool = WebFetchTool;
+    let ctx = ToolContext::new(std::path::PathBuf::from("/tmp"));
+
+    let result = tool
+        .execute(&serde_json::json!({"url": "not-a-url"}), &ctx)
+        .await
+        .unwrap();
+
+    assert!(!result.success);
+    assert!(result.content.contains("must start with"));
+}
+
+#[tokio::test]
+async fn test_web_fetch_missing_url() {
+    let tool = WebFetchTool;
+    let ctx = ToolContext::new(std::path::PathBuf::from("/tmp"));
+
+    let result = tool.execute(&serde_json::json!({}), &ctx).await.unwrap();
+    assert!(!result.success);
+}
+
+#[test]
+fn web_fetch_failure_classification_uses_typed_transport_state_only() {
+    let untyped = FetchFailure::untyped(
+        "A human-readable page says HTTP 429, rate limit, and too many requests.",
+    )
+    .into_tool_output();
+    assert_eq!(untyped.error_kind, None);
+
+    let rate_limited = FetchFailure::http_status(
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        Some(2_500),
+        "typed HTTP failure",
+    )
+    .into_tool_output();
+    assert_eq!(
+        rate_limited.error_kind,
+        Some(ToolErrorKind::RateLimited {
+            retry_after_ms: Some(2_500),
+        })
+    );
+
+    let unavailable = FetchFailure::http_status(
+        reqwest::StatusCode::SERVICE_UNAVAILABLE,
+        None,
+        "typed HTTP failure",
+    )
+    .into_tool_output();
+    assert_eq!(
+        unavailable.error_kind,
+        Some(ToolErrorKind::Transport {
+            op: "web_fetch".to_string(),
+        })
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires external network"]
+async fn real_system_proxy_fetches_official_https_source() {
+    let tool = WebFetchTool;
+    let ctx = ToolContext::new(std::path::PathBuf::from("/tmp"));
+    let result = tool
+        .execute(
+            &serde_json::json!({
+                "url": "https://tokio.rs/tokio/tutorial",
+                "format": "markdown",
+                "timeout": 20
+            }),
+            &ctx,
+        )
+        .await
+        .unwrap();
+    assert!(result.success, "{}", result.content);
+    assert!(result.content.to_ascii_lowercase().contains("tokio"));
+}
+
+#[test]
+fn test_web_fetch_schema_is_canonical() {
+    let tool = WebFetchTool;
+    let params = tool.parameters();
+    assert_eq!(params["additionalProperties"], false);
+    assert_eq!(params["required"], serde_json::json!(["url"]));
+    let examples = params["examples"].as_array().unwrap();
+    assert_eq!(examples[0]["url"], "https://example.com");
+    assert!(examples[0].get("link").is_none());
+}
+
+#[test]
+fn test_web_fetch_request_and_diagnostics_use_safe_url() {
+    let (request, anchor) = parse_safe_request_url(
+        "https://fetch-user:fetch-password@example.com/page?api_key=secret#private",
+    )
+    .unwrap();
+
+    assert_eq!(request.as_str(), "https://example.com/page");
+    assert_eq!(anchor, "https://example.com/page");
+    assert_eq!(safe_url_for_diagnostic(&request), anchor);
+    for secret in [
+        "fetch-user",
+        "fetch-password",
+        "api_key",
+        "secret",
+        "private",
+    ] {
+        assert!(!request.as_str().contains(secret));
+        assert!(!anchor.contains(secret));
+    }
+}
+
+#[test]
+fn test_web_fetch_request_preserves_functional_query_but_redacts_anchor() {
+    let (request, anchor) = parse_safe_request_url(
+            "https://api.example.com/scores?from=2026-07-09&to=2026-07-19&limit=20&api_key=secret#private",
+        )
+        .unwrap();
+
+    assert_eq!(
+        request.as_str(),
+        "https://api.example.com/scores?from=2026-07-09&to=2026-07-19&limit=20"
+    );
+    assert_eq!(anchor, "https://api.example.com/scores");
+    assert!(!request.as_str().contains("api_key"));
+    assert!(!request.as_str().contains("secret"));
+    assert!(!request.as_str().contains("private"));
+}
+
+#[test]
+fn test_web_fetch_blocks_non_public_literal_hosts() {
+    for url in [
+        "http://localhost/",
+        "http://sub.localhost/",
+        "http://127.0.0.1/",
+        "http://127.1/",
+        "http://2130706433/",
+        "http://0x7f000001/",
+        "http://10.0.0.1/",
+        "http://100.64.0.1/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://172.16.0.1/",
+        "http://192.168.1.1/",
+        "http://[::1]/",
+        "http://[fc00::1]/",
+        "http://[fe80::1]/",
+        "http://[::ffff:127.0.0.1]/",
+        "http://[2002:7f00:1::]/",
+    ] {
+        assert!(parse_http_url(url).is_err(), "{url} must be blocked");
+    }
+
+    assert!(parse_http_url("https://8.8.8.8/").is_ok());
+    assert!(parse_http_url("https://[2606:4700:4700::1111]/").is_ok());
+}
+
+#[test]
+fn test_web_fetch_revalidates_redirect_targets() {
+    let base = parse_http_url("https://example.com/public/page").unwrap();
+    assert!(redirect_target(&base, "/next").is_ok());
+    assert!(redirect_target(&base, "http://127.0.0.1/admin").is_err());
+    assert!(redirect_target(&base, "//169.254.169.254/latest/meta-data").is_err());
+    assert!(redirect_target(&base, "file:///etc/passwd").is_err());
+}
+
+#[test]
+fn test_web_fetch_rejects_mixed_public_private_dns_answers() {
+    let addresses = [
+        SocketAddr::from(([93, 184, 216, 34], 443)),
+        SocketAddr::from(([127, 0, 0, 1], 443)),
+    ];
+    assert!(validate_resolved_addresses("example.com", &addresses).is_err());
+    assert!(validate_resolved_addresses("example.com", &addresses[..1]).is_ok());
+    assert!(validate_resolved_addresses("example.com", &[]).is_err());
+    // Fake-IP stays blocked at the validation boundary; recovery is DoH in
+    // resolve_public_target, not a relaxation of this predicate.
+    assert!(validate_resolved_addresses(
+        "example.com",
+        &[SocketAddr::from(([198, 18, 0, 95], 443))]
+    )
+    .is_err());
+}
+
+#[test]
+fn test_web_fetch_proxy_mode_is_explicit_and_keeps_literal_ssrf_checks() {
+    assert!(build_proxy_client("http://127.0.0.1:7897").is_ok());
+    assert!(build_proxy_client("not a proxy URL").is_err());
+    assert!(parse_http_url("http://127.0.0.1/admin").is_err());
+    assert!(parse_http_url("http://169.254.169.254/latest/meta-data").is_err());
+    assert!(parse_http_url("https://www.jma.go.jp/").is_ok());
+}
+
+#[test]
+fn test_macos_system_proxy_parser_prefers_https() {
+    let text = r#"
+            HTTPEnable : 1
+            HTTPPort : 8080
+            HTTPProxy : 127.0.0.1
+            HTTPSEnable : 1
+            HTTPSPort : 7897
+            HTTPSProxy : proxy.local
+        "#;
+    assert_eq!(
+        parse_macos_proxy(text).as_deref(),
+        Some("http://proxy.local:7897")
+    );
+    assert_eq!(parse_macos_proxy("HTTPSEnable : 0"), None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_system_proxy_command_timeout_bounds_hanging_process() {
+    assert_eq!(
+        SYSTEM_PROXY_LOOKUP_TIMEOUT,
+        Duration::from_millis(750),
+        "macOS proxy detection must retain its bounded production budget"
+    );
+    let mut command = tokio::process::Command::new("/bin/sleep");
+    command.arg("30");
+    let started = std::time::Instant::now();
+
+    let output = command_output_with_timeout(command, Duration::from_millis(20)).await;
+
+    assert!(output.is_none());
+    assert!(
+        started.elapsed() < Duration::from_millis(1_500),
+        "proxy command timeout did not converge promptly: {:?}",
+        started.elapsed()
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_system_proxy_command_timeout_kills_descendants() {
+    let directory = tempfile::tempdir().unwrap();
+    let leaked = directory.path().join("proxy-probe-leak");
+    let mut command = tokio::process::Command::new("/bin/sh");
+    command.args([
+        "-c",
+        &format!("exec 1>&- 2>&-; sleep 0.30; touch '{}'", leaked.display()),
+    ]);
+
+    let output = command_output_with_timeout(command, Duration::from_millis(20)).await;
+
+    assert!(output.is_none());
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert!(
+        !leaked.exists(),
+        "a timed-out system proxy probe must not leave descendants"
+    );
+}
+
+#[test]
+fn test_html_to_markdown() {
+    let html = "<h1>Title</h1><p>Content here</p>";
+    let md = html_to_markdown(html);
+    assert!(md.contains("Title"));
+    assert!(md.contains("Content here"));
+    // htmd produces proper markdown headers
+    assert!(md.contains("# Title"));
+}
+
+#[test]
+fn markdown_conversion_drops_script_source_and_source_url_drops_query() {
+    let html = "<p>VISIBLE-91</p><script>fetch('https://evil.example/SCRIPT-TOKEN-91')</script><style>.x{color:red}</style>";
+    let markdown = html_to_markdown(html);
+    assert!(markdown.contains("VISIBLE-91"));
+    assert!(
+        !markdown.contains("SCRIPT-TOKEN-91"),
+        "markdown conversion kept script source: {markdown}"
+    );
+    assert!(!markdown.contains("color:red"));
+    assert_eq!(
+        super::super::safe_http_source_url(
+            "https://user:password@Example.COM/report?token=SECRET-91#x"
+        )
+        .as_deref(),
+        Some("https://example.com/report")
+    );
+}
+
+#[test]
+fn content_range_is_unicode_safe_and_resumable() {
+    let first = content_range("甲乙丙丁戊", 1, 2, usize::MAX).unwrap();
+    assert!(first.content.starts_with("乙丙"));
+    assert_eq!(first.returned_chars, 2);
+    assert_eq!(first.total_chars, 5);
+    assert_eq!(first.next_offset, Some(3));
+
+    let second = content_range("甲乙丙丁戊", 3, 2, usize::MAX).unwrap();
+    assert_eq!(second.content, "丁戊");
+    assert_eq!(second.next_offset, None);
+}
+
+#[test]
+fn html_body_extraction_excludes_head_content() {
+    let html = "<html><head><title>Hidden</title></head><body><main>Visible</main></body></html>";
+    let body = extract_html_body(html).unwrap();
+    assert!(body.contains("Visible"));
+    assert!(!body.contains("Hidden"));
+}
+
+#[test]
+fn html_primary_extraction_prefers_main_over_body_navigation() {
+    let html = "<html><body><nav>Noise</nav><main><article>Evidence</article></main><footer>Noise</footer></body></html>";
+    let main = extract_html_main(html).unwrap();
+    assert!(main.contains("Evidence"));
+    assert!(!main.contains("Noise"));
+}
+
+/// S-WF-01: private targets, including a hop-2 redirect, never connect.
+/// Body storage stays at the character cap. A public hop-1 cannot be bound
+/// on this host without opening the SSRF check, so accepted-body bounding
+/// goes through `content_range`, the same cap the tool applies after a fetch.
+#[tokio::test]
+#[ignore = "S-WF-01 soak: private redirects must not connect"]
+async fn soak_private_redirect_never_connects_and_body_stays_capped() {
+    use std::io::ErrorKind;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listener");
+    listener.set_nonblocking(true).expect("nonblocking");
+    let port = listener.local_addr().expect("addr").port();
+    let hits = Arc::new(AtomicUsize::new(0));
+    let stop = Arc::new(AtomicBool::new(false));
+    let accept_hits = Arc::clone(&hits);
+    let accept_stop = Arc::clone(&stop);
+    let acceptor = std::thread::spawn(move || {
+        while !accept_stop.load(Ordering::SeqCst) {
+            match listener.accept() {
+                Ok(_) => {
+                    accept_hits.fetch_add(1, Ordering::SeqCst);
+                }
+                Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let tool = WebFetchTool;
+    let context = crate::tools::ToolContext::new(std::env::temp_dir());
+    let private_url = format!("http://127.0.0.1:{port}/private");
+    for index in 0..50 {
+        let url = if index < 10 {
+            private_url.clone()
+        } else {
+            format!("http://127.0.0.1:{port}/ok")
+        };
+        let output = tool
+            .execute(&serde_json::json!({"url": url}), &context)
+            .await
+            .expect("typed deny, not a panic");
+        assert!(!output.success, "{}", output.content);
+        assert!(output.content.contains("non-public"), "{}", output.content);
+        assert!(!output.content.contains("PRIVATE-BODY"));
+    }
+
+    let base = parse_http_url("https://8.8.8.8/start").expect("public base");
+    for _ in 0..10 {
+        let error = redirect_target(&base, &private_url).expect_err("hop 2 must be denied");
+        assert!(
+            error.contains("non-public") || error.contains("blocked"),
+            "{error}"
+        );
+    }
+
+    let bulky = "A".repeat(200_000);
+    for _ in 0..40 {
+        let range = content_range(&bulky, 0, MAX_CONTENT_CHARS, usize::MAX).expect("range");
+        assert!(range.returned_chars <= MAX_CONTENT_CHARS);
+        assert!(range.content.chars().count() <= MAX_CONTENT_CHARS + 80);
+    }
+
+    stop.store(true, Ordering::SeqCst);
+    acceptor.join().expect("acceptor");
+    assert_eq!(hits.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn content_range_stops_inside_the_byte_budget_on_a_char_boundary() {
+    let range = content_range("甲乙丙丁戊", 0, 50, 7).unwrap();
+    assert!(range.content.starts_with("甲乙"));
+    assert_eq!(range.returned_chars, 2);
+    assert_eq!(range.next_offset, Some(2));
+    let first = content_range("甲乙丙丁戊", 0, 50, 1).unwrap();
+    assert_eq!(first.returned_chars, 1, "one char always returns");
+}
+
+#[tokio::test]
+async fn a_multi_page_fetch_retains_the_full_text_for_read_and_grep() {
+    let store = crate::tools::ArtifactStore::new();
+    let ctx = ToolContext::new(std::env::temp_dir()).with_artifact_store(store.clone());
+    let page = (0..3000)
+        .map(|index| format!("paragraph {index:04}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\nNEEDLE at the end\n";
+    let budget = crate::tools::ToolResultTransformPolicyV1::default().max_output_bytes;
+    let range = content_range(&page, 0, DEFAULT_MAX_CHARS, page_byte_budget(budget)).unwrap();
+    let uri = retain_full_text(&ctx, &page, &range, 0).expect("multi-page fetch retains");
+    assert!(uri.starts_with("a3s://tool-output/web_fetch/"));
+    assert!(full_text_note(&uri).len() <= FULL_TEXT_NOTE_RESERVE_BYTES);
+    assert!(
+        range.content.len() + full_text_note(&uri).len() <= budget,
+        "a page with its notes must not be bounded again"
+    );
+    assert_eq!(store.get(&uri).unwrap().content, page);
+    assert_eq!(retain_full_text(&ctx, &page, &range, 0), Some(uri.clone()));
+
+    let grep = crate::tools::artifact_view::grep(&ctx, &uri, "NEEDLE", false, 0, 10);
+    assert!(grep.success, "{}", grep.content);
+    assert!(grep.content.contains("3001"), "{}", grep.content);
+    let read = crate::tools::artifact_view::read_page(&ctx, &uri, 2999, 5, 0);
+    assert!(
+        read.content.contains("NEEDLE at the end"),
+        "{}",
+        read.content
+    );
+
+    let whole = content_range("short page", 0, DEFAULT_MAX_CHARS, 16 * 1024).unwrap();
+    assert_eq!(retain_full_text(&ctx, "short page", &whole, 0), None);
+    let bare = ToolContext::new(std::env::temp_dir());
+    assert_eq!(retain_full_text(&bare, &page, &range, 0), None);
+}

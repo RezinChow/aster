@@ -1,0 +1,24 @@
+[package]
+license = "Apache-2.0"
+name = "ptyctl"
+version = "0.1.0"
+description = "Headless PTY controller built on alacritty_terminal"
+publish = false
+edition = "2024"
+
+[dependencies]
+alacritty_terminal = {version = "0.26.0"}
+portable-pty = {workspace = true}
+terminput = {version = "0.3"}
+tokio = {workspace = true}
+axum = {workspace = true}
+futures-util = {workspace = true}
+tower-http = {version = "0.6", features = ["cors"]}
+serde = {workspace = true}
+serde_json = {workspace = true}
+anyhow = {workspace = true}
+log = {workspace = true}
+regex = {workspace = true}
+
+[dev-dependencies]
+tokio = {version = "1", features = ["full", "test-util"]}

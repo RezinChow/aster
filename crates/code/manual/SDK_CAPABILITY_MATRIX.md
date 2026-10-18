@@ -1,0 +1,102 @@
+# A3S Code SDK capability matrix
+
+This is the release contract for the Rust, Node.js, Python, and Go SDKs. The
+Core function `sdk_capabilities()` is the single source of truth; the bindings
+project the same ordered records and do not maintain a second, hand-written
+feature list.
+
+## Discovery
+
+```rust
+let capabilities = a3s_code_core::sdk_capabilities();
+```
+
+```js
+const { sdkCapabilities, sdkCapabilitiesSchema } = require('@a3s-lab/code')
+```
+
+```python
+from a3s_code import sdk_capabilities, sdk_capabilities_schema
+```
+
+```go
+capabilities := agent.ProductCapabilities()
+```
+
+Every record has a stable `id`, a category, canonical Core operation names, a
+description, and `host_owned`. `host_owned` identifies the policy, credential,
+or external lifecycle owner; it is not an SDK availability flag. An operation
+can still return a typed unavailable/policy error when the host has not
+enabled its required resource.
+
+Every record also has a `tier` (`baseline` | `advanced`). Use
+`sdk_baseline_capabilities()` for the thin coding harness, and treat Advanced
+IDs as requiring an explicit Cargo profile (`advanced-harness`,
+`headless-search`, `s3`, `telemetry`, profile `server` (= s3+telemetry), …) or host injection.
+
+## Product capabilities
+
+| ID | Tier | Feature / gate | SDK entrypoint shape | Host-owned boundary |
+| --- | --- | --- | --- | --- |
+| `agent_runtime` | baseline | `local-code` | `Agent.create` / `Agent.createFromConfig`, session factories, close | No |
+| `conversation` | baseline | `local-code` | `send`, `run`, `stream`, attachments, history, cancel | User identity and interaction policy |
+| `governed_tools` | baseline | `local-code` | `Session.tool`, `governedTool` / `governed_tool`, Go `Tool` / `GovernedTool` | Policy and confirmation are host decisions |
+| `workspace_tools` | baseline | `local-code` | File, shell, glob, grep, Git, `download`, and `batch` helpers | Workspace boundary and authorization |
+| `web_search` | baseline | `local-code` (HTTP/RSS/API) | `webSearch` / `web_search` and generic `Tool` | Network, proxy, and engine policy |
+| `web_fetch` | baseline | `local-code` | Governed `web_fetch` URL → text/markdown | Network, size, and redirect bounds |
+| `workspace_retrieval` | baseline | `local-code` (+ host embedding for semantic/hybrid) | `workspaceRetrievalStatus`, `semanticSearch`, `hybridSearch` | Embedding callback and workspace source |
+| `context_memory` | baseline | host memory store | Memory record/recall/health methods | Memory store and retention policy |
+| `planning_delegation` | baseline | `local-code` | Unified `task` / `tasks` (multi-item fan-out); `parallel_task` removed | Worker model and execution budget |
+| `program` | baseline | `local-code` | Bounded QuickJS `program` tool | Script policy |
+| `priority_scheduling` | baseline | `local-code` | Scheduler options, stats, queue APIs | Host chooses capacity and priority |
+| `persistence` | baseline | `local-code` | Save, resume, artifacts, traces, snapshots | Store location and retention |
+| `governance` | baseline | `local-code` | Confirmations, permissions, hooks, budgets, verification | Host authorization and trust decisions |
+| `run_control` | baseline | `local-code` | `steer`, `interrupt`, `runControlSnapshot` | Host approval, run identity, and lifecycle policy |
+| `model_adapters` | baseline | `local-code` | ACL or typed `CodeConfig` construction | Provider credentials and network policy |
+| `structured_output` | baseline | `local-code` | Request/task/program object options | Model/provider schema support |
+| `mcp_and_skills` | baseline | `local-code` | MCP and Skill discovery/mutation methods | Child process, URL, and credential policy |
+| `run_observability` | baseline | `local-code` | Run snapshots, pages, active tools, child tasks, traces | Evidence retention policy |
+| `code_intelligence` | advanced | host language service | `Session.tool("code_symbols" …)` | Workspace language service |
+| `cognitive_packages` | advanced | host injection | Exact binding inspection and run evidence | A3S Use/Knowledge host supplies the package |
+| `use_runtime_tasks` | advanced | host injection | Governed runtime task tool | A3S Use owns grants and package lifecycle |
+| `programmable_workflows` | advanced | host Workflow APIs; Flow needs `advanced-harness` | `parallel`, resumable workflow methods (not baseline `program`) | Script and Flow policy |
+| `state_graph` | advanced | `advanced-harness` | Node/Python/Go `StateGraphRuntime` | Graph persistence owner |
+| `agent_release_contract` | advanced | always compiled helpers | Release admission/verification through host runtime | Artifact publication and provenance |
+| `agent_protocol` | advanced | always compiled helpers | Versioned harness/bridge event and recovery operations | Service transport owner |
+| `evaluation_substrate` | advanced | `advanced-harness` | Bounded evidence / auxiliary / dispatch / result wire | Evaluation host policy |
+| `typed_decisions` | advanced | `apofasi` (+ optional `apofasi-infer` / `apofasi-metal`) | Host-called `TypedDecisionService` / receipts (not Use-projected) | Call sites, GatePolicy thresholds, neural checkpoints |
+| `moli_runtime` | advanced | `headless-search` | Default Moli provisioning via web search; packaged/cache diagnostics | Shared cache and executable ownership |
+| `s3_workspace` | advanced | `s3` (also profile `server`) | Typed S3 workspace provider options | Object-store credentials and endpoint |
+| `opentelemetry` | advanced | `telemetry` (also profile `server`) | Core telemetry configuration and trace inspection | Collector endpoint and export policy |
+
+The exact set and order are tested by Core, Node, Python, and Go bridge
+qualification. Use the discovery endpoint for optional-feature checks; do not
+infer support from a package's file layout.
+
+## Extension boundary
+
+Rust can additionally accept arbitrary in-process trait objects (for example a
+custom `LlmClient`, `ContextProvider`, `MemoryStore`, `BashSandbox`, or a
+`Tool`). Those are implementation extension points, not separate product
+capabilities. Node.js, Python, and Go expose the corresponding value-shaped
+configuration and callback transports wherever a safe adapter exists. A raw
+Rust trait object is never silently dropped at an FFI boundary; unsupported
+custom implementations fail with a typed configuration error and the built-in
+capability remains available.
+
+The parity checker (`scripts/sdk_api_alignment_check.mjs`) and the capability
+verification ledger run in release CI. They fail when a product capability,
+event type, or required Agent/Session operation disappears from one official
+SDK.
+
+`SessionOptions.workspace_read_overlay` (`workspaceReadOverlay` in Node) accepts
+an immutable map of workspace-relative paths to client-held text in all three
+SDKs. Text reads prefer the snapshot and fall back to the backend for absent
+paths; writes still use the backend. Paths are normalized and validated at
+session construction, duplicate normalized paths and text over 16 MiB per file
+are refused. Effect isolation ignores the snapshot. A Rust editor host can use
+the existing `WorkspaceReadOverlay` trait for live buffer updates.
+
+Related: [CAPABILITY_INTEGRATED_USE_LEDGER.md](CAPABILITY_INTEGRATED_USE_LEDGER.md)
+(dated effective / efficient / integrated-use snapshot) and
+[FULL_FEATURE_TEST_PLAN.md](FULL_FEATURE_TEST_PLAN.md) §14 (release handoff).

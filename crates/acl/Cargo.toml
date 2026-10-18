@@ -1,0 +1,16 @@
+[package]
+name = "a3s-acl"
+version = "0.3.0"
+edition = "2021"
+description = "Parser and generator for the A3S Agent Configuration Language"
+license = "MIT"
+repository = "https://github.com/A3S-Lab/ACL"
+publish = false
+
+[dependencies]
+ryu-js = "1.0.3"
+sha2 = {workspace = true}
+
+[dev-dependencies]
+serde = {workspace = true}
+serde_json = {workspace = true}

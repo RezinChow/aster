@@ -1,0 +1,1595 @@
+use super::*;
+
+#[test]
+fn report_from_required_program_hint_needs_review() {
+    let hints = vec![
+        ProgramVerificationHint::new("inspect_matches", "Review matched files")
+            .required()
+            .with_suggested_tools(["read", "search"])
+            .with_evidence_uris(["a3s://tool-output/grep/abc"]),
+    ];
+
+    let report = VerificationReport::from_program_hints("program_code_search", &hints);
+
+    assert_eq!(report.schema, VERIFICATION_REPORT_SCHEMA);
+    assert_eq!(report.subject, "program:program_code_search");
+    assert_eq!(report.status, VerificationStatus::NeedsReview);
+    assert!(!report.is_complete());
+    assert_eq!(report.checks[0].kind, "inspect_matches");
+    assert_eq!(report.checks[0].suggested_tools, vec!["read", "search"]);
+    assert_eq!(
+        report.checks[0].evidence_uris,
+        vec!["a3s://tool-output/grep/abc"]
+    );
+}
+
+#[test]
+fn report_passes_when_required_checks_pass() {
+    let check = VerificationCheck::required("check:build", "run_build", "Run build")
+        .with_status(VerificationStatus::Passed);
+
+    let report = VerificationReport::new("turn", vec![check]);
+
+    assert_eq!(report.status, VerificationStatus::Passed);
+    assert!(report.is_complete());
+}
+
+#[test]
+fn report_fails_when_any_check_fails() {
+    let check = VerificationCheck::required("check:test", "run_tests", "Run tests")
+        .with_status(VerificationStatus::Failed);
+
+    let report = VerificationReport::new("turn", vec![check]);
+
+    assert_eq!(report.status, VerificationStatus::Failed);
+    assert!(report.is_complete());
+}
+
+#[test]
+fn static_verifier_builds_report() {
+    let verifier = StaticVerifier::new("turn");
+    let check = VerificationCheck::optional("check:review", "review", "Review diff")
+        .with_status(VerificationStatus::Passed);
+
+    let report = verifier.verify(vec![check]).unwrap();
+
+    assert_eq!(report.subject, "turn");
+    assert_eq!(report.status, VerificationStatus::Passed);
+}
+
+#[test]
+fn verification_command_builds_passed_check_with_evidence() {
+    let command = VerificationCommand::required(
+        "check:build",
+        "type_check",
+        "Run cargo check",
+        "cargo check",
+    );
+
+    let check = command.check_from_execution(
+        0,
+        Some(&serde_json::json!({
+            "artifact": {
+                "artifact_uri": "a3s://tool-output/bash/abc"
+            }
+        })),
+        None,
+    );
+
+    assert_eq!(check.status, VerificationStatus::Passed);
+    assert!(check.required);
+    assert_eq!(check.suggested_tools, vec!["bash"]);
+    assert_eq!(check.evidence_uris, vec!["a3s://tool-output/bash/abc"]);
+    assert!(check.residual_risk.is_none());
+}
+
+#[test]
+fn verification_command_builds_failed_check_from_exit_code() {
+    let command =
+        VerificationCommand::required("check:test", "test", "Run test suite", "cargo test");
+
+    let check = command.check_from_execution(101, None, None);
+
+    assert_eq!(check.status, VerificationStatus::Failed);
+    assert_eq!(
+        check.residual_risk.as_deref(),
+        Some("verification command exited with code 101, expected 0: cargo test")
+    );
+}
+
+#[test]
+fn rust_workspace_preset_uses_cargo_commands() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"demo\"\n",
+    )
+    .unwrap();
+
+    let presets = verification_presets_for_workspace(dir.path());
+
+    assert_eq!(presets.len(), 1);
+    assert_eq!(presets[0].project_kind, "rust");
+    assert_eq!(presets[0].commands[0].command, "cargo fmt -- --check");
+    assert!(presets[0]
+        .commands
+        .iter()
+        .any(|command| command.command == "cargo test"));
+}
+
+#[test]
+fn node_workspace_preset_uses_declared_scripts_only() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("package.json"),
+        r#"{
+            "packageManager": "pnpm@9.0.0",
+            "scripts": {
+                "test": "vitest",
+                "lint": "eslint ."
+            }
+        }"#,
+    )
+    .unwrap();
+
+    let presets = verification_presets_for_workspace(dir.path());
+
+    assert_eq!(presets.len(), 1);
+    assert_eq!(presets[0].project_kind, "node");
+    assert_eq!(presets[0].commands.len(), 2);
+    assert_eq!(presets[0].commands[0].command, "pnpm test");
+    assert_eq!(presets[0].commands[1].command, "pnpm lint");
+}
+
+#[test]
+fn python_workspace_preset_requires_clear_markers() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("pyproject.toml"),
+        "[tool.pytest.ini_options]\n[tool.ruff]\n",
+    )
+    .unwrap();
+
+    let presets = verification_presets_for_workspace(dir.path());
+
+    assert_eq!(presets.len(), 1);
+    assert_eq!(presets[0].project_kind, "python");
+    assert_eq!(presets[0].commands[0].command, "python -m pytest");
+    assert_eq!(presets[0].commands[1].command, "python -m ruff check .");
+}
+
+#[test]
+fn summary_skips_empty_reports() {
+    let summary = VerificationSummary::from_reports(&[]);
+
+    assert_eq!(summary.status, VerificationStatus::Skipped);
+    assert_eq!(summary.report_count, 0);
+    assert!(summary.is_complete());
+}
+
+#[test]
+fn summary_tracks_pending_required_checks() {
+    let report = VerificationReport::new(
+        "program:search",
+        vec![VerificationCheck::required(
+            "check:inspect",
+            "inspect_matches",
+            "Inspect matches",
+        )],
+    );
+
+    let summary = VerificationSummary::from_reports(&[report]);
+
+    assert_eq!(summary.status, VerificationStatus::NeedsReview);
+    assert_eq!(summary.report_count, 1);
+    assert_eq!(summary.required_check_count, 1);
+    assert_eq!(summary.pending_required_check_count, 1);
+    assert_eq!(summary.pending_subjects, vec!["program:search"]);
+    assert!(!summary.is_complete());
+}
+
+#[test]
+fn summary_prioritizes_failed_checks() {
+    let failed = VerificationReport::new(
+        "program:test",
+        vec![
+            VerificationCheck::required("check:test", "test", "Run tests")
+                .with_status(VerificationStatus::Failed),
+        ],
+    );
+    let pending = VerificationReport::new(
+        "program:search",
+        vec![VerificationCheck::required(
+            "check:inspect",
+            "inspect_matches",
+            "Inspect matches",
+        )],
+    );
+
+    let summary = VerificationSummary::from_reports(&[pending, failed]);
+
+    assert_eq!(summary.status, VerificationStatus::Failed);
+    assert_eq!(summary.failed_check_count, 1);
+    assert_eq!(summary.failed_subjects, vec!["program:test"]);
+    assert!(summary.is_complete());
+}
+
+#[test]
+fn summary_passes_when_reports_pass() {
+    let report = VerificationReport::new(
+        "turn",
+        vec![
+            VerificationCheck::required("check:build", "build", "Run build")
+                .with_status(VerificationStatus::Passed),
+        ],
+    );
+
+    let summary = VerificationSummary::from_reports(&[report]);
+
+    assert_eq!(summary.status, VerificationStatus::Passed);
+    assert_eq!(summary.pending_required_check_count, 0);
+    assert_eq!(summary.failed_check_count, 0);
+}
+
+#[test]
+fn format_summary_includes_actionable_counts_and_subjects() {
+    let failed = VerificationReport::new(
+        "program:test",
+        vec![
+            VerificationCheck::required("check:test", "test", "Run tests")
+                .with_status(VerificationStatus::Failed),
+        ],
+    );
+    let pending = VerificationReport::new(
+        "program:search",
+        vec![VerificationCheck::required(
+            "check:review",
+            "review",
+            "Review matches",
+        )],
+    );
+
+    let summary = VerificationSummary::from_reports(&[failed, pending]);
+    let text = format_verification_summary(&summary);
+
+    assert!(text.contains("Verification failed"));
+    assert!(text.contains("1 failed check"));
+    assert!(text.contains("program:test"));
+    assert!(text.contains("2 reports"));
+    assert!(text.contains("2 required checks"));
+}
+
+#[test]
+fn format_summary_skipped_mentions_no_reports() {
+    let summary = VerificationSummary::from_reports(&[]);
+
+    assert_eq!(
+        format_verification_summary(&summary),
+        "Verification skipped: no reports."
+    );
+}
+
+#[test]
+fn format_summary_needs_review_mentions_pending_subject() {
+    let report = VerificationReport::new(
+        "program:search",
+        vec![VerificationCheck::required(
+            "check:review",
+            "review",
+            "Review matches",
+        )],
+    );
+    let summary = VerificationSummary::from_reports(&[report]);
+    let text = format_verification_summary(&summary);
+
+    assert!(text.contains("Verification needs review"));
+    assert!(text.contains("1 pending required check"));
+    assert!(text.contains("program:search"));
+}
+
+#[test]
+fn format_summary_mentions_residual_risks() {
+    let report = VerificationReport::new(
+        "turn",
+        vec![
+            VerificationCheck::required("check:build", "build", "Run build")
+                .with_status(VerificationStatus::Passed)
+                .with_residual_risk("build did not cover integration tests"),
+        ],
+    );
+    let summary = VerificationSummary::from_reports(&[report]);
+    let text = format_verification_summary(&summary);
+
+    assert!(text.contains("Verification needs review"));
+    assert!(text.contains("Residual risks: 1."));
+}
+
+#[test]
+fn goal_achievement_gate_requires_passed_required_checks() {
+    assert!(!goal_achieved_after_evidence_gate(true, &[]));
+    assert!(!goal_achieved_after_evidence_gate(false, &[]));
+
+    let optional_only = VerificationReport::new(
+        "turn",
+        vec![VerificationCheck::optional("opt", "lint", "optional lint")
+            .with_status(VerificationStatus::Passed)],
+    );
+    assert!(
+        !goal_achieved_after_evidence_gate(true, &[optional_only]),
+        "optional-only passes must not authorize GoalAchieved"
+    );
+
+    let required_passed = VerificationReport::new(
+        "shell:rust:test",
+        vec![
+            VerificationCheck::required("rust:test", "test", "Run Rust tests")
+                .with_status(VerificationStatus::Passed),
+        ],
+    );
+    assert!(goal_achieved_after_evidence_gate(
+        true,
+        std::slice::from_ref(&required_passed)
+    ));
+    assert!(!goal_achieved_after_evidence_gate(
+        false,
+        &[required_passed]
+    ));
+
+    let required_failed = VerificationReport::new(
+        "shell:rust:test",
+        vec![
+            VerificationCheck::required("rust:test", "test", "Run Rust tests")
+                .with_status(VerificationStatus::Failed),
+        ],
+    );
+    assert!(!goal_achieved_after_evidence_gate(true, &[required_failed]));
+    assert!(should_emit_goal_achieved(
+        true,
+        &[VerificationReport::new(
+            "shell:rust:test",
+            vec![
+                VerificationCheck::required("rust:test", "test", "Run Rust tests")
+                    .with_status(VerificationStatus::Passed)
+            ],
+        )]
+    ));
+    assert!(!should_emit_goal_achieved(true, &[]));
+}
+
+fn write_active_loop_state(loop_dir: &std::path::Path, status: &str) {
+    std::fs::write(
+        loop_dir.join("STATE.md"),
+        format!("Status: {status}\nPhase: executing\n"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn goal_emit_requires_acceptance_report_when_machine_acceptance_exists() {
+    let root = tempfile::tempdir().unwrap();
+    let loop_dir = root
+        .path()
+        .join(".a3s")
+        .join("loops")
+        .join("goal-emit-gate");
+    std::fs::create_dir_all(&loop_dir).unwrap();
+    write_active_loop_state(&loop_dir, "running");
+    // Single criterion line so parse line-id is `:1` (matches report subjects below).
+    std::fs::write(
+        loop_dir.join("ACCEPTANCE.md"),
+        "- [ ] kind:command assert:`true` expect:exit=0\n",
+    )
+    .unwrap();
+
+    let preset_only = VerificationReport::new(
+        "shell:rust:test",
+        vec![
+            VerificationCheck::required("rust:test", "test", "Run Rust tests")
+                .with_status(VerificationStatus::Passed),
+        ],
+    );
+    assert!(
+        !should_emit_goal_achieved_for_workspace(true, std::slice::from_ref(&preset_only), Some(root.path())),
+        "workspace preset alone must not authorize GoalAchieved when ACCEPTANCE machine criteria exist"
+    );
+
+    let acceptance = VerificationReport::new(
+        "shell:acceptance:goal-emit-gate:1",
+        vec![VerificationCheck::required(
+            "acceptance:goal-emit-gate:1",
+            "acceptance_command",
+            "ACCEPTANCE kind:command",
+        )
+        .with_status(VerificationStatus::Passed)],
+    );
+    assert!(should_emit_goal_achieved_for_workspace(
+        true,
+        &[preset_only, acceptance],
+        Some(root.path()),
+    ));
+
+    // No machine ACCEPTANCE → preset path remains valid for ordinary goal_tracking.
+    let bare = tempfile::tempdir().unwrap();
+    assert!(should_emit_goal_achieved_for_workspace(
+        true,
+        &[VerificationReport::new(
+            "shell:rust:test",
+            vec![
+                VerificationCheck::required("rust:test", "test", "Run Rust tests")
+                    .with_status(VerificationStatus::Passed)
+            ],
+        )],
+        Some(bare.path()),
+    ));
+}
+
+#[test]
+fn stale_completed_loop_acceptance_does_not_authorize_or_pollute_active_goal() {
+    let root = tempfile::tempdir().unwrap();
+    let loops = root.path().join(".a3s").join("loops");
+
+    let stale = loops.join("goal-stale-old");
+    std::fs::create_dir_all(&stale).unwrap();
+    write_active_loop_state(&stale, "verified");
+    std::fs::write(
+        stale.join("ACCEPTANCE.md"),
+        "- [x] kind:command assert:`true` expect:exit=0\n",
+    )
+    .unwrap();
+
+    let active = loops.join("goal-active-now");
+    std::fs::create_dir_all(&active).unwrap();
+    write_active_loop_state(&active, "running");
+    std::fs::write(
+        active.join("ACCEPTANCE.md"),
+        "- [ ] kind:command assert:`false` expect:exit=0\n",
+    )
+    .unwrap();
+
+    let commands = acceptance_shell_commands_for_workspace(root.path());
+    assert_eq!(commands.len(), 1, "{commands:?}");
+    assert_eq!(commands[0].id, "acceptance:goal-active-now:1");
+    assert_eq!(commands[0].command, "false");
+
+    let preset = VerificationReport::new(
+        "shell:rust:test",
+        vec![
+            VerificationCheck::required("rust:test", "test", "Run Rust tests")
+                .with_status(VerificationStatus::Passed),
+        ],
+    );
+    let stale_report = VerificationReport::new(
+        "shell:acceptance:goal-stale-old:1",
+        vec![VerificationCheck::required(
+            "acceptance:goal-stale-old:1",
+            "acceptance_command",
+            "stale ACCEPTANCE",
+        )
+        .with_status(VerificationStatus::Passed)],
+    );
+    assert!(
+        !should_emit_goal_achieved_for_workspace(
+            true,
+            &[preset.clone(), stale_report],
+            Some(root.path()),
+        ),
+        "completed-loop ACCEPTANCE report must not authorize emit for a different active goal"
+    );
+
+    let active_report = VerificationReport::new(
+        "shell:acceptance:goal-active-now:1",
+        vec![VerificationCheck::required(
+            "acceptance:goal-active-now:1",
+            "acceptance_command",
+            "active ACCEPTANCE",
+        )
+        .with_status(VerificationStatus::Passed)],
+    );
+    assert!(should_emit_goal_achieved_for_workspace(
+        true,
+        &[preset, active_report],
+        Some(root.path()),
+    ));
+
+    // Only completed loops → no active durable contract → preset path remains valid.
+    let only_stale = tempfile::tempdir().unwrap();
+    let only_stale_loop = only_stale
+        .path()
+        .join(".a3s")
+        .join("loops")
+        .join("goal-done");
+    std::fs::create_dir_all(&only_stale_loop).unwrap();
+    write_active_loop_state(&only_stale_loop, "achieved");
+    std::fs::write(
+        only_stale_loop.join("ACCEPTANCE.md"),
+        "- [x] kind:command assert:`true` expect:exit=0\n",
+    )
+    .unwrap();
+    assert!(acceptance_shell_commands_for_workspace(only_stale.path()).is_empty());
+    assert!(should_emit_goal_achieved_for_workspace(
+        true,
+        &[VerificationReport::new(
+            "shell:rust:test",
+            vec![
+                VerificationCheck::required("rust:test", "test", "Run Rust tests")
+                    .with_status(VerificationStatus::Passed)
+            ],
+        )],
+        Some(only_stale.path()),
+    ));
+}
+
+#[test]
+fn each_active_loop_needs_its_own_acceptance_report_before_goal_emit() {
+    let root = tempfile::tempdir().unwrap();
+    let loops = root.path().join(".a3s").join("loops");
+
+    let orphan = loops.join("goal-orphan-easy");
+    std::fs::create_dir_all(&orphan).unwrap();
+    write_active_loop_state(&orphan, "running");
+    std::fs::write(
+        orphan.join("ACCEPTANCE.md"),
+        "- [x] kind:command assert:`true` expect:exit=0\n",
+    )
+    .unwrap();
+
+    let current = loops.join("goal-current-hard");
+    std::fs::create_dir_all(&current).unwrap();
+    write_active_loop_state(&current, "running");
+    std::fs::write(
+        current.join("ACCEPTANCE.md"),
+        "- [ ] kind:command assert:`false` expect:exit=0\n",
+    )
+    .unwrap();
+
+    let commands = acceptance_shell_commands_for_workspace(root.path());
+    assert_eq!(commands.len(), 2, "{commands:?}");
+
+    let preset = VerificationReport::new(
+        "shell:rust:test",
+        vec![
+            VerificationCheck::required("rust:test", "test", "Run Rust tests")
+                .with_status(VerificationStatus::Passed),
+        ],
+    );
+    let orphan_report = VerificationReport::new(
+        "shell:acceptance:goal-orphan-easy:1",
+        vec![VerificationCheck::required(
+            "acceptance:goal-orphan-easy:1",
+            "acceptance_command",
+            "orphan ACCEPTANCE",
+        )
+        .with_status(VerificationStatus::Passed)],
+    );
+    assert!(
+        !should_emit_goal_achieved_for_workspace(
+            true,
+            &[preset.clone(), orphan_report.clone()],
+            Some(root.path()),
+        ),
+        "sibling/orphaned active-loop report must not authorize emit for another active loop"
+    );
+
+    let current_report = VerificationReport::new(
+        "shell:acceptance:goal-current-hard:1",
+        vec![VerificationCheck::required(
+            "acceptance:goal-current-hard:1",
+            "acceptance_command",
+            "current ACCEPTANCE",
+        )
+        .with_status(VerificationStatus::Passed)],
+    );
+    assert!(
+        !should_emit_goal_achieved_for_workspace(
+            true,
+            &[preset.clone(), current_report.clone()],
+            Some(root.path()),
+        ),
+        "current-loop report alone is insufficient while another active loop still owns criteria"
+    );
+    assert!(should_emit_goal_achieved_for_workspace(
+        true,
+        &[preset, orphan_report, current_report],
+        Some(root.path()),
+    ));
+}
+
+#[test]
+fn shell_command_covers_preset_matches_exact_and_trailing_args() {
+    assert!(shell_command_covers_preset("cargo test", "cargo test"));
+    assert!(shell_command_covers_preset(
+        "cargo test -p a3s-code-core",
+        "cargo test"
+    ));
+    assert!(shell_command_covers_preset(
+        "echo hi && cargo test",
+        "cargo test"
+    ));
+    assert!(!shell_command_covers_preset("cargo check", "cargo test"));
+    assert!(!shell_command_covers_preset(
+        "echo cargo test",
+        "cargo test"
+    ));
+}
+
+#[test]
+fn shell_verification_report_attaches_for_workspace_preset_commands() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("Cargo.toml"), "[package]\nname=\"demo\"\n").unwrap();
+    let report = shell_verification_report_for_command(
+        root.path(),
+        "cargo test -p demo",
+        0,
+        Some(&serde_json::json!({"exit_code": 0})),
+        None,
+    )
+    .expect("rust preset should match cargo test");
+    assert_eq!(report.subject, "shell:rust:test");
+    assert_eq!(report.status, VerificationStatus::Passed);
+    assert!(report.checks.iter().any(|check| check.required));
+}
+
+#[test]
+fn shell_verification_report_attaches_for_goal_acceptance_commands() {
+    let root = tempfile::tempdir().unwrap();
+    let loop_dir = root
+        .path()
+        .join(".a3s")
+        .join("loops")
+        .join("goal-demo-abcd");
+    std::fs::create_dir_all(&loop_dir).unwrap();
+    write_active_loop_state(&loop_dir, "running");
+    std::fs::write(
+        loop_dir.join("ACCEPTANCE.md"),
+        "# Acceptance\n\n\
+         - [ ] kind:command assert:`true` expect:exit=0\n\
+         - [x] kind:file_exists assert:README.md\n\
+         - [ ] kind:manual assert:reviewed\n",
+    )
+    .unwrap();
+
+    let commands = acceptance_shell_commands_for_workspace(root.path());
+    assert_eq!(commands.len(), 2, "{commands:?}");
+    assert_eq!(commands[0].command, "true");
+    assert_eq!(commands[0].expect_exit, 0);
+    assert_eq!(commands[1].command, "test -f README.md");
+    assert_eq!(commands[1].expect_exit, 0);
+
+    let report = shell_verification_report_for_command(
+        root.path(),
+        "true",
+        0,
+        Some(&serde_json::json!({"exit_code": 0})),
+        None,
+    )
+    .expect("ACCEPTANCE kind:command should produce a Core verification report");
+    assert!(report.subject.contains("acceptance:goal-demo-abcd"));
+    assert_eq!(report.status, VerificationStatus::Passed);
+    assert!(
+        VerificationSummary::from_reports(std::slice::from_ref(&report))
+            .supports_goal_achievement(),
+        "passing ACCEPTANCE command evidence must authorize GoalAchieved gate"
+    );
+
+    let failed = shell_verification_report_for_command(root.path(), "true", 1, None, None)
+        .expect("failed exit still yields a report");
+    assert_eq!(failed.status, VerificationStatus::Failed);
+    assert!(!VerificationSummary::from_reports(&[failed]).supports_goal_achievement());
+
+    let file_ok = shell_verification_report_for_command(
+        root.path(),
+        "test -f README.md",
+        0,
+        Some(&serde_json::json!({"exit_code": 0})),
+        None,
+    )
+    .expect("ACCEPTANCE kind:file_exists must attach via synthesized test -f");
+    assert!(file_ok.subject.contains("acceptance:goal-demo-abcd"));
+    assert_eq!(file_ok.status, VerificationStatus::Passed);
+    assert!(VerificationSummary::from_reports(&[file_ok]).supports_goal_achievement());
+
+    let file_missing =
+        shell_verification_report_for_command(root.path(), "test -f README.md", 1, None, None)
+            .expect("missing file still yields a report");
+    assert_eq!(file_missing.status, VerificationStatus::Failed);
+    assert!(!VerificationSummary::from_reports(&[file_missing]).supports_goal_achievement());
+}
+
+#[test]
+fn acceptance_file_exists_quotes_paths_with_spaces() {
+    let root = tempfile::tempdir().unwrap();
+    let body = "# Acceptance\n\n\
+         - [ ] kind:file_exists assert:`docs/my file.md`\n";
+    let commands = super::parse_acceptance_shell_commands(body, "goal-quote", root.path());
+    assert_eq!(commands.len(), 1, "{commands:?}");
+    assert_eq!(commands[0].command, "test -f 'docs/my file.md'");
+}
+
+#[test]
+fn acceptance_file_exists_skips_paths_that_escape_workspace() {
+    let root = tempfile::tempdir().unwrap();
+    let loop_dir = root.path().join(".a3s").join("loops").join("goal-escape");
+    std::fs::create_dir_all(&loop_dir).unwrap();
+    write_active_loop_state(&loop_dir, "running");
+    std::fs::write(
+        loop_dir.join("ACCEPTANCE.md"),
+        "- [ ] kind:file_exists assert:../outside.txt\n\
+         - [ ] kind:file_exists assert:ok.txt\n\
+         - [ ] kind:command assert:`true` expect:exit=0\n",
+    )
+    .unwrap();
+
+    let commands = acceptance_shell_commands_for_workspace(root.path());
+    assert_eq!(commands.len(), 2, "{commands:?}");
+    assert!(
+        commands.iter().any(|c| c.command == "test -f ok.txt"),
+        "{commands:?}"
+    );
+    assert!(commands.iter().any(|c| c.command == "true"), "{commands:?}");
+    assert!(
+        commands
+            .iter()
+            .all(|c| !c.command.contains("outside") && !c.command.contains("..")),
+        "escaping file_exists must not become Core shell evidence: {commands:?}"
+    );
+}
+
+#[test]
+fn path_from_existence_check_command_parses_common_forms() {
+    assert_eq!(
+        path_from_existence_check_command("test -f answer.txt").as_deref(),
+        Some("answer.txt")
+    );
+    assert_eq!(
+        path_from_existence_check_command("test -e './docs/a.md'").as_deref(),
+        Some("./docs/a.md")
+    );
+    assert_eq!(
+        path_from_existence_check_command("[ -f 'my file.txt' ]").as_deref(),
+        Some("my file.txt")
+    );
+    assert!(path_from_existence_check_command("true").is_none());
+    assert!(path_from_existence_check_command("cargo test").is_none());
+    assert_eq!(
+        path_from_existence_check_command("cd . && test -f answer.txt").as_deref(),
+        Some("answer.txt")
+    );
+    assert_eq!(
+        path_from_existence_check_command("[[ -f hello.txt ]]").as_deref(),
+        Some("hello.txt")
+    );
+    assert!(path_from_existence_check_command("echo test -f answer.txt").is_none());
+    assert!(path_from_existence_check_command("true && echo ok").is_none());
+    assert_eq!(
+        path_from_existence_check_command("test -f other.txt && test -f answer.txt").as_deref(),
+        Some("other.txt")
+    );
+    assert_eq!(
+        existence_checks("test -f other.txt && test -f answer.txt")
+            .into_iter()
+            .map(|check| check.path)
+            .collect::<Vec<_>>(),
+        vec!["other.txt".to_string(), "answer.txt".to_string()]
+    );
+}
+
+#[test]
+fn host_report_for_verified_mutation_path_binds_digest_for_completion_gate() {
+    use crate::harness_loop::{
+        decide_completion, CompletionGate, CompletionTerminal, MutationLedger,
+    };
+
+    let mut ledger = MutationLedger::default();
+    ledger.observe_tool(
+        "write",
+        0,
+        Some(&serde_json::json!({"file_path": "answer.txt", "after": "42\n"})),
+    );
+    let digest = ledger.digest().to_string();
+    let expected = ledger
+        .content_digest_for_path("answer.txt")
+        .expect("write records content digest")
+        .to_string();
+    let report = host_report_for_verified_mutation_path_with_content(
+        "test -f answer.txt",
+        0,
+        &["answer.txt".to_string()],
+        &digest,
+        Some((expected.as_str(), expected.as_str())),
+    )
+    .expect("mutated path verify should synthesize a host report");
+    assert_eq!(report.effect_digest.as_deref(), Some(digest.as_str()));
+    assert_eq!(report.status, VerificationStatus::Passed);
+    match decide_completion(&ledger, &[report], &[], false) {
+        CompletionGate::Allow(CompletionTerminal::Verified { effect_digest }) => {
+            assert_eq!(effect_digest, digest);
+        }
+        other => panic!("expected verified terminal, got {other:?}"),
+    }
+
+    assert!(
+        host_report_for_verified_mutation_path_with_content(
+            "test -f answer.txt",
+            0,
+            &["answer.txt".to_string()],
+            &digest,
+            Some((expected.as_str(), "wrong-content-digest")),
+        )
+        .is_none(),
+        "wrong on-disk content must not Verify"
+    );
+
+    assert!(
+        host_report_for_verified_mutation_path("true", 0, &["answer.txt".to_string()], &digest,)
+            .is_none(),
+        "bare true must not bind a mutation digest"
+    );
+    assert!(
+        host_report_for_verified_mutation_path(
+            "test -f other.txt",
+            0,
+            &["answer.txt".to_string()],
+            &digest,
+        )
+        .is_none(),
+        "unrelated path must not bind"
+    );
+    assert!(
+        host_report_for_verified_mutation_path(
+            "test -f other/answer.txt",
+            0,
+            &["src/answer.txt".to_string()],
+            &digest,
+        )
+        .is_none(),
+        "same basename in a different directory must not bind"
+    );
+    assert!(
+        host_report_for_verified_mutation_path(
+            "test -f answer.txt",
+            0,
+            &["nested/answer.txt".to_string()],
+            &digest,
+        )
+        .is_some(),
+        "workspace-relative suffix with a path boundary may bind"
+    );
+}
+
+#[test]
+fn go_workspace_preset_uses_go_test_and_vet() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("go.mod"), "module example.com/demo\n").unwrap();
+
+    let presets = verification_presets_for_workspace(dir.path());
+
+    assert_eq!(presets.len(), 1);
+    assert_eq!(presets[0].project_kind, "go");
+    assert!(presets[0]
+        .commands
+        .iter()
+        .any(|command| command.command == "go test ./..."));
+    assert!(presets[0]
+        .commands
+        .iter()
+        .any(|command| command.command == "go vet ./..."));
+}
+
+#[test]
+fn node_workspace_preset_detects_lockfile_package_managers() {
+    for (lockfile, _manager, command) in [
+        ("pnpm-lock.yaml", "pnpm", "pnpm test"),
+        ("yarn.lock", "yarn", "yarn test"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"scripts":{"test":"vitest"}}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.path().join(lockfile), "").unwrap();
+
+        let presets = verification_presets_for_workspace(dir.path());
+
+        assert_eq!(presets.len(), 1, "{lockfile}");
+        assert_eq!(presets[0].commands[0].command, command);
+        assert_eq!(presets[0].project_kind, "node");
+    }
+}
+
+#[test]
+fn verification_command_marks_execution_error_and_exit_mismatch_failed() {
+    let command = VerificationCommand::required("check:test", "test", "Run tests", "cargo test")
+        .with_expect_exit(0);
+
+    let execution_error = command.check_from_execution(0, None, Some("spawn failed"));
+    assert_eq!(execution_error.status, VerificationStatus::Failed);
+    assert_eq!(
+        execution_error.residual_risk.as_deref(),
+        Some("verification command could not run: spawn failed")
+    );
+
+    let exit_mismatch = command.check_from_execution(17, None, None);
+    assert_eq!(exit_mismatch.status, VerificationStatus::Failed);
+    assert!(exit_mismatch
+        .residual_risk
+        .as_deref()
+        .unwrap()
+        .contains("expected 0"));
+}
+
+#[test]
+fn verification_report_empty_is_skipped_and_residual_risk_needs_review() {
+    let empty = VerificationReport::new("turn", vec![]);
+    assert_eq!(empty.status, VerificationStatus::Skipped);
+
+    let with_risk = VerificationReport::new(
+        "turn",
+        vec![
+            VerificationCheck::required("check:build", "build", "Run build")
+                .with_status(VerificationStatus::Passed),
+        ],
+    )
+    .with_residual_risk("integration tests were not executed");
+    assert_eq!(with_risk.status, VerificationStatus::NeedsReview);
+}
+
+#[test]
+fn supports_goal_achievement_rejects_optional_only_and_residual_risk() {
+    let optional_only = VerificationSummary::from_reports(&[VerificationReport::new(
+        "turn",
+        vec![VerificationCheck::optional("opt", "lint", "optional lint")
+            .with_status(VerificationStatus::Passed)],
+    )]);
+    assert!(!optional_only.supports_goal_achievement());
+
+    let residual = VerificationSummary::from_reports(&[VerificationReport::new(
+        "turn",
+        vec![VerificationCheck::required("req", "build", "Run build")
+            .with_status(VerificationStatus::Passed)
+            .with_residual_risk("partial coverage")],
+    )]);
+    assert!(!residual.supports_goal_achievement());
+}
+
+#[test]
+fn normalize_shell_command_and_preset_coverage_handle_semicolons_and_empty() {
+    assert_eq!(normalize_shell_command("  cargo   test  "), "cargo test");
+    assert!(shell_command_covers_preset(
+        "echo prep; cargo test",
+        "cargo test"
+    ));
+    assert!(!shell_command_covers_preset("", "cargo test"));
+    assert!(!shell_command_covers_preset("cargo test", ""));
+}
+
+#[test]
+fn merge_shell_verification_metadata_attaches_rust_preset_report() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("Cargo.toml"), "[package]\nname=\"demo\"\n").unwrap();
+
+    let merged =
+        merge_shell_verification_metadata(None, Some(root.path()), "cargo test -p demo", 0, None)
+            .expect("rust workspace should attach a verification report");
+    let report = merged
+        .get("verification_report")
+        .expect("verification_report metadata");
+    assert_eq!(report["subject"], "shell:rust:test");
+    assert_eq!(report["status"], "passed");
+}
+
+#[test]
+fn merge_shell_verification_metadata_without_workspace_keeps_shell_command_only() {
+    let merged = merge_shell_verification_metadata(
+        Some(serde_json::json!({"exit_code": 0})),
+        None,
+        "cargo test",
+        0,
+        None,
+    )
+    .expect("metadata merge should succeed");
+    assert_eq!(
+        merged["verification_shell_command"].as_str(),
+        Some("cargo test")
+    );
+    assert!(merged.get("verification_report").is_none());
+}
+
+#[test]
+fn verification_status_label_covers_all_variants() {
+    assert_eq!(
+        verification_status_label(VerificationStatus::Passed),
+        "passed"
+    );
+    assert_eq!(
+        verification_status_label(VerificationStatus::Failed),
+        "failed"
+    );
+    assert_eq!(
+        verification_status_label(VerificationStatus::NeedsReview),
+        "needs_review"
+    );
+    assert_eq!(
+        verification_status_label(VerificationStatus::Skipped),
+        "skipped"
+    );
+}
+
+#[test]
+fn verification_command_timeout_and_summary_to_value_are_exercised() {
+    let command = VerificationCommand::optional("check:lint", "lint", "Run lint", "npm run lint")
+        .with_timeout_ms(1_500);
+    assert_eq!(command.timeout_ms, Some(1_500));
+    let check = command.check_from_execution(0, None, None);
+    assert_eq!(check.status, VerificationStatus::Passed);
+
+    let summary = VerificationSummary::from_reports(&[VerificationReport::new(
+        "turn",
+        vec![VerificationCheck::required("req", "build", "Run build")
+            .with_status(VerificationStatus::Passed)],
+    )]);
+    let value = summary.to_value();
+    assert_eq!(value["report_count"], 1);
+    assert_eq!(value["status"], "passed");
+}
+
+#[test]
+fn python_workspace_preset_includes_mypy_when_configured() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("pytest.ini"), "[pytest]\n").unwrap();
+    std::fs::write(
+        dir.path().join("pyproject.toml"),
+        "[tool.pytest.ini_options]\n[tool.mypy]\n",
+    )
+    .unwrap();
+    let presets = verification_presets_for_workspace(dir.path());
+    assert!(
+        presets.iter().any(|preset| {
+            preset.project_kind == "python"
+                && preset
+                    .commands
+                    .iter()
+                    .any(|command| command.command.contains("mypy"))
+        }),
+        "{presets:?}"
+    );
+}
+
+#[test]
+fn artifact_uri_collection_walks_arrays_and_nested_objects() {
+    let metadata = serde_json::json!({
+        "items": [
+            {"artifact_uri": "a3s://tool-output/a"},
+            {"nested": {"artifact_uri": "a3s://tool-output/b"}}
+        ]
+    });
+    let uris = artifact_uris(Some(&metadata));
+    assert!(uris.contains(&"a3s://tool-output/a".to_string()));
+    assert!(uris.contains(&"a3s://tool-output/b".to_string()));
+}
+
+#[test]
+fn node_package_without_scripts_yields_no_preset() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("package.json"), r#"{"name":"empty"}"#).unwrap();
+    assert!(verification_presets_for_workspace(dir.path()).is_empty());
+}
+
+#[test]
+fn node_package_manager_detection_and_script_commands_cover_lockfile_variants() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"demo","scripts":{"test":"node test.js","lint":"eslint ."}}"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        detect_node_package_manager(workspace, &serde_json::json!({})),
+        "npm"
+    );
+    assert_eq!(node_script_command("npm", "test"), "npm test");
+    assert_eq!(node_script_command("npm", "lint"), "npm run lint");
+    assert_eq!(node_script_command("pnpm", "lint"), "pnpm lint");
+    assert_eq!(node_script_command("yarn", "lint"), "yarn lint");
+    assert_eq!(node_script_command("bun", "lint"), "bun run lint");
+    assert_eq!(node_script_command("custom", "lint"), "custom run lint");
+
+    std::fs::write(workspace.join("pnpm-lock.yaml"), "lockfileVersion: 9\n").unwrap();
+    assert_eq!(
+        detect_node_package_manager(workspace, &serde_json::json!({})),
+        "pnpm"
+    );
+    std::fs::remove_file(workspace.join("pnpm-lock.yaml")).unwrap();
+    std::fs::write(workspace.join("yarn.lock"), "# yarn\n").unwrap();
+    assert_eq!(
+        detect_node_package_manager(workspace, &serde_json::json!({})),
+        "yarn"
+    );
+    std::fs::remove_file(workspace.join("yarn.lock")).unwrap();
+    std::fs::write(workspace.join("bun.lockb"), "bun").unwrap();
+    assert_eq!(
+        detect_node_package_manager(workspace, &serde_json::json!({})),
+        "bun"
+    );
+
+    for (manager, lockfile) in [("yarn", "yarn.lock"), ("bun", "bun.lock"), ("npm", "")] {
+        let preset_root = tempfile::tempdir().unwrap();
+        std::fs::write(
+            preset_root.path().join("package.json"),
+            r#"{"scripts":{"test":"node test.js","lint":"eslint ."}}"#,
+        )
+        .unwrap();
+        if !lockfile.is_empty() {
+            std::fs::write(preset_root.path().join(lockfile), "x\n").unwrap();
+        }
+        let presets = verification_presets_for_workspace(preset_root.path());
+        assert_eq!(presets.len(), 1);
+        assert_eq!(presets[0].project_kind, "node");
+        assert!(
+            presets[0]
+                .commands
+                .iter()
+                .any(|command| command.command.contains(manager)
+                    || (manager == "npm" && command.command.contains("npm"))),
+            "manager={manager} commands={:?}",
+            presets[0].commands
+        );
+    }
+}
+
+#[test]
+fn report_to_value_and_residual_risk_update_status() {
+    let report = VerificationReport::new(
+        "turn",
+        vec![VerificationCheck::optional("opt", "review", "Review")
+            .with_status(VerificationStatus::Passed)],
+    )
+    .with_residual_risk("needs human review");
+    assert_eq!(report.status, VerificationStatus::NeedsReview);
+    let value = report.to_value();
+    assert_eq!(value["schema"], VERIFICATION_REPORT_SCHEMA);
+    assert_eq!(value["subject"], "turn");
+    assert!(!value["residual_risks"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn acceptance_subject_helpers_recognize_passing_shell_acceptance() {
+    assert!(is_acceptance_verification_subject(
+        "shell:acceptance:loop-1:1"
+    ));
+    assert!(!is_acceptance_verification_subject(
+        "shell:preset:cargo-test"
+    ));
+
+    let passing = VerificationReport::new(
+        "shell:acceptance:loop-1:1",
+        vec![VerificationCheck::required("check", "exists", "ok")
+            .with_status(VerificationStatus::Passed)],
+    );
+    assert!(reports_include_passing_acceptance(&[passing]));
+
+    let failed = VerificationReport::new(
+        "shell:acceptance:loop-1:1",
+        vec![VerificationCheck::required("check", "exists", "missing")
+            .with_status(VerificationStatus::Failed)],
+    );
+    assert!(!reports_include_passing_acceptance(&[failed]));
+}
+
+#[test]
+fn bind_host_shell_reports_to_mutations_sets_effect_digest_for_matching_path() {
+    let mut reports = vec![VerificationReport::new(
+        "acceptance:loop",
+        vec![
+            VerificationCheck::required("check:file", "exists", "File exists")
+                .with_status(VerificationStatus::Passed),
+        ],
+    )];
+    bind_host_shell_reports_to_mutations(
+        &mut reports,
+        Some("test -f src/main.rs"),
+        &["src/main.rs".into()],
+        "sha256:abc",
+    );
+    assert_eq!(reports[0].effect_digest.as_deref(), Some("sha256:abc"));
+
+    let mut already = vec![VerificationReport::new(
+        "acceptance:loop",
+        vec![
+            VerificationCheck::required("check:file", "exists", "File exists")
+                .with_status(VerificationStatus::Passed),
+        ],
+    )
+    .with_effect_digest("sha256:keep")];
+    bind_host_shell_reports_to_mutations(
+        &mut already,
+        Some("test -f src/main.rs"),
+        &["src/main.rs".into()],
+        "sha256:other",
+    );
+    assert_eq!(already[0].effect_digest.as_deref(), Some("sha256:keep"));
+
+    let mut mismatched = vec![VerificationReport::new(
+        "acceptance:loop",
+        vec![
+            VerificationCheck::required("check:file", "exists", "File exists")
+                .with_status(VerificationStatus::Passed),
+        ],
+    )];
+    bind_host_shell_reports_to_mutations_with_content(
+        &mut mismatched,
+        Some("test -f src/main.rs"),
+        &["src/main.rs".into()],
+        "sha256:abc",
+        Some(("sha256:expected", "sha256:on_disk")),
+    );
+    assert!(mismatched[0].effect_digest.is_none());
+}
+
+#[test]
+fn python_mypy_and_ruff_presets_are_detected_from_config_files() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("pyproject.toml"), "[project]\nname='x'\n").unwrap();
+    std::fs::write(dir.path().join("mypy.ini"), "[mypy]\n").unwrap();
+    std::fs::write(
+        dir.path().join("pyproject.toml"),
+        "[project]\nname='x'\n[tool.ruff]\nline-length=88\n[tool.mypy]\npython_version='3.12'\n",
+    )
+    .unwrap();
+    let presets = verification_presets_for_workspace(dir.path());
+    let python = presets
+        .iter()
+        .find(|preset| preset.project_kind == "python")
+        .expect("python preset");
+    assert!(
+        python
+            .commands
+            .iter()
+            .any(|command| command.id.contains("ruff") || command.command.contains("ruff")),
+        "{:?}",
+        python.commands
+    );
+    assert!(
+        python
+            .commands
+            .iter()
+            .any(|command| command.id.contains("mypy") || command.command.contains("mypy")),
+        "{:?}",
+        python.commands
+    );
+}
+
+#[test]
+fn verification_summary_reports_passed_only_with_required_checks() {
+    let empty = VerificationSummary::from_reports(&[]);
+    assert!(!empty.supports_goal_achievement());
+    let value = empty.to_value();
+    assert!(value.get("status").is_some());
+
+    let report = VerificationReport::new(
+        "turn",
+        vec![VerificationCheck::required("c1", "exists", "File exists")
+            .with_status(VerificationStatus::Passed)],
+    );
+    let summary = VerificationSummary::from_reports(&[report]);
+    assert!(summary.supports_goal_achievement());
+    assert!(summary.is_complete());
+}
+
+#[test]
+fn program_verification_hint_builds_required_and_optional_checks() {
+    let required = crate::program::ProgramVerificationHint::new("inspect", "look")
+        .required()
+        .with_suggested_tools(["read"])
+        .with_evidence_uris(["artifact://a"]);
+    let check = VerificationCheck::from_program_hint("subj", 0, &required);
+    assert!(check.required);
+    assert!(!check.suggested_tools.is_empty());
+
+    let optional = crate::program::ProgramVerificationHint::new("note", "optional note");
+    let check = VerificationCheck::from_program_hint("subj", 1, &optional);
+    assert!(!check.required);
+}
+
+#[test]
+fn verification_command_optional_to_check_and_timeout_builder() {
+    let command = VerificationCommand::optional("python:pytest", "test", "Run pytest", "pytest -q")
+        .with_timeout_ms(12_000)
+        .with_expect_exit(0);
+    assert!(!command.required);
+    assert_eq!(command.timeout_ms, Some(12_000));
+    let check = command.to_check();
+    assert!(!check.required);
+    assert_eq!(check.suggested_tools, vec!["bash"]);
+}
+
+#[test]
+fn python_pytest_ini_and_mypy_markers_produce_presets() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("pytest.ini"), "[pytest]\n").unwrap();
+    let presets = verification_presets_for_workspace(root.path());
+    assert!(
+        presets.iter().any(|preset| preset.project_kind == "python"),
+        "{presets:?}"
+    );
+
+    let mypy_root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        mypy_root.path().join("pyproject.toml"),
+        "[tool.mypy]\npython_version = \"3.12\"\n",
+    )
+    .unwrap();
+    let presets = verification_presets_for_workspace(mypy_root.path());
+    let python = presets
+        .iter()
+        .find(|preset| preset.project_kind == "python")
+        .expect("python preset");
+    assert!(
+        python
+            .commands
+            .iter()
+            .any(|command| command.command.contains("mypy")),
+        "{:?}",
+        python.commands
+    );
+}
+
+#[test]
+fn format_summary_covers_skipped_failed_and_review_without_subjects() {
+    let skipped = VerificationSummary {
+        status: VerificationStatus::Skipped,
+        report_count: 2,
+        required_check_count: 0,
+        pending_required_check_count: 0,
+        failed_check_count: 0,
+        residual_risk_count: 0,
+        failed_subjects: Vec::new(),
+        pending_subjects: Vec::new(),
+    };
+    assert!(
+        format_verification_summary(&skipped).contains("Verification skipped: 2 reports."),
+        "{}",
+        format_verification_summary(&skipped)
+    );
+
+    let failed = VerificationSummary {
+        status: VerificationStatus::Failed,
+        report_count: 1,
+        required_check_count: 0,
+        pending_required_check_count: 0,
+        failed_check_count: 0,
+        residual_risk_count: 0,
+        failed_subjects: Vec::new(),
+        pending_subjects: Vec::new(),
+    };
+    assert!(
+        format_verification_summary(&failed).contains("failed report"),
+        "{}",
+        format_verification_summary(&failed)
+    );
+
+    let review = VerificationSummary {
+        status: VerificationStatus::NeedsReview,
+        report_count: 1,
+        required_check_count: 0,
+        pending_required_check_count: 0,
+        failed_check_count: 0,
+        residual_risk_count: 0,
+        failed_subjects: Vec::new(),
+        pending_subjects: Vec::new(),
+    };
+    assert!(
+        format_verification_summary(&review).contains("review required"),
+        "{}",
+        format_verification_summary(&review)
+    );
+
+    let many = subject_list(&(0..7).map(|i| format!("s{i}")).collect::<Vec<_>>());
+    assert!(many.contains("..."), "{many}");
+}
+
+#[test]
+fn acceptance_helpers_cover_empty_quote_and_absolute_in_workspace_paths() {
+    assert_eq!(shell_quote_acceptance_path(""), "''");
+    assert_eq!(shell_quote_acceptance_path("ok_path.txt"), "ok_path.txt");
+    assert_eq!(shell_quote_acceptance_path("has space"), "'has space'");
+    assert_eq!(shell_quote_acceptance_path("has'quote"), "'has'\\''quote'");
+
+    let root = tempfile::tempdir().unwrap();
+    let inside = root.path().join("inside.txt");
+    std::fs::write(&inside, "x").unwrap();
+    let absolute = inside.display().to_string();
+    let commands = parse_acceptance_shell_commands(
+        &format!(
+            "- [ ] kind:file_exists assert:`./inside.txt`\n\
+             - [ ] kind:file_exists assert:`{absolute}`\n\
+             - [ ] kind:file_exists assert:`../escape.txt`\n\
+             - [ ] kind:file_exists assert:``\n\
+             - [ ] kind:command assert:`true` expect:exit=0\n\
+             - [ ] kind:command assert:``\n"
+        ),
+        "loop-1",
+        root.path(),
+    );
+    assert!(
+        commands
+            .iter()
+            .any(|command| command.command.contains("test -f")),
+        "{commands:?}"
+    );
+    assert!(
+        commands
+            .iter()
+            .any(|command| command.command.trim() == "true" && command.expect_exit == 0),
+        "{commands:?}"
+    );
+    assert!(!acceptance_file_path_allowed_in_workspace(root.path(), ""));
+    assert!(acceptance_file_path_allowed_in_workspace(
+        root.path(),
+        "./inside.txt"
+    ));
+    assert!(!acceptance_file_path_allowed_in_workspace(
+        root.path(),
+        "/tmp/definitely-missing-a3s-coverage-file"
+    ));
+    assert!(acceptance_file_path_allowed_in_workspace(
+        root.path(),
+        &absolute
+    ));
+
+    assert_eq!(extract_acceptance_expect_exit("expect:exit=7"), Some(7));
+    assert_eq!(
+        extract_acceptance_assert_command("assert:`true`"),
+        Some("true".into())
+    );
+    assert_eq!(extract_acceptance_assert_command("assert:``"), None);
+    assert_eq!(
+        acceptance_loop_id_from_command_id("acceptance:loop-a:1"),
+        Some("loop-a")
+    );
+    assert_eq!(acceptance_loop_id_from_command_id("acceptance::1"), None);
+}
+
+// --- Host-declared suite verification contracts ---------------------------
+
+fn contract() -> VerificationContractV1 {
+    VerificationContractV1::new("node-suite", "node test.mjs", ["src/**"]).unwrap()
+}
+
+fn ledger_paths(paths: &[&str]) -> Vec<String> {
+    paths.iter().map(|path| path.to_string()).collect()
+}
+
+#[test]
+fn contract_admission_refuses_empty_id_command_or_covers() {
+    assert!(VerificationContractV1::new("", "node test.mjs", ["src/**"]).is_err());
+    assert!(VerificationContractV1::new("suite", "  ", ["src/**"]).is_err());
+    assert!(VerificationContractV1::new("suite", "node test.mjs", [" "]).is_err());
+    assert!(contract().validate().is_ok());
+}
+
+#[test]
+fn contract_coverage_matches_exact_suffix_and_directory_glob() {
+    assert!(contract_covers_path("src/**", "src/impl.mjs"));
+    assert!(contract_covers_path("src/**", "src/nested/impl.mjs"));
+    assert!(!contract_covers_path("src/**", "data/a.mjs"));
+    assert!(!contract_covers_path("src/**", "src"));
+    assert!(contract_covers_path("src/impl.mjs", "src/impl.mjs"));
+    // Host manifests are exact: no suffix leniency, no basename equality.
+    assert!(!contract_covers_path("impl.mjs", "src/impl.mjs"));
+    assert!(!contract_covers_path("impl.mjs", "test-fixtures/impl.mjs"));
+    assert!(!contract_covers_path("src/impl.mjs", "src/impl.mjs.bak"));
+    assert!(!contract_covers_path("", "src/impl.mjs"));
+    assert!(!contract_covers_path("src/**", ""));
+}
+
+#[test]
+fn contract_report_binds_only_a_full_passing_covered_run() {
+    let suite = contract();
+    let digest = "sha256:digest";
+
+    // The happy path: the declared command ran, exit 0, all paths covered.
+    let report = host_report_for_verification_contract(
+        &suite,
+        "node test.mjs",
+        0,
+        &ledger_paths(&["src/impl.mjs"]),
+        digest,
+    );
+    assert!(report.is_some());
+    let report = report.unwrap();
+    assert_eq!(report.effect_digest.as_deref(), Some(digest));
+    assert_eq!(report.subject, "shell:contract:node-suite");
+    assert!(report.checks.iter().all(|check| check.required));
+    assert!(matches!(
+        report.checks[0].status,
+        VerificationStatus::Passed
+    ));
+
+    // Extra arguments can select fewer tests and are not host-declared.
+    assert!(host_report_for_verification_contract(
+        &suite,
+        "node test.mjs --reporter=quiet",
+        0,
+        &ledger_paths(&["src/impl.mjs", "src/other.mjs"]),
+        digest
+    )
+    .is_none());
+}
+
+#[test]
+fn contract_report_rejects_masked_status_quoted_mentions_and_modified_arguments() {
+    let suite = contract();
+    let paths = ledger_paths(&["src/impl.mjs"]);
+    for command in [
+        "node test.mjs || true",
+        "node test.mjs; true",
+        "node test.mjs && printf pass",
+        "echo 'node test.mjs'",
+        "false && node test.mjs; true",
+        "node test.mjs --list-only",
+        "node test.mjs > /dev/null; exit 0",
+    ] {
+        assert!(
+            host_report_for_verification_contract(&suite, command, 0, &paths, "sha256:effect")
+                .is_none(),
+            "accepted {command}"
+        );
+    }
+    assert!(host_report_for_verification_contract(
+        &suite,
+        "  node test.mjs\n",
+        0,
+        &paths,
+        "sha256:effect"
+    )
+    .is_some());
+    for path in ["src/../data/a.mjs", "../src/impl.mjs", "/src/impl.mjs"] {
+        assert!(!contract_covers_path("src/**", path));
+    }
+    for pattern in ["../src/**", "/src/**", "src/../data/**", ""] {
+        assert!(VerificationContractV1::new("suite", "node test.mjs", [pattern]).is_err());
+    }
+}
+
+#[test]
+fn contract_report_refuses_failed_partial_and_foreign_runs() {
+    let suite = contract();
+    let digest = "sha256:digest";
+    let paths = ledger_paths(&["src/impl.mjs"]);
+
+    // A failing suite run is evidence of failure, never of pass.
+    assert!(
+        host_report_for_verification_contract(&suite, "node test.mjs", 1, &paths, digest).is_none()
+    );
+    // A different command is not the declared suite.
+    assert!(
+        host_report_for_verification_contract(&suite, "node other.mjs", 0, &paths, digest)
+            .is_none()
+    );
+    // A preset-prefix command (`node test.mjs x`) does not make
+    // `node not-test.mjs` a suite run.
+    assert!(
+        host_report_for_verification_contract(&suite, "node not-test.mjs", 0, &paths, digest)
+            .is_none()
+    );
+    // An uncovered mutation is not verified by this suite.
+    assert!(host_report_for_verification_contract(
+        &suite,
+        "node test.mjs",
+        0,
+        &ledger_paths(&["src/impl.mjs", "data/a.mjs"]),
+        digest
+    )
+    .is_none());
+    // Nothing mutated: nothing to verify.
+    assert!(
+        host_report_for_verification_contract(&suite, "node test.mjs", 0, &[], digest).is_none()
+    );
+    // No effect digest: the gate could not bind it anyway.
+    assert!(
+        host_report_for_verification_contract(&suite, "node test.mjs", 0, &paths, "  ").is_none()
+    );
+}

@@ -1,0 +1,930 @@
+use super::*;
+
+impl OpenAiClient {
+    /// Execute a fully-built streaming chat-completions request (sets `stream`).
+    pub(super) async fn send_streaming(
+        &self,
+        mut request: serde_json::Value,
+        cancel_token: tokio_util::sync::CancellationToken,
+    ) -> Result<mpsc::Receiver<StreamEvent>> {
+        {
+            request["stream"] = serde_json::json!(true);
+            request["stream_options"] = serde_json::json!({ "include_usage": true });
+            let request_started_at = Instant::now();
+            let url = crate::llm::http::join_chat_completions_url(
+                &self.base_url,
+                &self.chat_completions_path,
+            );
+            let request_headers = self.request_headers();
+
+            let streaming_resp = crate::retry::with_retry_cancellable(
+                &self.retry_config,
+                &cancel_token,
+                |_attempt| {
+                let http = &self.http;
+                let url = &url;
+                let request_headers = request_headers.clone();
+                let request = &request;
+                let cancel_token = cancel_token.clone();
+                async move {
+                    let headers = request_headers
+                        .iter()
+                        .map(|(key, value)| (key.as_str(), value.as_str()))
+                        .collect::<Vec<_>>();
+                    // Wrap in tokio::select! so cancellation aborts the HTTP request mid-flight
+                    let resp = tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            return AttemptOutcome::Fatal(anyhow::Error::new(
+                                crate::llm::HttpClientError::cancelled(
+                                    "OpenAI streaming HTTP request",
+                                ),
+                            ));
+                        }
+                        result = http.post_streaming(url, headers, request, cancel_token.clone()) => {
+                            match result {
+                                Ok(r) => r,
+                                Err(e) => {
+                                    return if crate::llm::http::is_retryable_http_failure(&e) {
+                                        AttemptOutcome::Retryable {
+                                            status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+                                            body: format!("network error: {e}"),
+                                            retry_after: None,
+                                        }
+                                    } else {
+                                        AttemptOutcome::Fatal(e.context("HTTP request failed"))
+                                    };
+                                }
+                            }
+                        }
+                    };
+                    let status = reqwest::StatusCode::from_u16(resp.status)
+                        .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+                    if status.is_success() {
+                        AttemptOutcome::Success(resp)
+                    } else {
+                        let retry_after = resp
+                            .retry_after
+                            .as_deref()
+                            .and_then(|v| RetryConfig::parse_retry_after(Some(v)));
+                        if self.retry_config.is_retryable_status(status) {
+                            AttemptOutcome::Retryable {
+                                status,
+                                body: resp.error_body,
+                                retry_after,
+                            }
+                        } else {
+                            AttemptOutcome::Fatal(anyhow::Error::new(
+                                crate::llm::NonRetryableLlmError::from_status(
+                                    &self.provider_name,
+                                    status.as_u16(),
+                                    format!("at {url}: {}", resp.error_body),
+                                ),
+                            ))
+                        }
+                    }
+                }
+                },
+            )
+            .await?;
+
+            let (tx, rx) = mpsc::channel(100);
+
+            let mut stream = streaming_resp.byte_stream;
+            let provider_name = self.provider_name.clone();
+            let request_model = self.model.clone();
+            let request_url = url.clone();
+            let stream_cancellation = cancel_token.clone();
+            tokio::spawn(async move {
+                let mut buffer = String::new();
+                let mut utf8_decoder = crate::sse::Utf8StreamDecoder::default();
+                let mut content_blocks: Vec<ContentBlock> = Vec::new();
+                let mut text_content = String::new();
+                let mut reasoning_content_accum = String::new();
+                let mut tool_calls: std::collections::BTreeMap<usize, (String, String, String)> =
+                    std::collections::BTreeMap::new();
+                let mut started_tool_calls = std::collections::HashSet::new();
+                let mut usage = TokenUsage::default();
+                let mut finish_reason = None;
+                let mut token_logprobs: Vec<TokenLogProb> = Vec::new();
+                let mut response_id = None;
+                let mut response_model = None;
+                let mut response_object = None;
+                let mut first_token_ms = None;
+                let mut parsed_any_event = false;
+                let mut stream_failed = false;
+
+                loop {
+                    let chunk_result = tokio::select! {
+                        biased;
+                        _ = stream_cancellation.cancelled() => return,
+                        _ = tx.closed() => return,
+                        chunk = stream.next() => match chunk {
+                            Some(chunk) => chunk,
+                            None => break,
+                        },
+                    };
+                    let chunk = match chunk_result {
+                        Ok(c) => c,
+                        Err(e) => {
+                            tracing::error!("Stream error: {}", e);
+                            stream_failed = true;
+                            break;
+                        }
+                    };
+
+                    if let Err(error) = utf8_decoder.push_to(&chunk, &mut buffer) {
+                        tracing::error!(%error, "OpenAI-compatible stream returned invalid UTF-8");
+                        break;
+                    }
+
+                    // eof stays false here. A trailing unframed JSON body is
+                    // parsed after the stream ends, and a chunk that stops on
+                    // CR must not become an event before the next byte arrives.
+                    for event_data in crate::sse::take_sse_events(&mut buffer, false) {
+                        for line in event_data.lines() {
+                            if let Some(data) = crate::sse::data_field_value(line) {
+                                if data == "[DONE]" {
+                                    if !text_content.is_empty() {
+                                        content_blocks.push(ContentBlock::Text {
+                                            text: text_content.clone(),
+                                        });
+                                    }
+                                    for (index, (id, name, args)) in tool_calls.iter() {
+                                        let id = if id.is_empty() {
+                                            format!("call_{index}")
+                                        } else {
+                                            id.clone()
+                                        };
+                                        content_blocks.push(ContentBlock::ToolUse {
+                                            id,
+                                            name: name.clone(),
+                                            input: Self::parse_tool_arguments(name, args),
+                                        });
+                                    }
+                                    tool_calls.clear();
+                                    crate::telemetry::record_llm_usage(
+                                        usage.prompt_tokens,
+                                        usage.completion_tokens,
+                                        usage.total_tokens,
+                                        finish_reason.as_deref(),
+                                    );
+                                    let response = LlmResponse {
+                                        message: Message {
+                                            role: "assistant".to_string(),
+                                            content: std::mem::take(&mut content_blocks),
+                                            reasoning_content: if reasoning_content_accum.is_empty()
+                                            {
+                                                None
+                                            } else {
+                                                Some(std::mem::take(&mut reasoning_content_accum))
+                                            },
+                                            transcript_text: None,
+                                            transcript_visibility: Default::default(),
+                                        },
+                                        usage: usage.clone(),
+                                        stop_reason: std::mem::take(&mut finish_reason),
+                                        token_logprobs: std::mem::take(&mut token_logprobs),
+                                        meta: Some(LlmResponseMeta {
+                                            provider: Some(provider_name.clone()),
+                                            request_model: Some(request_model.clone()),
+                                            request_url: Some(request_url.clone()),
+                                            response_id: response_id.clone(),
+                                            response_model: response_model.clone(),
+                                            response_object: response_object.clone(),
+                                            first_token_ms,
+                                            duration_ms: Some(
+                                                request_started_at.elapsed().as_millis() as u64,
+                                            ),
+                                        }),
+                                    };
+                                    let _ = tx.send(StreamEvent::Done(response)).await;
+                                    return;
+                                }
+
+                                if let Ok(event) = serde_json::from_str::<OpenAiStreamChunk>(data) {
+                                    parsed_any_event = true;
+                                    if response_id.is_none() {
+                                        response_id = event.id.clone();
+                                    }
+                                    if response_model.is_none() {
+                                        response_model = event.model.clone();
+                                    }
+                                    if response_object.is_none() {
+                                        response_object = event.object.clone();
+                                    }
+                                    if let Some(u) = event.usage {
+                                        usage.prompt_tokens = u.prompt_tokens;
+                                        usage.completion_tokens = u.completion_tokens;
+                                        usage.total_tokens = u.total_tokens;
+                                        // MiniMax: fall back to total_characters when total_tokens is 0.
+                                        if usage.total_tokens == 0 {
+                                            usage.total_tokens = u.total_characters.unwrap_or(0);
+                                        }
+                                        usage.cache_read_tokens = u
+                                            .prompt_tokens_details
+                                            .as_ref()
+                                            .and_then(|d| d.cached_tokens);
+                                    }
+
+                                    if let Some(choice) = event.choices.into_iter().next() {
+                                        if let Some(logprobs) = choice.logprobs.as_ref() {
+                                            token_logprobs.extend(
+                                                openai_logprobs_to_token_logprobs(logprobs),
+                                            );
+                                        }
+                                        if let Some(reason) = choice.finish_reason {
+                                            finish_reason = Some(reason);
+                                        }
+
+                                        if let Some(message) = choice.message {
+                                            // If text_content already has content (from delta processing),
+                                            // skip message.content to avoid sending duplicate full content
+                                            let skip_content = !text_content.is_empty();
+                                            if let Some(reasoning) = message.reasoning_content {
+                                                // Reasoning is its OWN channel — accumulate into
+                                                // reasoning_content, NEVER text_content. Merging it into
+                                                // text_content made the assistant's `content` carry the
+                                                // chain-of-thought, so a reasoning-only turn looked like a
+                                                // finished text answer (response.text() non-empty) and the
+                                                // agent loop terminated before the model emitted its tool
+                                                // call → workers never reach generate_object → asset-diagnose
+                                                // "未返回结构化输出". It also tripped `skip_content`, dropping
+                                                // the model's real content.
+                                                if first_token_ms.is_none() {
+                                                    first_token_ms = Some(
+                                                        request_started_at.elapsed().as_millis()
+                                                            as u64,
+                                                    );
+                                                }
+                                                if let Some(delta) = Self::merge_stream_text(
+                                                    &mut reasoning_content_accum,
+                                                    &reasoning,
+                                                ) {
+                                                    let _ = tx
+                                                        .send(StreamEvent::ReasoningDelta(delta))
+                                                        .await;
+                                                }
+                                            }
+                                            if !skip_content {
+                                                if let Some(content) = message
+                                                    .content
+                                                    .filter(|value| !value.is_empty())
+                                                {
+                                                    if first_token_ms.is_none() {
+                                                        first_token_ms = Some(
+                                                            request_started_at.elapsed().as_millis()
+                                                                as u64,
+                                                        );
+                                                    }
+                                                    if let Some(delta) = Self::merge_stream_text(
+                                                        &mut text_content,
+                                                        &content,
+                                                    ) {
+                                                        let _ = tx
+                                                            .send(StreamEvent::TextDelta(delta))
+                                                            .await;
+                                                    }
+                                                }
+                                            }
+                                            if let Some(tcs) = message.tool_calls {
+                                                apply_tool_call_snapshot(&mut tool_calls, tcs);
+                                            }
+                                        } else if let Some(delta) = choice.delta {
+                                            if let Some(ref rc) = delta.reasoning_content {
+                                                // Reasoning stays in reasoning_content, never text_content
+                                                // (see the message-branch note above).
+                                                if first_token_ms.is_none() {
+                                                    first_token_ms = Some(
+                                                        request_started_at.elapsed().as_millis()
+                                                            as u64,
+                                                    );
+                                                }
+                                                if let Some(delta) = Self::append_stream_delta(
+                                                    &mut reasoning_content_accum,
+                                                    rc,
+                                                ) {
+                                                    let _ = tx
+                                                        .send(StreamEvent::ReasoningDelta(delta))
+                                                        .await;
+                                                }
+                                            }
+
+                                            if let Some(content) = delta.content {
+                                                if first_token_ms.is_none() {
+                                                    first_token_ms = Some(
+                                                        request_started_at.elapsed().as_millis()
+                                                            as u64,
+                                                    );
+                                                }
+                                                if let Some(delta) = Self::append_stream_delta(
+                                                    &mut text_content,
+                                                    &content,
+                                                ) {
+                                                    let _ = tx
+                                                        .send(StreamEvent::TextDelta(delta))
+                                                        .await;
+                                                }
+                                            }
+
+                                            if let Some(tcs) = delta.tool_calls {
+                                                for tc in tcs {
+                                                    let index = tc.index;
+                                                    let was_started =
+                                                        started_tool_calls.contains(&index);
+                                                    let mut new_arguments = None;
+                                                    let entry = tool_calls
+                                                        .entry(index)
+                                                        .or_insert_with(|| {
+                                                            (
+                                                                String::new(),
+                                                                String::new(),
+                                                                String::new(),
+                                                            )
+                                                        });
+                                                    if tool_call_delta_conflicts(
+                                                        &entry.0, &entry.1, &tc,
+                                                    ) {
+                                                        continue;
+                                                    }
+
+                                                    if let Some(id) = tc.id {
+                                                        // Same gateway quirk as empty
+                                                        // function names: never wipe a
+                                                        // previously accumulated id.
+                                                        if !id.is_empty() {
+                                                            entry.0 = id;
+                                                        }
+                                                    }
+                                                    if let Some(func) = tc.function {
+                                                        if let Some(name) = func.name {
+                                                            // Gateways often re-send
+                                                            // `"name":""` on argument-only
+                                                            // continuation deltas. Never wipe
+                                                            // a previously accumulated name.
+                                                            if !name.is_empty() {
+                                                                entry.1 = name;
+                                                            }
+                                                        }
+                                                        if let Some(args) = func.arguments {
+                                                            entry.2.push_str(&args);
+                                                            new_arguments = Some(args);
+                                                        }
+                                                    }
+
+                                                    let ready =
+                                                        !entry.0.is_empty() && !entry.1.is_empty();
+                                                    let start =
+                                                        (!was_started && ready).then(|| {
+                                                            (
+                                                                entry.0.clone(),
+                                                                entry.1.clone(),
+                                                                entry.2.clone(),
+                                                            )
+                                                        });
+                                                    let delta = if was_started && ready {
+                                                        new_arguments.map(|arguments| {
+                                                            (entry.0.clone(), arguments)
+                                                        })
+                                                    } else {
+                                                        None
+                                                    };
+
+                                                    if let Some((id, name, buffered_arguments)) =
+                                                        start
+                                                    {
+                                                        started_tool_calls.insert(index);
+                                                        if first_token_ms.is_none() {
+                                                            first_token_ms = Some(
+                                                                request_started_at
+                                                                    .elapsed()
+                                                                    .as_millis()
+                                                                    as u64,
+                                                            );
+                                                        }
+                                                        let _ = tx
+                                                            .send(StreamEvent::ToolUseStart {
+                                                                id: id.clone(),
+                                                                name,
+                                                            })
+                                                            .await;
+                                                        if !buffered_arguments.is_empty() {
+                                                            let _ = tx
+                                                                .send(
+                                                                    StreamEvent::ToolUseInputDelta {
+                                                                        id: Some(id),
+                                                                        delta: buffered_arguments,
+                                                                    },
+                                                                )
+                                                                .await;
+                                                        }
+                                                    } else if let Some((id, arguments)) = delta {
+                                                        let _ = tx
+                                                            .send(StreamEvent::ToolUseInputDelta {
+                                                                id: Some(id),
+                                                                delta: arguments,
+                                                            })
+                                                            .await;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let Err(error) = utf8_decoder.finish() {
+                    tracing::error!(%error, "OpenAI-compatible stream ended inside a UTF-8 code point");
+                }
+
+                let trailing = buffer.trim();
+                if !trailing.is_empty() {
+                    if let Ok(event) = serde_json::from_str::<OpenAiStreamChunk>(trailing) {
+                        parsed_any_event = true;
+                        if response_id.is_none() {
+                            response_id = event.id.clone();
+                        }
+                        if response_model.is_none() {
+                            response_model = event.model.clone();
+                        }
+                        if response_object.is_none() {
+                            response_object = event.object.clone();
+                        }
+                        if let Some(u) = event.usage {
+                            usage.prompt_tokens = u.prompt_tokens;
+                            usage.completion_tokens = u.completion_tokens;
+                            usage.total_tokens = u.total_tokens;
+                            // MiniMax: fall back to total_characters when total_tokens is 0.
+                            if usage.total_tokens == 0 {
+                                usage.total_tokens = u.total_characters.unwrap_or(0);
+                            }
+                            usage.cache_read_tokens = u
+                                .prompt_tokens_details
+                                .as_ref()
+                                .and_then(|d| d.cached_tokens);
+                        }
+                        if let Some(choice) = event.choices.into_iter().next() {
+                            if let Some(logprobs) = choice.logprobs.as_ref() {
+                                token_logprobs.extend(openai_logprobs_to_token_logprobs(logprobs));
+                            }
+                            if let Some(reason) = choice.finish_reason {
+                                finish_reason = Some(reason);
+                            }
+                            // If text_content already has content (from delta processing),
+                            // skip message.content to avoid sending duplicate full content
+                            let skip_content = !text_content.is_empty();
+                            if let Some(message) = choice.message {
+                                if let Some(reasoning) = message.reasoning_content {
+                                    // Reasoning → reasoning_content only, never text_content
+                                    // (see the note in complete_streaming).
+                                    if first_token_ms.is_none() {
+                                        first_token_ms =
+                                            Some(request_started_at.elapsed().as_millis() as u64);
+                                    }
+                                    if let Some(delta) = Self::merge_stream_text(
+                                        &mut reasoning_content_accum,
+                                        &reasoning,
+                                    ) {
+                                        let _ = tx.send(StreamEvent::ReasoningDelta(delta)).await;
+                                    }
+                                }
+                                if !skip_content {
+                                    if let Some(content) =
+                                        message.content.filter(|value| !value.is_empty())
+                                    {
+                                        if first_token_ms.is_none() {
+                                            first_token_ms = Some(
+                                                request_started_at.elapsed().as_millis() as u64,
+                                            );
+                                        }
+                                        if let Some(delta) =
+                                            Self::merge_stream_text(&mut text_content, &content)
+                                        {
+                                            let _ = tx.send(StreamEvent::TextDelta(delta)).await;
+                                        }
+                                    }
+                                }
+                                if let Some(tcs) = message.tool_calls {
+                                    apply_tool_call_snapshot(&mut tool_calls, tcs);
+                                }
+                            } else if let Some(delta) = choice.delta {
+                                if let Some(ref rc) = delta.reasoning_content {
+                                    // Reasoning → reasoning_content only, never text_content
+                                    // (see the note in complete_streaming).
+                                    if first_token_ms.is_none() {
+                                        first_token_ms =
+                                            Some(request_started_at.elapsed().as_millis() as u64);
+                                    }
+                                    if let Some(delta) =
+                                        Self::append_stream_delta(&mut reasoning_content_accum, rc)
+                                    {
+                                        let _ = tx.send(StreamEvent::ReasoningDelta(delta)).await;
+                                    }
+                                }
+                                if let Some(content) = delta.content {
+                                    if first_token_ms.is_none() {
+                                        first_token_ms =
+                                            Some(request_started_at.elapsed().as_millis() as u64);
+                                    }
+                                    if let Some(delta) =
+                                        Self::append_stream_delta(&mut text_content, &content)
+                                    {
+                                        let _ = tx.send(StreamEvent::TextDelta(delta)).await;
+                                    }
+                                }
+                            }
+                        }
+                    } else if let Ok(response) = serde_json::from_str::<OpenAiResponse>(trailing) {
+                        parsed_any_event = true;
+                        response_id = response.id.clone();
+                        response_model = response.model.clone();
+                        response_object = response.object.clone();
+                        usage.prompt_tokens = response.usage.prompt_tokens;
+                        usage.completion_tokens = response.usage.completion_tokens;
+                        usage.total_tokens = response.usage.total_tokens;
+                        // MiniMax: fall back to total_characters when total_tokens is 0.
+                        if usage.total_tokens == 0 {
+                            usage.total_tokens = response.usage.total_characters.unwrap_or(0);
+                        }
+                        usage.cache_read_tokens = response
+                            .usage
+                            .prompt_tokens_details
+                            .as_ref()
+                            .and_then(|d| d.cached_tokens);
+
+                        if let Some(choice) = response.choices.into_iter().next() {
+                            if let Some(logprobs) = choice.logprobs.as_ref() {
+                                token_logprobs.extend(openai_logprobs_to_token_logprobs(logprobs));
+                            }
+                            finish_reason = choice.finish_reason;
+                            if let Some(text) =
+                                choice.message.content.filter(|text| !text.is_empty())
+                            {
+                                if first_token_ms.is_none() {
+                                    first_token_ms =
+                                        Some(request_started_at.elapsed().as_millis() as u64);
+                                }
+                                let _ = Self::merge_stream_text(&mut text_content, &text);
+                            }
+                            if let Some(reasoning) = choice.message.reasoning_content {
+                                reasoning_content_accum.push_str(&reasoning);
+                            }
+                            if let Some(final_tool_calls) = choice.message.tool_calls {
+                                apply_tool_call_snapshot(&mut tool_calls, final_tool_calls);
+                            }
+                        }
+                    }
+                }
+
+                if finish_reason.is_none() {
+                    if stream_failed {
+                        tracing::warn!(
+                            provider = %provider_name,
+                            model = %request_model,
+                            "OpenAI-compatible stream failed before terminal evidence; closing without Done"
+                        );
+                    } else if parsed_any_event {
+                        tracing::warn!(
+                            provider = %provider_name,
+                            model = %request_model,
+                            "OpenAI-compatible stream reached EOF before terminal evidence; closing without Done"
+                        );
+                    } else {
+                        tracing::warn!(
+                            provider = %provider_name,
+                            model = %request_model,
+                            trailing = %trailing.chars().take(400).collect::<String>(),
+                            "OpenAI-compatible stream ended without any parseable events"
+                        );
+                    }
+                    return;
+                }
+
+                // Truncation evidence: refuse to finalize a response whose
+                // tail may be missing. Tool-call arguments arrive as an
+                // incremental JSON string; non-empty arguments that fail to
+                // parse mean the byte stream was cut mid-call, and sending
+                // the buffered content as Done would make a truncated turn
+                // indistinguishable from a complete one. Closing without
+                // Done hands the shape to the caller's retryable
+                // "stream ended before a response" path instead.
+                let truncated_tool_args = tool_calls.iter().any(|(_, (_, _, args))| {
+                    !args.trim().is_empty()
+                        && serde_json::from_str::<serde_json::Value>(args).is_err()
+                });
+                if truncated_tool_args {
+                    tracing::warn!(
+                        provider = %provider_name,
+                        model = %request_model,
+                        "OpenAI-compatible stream ended with unparseable tool arguments; refusing to finalize as complete"
+                    );
+                    return;
+                }
+
+                if parsed_any_event
+                    || !text_content.is_empty()
+                    || !tool_calls.is_empty()
+                    || !content_blocks.is_empty()
+                {
+                    tracing::warn!(
+                        provider = %provider_name,
+                        model = %request_model,
+                        "OpenAI-compatible stream ended without [DONE] after finish reason; finalizing buffered response"
+                    );
+                    if !text_content.is_empty() {
+                        content_blocks.push(ContentBlock::Text {
+                            text: text_content.clone(),
+                        });
+                    }
+                    for (index, (id, name, args)) in tool_calls.iter() {
+                        let id = if id.is_empty() {
+                            format!("call_{index}")
+                        } else {
+                            id.clone()
+                        };
+                        content_blocks.push(ContentBlock::ToolUse {
+                            id,
+                            name: name.clone(),
+                            input: Self::parse_tool_arguments(name, args),
+                        });
+                    }
+                    tool_calls.clear();
+                    crate::telemetry::record_llm_usage(
+                        usage.prompt_tokens,
+                        usage.completion_tokens,
+                        usage.total_tokens,
+                        finish_reason.as_deref(),
+                    );
+                    let response = LlmResponse {
+                        message: Message {
+                            role: "assistant".to_string(),
+                            content: std::mem::take(&mut content_blocks),
+                            reasoning_content: if reasoning_content_accum.is_empty() {
+                                None
+                            } else {
+                                Some(std::mem::take(&mut reasoning_content_accum))
+                            },
+                            transcript_text: None,
+                            transcript_visibility: Default::default(),
+                        },
+                        usage: usage.clone(),
+                        stop_reason: std::mem::take(&mut finish_reason),
+                        token_logprobs: std::mem::take(&mut token_logprobs),
+                        meta: Some(LlmResponseMeta {
+                            provider: Some(provider_name.clone()),
+                            request_model: Some(request_model.clone()),
+                            request_url: Some(request_url.clone()),
+                            response_id: response_id.clone(),
+                            response_model: response_model.clone(),
+                            response_object: response_object.clone(),
+                            first_token_ms,
+                            duration_ms: Some(request_started_at.elapsed().as_millis() as u64),
+                        }),
+                    };
+                    let _ = tx.send(StreamEvent::Done(response)).await;
+                }
+            });
+
+            Ok(rx)
+        }
+    }
+}
+
+pub(super) fn openai_logprobs_to_token_logprobs(
+    logprobs: &OpenAiChoiceLogprobs,
+) -> Vec<TokenLogProb> {
+    logprobs
+        .content
+        .as_ref()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| TokenLogProb {
+                    token: item.token.clone(),
+                    logprob: item.logprob,
+                    bytes: item.bytes.clone(),
+                    top_logprobs: item
+                        .top_logprobs
+                        .iter()
+                        .map(|top| TopTokenLogProb {
+                            token: top.token.clone(),
+                            logprob: top.logprob,
+                            bytes: top.bytes.clone(),
+                        })
+                        .collect(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A streamed slot is identified by the id and name already bound to its index.
+/// A later delta that names a different call must not replace that identity or
+/// append its arguments onto the call that already started.
+fn apply_tool_call_snapshot(
+    tool_calls: &mut std::collections::BTreeMap<usize, (String, String, String)>,
+    calls: Vec<OpenAiToolCall>,
+) {
+    for (index, call) in calls.into_iter().enumerate() {
+        if let Some((bound_id, bound_name, bound_args)) = tool_calls.get(&index) {
+            if snapshot_conflicts(bound_id, bound_name, &call.id, &call.function.name) {
+                continue;
+            }
+            let id = if call.id.is_empty() {
+                bound_id.clone()
+            } else {
+                call.id
+            };
+            let name = if call.function.name.is_empty() {
+                bound_name.clone()
+            } else {
+                call.function.name
+            };
+            let arguments = if call.function.arguments.is_empty() {
+                bound_args.clone()
+            } else {
+                call.function.arguments
+            };
+            tool_calls.insert(index, (id, name, arguments));
+            continue;
+        }
+        tool_calls.insert(
+            index,
+            (call.id, call.function.name, call.function.arguments),
+        );
+    }
+}
+
+fn snapshot_conflicts(
+    bound_id: &str,
+    bound_name: &str,
+    snapshot_id: &str,
+    snapshot_name: &str,
+) -> bool {
+    (!bound_id.is_empty() && !snapshot_id.is_empty() && snapshot_id != bound_id)
+        || (!bound_name.is_empty() && !snapshot_name.is_empty() && snapshot_name != bound_name)
+}
+
+fn tool_call_delta_conflicts(
+    bound_id: &str,
+    bound_name: &str,
+    delta: &OpenAiToolCallDelta,
+) -> bool {
+    if let Some(id) = delta.id.as_deref() {
+        if !id.is_empty() && !bound_id.is_empty() && id != bound_id {
+            return true;
+        }
+    }
+    if let Some(name) = delta
+        .function
+        .as_ref()
+        .and_then(|function| function.name.as_deref())
+    {
+        // Empty continuation names are ignored, not treated as a new call.
+        if !name.is_empty() && !bound_name.is_empty() && name != bound_name {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod empty_name_tests {
+    use super::*;
+
+    #[test]
+    fn apply_tool_call_snapshot_keeps_bound_name_when_snapshot_name_empty() {
+        let mut tool_calls = std::collections::BTreeMap::new();
+        tool_calls.insert(0, ("call_1".into(), "write".into(), String::new()));
+        apply_tool_call_snapshot(
+            &mut tool_calls,
+            vec![OpenAiToolCall {
+                id: String::new(),
+                function: OpenAiFunction {
+                    name: String::new(),
+                    arguments: r#"{"path":"t.txt"}"#.into(),
+                },
+            }],
+        );
+        let (id, name, args) = tool_calls.get(&0).expect("slot 0");
+        assert_eq!(id, "call_1");
+        assert_eq!(name, "write");
+        assert!(args.contains("t.txt"));
+    }
+
+    #[test]
+    fn tool_call_delta_empty_name_is_not_a_conflict() {
+        let delta = OpenAiToolCallDelta {
+            index: 0,
+            id: None,
+            function: Some(OpenAiFunctionDelta {
+                name: Some(String::new()),
+                arguments: Some(r#"{"x":1}"#.into()),
+            }),
+        };
+        assert!(!tool_call_delta_conflicts("call_1", "write", &delta));
+    }
+
+    #[test]
+    fn tool_call_delta_empty_id_is_not_a_conflict() {
+        let delta = OpenAiToolCallDelta {
+            index: 0,
+            id: Some(String::new()),
+            function: Some(OpenAiFunctionDelta {
+                name: None,
+                arguments: Some(r#"{"x":1}"#.into()),
+            }),
+        };
+        assert!(!tool_call_delta_conflicts("call_1", "write", &delta));
+    }
+
+    #[test]
+    fn apply_tool_call_snapshot_skips_conflicting_identity() {
+        let mut tool_calls = std::collections::BTreeMap::new();
+        tool_calls.insert(0, ("call_1".into(), "write".into(), "{}".into()));
+        apply_tool_call_snapshot(
+            &mut tool_calls,
+            vec![OpenAiToolCall {
+                id: "call_other".into(),
+                function: OpenAiFunction {
+                    name: "read".into(),
+                    arguments: r#"{"path":"x"}"#.into(),
+                },
+            }],
+        );
+        let (id, name, args) = tool_calls.get(&0).expect("slot");
+        assert_eq!(id, "call_1");
+        assert_eq!(name, "write");
+        assert_eq!(args, "{}");
+    }
+
+    #[test]
+    fn tool_call_delta_mismatched_identity_is_a_conflict() {
+        let delta = OpenAiToolCallDelta {
+            index: 0,
+            id: Some("other".into()),
+            function: Some(OpenAiFunctionDelta {
+                name: Some("other_fn".into()),
+                arguments: None,
+            }),
+        };
+        assert!(tool_call_delta_conflicts("call_1", "write", &delta));
+    }
+
+    #[test]
+    fn tool_call_delta_name_only_mismatch_is_a_conflict() {
+        let delta = OpenAiToolCallDelta {
+            index: 0,
+            id: Some("call_1".into()),
+            function: Some(OpenAiFunctionDelta {
+                name: Some("read".into()),
+                arguments: None,
+            }),
+        };
+        assert!(tool_call_delta_conflicts("call_1", "write", &delta));
+    }
+
+    #[test]
+    fn apply_tool_call_snapshot_keeps_bound_args_when_snapshot_args_empty() {
+        let mut tool_calls = std::collections::BTreeMap::new();
+        tool_calls.insert(
+            0,
+            ("call_1".into(), "write".into(), r#"{"keep":true}"#.into()),
+        );
+        apply_tool_call_snapshot(
+            &mut tool_calls,
+            vec![OpenAiToolCall {
+                id: "call_1".into(),
+                function: OpenAiFunction {
+                    name: "write".into(),
+                    arguments: String::new(),
+                },
+            }],
+        );
+        let (id, name, args) = tool_calls.get(&0).expect("slot 0");
+        assert_eq!(id, "call_1");
+        assert_eq!(name, "write");
+        assert_eq!(args, r#"{"keep":true}"#);
+    }
+
+    #[test]
+    fn openai_logprobs_to_token_logprobs_maps_content() {
+        let mapped = openai_logprobs_to_token_logprobs(&OpenAiChoiceLogprobs {
+            content: Some(vec![OpenAiTokenLogprob {
+                token: "hi".into(),
+                logprob: -0.1,
+                bytes: Some(vec![104, 105]),
+                top_logprobs: vec![OpenAiTopLogprob {
+                    token: "hi".into(),
+                    logprob: -0.1,
+                    bytes: Some(vec![104, 105]),
+                }],
+            }]),
+        });
+        assert_eq!(mapped.len(), 1);
+        assert_eq!(mapped[0].token, "hi");
+        assert_eq!(mapped[0].top_logprobs.len(), 1);
+    }
+}

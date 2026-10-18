@@ -1,0 +1,1058 @@
+#![cfg(test)]
+
+use super::*;
+
+#[tokio::test]
+async fn test_history_empty_on_new_session() {
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let session = agent
+        .session_async("/tmp/test-workspace", None)
+        .await
+        .unwrap();
+    assert!(session.history().is_empty());
+}
+
+#[tokio::test]
+async fn test_stream_updates_history_and_auto_saves() {
+    let store = Arc::new(crate::store::MemorySessionStore::new());
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let opts = SessionOptions::new()
+        .with_session_store(store.clone())
+        .with_session_id("stream-history-test")
+        .with_auto_save(true);
+    crate::fact_control::reset_session_fact_log("/tmp/test-stream-history");
+    let session = agent
+        .build_session(
+            "/tmp/test-stream-history".into(),
+            Arc::new(StaticStreamingClient::new("streamed answer")),
+            &opts,
+        )
+        .unwrap();
+
+    let (mut rx, handle) = session.stream("hello", None).await.unwrap();
+    let mut saw_end = false;
+    while let Some(event) = rx.recv().await {
+        if matches!(event, AgentEvent::End { .. }) {
+            saw_end = true;
+            break;
+        }
+    }
+    handle.await.unwrap();
+
+    assert!(saw_end);
+    let history = session.history();
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].text(), "hello");
+    assert_eq!(history[1].text(), "streamed answer");
+
+    let saved = store
+        .load("stream-history-test")
+        .await
+        .unwrap()
+        .expect("saved session");
+    assert_eq!(saved.messages.len(), 2);
+    assert_eq!(saved.messages[1].text(), "streamed answer");
+
+    let run_records = store
+        .load_run_records("stream-history-test")
+        .await
+        .unwrap()
+        .expect("saved run records");
+    assert_eq!(run_records.len(), 1);
+    assert_eq!(
+        run_records[0].snapshot.status,
+        crate::run::RunStatus::Completed
+    );
+    assert!(run_records[0]
+        .events
+        .iter()
+        .any(|record| matches!(record.event, AgentEvent::End { .. })));
+}
+
+/// After a completed tool round, `auto_save` must flush `sessions` JSON at the
+/// checkpoint boundary — not only on stream `End`. Otherwise a process kill
+/// after `write` leaves the workspace file without a durable session marker.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_stream_tool_round_checkpoint_flushes_session_before_end() {
+    let store = Arc::new(crate::store::MemorySessionStore::new());
+    let workspace = std::env::temp_dir().join(format!(
+        "a3s-ckpt-flush-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    ));
+    std::fs::create_dir_all(&workspace).unwrap();
+    let marker = "marker-ckpt-flush-xyz";
+    let client = Arc::new(ScriptedStreamingClient::new(vec![
+        scripted_tool_call_response(
+            "call-write",
+            "write",
+            serde_json::json!({
+                "file_path": "a3s-ckpt-flush.md",
+                "content": "7"
+            }),
+        ),
+        // Deliberately never consumed: we abort after ToolEnd to prove the
+        // session snapshot does not depend on End autosave.
+        scripted_text_response(marker),
+    ]));
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let opts = SessionOptions::new()
+        .with_session_store(store.clone())
+        .with_session_id("stream-ckpt-flush-test")
+        .with_auto_save(true)
+        .with_confirmation_policy(crate::hitl::ConfirmationPolicy::default())
+        .with_planning_mode(crate::prompts::PlanningMode::Disabled);
+    let session = agent
+        .build_session(workspace.display().to_string(), client, &opts)
+        .unwrap();
+
+    let (mut rx, handle) = session
+        .stream("write a3s-ckpt-flush.md then stop", None)
+        .await
+        .unwrap();
+    let mut flushed_before_end = false;
+    while let Some(event) = rx.recv().await {
+        match &event {
+            AgentEvent::ToolEnd { id, .. } if id == "call-write" => {
+                // Checkpoint commit acks after the event sink drains.
+                for _ in 0..50 {
+                    tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+                    if let Ok(Some(saved)) = store.load("stream-ckpt-flush-test").await {
+                        let hay = serde_json::to_string(&saved.messages).unwrap_or_default();
+                        if hay.contains("a3s-ckpt-flush.md") || hay.contains("call-write") {
+                            flushed_before_end = true;
+                            break;
+                        }
+                    }
+                }
+                handle.abort();
+                break;
+            }
+            AgentEvent::End { .. } => break,
+            _ => {}
+        }
+    }
+    let _ = handle.await;
+
+    assert_eq!(
+        std::fs::read(workspace.join("a3s-ckpt-flush.md")).unwrap(),
+        b"7",
+        "the checkpoint pin requires an actual schema-admitted write"
+    );
+    assert!(
+        flushed_before_end,
+        "session JSON must flush at the tool-round checkpoint before stream End"
+    );
+    let _ = std::fs::remove_dir_all(&workspace);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_stream_bridges_subagent_lifecycle_events() {
+    use crate::prompts::PlanningMode;
+    use crate::subagent_task_tracker::SubagentStatus;
+
+    let client = Arc::new(ScriptedStreamingClient::new(vec![
+        scripted_tool_call_response(
+            "call-parallel",
+            "task",
+            serde_json::json!({
+                "tasks": [
+                    {
+                        "agent": "explore",
+                        "description": "Find auth code",
+                        "prompt": "Find the auth code."
+                    },
+                    {
+                        "agent": "explore",
+                        "description": "Find docs",
+                        "prompt": "Find the docs."
+                    }
+                ]
+            }),
+        ),
+        scripted_text_response("auth child result"),
+        scripted_text_response("docs child result"),
+        scripted_text_response("final answer"),
+    ]));
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let opts = SessionOptions::new()
+        .with_session_id("stream-subagents-test")
+        .with_confirmation_policy(crate::hitl::ConfirmationPolicy::default())
+        .with_planning_mode(PlanningMode::Disabled);
+    crate::fact_control::reset_session_fact_log("/tmp/test-stream-subagents");
+    let session = agent
+        .build_session("/tmp/test-stream-subagents".into(), client, &opts)
+        .unwrap();
+
+    let (mut rx, handle) = session.stream("fan out this work", None).await.unwrap();
+    let mut subagent_starts = 0;
+    let mut subagent_ends = 0;
+    let mut event_index = 0usize;
+    let mut last_subagent_end = None;
+    let mut parent_tool_end = None;
+    while let Some(event) = rx.recv().await {
+        match event {
+            AgentEvent::SubagentStart { .. } => subagent_starts += 1,
+            AgentEvent::SubagentEnd { .. } => {
+                subagent_ends += 1;
+                last_subagent_end = Some(event_index);
+            }
+            AgentEvent::ToolEnd { id, .. } if id == "call-parallel" => {
+                parent_tool_end = Some(event_index);
+            }
+            AgentEvent::End { .. } => break,
+            _ => {}
+        }
+        event_index += 1;
+    }
+    handle.await.unwrap();
+
+    assert_eq!(subagent_starts, 2);
+    assert_eq!(subagent_ends, 2);
+    assert!(
+        last_subagent_end.expect("foreground tasks must emit SubagentEnd")
+            < parent_tool_end.expect("task fan-out must emit ToolEnd"),
+        "all foreground SubagentEnd events must precede the parent ToolEnd"
+    );
+
+    let tasks = session.subagent_tasks().await;
+    assert_eq!(tasks.len(), 2);
+    assert!(tasks
+        .iter()
+        .all(|task| task.status == SubagentStatus::Completed));
+}
+
+#[tokio::test]
+async fn test_stream_with_custom_history_does_not_update_session_history() {
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let session = agent
+        .build_session(
+            "/tmp/test-stream-custom-history".into(),
+            Arc::new(StaticStreamingClient::new("custom history answer")),
+            &SessionOptions::new(),
+        )
+        .unwrap();
+    let custom_history = vec![Message::user("custom prompt")];
+
+    let (mut rx, handle) = session
+        .stream("ignored", Some(&custom_history))
+        .await
+        .unwrap();
+    while let Some(event) = rx.recv().await {
+        if matches!(event, AgentEvent::End { .. }) {
+            break;
+        }
+    }
+    handle.await.unwrap();
+
+    assert!(session.history().is_empty());
+}
+
+#[tokio::test]
+async fn test_stream_error_does_not_update_history_or_auto_save() {
+    let store = Arc::new(crate::store::MemorySessionStore::new());
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let opts = SessionOptions::new()
+        .with_session_store(store.clone())
+        .with_session_id("stream-error-test")
+        .with_auto_save(true);
+    let session = agent
+        .build_session(
+            "/tmp/test-stream-error".into(),
+            Arc::new(FailingStreamingClient),
+            &opts,
+        )
+        .unwrap();
+
+    let (mut rx, handle) = session.stream("hello", None).await.unwrap();
+    let mut saw_error = false;
+    while let Some(event) = rx.recv().await {
+        if matches!(event, AgentEvent::Error { .. }) {
+            saw_error = true;
+            break;
+        }
+    }
+    handle.await.unwrap();
+
+    assert!(saw_error);
+    assert!(session.history().is_empty());
+    assert!(store.load("stream-error-test").await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn test_non_retryable_stream_error_skips_fallback_and_circuit_retries() {
+    let client = Arc::new(NonRetryableStreamingClient::default());
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let session = agent
+        .build_session(
+            "/tmp/test-non-retryable-stream-error".into(),
+            client.clone(),
+            &SessionOptions::new().with_planning_mode(PlanningMode::Disabled),
+        )
+        .unwrap();
+
+    let (mut rx, handle) = session.stream("hello", None).await.unwrap();
+    let mut error_message = None;
+    while let Some(event) = rx.recv().await {
+        if let AgentEvent::Error { message } = event {
+            error_message = Some(message);
+            break;
+        }
+    }
+    handle.await.unwrap();
+
+    assert_eq!(
+        error_message.as_deref(),
+        Some("Codex Pro usage limit reached. Quota resets in about 2h 45m.")
+    );
+    assert_eq!(
+        client
+            .streaming_calls
+            .load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "a non-retryable provider error must make one streaming call"
+    );
+    assert_eq!(
+        client
+            .complete_calls
+            .load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "a non-retryable provider error must not use non-streaming fallback"
+    );
+}
+
+#[tokio::test]
+async fn test_non_retryable_pre_analysis_stops_before_main_turn() {
+    let client = Arc::new(NonRetryableStreamingClient::default());
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    // Auto planning no longer calls the model before the fact loop.
+    // Only explicit planning publishes a plan, and a non-retryable provider
+    // error on that call must stop before the main turn.
+    let session = agent
+        .build_session(
+            "/tmp/test-non-retryable-pre-analysis".into(),
+            client.clone(),
+            &SessionOptions::new().with_planning_mode(PlanningMode::Enabled),
+        )
+        .unwrap();
+
+    let (mut rx, handle) = session
+        .stream("review this repository", None)
+        .await
+        .unwrap();
+    let mut error_message = None;
+    while let Some(event) = rx.recv().await {
+        if let AgentEvent::Error { message } = event {
+            error_message = Some(message);
+            break;
+        }
+    }
+    handle.await.unwrap();
+
+    assert_eq!(
+        error_message.as_deref(),
+        Some("Codex Pro usage limit reached. Quota resets in about 2h 45m.")
+    );
+    assert_eq!(
+        client
+            .complete_calls
+            .load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "pre-analysis should make exactly one provider request"
+    );
+    assert_eq!(
+        client
+            .streaming_calls
+            .load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "a terminal pre-analysis error must stop before the main turn"
+    );
+}
+
+#[tokio::test]
+async fn test_stream_cancel_records_interrupted_history_and_auto_saves() {
+    let store = Arc::new(crate::store::MemorySessionStore::new());
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let opts = SessionOptions::new()
+        .with_session_store(store.clone())
+        .with_session_id("stream-cancel-test")
+        .with_auto_save(true);
+    crate::fact_control::reset_session_fact_log("/tmp/test-stream-cancel");
+    let session = agent
+        .build_session(
+            "/tmp/test-stream-cancel".into(),
+            Arc::new(CancellableStreamingClient::new("partial answer")),
+            &opts,
+        )
+        .unwrap();
+
+    let (mut rx, handle) = session.stream("hello", None).await.unwrap();
+    let mut saw_delta = false;
+    for _ in 0..16 {
+        let event = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+            .await
+            .expect("stream event before timeout")
+            .expect("stream should stay open until cancelled");
+        if matches!(event, AgentEvent::TextDelta { ref text } if text == "partial answer") {
+            saw_delta = true;
+            break;
+        }
+    }
+    assert!(saw_delta);
+    assert!(session.cancel().await);
+
+    while rx.recv().await.is_some() {}
+    handle.await.unwrap();
+
+    let history = session.history();
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].role, "user");
+    assert_eq!(history[0].text(), "hello");
+    assert_eq!(history[1].role, "assistant");
+    assert!(history[1].text().contains("interrupted"));
+
+    let saved = store
+        .load("stream-cancel-test")
+        .await
+        .unwrap()
+        .expect("interrupted stream should auto-save");
+    assert_eq!(saved.messages.len(), 2);
+    assert_eq!(saved.messages[0].text(), "hello");
+    assert!(saved.messages[1].text().contains("interrupted"));
+    assert!(!session.cancel().await);
+}
+
+#[tokio::test]
+async fn test_stream_with_attachments_cancel_records_interrupted_history_and_auto_saves() {
+    let store = Arc::new(crate::store::MemorySessionStore::new());
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let opts = SessionOptions::new()
+        .with_session_store(store.clone())
+        .with_session_id("stream-attachments-cancel-test")
+        .with_auto_save(true);
+    crate::fact_control::reset_session_fact_log("/tmp/test-stream-attachments-cancel");
+    let session = agent
+        .build_session(
+            "/tmp/test-stream-attachments-cancel".into(),
+            Arc::new(CancellableStreamingClient::new("partial attachment answer")),
+            &opts,
+        )
+        .unwrap();
+    let attachments = vec![crate::llm::Attachment::png(vec![1, 2, 3])];
+
+    let (mut rx, handle) = session
+        .stream_with_attachments("hello", &attachments, None)
+        .await
+        .unwrap();
+    let mut saw_delta = false;
+    for _ in 0..16 {
+        let event = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+            .await
+            .expect("stream event before timeout")
+            .expect("stream should stay open until cancelled");
+        if matches!(event, AgentEvent::TextDelta { .. }) {
+            saw_delta = true;
+            break;
+        }
+    }
+    assert!(saw_delta);
+    assert!(session.cancel().await);
+
+    while rx.recv().await.is_some() {}
+    handle.await.unwrap();
+
+    let history = session.history();
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].role, "user");
+    assert_eq!(history[0].text(), "hello");
+    assert_eq!(history[1].role, "assistant");
+    assert!(history[1].text().contains("interrupted"));
+
+    let saved = store
+        .load("stream-attachments-cancel-test")
+        .await
+        .unwrap()
+        .expect("interrupted attachment stream should auto-save");
+    assert_eq!(saved.messages.len(), 2);
+    assert_eq!(saved.messages[0].text(), "hello");
+    assert!(saved.messages[1].text().contains("interrupted"));
+    assert_eq!(
+        session.runs().await[0].status,
+        crate::run::RunStatus::Cancelled
+    );
+    assert!(!session.cancel().await);
+}
+
+#[tokio::test]
+async fn test_run_handle_cancels_send_with_attachments() {
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let session = Arc::new(
+        agent
+            .build_session(
+                "/tmp/test-send-attachments-run-handle-cancel".into(),
+                Arc::new(CancellableStreamingClient::new("partial answer")),
+                &SessionOptions::new(),
+            )
+            .unwrap(),
+    );
+    let worker_session = Arc::clone(&session);
+    let attachments = vec![crate::llm::Attachment::png(vec![1, 2, 3])];
+
+    let worker = tokio::spawn(async move {
+        worker_session
+            .send_with_attachments("hello", &attachments, None)
+            .await
+    });
+
+    let mut run = None;
+    for _ in 0..20 {
+        if let Some(current) = session.current_run().await {
+            run = Some(current);
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    let run = run.expect("current run should be visible");
+    assert!(run.cancel().await);
+
+    let result = tokio::time::timeout(std::time::Duration::from_secs(1), worker)
+        .await
+        .expect("send_with_attachments should stop after cancellation")
+        .expect("worker should not panic");
+    assert!(matches!(result, Err(ref error)
+        if error.cancelled_run_id() == Some(run.id())));
+    assert_eq!(run.status().await, Some(crate::run::RunStatus::Cancelled));
+    let history = session.history();
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].text(), "hello");
+    assert!(history[1].text().contains("interrupted"));
+    assert!(!session.cancel().await);
+}
+
+#[tokio::test]
+async fn test_cancel_run_only_cancels_matching_current_run() {
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let session = Arc::new(
+        agent
+            .build_session(
+                "/tmp/test-cancel-run-by-id".into(),
+                Arc::new(CancellableStreamingClient::new("partial answer")),
+                &SessionOptions::new(),
+            )
+            .unwrap(),
+    );
+    let worker_session = Arc::clone(&session);
+    let worker = tokio::spawn(async move { worker_session.send("hello", None).await });
+
+    let mut run_id = None;
+    for _ in 0..20 {
+        if let Some(current) = session.current_run().await {
+            run_id = Some(current.id().to_string());
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    let run_id = run_id.expect("current run should be visible");
+
+    assert!(!session.cancel_run("stale-run").await);
+    assert!(session.cancel_run(&run_id).await);
+
+    let result = tokio::time::timeout(std::time::Duration::from_secs(1), worker)
+        .await
+        .expect("send should stop after cancellation")
+        .expect("worker should not panic");
+    assert!(matches!(result, Err(ref error)
+        if error.cancelled_run_id() == Some(run_id.as_str())));
+    let history = session.history();
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].text(), "hello");
+    assert!(history[1].text().contains("interrupted"));
+    assert_eq!(
+        session.run_snapshot(&run_id).await.unwrap().status,
+        crate::run::RunStatus::Cancelled
+    );
+    assert!(!session.cancel_run(&run_id).await);
+}
+
+/// A cancelled fact-log turn must close the host stream without a second
+/// provider call. Memory extraction is post-turn work and follows the run
+/// cancellation token.
+#[tokio::test]
+async fn cancelled_fact_stream_settles_without_memory_extraction() {
+    let extraction_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let session = agent
+        .build_session(
+            workspace.path().to_string_lossy().to_string(),
+            std::sync::Arc::new(SlowExtractionClient {
+                extraction_calls: std::sync::Arc::clone(&extraction_calls),
+            }),
+            &SessionOptions::new()
+                .with_session_id("cancel-skips-memory-extraction")
+                .with_planning_mode(crate::prompts::PlanningMode::Disabled)
+                .with_memory(std::sync::Arc::new(a3s_memory::InMemoryStore::new())),
+        )
+        .unwrap();
+
+    let (mut events, worker) = session
+        .stream("remember this cancelled turn", None)
+        .await
+        .unwrap();
+    let started = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            match events.recv().await {
+                Some(AgentEvent::TextDelta { .. }) => return,
+                Some(AgentEvent::End { .. }) | Some(AgentEvent::Error { .. }) | None => {
+                    panic!("stream ended before cancellation")
+                }
+                _ => {}
+            }
+        }
+    })
+    .await;
+    started.expect("model delta before cancellation");
+    assert!(session.cancel().await);
+
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while events.recv().await.is_some() {}
+    })
+    .await
+    .expect("cancelled stream should close without waiting for memory extraction");
+    tokio::time::timeout(std::time::Duration::from_secs(2), worker)
+        .await
+        .expect("cancelled worker should finish without a memory extraction call")
+        .expect("worker join");
+    assert_eq!(
+        extraction_calls.load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+    assert!(session
+        .history()
+        .iter()
+        .any(|message| message.text().contains("interrupted")));
+}
+
+struct SlowExtractionClient {
+    extraction_calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl crate::llm::LlmClient for SlowExtractionClient {
+    async fn complete(
+        &self,
+        _messages: &[crate::llm::Message],
+        _system: Option<&str>,
+        _tools: &[crate::llm::ToolDefinition],
+    ) -> anyhow::Result<crate::llm::LlmResponse> {
+        self.extraction_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        Ok(crate::llm::LlmResponse {
+            message: crate::llm::Message::assistant("[]"),
+            usage: crate::llm::TokenUsage::default(),
+            stop_reason: None,
+            token_logprobs: Vec::new(),
+            meta: None,
+        })
+    }
+
+    async fn complete_streaming(
+        &self,
+        _messages: &[crate::llm::Message],
+        _system: Option<&str>,
+        _tools: &[crate::llm::ToolDefinition],
+        cancel_token: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<tokio::sync::mpsc::Receiver<crate::llm::StreamEvent>> {
+        let (sender, receiver) = tokio::sync::mpsc::channel(2);
+        tokio::spawn(async move {
+            let _ = sender
+                .send(crate::llm::StreamEvent::TextDelta("partial".into()))
+                .await;
+            cancel_token.cancelled().await;
+        });
+        Ok(receiver)
+    }
+}
+
+#[tokio::test]
+async fn v912_stream_end_waiver_and_cancel() {
+    let store = Arc::new(crate::store::MemorySessionStore::new());
+    let agent = Agent::from_config(test_config()).await.unwrap();
+    let workspace = std::env::temp_dir().join(format!(
+        "a3s-v912-end-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&workspace).unwrap();
+    crate::fact_control::reset_session_fact_log(workspace.to_str().unwrap());
+    let opts = SessionOptions::new()
+        .with_session_store(store.clone())
+        .with_session_id("v912-end")
+        .with_auto_save(true)
+        .with_planning_mode(crate::prompts::PlanningMode::Disabled)
+        .with_verifier(false);
+    let session = agent
+        .build_session(
+            workspace.display().to_string(),
+            Arc::new(StaticStreamingClient::new("streamed answer")),
+            &opts,
+        )
+        .unwrap();
+    let (mut rx, handle) = session.stream("hello", None).await.unwrap();
+    let mut persisted_at_end = false;
+    while let Some(event) = rx.recv().await {
+        if matches!(event, AgentEvent::End { .. }) {
+            let saved = store
+                .load("v912-end")
+                .await
+                .unwrap()
+                .expect("persisted when End arrives");
+            assert_eq!(saved.messages.len(), 2);
+            assert_eq!(saved.messages[1].text(), "streamed answer");
+            let runs = store
+                .load_run_records("v912-end")
+                .await
+                .unwrap()
+                .expect("run records");
+            assert_eq!(runs[0].snapshot.status, crate::run::RunStatus::Completed);
+            persisted_at_end = true;
+            break;
+        }
+    }
+    handle.await.unwrap();
+    assert!(persisted_at_end, "host did not observe End");
+
+    let calls = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let waiver_workspace = std::env::temp_dir().join(format!(
+        "a3s-v912-waiver-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&waiver_workspace).unwrap();
+    crate::fact_control::reset_session_fact_log(waiver_workspace.to_str().unwrap());
+    let mut ledger = crate::harness_loop::MutationLedger::default();
+    // Host approval names the expected bytes and file identity. A legacy
+    // metadata-only digest cannot authorize the new byte-bound effect.
+    // This separate host fixture does not pre-write the candidate workspace.
+    let expected_artifact = tempfile::tempdir().unwrap();
+    std::fs::write(expected_artifact.path().join("notes.txt"), b"hello").unwrap();
+    let effects = crate::porcelain::observe_path_effects(
+        expected_artifact.path(),
+        crate::porcelain::PathDelta {
+            paths: vec!["notes.txt".into()],
+            incomplete: false,
+        },
+    );
+    ledger.observe_tool_receipt(
+        "write",
+        &a3s_effect::ToolExecutionResultV1 {
+            schema: a3s_effect::TOOL_RESULT_SCHEMA.into(),
+            identity: a3s_effect::ToolInvocationIdentityV1 {
+                turn: 1,
+                cycle: 0,
+                tool_call_id: "host-expected-effect".into(),
+                batch_index: 0,
+                admission: None,
+            },
+            prepared_digest: a3s_effect::tool_args_digest(&serde_json::json!({})).unwrap(),
+            outcome: a3s_effect::ToolExecutionOutcome::Succeeded,
+            exit_code: Some(0),
+            output: serde_json::json!("host expected identity"),
+            effects,
+        },
+    );
+    let waiver =
+        crate::harness_loop::CompletionWaiverV1::new(ledger.digest(), "host accepted this write")
+            .expect("waiver");
+    let waiver_agent = Agent::from_config(test_config()).await.unwrap();
+    let waiver_opts = SessionOptions::new()
+        .with_session_id("v912-waiver")
+        .with_planning_mode(crate::prompts::PlanningMode::Disabled)
+        .with_verifier(false)
+        .with_continuation(false)
+        .with_confirmation_policy(crate::hitl::ConfirmationPolicy::default())
+        .with_completion_waivers(vec![waiver])
+        .with_memory(Arc::new(a3s_memory::InMemoryStore::new()));
+    let waiver_session = waiver_agent
+        .build_session(
+            waiver_workspace.display().to_string(),
+            Arc::new(WaiverRecordingClient {
+                calls: Arc::clone(&calls),
+            }),
+            &waiver_opts,
+        )
+        .unwrap();
+    let (mut rx, handle) = waiver_session
+        .stream("write notes.txt", None)
+        .await
+        .unwrap();
+    let mut waiver_error = None;
+    while let Some(event) = rx.recv().await {
+        if let AgentEvent::Error { message } = event {
+            waiver_error = Some(message);
+            break;
+        }
+        if matches!(event, AgentEvent::End { .. }) {
+            break;
+        }
+    }
+    handle.await.unwrap();
+    assert!(
+        waiver_error.is_none(),
+        "waiver did not close the turn: {}",
+        waiver_error.unwrap_or_default()
+    );
+    let extraction = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let seen = calls.lock().expect("calls").clone();
+            if seen.iter().any(|call| call.contains("You extract durable")) {
+                return seen;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("memory extraction was not the provider call after the waiver");
+    let stream_at = extraction
+        .iter()
+        .position(|call| call.starts_with("stream:"))
+        .expect("write turn never streamed");
+    let next = extraction
+        .get(stream_at + 1)
+        .expect("no provider call after the waived write");
+    assert!(
+        next.starts_with("complete:") && next.contains("You extract durable"),
+        "waiver's next provider call was not memory extraction: {extraction:?}"
+    );
+    assert!(
+        !extraction
+            .iter()
+            .skip(stream_at + 1)
+            .any(|call| call.starts_with("stream:")),
+        "waiver spent a second completion: {extraction:?}"
+    );
+
+    let cancel_workspace = std::env::temp_dir().join(format!(
+        "a3s-v912-cancel-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&cancel_workspace).unwrap();
+    crate::fact_control::reset_session_fact_log(cancel_workspace.to_str().unwrap());
+    let cancel_agent = Agent::from_config(test_config()).await.unwrap();
+    let cancel_session = cancel_agent
+        .build_session(
+            cancel_workspace.display().to_string(),
+            Arc::new(CancellableStreamingClient::new("partial answer")),
+            &SessionOptions::new()
+                .with_session_id("v912-cancel")
+                .with_planning_mode(crate::prompts::PlanningMode::Disabled)
+                .with_verifier(false),
+        )
+        .unwrap();
+    let (mut rx, handle) = cancel_session.stream("hello", None).await.unwrap();
+    let started = std::time::Instant::now();
+    let mut saw_delta = false;
+    while let Some(event) = rx.recv().await {
+        if matches!(event, AgentEvent::TextDelta { .. }) {
+            saw_delta = true;
+            break;
+        }
+    }
+    assert!(saw_delta);
+    assert!(cancel_session.cancel().await);
+    let mut terminal = String::new();
+    while let Some(event) = rx.recv().await {
+        match event {
+            AgentEvent::Error { message } => terminal.push_str(&message),
+            AgentEvent::End { text, .. } => terminal.push_str(&text),
+            _ => {}
+        }
+    }
+    handle.await.unwrap();
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "cancel waited {:?}",
+        started.elapsed()
+    );
+    let history = cancel_session
+        .history()
+        .iter()
+        .map(|message| message.text())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !history.contains("timed out: no stream data")
+            && !terminal.contains("timed out: no stream data"),
+        "cancel surfaced the idle timeout: {history} {terminal}"
+    );
+}
+
+struct WaiverRecordingClient {
+    calls: Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+#[async_trait::async_trait]
+impl crate::llm::LlmClient for WaiverRecordingClient {
+    async fn complete(
+        &self,
+        _messages: &[crate::llm::Message],
+        system: Option<&str>,
+        _tools: &[crate::llm::ToolDefinition],
+    ) -> anyhow::Result<crate::llm::LlmResponse> {
+        let system = system.unwrap_or("");
+        self.calls
+            .lock()
+            .expect("calls")
+            .push(format!("complete:{system}"));
+        if system.contains(crate::prompts::PRE_ANALYSIS_SYSTEM) {
+            return Ok(scripted_text_response(
+                r#"{"intent":"GeneralPurpose","requires_planning":false}"#,
+            ));
+        }
+        Ok(scripted_text_response(r#"{"items":[]}"#))
+    }
+
+    async fn complete_streaming(
+        &self,
+        _messages: &[crate::llm::Message],
+        _system: Option<&str>,
+        _tools: &[crate::llm::ToolDefinition],
+        _cancel_token: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<tokio::sync::mpsc::Receiver<crate::llm::StreamEvent>> {
+        self.calls
+            .lock()
+            .expect("calls")
+            .push("stream:write".into());
+        let response = scripted_tool_call_response(
+            "call-write",
+            "write",
+            serde_json::json!({
+                "file_path": "notes.txt",
+                "content": "hello"
+            }),
+        );
+        let (tx, rx) = tokio::sync::mpsc::channel(4);
+        tokio::spawn(async move {
+            let _ = tx.send(crate::llm::StreamEvent::Done(response)).await;
+        });
+        Ok(rx)
+    }
+}
+
+struct PreAnalysisClient {
+    requires_planning: bool,
+    calls: Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+#[async_trait::async_trait]
+impl crate::llm::LlmClient for PreAnalysisClient {
+    async fn complete(
+        &self,
+        _messages: &[crate::llm::Message],
+        system: Option<&str>,
+        _tools: &[crate::llm::ToolDefinition],
+    ) -> anyhow::Result<crate::llm::LlmResponse> {
+        let system = system.unwrap_or("");
+        assert!(
+            system.contains(crate::prompts::PRE_ANALYSIS_SYSTEM),
+            "only pre-analysis may call complete: {system}"
+        );
+        self.calls
+            .lock()
+            .expect("calls")
+            .push("pre-analysis".into());
+        Ok(scripted_text_response(
+            &serde_json::json!({
+                "intent": "GeneralPurpose",
+                "requires_planning": self.requires_planning,
+                "goal": {"description": "One model file", "success_criteria": ["merged"]},
+                "execution_plan": {
+                    "complexity": "Medium",
+                    "steps": [{"id": "s1", "description": "Merge the shards"}],
+                    "required_tools": []
+                },
+                "optimized_input": ""
+            })
+            .to_string(),
+        ))
+    }
+
+    async fn complete_streaming(
+        &self,
+        _messages: &[crate::llm::Message],
+        _system: Option<&str>,
+        _tools: &[crate::llm::ToolDefinition],
+        _cancel_token: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<tokio::sync::mpsc::Receiver<crate::llm::StreamEvent>> {
+        self.calls.lock().expect("calls").push("turn".into());
+        let (tx, rx) = tokio::sync::mpsc::channel(4);
+        tokio::spawn(async move {
+            let _ = tx
+                .send(crate::llm::StreamEvent::Done(scripted_text_response(
+                    "done",
+                )))
+                .await;
+        });
+        Ok(rx)
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn auto_planning_on_the_fact_path_follows_the_pre_analysis_decision() {
+    for requires_planning in [true, false] {
+        let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let agent = Agent::from_config(test_config()).await.unwrap();
+        let options = SessionOptions::new()
+            .with_planning_mode(crate::prompts::PlanningMode::Auto)
+            .with_verifier(false)
+            .with_continuation(false);
+        let session = agent
+            .build_session(
+                "/tmp/test-workspace-auto-planning".to_string(),
+                Arc::new(PreAnalysisClient {
+                    requires_planning,
+                    calls: Arc::clone(&calls),
+                }),
+                &options,
+            )
+            .unwrap();
+        let (mut rx, handle) = session
+            .stream(
+                "Consolidate the checkpoint shards into one model file.",
+                None,
+            )
+            .await
+            .unwrap();
+        let mut planned = None;
+        let mut started = false;
+        while let Some(event) = rx.recv().await {
+            match event {
+                AgentEvent::PlanningStart { .. } => started = true,
+                AgentEvent::PlanningEnd { plan, .. } => planned = Some(plan),
+                AgentEvent::End { .. } | AgentEvent::Error { .. } => break,
+                _ => {}
+            }
+        }
+        handle.await.unwrap();
+        assert_eq!(started, requires_planning);
+        assert_eq!(
+            planned.map(|plan| plan.steps[0].content.clone()),
+            requires_planning.then(|| "Merge the shards".to_string())
+        );
+        assert_eq!(
+            *calls.lock().expect("calls"),
+            vec!["pre-analysis".to_string(), "turn".to_string()],
+            "the plan comes from the pre-analysis call, not a second planning call"
+        );
+    }
+}

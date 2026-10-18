@@ -1,0 +1,68 @@
+[package]
+name = "a3s-use-ocr"
+version = "0.3.2"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/A3S-Lab/OCR"
+homepage = "https://github.com/A3S-Lab/OCR"
+authors = ["A3S Lab"]
+rust-version = "1.82"
+description = "Provider-oriented optical character recognition interfaces for A3S"
+readme = "README.md"
+keywords = ["ocr", "onnx", "pp-ocrv6", "a3s"]
+categories = ["computer-vision", "multimedia::images"]
+publish = false
+
+[lib]
+name = "a3s_use_ocr"
+path = "src/lib.rs"
+
+[[bin]]
+name = "a3s-use-ocr"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[[example]]
+name = "install_models"
+path = "examples/install_models.rs"
+required-features = ["ppocr-v6"]
+
+[features]
+default = ["ppocr-v6", "mcp", "cli"]
+ppocr-v6 = [
+    "dep:clipper2",
+    "dep:flate2",
+    "dep:fs2",
+    "dep:image",
+    "dep:imageproc",
+    "dep:ort",
+    "dep:reqwest",
+    "dep:serde_json",
+    "dep:serde_yaml",
+    "dep:tar",
+]
+mcp = ["dep:rmcp", "dep:serde_json", "tokio/io-std"]
+cli = ["ppocr-v6", "mcp", "dep:clap"]
+
+[dependencies]
+async-trait = "0.1"
+clap = {version = "4", features = ["derive"], optional = true}
+clipper2 = {version = "=0.5.3", default-features = false, optional = true}
+flate2 = {version = "1", optional = true}
+fs2 = {version = "0.4", optional = true}
+image = {version = "0.25.10", default-features = false, features = ["bmp", "gif", "jpeg", "png", "tiff", "webp"], optional = true}
+imageproc = {version = "=0.25.0", default-features = false, optional = true}
+ort = {version = "=2.0.0-rc.10", default-features = false, features = ["copy-dylibs", "download-binaries", "ndarray", "std"], optional = true}
+reqwest = {version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"], optional = true}
+rmcp = {version = "=0.8.5", default-features = false, features = ["base64", "macros", "server", "transport-io"], optional = true}
+schemars = "1.2"
+serde = {version = "1", features = ["derive"]}
+serde_json = {version = "1", optional = true}
+serde_yaml = {version = "0.9", optional = true}
+sha2 = "0.10"
+tar = {version = "0.4", optional = true}
+tokio = {version = "1", features = ["fs", "io-util", "macros", "rt-multi-thread", "sync"]}
+a3s-use-core = {path = "../use/core"}
+
+[dev-dependencies]
+tempfile = "3"

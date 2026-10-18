@@ -1,0 +1,267 @@
+//! Live-provider qualification for a bounded, multi-step coding task.
+//!
+//! The test requires the selected model to plan, establish a failing baseline,
+//! inspect a specification and implementation, edit two source files, and
+//! verify the repair. It is ignored by default because it consumes provider
+//! quota. Select a model declared in the same ACL with
+//! `A3S_TEST_MODEL=provider/model`.
+
+use std::path::Path;
+use std::process::Stdio;
+use std::sync::Arc;
+use std::time::Duration;
+
+use a3s_code_core::permissions::{PermissionDecision, PermissionPolicy};
+use a3s_code_core::{
+    Agent, AgentEvent, AgentSession, PlanningMode, RunStatus, SessionOptions, SystemPromptSlots,
+};
+
+mod support;
+use support::layer_c_model::load_pinned_layer_c_config;
+
+const REAL_TIMEOUT: Duration = Duration::from_secs(900);
+const SPEC: &str = r#"# Label summary contract
+
+`normalizeLabels(values)` must trim every string, lowercase it, discard empty
+values, remove duplicates, and return the remaining labels in ascending order.
+
+`summarize(values)` must return `{ labels, uniqueCount }`, where `labels` is the
+normalized list and `uniqueCount` is exactly its length.
+"#;
+const TEST_SOURCE: &str = r#"import assert from "node:assert/strict";
+import { summarize } from "./src/stats.mjs";
+
+const actual = summarize([" Beta ", "alpha", "ALPHA", "", "beta", "Gamma"]);
+assert.deepEqual(actual, {
+  labels: ["alpha", "beta", "gamma"],
+  uniqueCount: 3,
+});
+console.log("LONG_HORIZON_OK");
+"#;
+const NORMALIZE_BUG: &str = r#"export function normalizeLabels(values) {
+  return values.map((value) => value.trim());
+}
+"#;
+const STATS_BUG: &str = r#"import { normalizeLabels } from "./normalize.mjs";
+
+export function summarize(values) {
+  return { labels: normalizeLabels(values), uniqueCount: 99 };
+}
+"#;
+
+async fn configured_agent_and_model() -> (Agent, String) {
+    let config = load_pinned_layer_c_config();
+    let model = config
+        .default_model
+        .clone()
+        .expect("pinned Layer C config must declare default_model");
+    eprintln!("[long-horizon-real] model={model}");
+    (
+        Agent::from_config(config)
+            .await
+            .expect("build real-provider agent"),
+        model,
+    )
+}
+
+fn session_options(model: &str) -> SessionOptions {
+    let mut policy = PermissionPolicy::new().allow_all(&[
+        "ls(*)",
+        "read(*)",
+        "search(*)",
+        "edit(src/**)",
+        "write(src/**)",
+        "patch(*)",
+        "bash(node test.mjs)",
+    ]);
+    policy.default_decision = PermissionDecision::Deny;
+    SessionOptions::new()
+        .with_session_id(format!("long-horizon-{}", model.replace('/', "-")))
+        .with_model(model)
+        .with_memory(Arc::new(a3s_memory::InMemoryStore::new()))
+        .with_permission_policy(policy)
+        .with_default_security()
+        .with_planning_mode(PlanningMode::Enabled)
+        .with_goal_tracking(true)
+        .with_auto_delegation_enabled(false)
+        .with_manual_delegation_enabled(false)
+        .with_max_tool_rounds(16)
+        .with_llm_api_timeout(180_000)
+        .with_temperature(0.0)
+        .with_continuation(false)
+        .with_prompt_slots(SystemPromptSlots::default().with_guidelines(
+            "This is a coding conformance task. The first action is exactly `node test.mjs`, before any read of the sources and before any edit. Keep that failing result. Then read the specification, the test, and both source files, and fix only the two source files. Then run exactly `node test.mjs` again. Do not claim the task is verified.",
+        ))
+}
+
+fn seed_workspace(root: &Path) {
+    std::fs::create_dir(root.join("src")).unwrap();
+    std::fs::write(root.join("SPEC.md"), SPEC).unwrap();
+    std::fs::write(root.join("test.mjs"), TEST_SOURCE).unwrap();
+    std::fs::write(root.join("src/normalize.mjs"), NORMALIZE_BUG).unwrap();
+    std::fs::write(root.join("src/stats.mjs"), STATS_BUG).unwrap();
+}
+
+async fn run_task(session: &AgentSession) -> Result<a3s_code_core::AgentResult, String> {
+    match tokio::time::timeout(
+        REAL_TIMEOUT,
+        session.send(
+            r#"Repair this small JavaScript project by following every step:
+1. Run exactly `node test.mjs` before editing and observe the failure.
+2. Read SPEC.md, test.mjs, src/normalize.mjs, and src/stats.mjs.
+3. Fix the implementation in both source files. Do not modify SPEC.md or test.mjs and do not create dependencies.
+4. Run exactly `node test.mjs` again and require it to print LONG_HORIZON_OK.
+5. Stop after the second test result. Do not claim the task is verified."#,
+            None,
+        ),
+    )
+    .await
+    .expect("long-horizon scenario timed out")
+    {
+        Ok(result) => Ok(result),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a real provider configured in .a3s/config.acl"]
+async fn real_model_completes_evidence_gated_multi_step_coding_task() {
+    let workspace = tempfile::tempdir().expect("long-horizon workspace");
+    seed_workspace(workspace.path());
+    let (agent, model) = configured_agent_and_model().await;
+    let session = agent
+        .session_async(
+            workspace.path().display().to_string(),
+            Some(session_options(&model)),
+        )
+        .await
+        .expect("create long-horizon session");
+
+    let sent = run_task(&session).await;
+    assert!(
+        sent.as_ref()
+            .err()
+            .is_some_and(|message| message.contains("completion gate:")),
+        "a source repair was treated as narrative success: {sent:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(workspace.path().join("SPEC.md")).unwrap(),
+        SPEC
+    );
+    assert_eq!(
+        std::fs::read_to_string(workspace.path().join("test.mjs")).unwrap(),
+        TEST_SOURCE
+    );
+    assert_ne!(
+        std::fs::read_to_string(workspace.path().join("src/normalize.mjs")).unwrap(),
+        NORMALIZE_BUG
+    );
+    let stats = std::fs::read_to_string(workspace.path().join("src/stats.mjs")).unwrap();
+    assert_ne!(
+        stats,
+        STATS_BUG,
+        "stats.mjs was not repaired\n{}",
+        tool_trace(workspace.path())
+    );
+
+    let verification = tokio::process::Command::new("node")
+        .arg("test.mjs")
+        .current_dir(workspace.path())
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .expect("run independent verification");
+    assert!(
+        verification.status.success(),
+        "independent test failed: {}{}",
+        String::from_utf8_lossy(&verification.stdout),
+        String::from_utf8_lossy(&verification.stderr)
+    );
+    assert!(String::from_utf8_lossy(&verification.stdout).contains("LONG_HORIZON_OK"));
+
+    let runs = session.runs().await;
+    assert_eq!(runs.len(), 1);
+    assert_ne!(
+        runs[0].status,
+        RunStatus::Completed,
+        "completion gate must not record a narrative Completed run"
+    );
+    let events = session.run_events(&runs[0].id).await;
+    assert!(events
+        .iter()
+        .any(|record| matches!(record.event, AgentEvent::PlanningStart { .. })));
+    assert!(events
+        .iter()
+        .any(|record| matches!(record.event, AgentEvent::PlanningEnd { .. })));
+    let bash_ends = events
+        .iter()
+        .filter_map(|record| match &record.event {
+            AgentEvent::ToolEnd {
+                name, exit_code, ..
+            } if name == "bash" => Some(*exit_code),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        bash_ends.iter().any(|code| *code != 0),
+        "missing failing baseline: {bash_ends:?}\n{}",
+        tool_trace(workspace.path())
+    );
+    assert!(
+        bash_ends.contains(&0),
+        "missing successful verification: {bash_ends:?}\n{}",
+        tool_trace(workspace.path())
+    );
+    assert!(events.iter().any(|record| matches!(
+        &record.event,
+        AgentEvent::ToolEnd { name, exit_code: 0, .. } if name == "read"
+    )));
+    assert!(events.iter().any(|record| matches!(
+        &record.event,
+        AgentEvent::ToolEnd { name, exit_code: 0, .. }
+            if matches!(name.as_str(), "edit" | "patch" | "write")
+    )));
+    // A denied exploratory request is not a harness failure: the authority
+    // boundary must contain it and the agent may recover by using the exact
+    // permitted operation. The immutable spec/test assertions and independent
+    // verification above prove that no denied mutation escaped.
+    let denied = events
+        .iter()
+        .filter_map(|record| match &record.event {
+            AgentEvent::PermissionDenied {
+                tool_name, reason, ..
+            } => Some(format!("{tool_name}: {reason}")),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if !denied.is_empty() {
+        eprintln!("[long-horizon-real] contained denied requests: {denied:?}");
+    }
+}
+
+fn tool_trace(root: &Path) -> String {
+    let dir = root.join(".a3s").join("effect-log");
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return format!("no fact log at {}", dir.display());
+    };
+    let mut out = String::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        out.push_str(&path.display().to_string());
+        out.push('\n');
+        for line in text.lines() {
+            if line.contains("\"kind\":\"tool\"")
+                || line.contains("tool.result")
+                || line.contains("file_path")
+                || line.contains("\"kind\":\"text\"")
+            {
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
+    }
+    out
+}

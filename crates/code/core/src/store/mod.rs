@@ -1,0 +1,393 @@
+//! Session persistence layer
+//!
+//! Provides pluggable session storage via the `SessionStore` trait.
+//!
+//! ## Default Implementation
+//!
+//! `FileSessionStore` stores each session as a JSON file:
+//! - Session metadata (id, name, timestamps)
+//! - Configuration (system prompt, policies)
+//! - Conversation history (messages)
+//! - Context usage statistics
+//!
+//! ## Custom Backends
+//!
+//! Prefer snapshot APIs (`save_snapshot` / `load_snapshot`). Legacy fragment
+//! `save` / `load` of [`SessionData`] remain for migration compatibility only
+//! — new backends must not treat fragments as the primary authority.
+//!
+//! ```ignore
+//! use a3s_code::store::{
+//!     SessionData, SessionSnapshotV1, SessionStore, SessionStoreCapabilities,
+//! };
+//!
+//! struct RedisStore { /* ... */ }
+//!
+//! #[async_trait::async_trait]
+//! impl SessionStore for RedisStore {
+//!     // Required by AgentSession::save: commit the entire value in one
+//!     // backend transaction / atomic replacement.
+//!     async fn save_snapshot(&self, snapshot: &SessionSnapshotV1) -> Result<()> { /* ... */ }
+//!     async fn load_snapshot(&self, id: &str) -> Result<Option<SessionSnapshotV1>> { /* ... */ }
+//!     fn capabilities(&self) -> SessionStoreCapabilities {
+//!         SessionStoreCapabilities { atomic_session_snapshots: true }
+//!     }
+//!
+//!     // Legacy fragment APIs: migration compatibility only.
+//!     async fn save(&self, session: &SessionData) -> Result<()> { /* ... */ }
+//!     async fn load(&self, id: &str) -> Result<Option<SessionData>> { /* ... */ }
+//!     async fn delete(&self, id: &str) -> Result<()> { /* ... */ }
+//!     async fn list(&self) -> Result<Vec<String>> { /* ... */ }
+//!     async fn exists(&self, id: &str) -> Result<bool> { /* ... */ }
+//! }
+//! ```
+
+mod encryption;
+mod file_store;
+mod lease;
+mod memory_store;
+mod session_data;
+mod session_snapshot;
+mod session_source;
+mod wal;
+mod watch;
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod persistence_soak;
+
+pub use encryption::SessionStoreAtRestCipher;
+pub use file_store::FileSessionStore;
+pub use lease::{SessionStoreWriterLeaseV1, SESSION_STORE_WRITER_LEASE_SCHEMA_V1};
+pub use memory_store::MemorySessionStore;
+pub use session_data::{
+    ContextUsage, LlmConfigData, SessionConfig, SessionData, SessionState,
+    DEFAULT_AUTO_COMPACT_THRESHOLD,
+};
+pub use session_snapshot::{SessionSnapshotV1, SESSION_SNAPSHOT_SCHEMA_VERSION};
+pub use session_source::SessionFactSourceV1;
+pub use wal::{
+    snapshot_content_digest, FileSessionStoreWal, SessionStoreWalEntryV1, SessionStoreWalPhaseV1,
+    SESSION_STORE_WAL_ENTRY_SCHEMA_V1,
+};
+pub use watch::{
+    SessionStoreCommitEventV1, SessionStoreCommitWatch, SESSION_STORE_COMMIT_EVENT_SCHEMA_V1,
+};
+
+use crate::loop_checkpoint::LoopCheckpoint;
+use crate::run::RunRecord;
+use crate::subagent_task_tracker::SubagentTaskSnapshot;
+use crate::tools::ArtifactStore;
+use crate::trace::TraceEvent;
+use crate::verification::VerificationReport;
+use anyhow::{bail, Result};
+
+/// Persistence guarantees advertised by a session store implementation.
+///
+/// Hosts inspect these flags before relying on a durability semantics; a
+/// missing guarantee means the caller must arrange it above the store. The
+/// flags describe what an implementation already proves with its own tests,
+/// not aspirations (KRN-6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SessionStoreCapabilities {
+    /// A complete [`SessionSnapshotV1`] is committed as one atomic generation.
+    pub atomic_session_snapshots: bool,
+    /// Saving a generation whose identity already exists either replaces it
+    /// under one compare-and-swap decision or fails without a partial write;
+    /// concurrent writers never interleave generations.
+    pub aggregate_cas: bool,
+    /// Events are appended once with monotonically increasing sequence and
+    /// can be replayed after reopen; duplicates fail closed.
+    pub append_only_event_log: bool,
+    /// Cross-process writers are fenced by a lease so a stale process cannot
+    /// overwrite a newer generation after a takeover.
+    pub lease_fencing: bool,
+    /// Persisted bytes are encrypted at rest by the backend itself.
+    pub encrypted_at_rest: bool,
+    /// The store can notify watchers of committed generations.
+    pub watch: bool,
+    /// Artifact garbage collection is reference-aware: content reachable
+    /// from a retained provenance receipt, review finding, checkpoint, or
+    /// publication is never removed.
+    pub reference_aware_artifact_gc: bool,
+}
+
+// ============================================================================
+// Session Store Trait
+// ============================================================================
+
+/// Session storage trait
+#[async_trait::async_trait]
+pub trait SessionStore: Send + Sync {
+    /// Save session data
+    async fn save(&self, session: &SessionData) -> Result<()>;
+
+    /// Load session data by ID
+    async fn load(&self, id: &str) -> Result<Option<SessionData>>;
+
+    /// Delete session data
+    async fn delete(&self, id: &str) -> Result<()>;
+
+    /// List all session IDs
+    async fn list(&self) -> Result<Vec<String>>;
+
+    /// Check if session exists
+    async fn exists(&self, id: &str) -> Result<bool>;
+
+    /// Save a complete session generation.
+    ///
+    /// There is deliberately no fragmented default write. Silently mapping an
+    /// aggregate save to several independent writes would acknowledge a
+    /// generation that readers can observe only partially. Backends must make
+    /// their write semantics explicit by overriding this method.
+    async fn save_snapshot(&self, _snapshot: &SessionSnapshotV1) -> Result<()> {
+        bail!(
+            "session store '{}' does not support aggregate session snapshots",
+            self.backend_name()
+        )
+    }
+
+    /// Compare-and-swap save of one complete generation (STORE-CAS1).
+    ///
+    /// When `expected_current_digest` is `None`, the write is unconditional.
+    /// When `Some(digest)`, the currently durable snapshot for the same
+    /// session id must exist and match that digest; otherwise the method
+    /// returns `Ok(false)` without writing. Successful commits return
+    /// `Ok(true)`.
+    async fn save_snapshot_cas(
+        &self,
+        snapshot: &SessionSnapshotV1,
+        expected_current_digest: Option<&str>,
+    ) -> Result<bool> {
+        if expected_current_digest.is_some() {
+            bail!(
+                "session store '{}' does not support aggregate snapshot CAS",
+                self.backend_name()
+            );
+        }
+        self.save_snapshot(snapshot).await?;
+        Ok(true)
+    }
+
+    /// Acquire (or take over) the store-wide writer lease (STORE-LEASE1).
+    ///
+    /// Successful callers receive the new durable epoch. After a takeover,
+    /// any previously held epoch is stale and must fail closed on the next
+    /// fenced snapshot commit.
+    async fn acquire_writer_lease(&self, _holder_id: &str) -> Result<SessionStoreWriterLeaseV1> {
+        bail!(
+            "session store '{}' does not support writer lease fencing",
+            self.backend_name()
+        )
+    }
+
+    /// Read the currently durable writer lease, if any.
+    async fn writer_lease(&self) -> Result<Option<SessionStoreWriterLeaseV1>> {
+        Ok(None)
+    }
+
+    /// Subscribe to durable snapshot commit notifications (STORE-WATCH1).
+    ///
+    /// Events are published only after a complete generation is durable.
+    /// Lagged subscribers may skip intermediate commits.
+    async fn watch_commits(&self) -> Result<SessionStoreCommitWatch> {
+        bail!(
+            "session store '{}' does not support commit watch notifications",
+            self.backend_name()
+        )
+    }
+
+    /// Load one complete session generation.
+    ///
+    /// Legacy backends are assembled through the fragment APIs. This path is
+    /// best-effort and may observe concurrent fragment updates; callers can
+    /// inspect [`Self::capabilities`] before relying on atomicity.
+    async fn load_snapshot(&self, id: &str) -> Result<Option<SessionSnapshotV1>> {
+        let Some(session) = self.load(id).await? else {
+            return Ok(None);
+        };
+        let artifacts = self.load_artifacts(id).await?.unwrap_or_default();
+        Ok(Some(SessionSnapshotV1::new(
+            session,
+            &artifacts,
+            self.load_trace_events(id).await?.unwrap_or_default(),
+            self.load_run_records(id).await?.unwrap_or_default(),
+            self.load_verification_reports(id)
+                .await?
+                .unwrap_or_default(),
+            self.load_subagent_tasks(id).await?.unwrap_or_default(),
+        )))
+    }
+
+    /// Report persistence guarantees without requiring a write probe.
+    fn capabilities(&self) -> SessionStoreCapabilities {
+        SessionStoreCapabilities::default()
+    }
+
+    /// Save artifacts associated with a session.
+    async fn save_artifacts(&self, _id: &str, artifacts: &ArtifactStore) -> Result<()> {
+        if !artifacts.is_empty() {
+            bail!(
+                "session store '{}' does not support artifacts",
+                self.backend_name()
+            );
+        }
+        Ok(())
+    }
+
+    /// Load artifacts associated with a session.
+    async fn load_artifacts(&self, _id: &str) -> Result<Option<ArtifactStore>> {
+        Ok(None)
+    }
+
+    /// Save compact trace events associated with a session.
+    async fn save_trace_events(&self, _id: &str, events: &[TraceEvent]) -> Result<()> {
+        if !events.is_empty() {
+            bail!(
+                "session store '{}' does not support trace events",
+                self.backend_name()
+            );
+        }
+        Ok(())
+    }
+
+    /// Load compact trace events associated with a session.
+    async fn load_trace_events(&self, _id: &str) -> Result<Option<Vec<TraceEvent>>> {
+        Ok(None)
+    }
+
+    /// Save run snapshots and replayable runtime events associated with a session.
+    async fn save_run_records(&self, _id: &str, records: &[RunRecord]) -> Result<()> {
+        if !records.is_empty() {
+            bail!(
+                "session store '{}' does not support run records",
+                self.backend_name()
+            );
+        }
+        Ok(())
+    }
+
+    /// Load run snapshots and replayable runtime events associated with a session.
+    async fn load_run_records(&self, _id: &str) -> Result<Option<Vec<RunRecord>>> {
+        Ok(None)
+    }
+
+    /// Save structured verification reports associated with a session.
+    async fn save_verification_reports(
+        &self,
+        _id: &str,
+        reports: &[VerificationReport],
+    ) -> Result<()> {
+        if !reports.is_empty() {
+            bail!(
+                "session store '{}' does not support verification reports",
+                self.backend_name()
+            );
+        }
+        Ok(())
+    }
+
+    /// Load structured verification reports associated with a session.
+    async fn load_verification_reports(
+        &self,
+        _id: &str,
+    ) -> Result<Option<Vec<VerificationReport>>> {
+        Ok(None)
+    }
+
+    /// Save the session's delegated subagent task tracker snapshots.
+    ///
+    /// Cluster-grade hosts need this so a migrated session keeps a
+    /// queryable history of its delegated child runs. Cancellers are
+    /// **not** persisted — they are runtime-only and re-attaching them
+    /// is the executor's job at task respawn time.
+    async fn save_subagent_tasks(&self, _id: &str, tasks: &[SubagentTaskSnapshot]) -> Result<()> {
+        if !tasks.is_empty() {
+            bail!(
+                "session store '{}' does not support subagent tasks",
+                self.backend_name()
+            );
+        }
+        Ok(())
+    }
+
+    /// Load the session's delegated subagent task tracker snapshots.
+    async fn load_subagent_tasks(&self, _id: &str) -> Result<Option<Vec<SubagentTaskSnapshot>>> {
+        Ok(None)
+    }
+
+    /// Save the latest per-tool-round loop checkpoint for `run_id`.
+    ///
+    /// The agent loop calls this through the
+    /// [`SessionStoreCheckpointSink`](crate::loop_checkpoint::SessionStoreCheckpointSink)
+    /// adapter after each completed tool round. Implementations should
+    /// **overwrite** any earlier checkpoint for the same `run_id` — the
+    /// loop only ever needs the most recent boundary.
+    async fn save_loop_checkpoint(
+        &self,
+        _run_id: &str,
+        _checkpoint: &LoopCheckpoint,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    /// Load the latest loop checkpoint for `run_id`.
+    async fn load_loop_checkpoint(&self, _run_id: &str) -> Result<Option<LoopCheckpoint>> {
+        Ok(None)
+    }
+
+    /// Delete the loop checkpoint for `run_id`, if present.
+    ///
+    /// Called by the run lifecycle when a run reaches a terminal state
+    /// **in-process** (completed, failed, or cancelled) — at that point
+    /// the checkpoint is dead weight. Only a process crash (the agent
+    /// loop never returns) should leave a checkpoint behind for
+    /// crash-recovery resume. Without this, every tool-using run would
+    /// leak a checkpoint forever — the dominant unbounded-growth source
+    /// for long-running cluster deployments.
+    ///
+    /// Deleting a non-existent checkpoint is a no-op success.
+    async fn delete_loop_checkpoint(&self, _run_id: &str) -> Result<()> {
+        Ok(())
+    }
+
+    /// Persist a workflow checkpoint, overwriting any earlier one for the same
+    /// `workflow_id`. The resumable orchestration combinators call this at each
+    /// step boundary so an interrupted workflow resumes from the last
+    /// completed step (here or, after migration, on another node).
+    async fn save_workflow_checkpoint(
+        &self,
+        _workflow_id: &str,
+        _checkpoint: &crate::orchestration::WorkflowCheckpoint,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    /// Load the latest workflow checkpoint for `workflow_id`.
+    async fn load_workflow_checkpoint(
+        &self,
+        _workflow_id: &str,
+    ) -> Result<Option<crate::orchestration::WorkflowCheckpoint>> {
+        Ok(None)
+    }
+
+    /// Delete the workflow checkpoint for `workflow_id`, if present. Called
+    /// when a workflow reaches a terminal state in-process; only a crash should
+    /// leave one behind for resume. Deleting a non-existent checkpoint is a
+    /// no-op success.
+    async fn delete_workflow_checkpoint(&self, _workflow_id: &str) -> Result<()> {
+        Ok(())
+    }
+
+    /// Health check — verify the store backend is reachable and operational
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    /// Backend name for diagnostics
+    fn backend_name(&self) -> &str {
+        "unknown"
+    }
+}

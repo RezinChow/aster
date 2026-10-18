@@ -1,0 +1,679 @@
+//! Tool-use safety gate.
+//!
+//! This module concentrates the pre-execution decision chain for tool calls:
+//! skill restrictions, hook blocks, permission policy, and HITL requirements.
+
+use crate::agent::AgentConfig;
+use crate::hitl::TimeoutAction;
+use crate::permissions::PermissionDecision;
+use crate::tools::ToolErrorKind;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ToolGateApproval {
+    PermissionAllow,
+    ConfirmationNotRequired,
+    HostDirectTrusted,
+    RuntimeInternal,
+}
+
+impl ToolGateApproval {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            ToolGateApproval::PermissionAllow => "permission_allow",
+            ToolGateApproval::ConfirmationNotRequired => "confirmation_not_required",
+            ToolGateApproval::HostDirectTrusted => "host_direct_trusted",
+            ToolGateApproval::RuntimeInternal => "runtime_internal",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ToolGateDenial {
+    SkillRestriction,
+    HookBlock,
+    PermissionDeny,
+    MissingConfirmationManager,
+    ConfirmationUnavailable,
+}
+
+impl ToolGateDenial {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            ToolGateDenial::SkillRestriction => "skill_restriction",
+            ToolGateDenial::HookBlock => "hook_block",
+            ToolGateDenial::PermissionDeny => "permission_deny",
+            ToolGateDenial::MissingConfirmationManager => "missing_confirmation_manager",
+            ToolGateDenial::ConfirmationUnavailable => "confirmation_unavailable",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ToolGateDecision {
+    Execute {
+        reason: ToolGateApproval,
+    },
+    Confirm {
+        timeout_ms: u64,
+        timeout_action: TimeoutAction,
+    },
+    Deny {
+        output: String,
+        event_reason: String,
+        reason: ToolGateDenial,
+        error_kind: Option<ToolErrorKind>,
+    },
+}
+
+/// Actionable feedback produced when a pre-tool hook denies an invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HookDenialFeedback {
+    pub(crate) reason: String,
+    pub(crate) retryable: bool,
+    pub(crate) retry_after_ms: Option<u64>,
+}
+
+impl HookDenialFeedback {
+    pub(crate) fn blocked(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+            retryable: false,
+            retry_after_ms: None,
+        }
+    }
+
+    pub(crate) fn retry(reason: impl Into<String>, retry_after_ms: u64) -> Self {
+        Self {
+            reason: reason.into(),
+            retryable: true,
+            retry_after_ms: Some(retry_after_ms),
+        }
+    }
+
+    pub(crate) fn into_gate_decision(self, tool_name: &str) -> ToolGateDecision {
+        let Self {
+            reason,
+            retryable,
+            retry_after_ms,
+        } = self;
+        let guidance = match retry_after_ms {
+            Some(delay_ms) if retryable => format!(
+                "Hook feedback: retryable=true; retry_after_ms={delay_ms}. Retry only after the requested delay."
+            ),
+            _ if retryable => {
+                "Hook feedback: retryable=true. Retry only after the temporary condition changes."
+                    .to_string()
+            }
+            _ => "Hook feedback: retryable=false. Do not repeat this tool call unchanged; choose another action or change the arguments or context.".to_string(),
+        };
+        let qualifier = if retryable {
+            "temporarily denied"
+        } else {
+            "denied"
+        };
+        let output =
+            format!("Tool '{tool_name}' {qualifier} by pre-tool hook: {reason}\n\n{guidance}");
+        let error_kind = ToolErrorKind::HookDenied {
+            reason: reason.clone(),
+            retryable,
+            retry_after_ms,
+        };
+
+        ToolGateDecision::Deny {
+            output,
+            event_reason: reason,
+            reason: ToolGateDenial::HookBlock,
+            error_kind: Some(error_kind),
+        }
+    }
+}
+
+pub(crate) struct ToolGateInput<'a> {
+    pub(crate) tool_name: &'a str,
+    pub(crate) args: &'a serde_json::Value,
+    pub(crate) pre_tool_denial: Option<HookDenialFeedback>,
+    /// Escalation-only requirement supplied by the registered tool.
+    pub(crate) tool_requires_confirmation: bool,
+}
+
+pub(crate) struct ToolSafetyGate<'a> {
+    config: &'a AgentConfig,
+}
+
+impl<'a> ToolSafetyGate<'a> {
+    pub(crate) fn new(config: &'a AgentConfig) -> Self {
+        Self { config }
+    }
+
+    pub(crate) async fn decide(&self, input: ToolGateInput<'_>) -> ToolGateDecision {
+        if let Some(decision) = self.check_skill_restrictions(input.tool_name) {
+            return decision;
+        }
+
+        if let Some(feedback) = input.pre_tool_denial {
+            return feedback.into_gate_decision(input.tool_name);
+        }
+
+        match self.permission_decision(input.tool_name, input.args) {
+            PermissionDecision::Deny => ToolGateDecision::Deny {
+                output: format!(
+                    "Permission denied: Tool '{}' is blocked by permission policy.",
+                    input.tool_name
+                ),
+                event_reason: "Blocked by deny rule in permission policy".to_string(),
+                reason: ToolGateDenial::PermissionDeny,
+                error_kind: None,
+            },
+            PermissionDecision::Allow if input.tool_requires_confirmation => {
+                self.confirmation_decision(input.tool_name, input.args, true)
+                    .await
+            }
+            PermissionDecision::Allow => ToolGateDecision::Execute {
+                reason: ToolGateApproval::PermissionAllow,
+            },
+            PermissionDecision::Ask => {
+                self.confirmation_decision(input.tool_name, input.args, true)
+                    .await
+            }
+        }
+    }
+
+    pub(crate) fn check_skill_restrictions(&self, tool_name: &str) -> Option<ToolGateDecision> {
+        if !self.config.enforce_active_skill_tool_restrictions {
+            return None;
+        }
+
+        let registry = self.config.skill_registry.as_ref()?;
+        let restricting_skills = registry.global_tool_restricting_skills();
+        if restricting_skills.is_empty() {
+            return None;
+        }
+
+        let allowed = restricting_skills
+            .iter()
+            .any(|skill| skill.is_tool_allowed(tool_name));
+        if allowed {
+            return None;
+        }
+
+        let msg = format!("Tool '{}' is not allowed by any active skill.", tool_name);
+        Some(ToolGateDecision::Deny {
+            output: msg.clone(),
+            event_reason: msg,
+            reason: ToolGateDenial::SkillRestriction,
+            error_kind: None,
+        })
+    }
+
+    pub(crate) fn permission_decision(
+        &self,
+        tool_name: &str,
+        args: &serde_json::Value,
+    ) -> PermissionDecision {
+        self.config
+            .permission_checker
+            .as_ref()
+            .map(|checker| checker.check(tool_name, args))
+            .unwrap_or(PermissionDecision::Ask)
+    }
+
+    pub(crate) async fn confirmation_decision(
+        &self,
+        tool_name: &str,
+        args: &serde_json::Value,
+        tool_requires_confirmation: bool,
+    ) -> ToolGateDecision {
+        let Some(cm) = &self.config.confirmation_manager else {
+            return missing_confirmation_manager(tool_name);
+        };
+
+        if !cm.confirmation_available_for(tool_name, args).await {
+            return confirmation_unavailable(tool_name);
+        };
+
+        // A tool that declares `requires_confirmation` owns that decision:
+        // the policy view alone cannot waive it (tool-owned escalation
+        // requests must reach the confirmation flow, never fall through to
+        // execution).
+        if !tool_requires_confirmation && !cm.requires_confirmation_for(tool_name, args).await {
+            return ToolGateDecision::Execute {
+                reason: ToolGateApproval::ConfirmationNotRequired,
+            };
+        }
+
+        let policy = cm.policy_for(tool_name, args).await;
+        ToolGateDecision::Confirm {
+            timeout_ms: policy.default_timeout_ms,
+            timeout_action: policy.timeout_action,
+        }
+    }
+}
+
+fn missing_confirmation_manager(tool_name: &str) -> ToolGateDecision {
+    let msg = format!(
+        "Tool '{}' requires confirmation but no HITL confirmation manager is configured. \
+         Configure a confirmation policy to enable tool execution.",
+        tool_name
+    );
+    ToolGateDecision::Deny {
+        output: msg.clone(),
+        event_reason: msg,
+        reason: ToolGateDenial::MissingConfirmationManager,
+        error_kind: None,
+    }
+}
+
+fn confirmation_unavailable(tool_name: &str) -> ToolGateDecision {
+    let msg = format!(
+        "Tool '{}' requires authority outside the active execution boundary. \
+         The current confirmation policy cannot authorize this invocation.",
+        tool_name
+    );
+    ToolGateDecision::Deny {
+        output: msg.clone(),
+        event_reason: msg,
+        reason: ToolGateDenial::ConfirmationUnavailable,
+        error_kind: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hitl::{ConfirmationManager, ConfirmationPolicy};
+    use crate::permissions::{PermissionChecker, PermissionDecision};
+    use crate::queue::SessionLane;
+    use crate::skills::{Skill, SkillKind, SkillRegistry};
+    use serde_json::json;
+    use std::sync::Arc;
+    use tokio::sync::broadcast;
+
+    struct StaticPermission(PermissionDecision);
+
+    impl PermissionChecker for StaticPermission {
+        fn check(&self, _tool_name: &str, _args: &serde_json::Value) -> PermissionDecision {
+            self.0
+        }
+    }
+
+    fn restricted_registry() -> Arc<SkillRegistry> {
+        let registry = SkillRegistry::new();
+        registry.register_unchecked(Arc::new(Skill {
+            name: "read-only".to_string(),
+            description: String::new(),
+            allowed_tools: Some("read(*), grep(*)".to_string()),
+            disable_model_invocation: false,
+            kind: SkillKind::Instruction,
+            content: String::new(),
+            tags: Vec::new(),
+            version: None,
+        }));
+        Arc::new(registry)
+    }
+
+    #[tokio::test]
+    async fn active_skill_restriction_is_ignored_by_default_before_permission_allow() {
+        let config = AgentConfig {
+            skill_registry: Some(restricted_registry()),
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Allow))),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "write",
+                args: &json!({"file_path": "x"}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        assert!(matches!(
+            decision,
+            ToolGateDecision::Execute {
+                reason: ToolGateApproval::PermissionAllow,
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn active_skill_restriction_denies_when_legacy_mode_is_enabled() {
+        let config = AgentConfig {
+            skill_registry: Some(restricted_registry()),
+            enforce_active_skill_tool_restrictions: true,
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Allow))),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "write",
+                args: &json!({"file_path": "x"}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        assert!(matches!(
+            decision,
+            ToolGateDecision::Deny {
+                reason: ToolGateDenial::SkillRestriction,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn ignored_active_skill_restriction_still_allows_permission_deny() {
+        let config = AgentConfig {
+            skill_registry: Some(restricted_registry()),
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Deny))),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "write",
+                args: &json!({"file_path": "x"}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        assert!(matches!(
+            decision,
+            ToolGateDecision::Deny {
+                reason: ToolGateDenial::PermissionDeny,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn builtin_skill_permissions_do_not_restrict_default_session_tools() {
+        let config = AgentConfig {
+            skill_registry: Some(Arc::new(SkillRegistry::with_builtins())),
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Allow))),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "write",
+                args: &json!({"file_path": "x"}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        assert!(matches!(
+            decision,
+            ToolGateDecision::Execute {
+                reason: ToolGateApproval::PermissionAllow,
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn hook_block_denies_before_permission_allow() {
+        let config = AgentConfig {
+            skill_registry: None,
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Allow))),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "bash",
+                args: &json!({"command": "echo ok"}),
+                pre_tool_denial: Some(HookDenialFeedback::blocked("blocked by policy")),
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        match decision {
+            ToolGateDecision::Deny {
+                output,
+                event_reason,
+                reason: ToolGateDenial::HookBlock,
+                error_kind:
+                    Some(ToolErrorKind::HookDenied {
+                        reason,
+                        retryable: false,
+                        retry_after_ms: None,
+                    }),
+            } => {
+                assert_eq!(event_reason, "blocked by policy");
+                assert_eq!(reason, "blocked by policy");
+                assert!(output.contains("retryable=false"));
+                assert!(output.contains("Do not repeat this tool call unchanged"));
+            }
+            other => panic!("unexpected gate decision: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn hook_retry_surfaces_temporary_denial_feedback() {
+        let config = AgentConfig {
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Allow))),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "bash",
+                args: &json!({"command": "echo ok"}),
+                pre_tool_denial: Some(HookDenialFeedback::retry(
+                    "policy backend is recovering",
+                    900,
+                )),
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        match decision {
+            ToolGateDecision::Deny {
+                output,
+                reason: ToolGateDenial::HookBlock,
+                error_kind:
+                    Some(ToolErrorKind::HookDenied {
+                        reason,
+                        retryable: true,
+                        retry_after_ms: Some(900),
+                    }),
+                ..
+            } => {
+                assert_eq!(reason, "policy backend is recovering");
+                assert!(output.contains("temporarily denied"));
+                assert!(output.contains("retryable=true; retry_after_ms=900"));
+            }
+            other => panic!("unexpected gate decision: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn ask_without_confirmation_manager_is_safe_deny() {
+        let config = AgentConfig {
+            skill_registry: None,
+            permission_checker: None,
+            confirmation_manager: None,
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "bash",
+                args: &json!({"command": "echo ok"}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        assert!(matches!(
+            decision,
+            ToolGateDecision::Deny {
+                reason: ToolGateDenial::MissingConfirmationManager,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn ask_with_confirmation_manager_requests_confirmation() {
+        let (event_tx, _) = broadcast::channel(8);
+        let manager = Arc::new(ConfirmationManager::new(
+            ConfirmationPolicy::enabled().with_timeout(1234, crate::hitl::TimeoutAction::Reject),
+            event_tx,
+        ));
+        let config = AgentConfig {
+            skill_registry: None,
+            confirmation_manager: Some(manager),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "bash",
+                args: &json!({"command": "echo ok"}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        assert_eq!(
+            decision,
+            ToolGateDecision::Confirm {
+                timeout_ms: 1234,
+                timeout_action: crate::hitl::TimeoutAction::Reject,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn tool_requirement_escalates_permission_allow_to_confirmation() {
+        let (event_tx, _) = broadcast::channel(8);
+        let manager = Arc::new(ConfirmationManager::new(
+            ConfirmationPolicy::enabled().with_timeout(2468, crate::hitl::TimeoutAction::Reject),
+            event_tx,
+        ));
+        let config = AgentConfig {
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Allow))),
+            confirmation_manager: Some(manager),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "mcp__use_fixture__submit",
+                args: &json!({}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: true,
+            })
+            .await;
+
+        assert_eq!(
+            decision,
+            ToolGateDecision::Confirm {
+                timeout_ms: 2468,
+                timeout_action: crate::hitl::TimeoutAction::Reject,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn escalated_allow_without_confirmation_manager_fails_closed() {
+        let config = AgentConfig {
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Allow))),
+            confirmation_manager: None,
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "mcp__use_ocr__ocr_extract",
+                args: &json!({"file": "scan.png"}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: true,
+            })
+            .await;
+
+        assert!(matches!(
+            decision,
+            ToolGateDecision::Deny {
+                reason: ToolGateDenial::MissingConfirmationManager,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn tool_requirement_never_weakens_permission_deny() {
+        let config = AgentConfig {
+            permission_checker: Some(Arc::new(StaticPermission(PermissionDecision::Deny))),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "mcp__use_fixture__read",
+                args: &json!({}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        assert!(matches!(
+            decision,
+            ToolGateDecision::Deny {
+                reason: ToolGateDenial::PermissionDeny,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn yolo_lane_executes_without_confirmation() {
+        let (event_tx, _) = broadcast::channel(8);
+        let manager = Arc::new(ConfirmationManager::new(
+            ConfirmationPolicy::enabled().with_yolo_lanes([SessionLane::Query]),
+            event_tx,
+        ));
+        let config = AgentConfig {
+            skill_registry: None,
+            confirmation_manager: Some(manager),
+            permission_checker: Some(Arc::new(
+                crate::permissions::PermissionPolicy::new()
+                    .allow_yolo_lanes([crate::queue::SessionLane::Query]),
+            )),
+            ..Default::default()
+        };
+        let gate = ToolSafetyGate::new(&config);
+
+        let decision = gate
+            .decide(ToolGateInput {
+                tool_name: "read",
+                args: &json!({"file_path": "README.md"}),
+                pre_tool_denial: None,
+                tool_requires_confirmation: false,
+            })
+            .await;
+
+        assert_eq!(
+            decision,
+            ToolGateDecision::Execute {
+                reason: ToolGateApproval::PermissionAllow,
+            }
+        );
+    }
+}

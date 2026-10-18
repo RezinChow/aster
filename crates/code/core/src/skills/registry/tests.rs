@@ -1,0 +1,1002 @@
+use super::*;
+use crate::skills::SkillKind;
+use std::io::Write;
+use tempfile::TempDir;
+
+#[test]
+fn test_new_registry() {
+    let registry = SkillRegistry::new();
+    assert_eq!(registry.len(), 0);
+    assert!(registry.is_empty());
+}
+
+#[test]
+fn test_with_builtins_is_empty_compatibility_registry() {
+    let registry = SkillRegistry::with_builtins();
+    assert_eq!(registry.len(), 0);
+    assert!(registry.is_empty());
+}
+
+#[test]
+fn test_register_and_get() {
+    let registry = SkillRegistry::new();
+
+    let skill = Arc::new(Skill {
+        name: "test-skill".to_string(),
+        description: "A test skill".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "Test content".to_string(),
+        tags: vec![],
+        version: None,
+    });
+
+    registry.register(skill.clone()).unwrap();
+
+    assert_eq!(registry.len(), 1);
+    let retrieved = registry.get("test-skill").unwrap();
+    assert_eq!(retrieved.name, "test-skill");
+}
+
+#[test]
+fn owned_registration_restores_only_the_exact_installed_skill() {
+    fn skill(description: &str) -> Arc<Skill> {
+        Arc::new(Skill {
+            name: "shared-skill".to_string(),
+            description: description.to_string(),
+            allowed_tools: None,
+            disable_model_invocation: false,
+            kind: SkillKind::Instruction,
+            content: description.to_string(),
+            tags: vec![],
+            version: None,
+        })
+    }
+
+    let registry = SkillRegistry::new();
+    let original = skill("original");
+    let installed = skill("installed");
+    registry.register_unchecked(Arc::clone(&original));
+
+    let (accepted, shadowed) = registry
+        .register_with_shadow(Arc::clone(&installed))
+        .unwrap();
+    assert!(accepted);
+    assert!(Arc::ptr_eq(shadowed.as_ref().unwrap(), &original));
+    assert!(registry.restore_if_same("shared-skill", &installed, shadowed));
+    assert!(Arc::ptr_eq(
+        &registry.get("shared-skill").unwrap(),
+        &original
+    ));
+
+    let (_, shadowed) = registry
+        .register_with_shadow(Arc::clone(&installed))
+        .unwrap();
+    let later = skill("later");
+    registry.register_unchecked(Arc::clone(&later));
+    assert!(!registry.restore_if_same("shared-skill", &installed, shadowed));
+    assert!(Arc::ptr_eq(&registry.get("shared-skill").unwrap(), &later));
+}
+
+#[test]
+fn owned_registration_cannot_shadow_a_builtin_skill() {
+    let registry = SkillRegistry::new();
+    let builtin = Arc::new(Skill {
+        name: "protected-skill".to_string(),
+        description: "built in".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "built in".to_string(),
+        tags: vec![],
+        version: None,
+    });
+    registry.register_builtin(Arc::clone(&builtin));
+
+    let replacement = Arc::new(Skill {
+        description: "replacement".to_string(),
+        content: "replacement".to_string(),
+        ..(*builtin).clone()
+    });
+    let (accepted, shadowed) = registry.register_with_shadow(replacement).unwrap();
+
+    assert!(!accepted);
+    assert!(shadowed.is_none());
+    assert!(Arc::ptr_eq(
+        &registry.get("protected-skill").unwrap(),
+        &builtin
+    ));
+}
+
+#[test]
+fn test_list() {
+    let registry = SkillRegistry::with_builtins();
+    let names = registry.list();
+
+    assert!(names.is_empty());
+}
+
+#[test]
+fn test_remove() {
+    let registry = SkillRegistry::with_builtins();
+    registry.register_unchecked(Arc::new(Skill {
+        name: "code-search".to_string(),
+        description: "External skill".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: String::new(),
+        tags: Vec::new(),
+        version: None,
+    }));
+    assert_eq!(registry.len(), 1);
+
+    let removed = registry.remove("code-search");
+    assert!(removed.is_some());
+    assert_eq!(registry.len(), 0);
+    assert!(registry.get("code-search").is_none());
+}
+
+#[test]
+fn test_clear() {
+    let registry = SkillRegistry::with_builtins();
+    registry.register_unchecked(Arc::new(Skill {
+        name: "temporary-skill".to_string(),
+        description: "Temporary".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: String::new(),
+        tags: Vec::new(),
+        version: None,
+    }));
+    assert_eq!(registry.len(), 1);
+
+    registry.clear();
+    assert_eq!(registry.len(), 0);
+    assert!(registry.is_empty());
+}
+
+#[test]
+fn test_by_kind() {
+    let registry = SkillRegistry::with_builtins();
+    let instruction_skills = registry.by_kind(SkillKind::Instruction);
+
+    assert!(instruction_skills.is_empty());
+
+    let persona_skills = registry.by_kind(SkillKind::Persona);
+    assert_eq!(persona_skills.len(), 0);
+}
+
+#[test]
+fn test_empty_compatibility_builtins_do_not_restrict_global_tools() {
+    let registry = SkillRegistry::with_builtins();
+    assert!(registry.global_tool_restricting_skills().is_empty());
+}
+
+#[test]
+fn test_old_builtin_names_are_normal_external_skills() {
+    let registry = SkillRegistry::with_builtins();
+    registry.register_unchecked(Arc::new(Skill {
+        name: "code-review".to_string(),
+        description: "External skill".to_string(),
+        allowed_tools: Some("read(*)".to_string()),
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: String::new(),
+        tags: Vec::new(),
+        version: None,
+    }));
+
+    let restricting = registry.global_tool_restricting_skills();
+    assert_eq!(restricting.len(), 1);
+    assert_eq!(restricting[0].name, "code-review");
+}
+
+#[test]
+fn test_global_tool_restricting_skills_are_sorted() {
+    let registry = SkillRegistry::new();
+    registry.register_unchecked(Arc::new(Skill {
+        name: "zeta".to_string(),
+        description: "Zeta".to_string(),
+        allowed_tools: Some("read(*)".to_string()),
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: String::new(),
+        tags: Vec::new(),
+        version: None,
+    }));
+    registry.register_unchecked(Arc::new(Skill {
+        name: "alpha".to_string(),
+        description: "Alpha".to_string(),
+        allowed_tools: Some("grep(*)".to_string()),
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: String::new(),
+        tags: Vec::new(),
+        version: None,
+    }));
+
+    let names: Vec<String> = registry
+        .global_tool_restricting_skills()
+        .into_iter()
+        .map(|skill| skill.name.clone())
+        .collect();
+    assert_eq!(names, vec!["alpha".to_string(), "zeta".to_string()]);
+}
+
+#[test]
+fn test_by_tag() {
+    let registry = SkillRegistry::new();
+    registry.register_unchecked(Arc::new(Skill {
+        name: "code-search".to_string(),
+        description: "External search skill".to_string(),
+        allowed_tools: Some("read(*), grep(*)".to_string()),
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: String::new(),
+        tags: vec!["search".to_string()],
+        version: None,
+    }));
+    registry.register_unchecked(Arc::new(Skill {
+        name: "find-bugs".to_string(),
+        description: "External bug skill".to_string(),
+        allowed_tools: Some("read(*), grep(*)".to_string()),
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: String::new(),
+        tags: vec!["bugs".to_string(), "security".to_string()],
+        version: None,
+    }));
+    let search_skills = registry.by_tag("search");
+
+    assert_eq!(search_skills.len(), 1);
+    let names: Vec<&str> = search_skills.iter().map(|s| s.name.as_str()).collect();
+    assert!(names.contains(&"code-search"));
+
+    let security_skills = registry.by_tag("security");
+    assert_eq!(security_skills.len(), 1);
+    assert_eq!(security_skills[0].name, "find-bugs");
+}
+
+#[test]
+fn test_load_from_dir() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+
+    // Create a valid skill file
+    let skill_path = temp_dir.path().join("test-skill.md");
+    let mut file = std::fs::File::create(&skill_path)?;
+    writeln!(file, "---")?;
+    writeln!(file, "name: test-skill")?;
+    writeln!(file, "description: A test skill")?;
+    writeln!(file, "kind: instruction")?;
+    writeln!(file, "---")?;
+    writeln!(file, "# Test Skill")?;
+    writeln!(file, "This is a test skill.")?;
+    drop(file);
+
+    // Create a non-skill .md file (should be skipped)
+    let readme_path = temp_dir.path().join("README.md");
+    std::fs::write(&readme_path, "# README\nNot a skill")?;
+
+    // Create a non-.md file (should be skipped)
+    let txt_path = temp_dir.path().join("notes.txt");
+    std::fs::write(&txt_path, "Some notes")?;
+
+    let registry = SkillRegistry::new();
+    let loaded = registry.load_from_dir(temp_dir.path())?;
+
+    assert_eq!(loaded, 1);
+    assert_eq!(registry.len(), 1);
+    assert!(registry.get("test-skill").is_some());
+
+    Ok(())
+}
+
+#[test]
+fn test_load_from_dir_recurses_into_nested_skill_dirs() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let nested = temp_dir.path().join("nested").join("code-review-helper");
+    std::fs::create_dir_all(&nested)?;
+
+    let skill_path = nested.join("SKILL.md");
+    let mut file = std::fs::File::create(&skill_path)?;
+    writeln!(file, "---")?;
+    writeln!(file, "name: nested-skill")?;
+    writeln!(file, "description: A nested skill")?;
+    writeln!(file, "kind: instruction")?;
+    writeln!(file, "---")?;
+    writeln!(file, "# Nested Skill")?;
+    writeln!(file, "This skill lives in a nested SKILL.md.")?;
+    drop(file);
+
+    let registry = SkillRegistry::new();
+    let loaded = registry.load_from_dir(temp_dir.path())?;
+
+    assert_eq!(loaded, 1);
+    assert!(registry.get("nested-skill").is_some());
+
+    let examples = nested.join("examples");
+    std::fs::create_dir_all(&examples)?;
+    std::fs::write(
+        examples.join("note.md"),
+        "---\nname: not-a-skill\ndescription: Package notes\n---\n# Note\n",
+    )?;
+    let registry = SkillRegistry::new();
+    let loaded = registry.load_from_dir(temp_dir.path())?;
+    assert_eq!(loaded, 1);
+    assert!(registry.get("not-a-skill").is_none());
+    Ok(())
+}
+
+#[test]
+fn second_load_from_dir_sees_a_skill_added_after_the_first() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let first = temp_dir.path().join("first");
+    std::fs::create_dir_all(&first)?;
+    std::fs::write(
+        first.join("SKILL.md"),
+        "---\nname: first-skill\ndescription: First\n---\n# First\n",
+    )?;
+    let registry = SkillRegistry::new();
+    assert_eq!(registry.load_from_dir(temp_dir.path())?, 1);
+    assert!(registry.get("second-skill").is_none());
+
+    let second = temp_dir.path().join("second");
+    std::fs::create_dir_all(&second)?;
+    std::fs::write(
+        second.join("SKILL.md"),
+        "---\nname: second-skill\ndescription: Second\n---\n# Second\n",
+    )?;
+    assert_eq!(registry.load_from_dir(temp_dir.path())?, 2);
+    assert!(registry.get("first-skill").is_some());
+    assert!(registry.get("second-skill").is_some());
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn test_load_from_dir_tolerates_symlink_cycles() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let left = temp_dir.path().join("left");
+    let right = temp_dir.path().join("right");
+    std::fs::create_dir_all(&left)?;
+    std::fs::create_dir_all(&right)?;
+
+    std::fs::write(
+        left.join("SKILL.md"),
+        "---\nname: cycle-safe\ndescription: Survives symlink cycles\nkind: instruction\n---\n# Cycle Safe\n",
+    )?;
+
+    std::os::unix::fs::symlink(&right, left.join("loop"))?;
+    std::os::unix::fs::symlink(&left, right.join("loop"))?;
+
+    let registry = SkillRegistry::new();
+    let loaded = registry.load_from_dir(temp_dir.path())?;
+
+    assert_eq!(loaded, 1);
+    assert!(registry.get("cycle-safe").is_some());
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn test_load_from_dir_does_not_follow_symlinks_outside_the_skill_root() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let skill_root = temp_dir.path().join("skills");
+    let outside = temp_dir.path().join("outside");
+    std::fs::create_dir_all(skill_root.join("inside"))?;
+    std::fs::create_dir_all(skill_root.join("nested"))?;
+    std::fs::create_dir_all(&outside)?;
+
+    std::fs::write(
+        skill_root.join("inside").join("SKILL.md"),
+        "---\nname: local-skill\ndescription: Stays in the skill root\nkind: instruction\n---\n# Local\n",
+    )?;
+    std::fs::write(
+        outside.join("SKILL.md"),
+        "---\nname: outside-dir-skill\ndescription: Must not be loaded\nkind: instruction\n---\nOUTSIDE_DIR_TOKEN\n",
+    )?;
+    std::fs::write(
+        outside.join("leak.md"),
+        "---\nname: outside-file-skill\ndescription: Must not be loaded\nkind: instruction\n---\nOUTSIDE_FILE_TOKEN\n",
+    )?;
+    std::fs::create_dir_all(skill_root.join("alias"))?;
+    // A nested directory symlink is an escape, not a published package.
+    // Published packages are only direct children of the scan root.
+    std::os::unix::fs::symlink(&outside, skill_root.join("nested").join("escape"))?;
+    std::os::unix::fs::symlink(
+        outside.join("leak.md"),
+        skill_root.join("nested").join("leak.md"),
+    )?;
+    std::os::unix::fs::symlink(outside.join("leak.md"), skill_root.join("outside.md"))?;
+    std::os::unix::fs::symlink(
+        outside.join("SKILL.md"),
+        skill_root.join("alias").join("SKILL.md"),
+    )?;
+
+    let registry = SkillRegistry::new();
+    let loaded = registry.load_from_dir(&skill_root)?;
+
+    assert_eq!(loaded, 1, "only the in-root skill is registered");
+    assert!(registry.get("local-skill").is_some());
+    assert!(registry.get("outside-dir-skill").is_none());
+    assert!(registry.get("outside-file-skill").is_none());
+    let bodies = registry
+        .all()
+        .into_iter()
+        .map(|skill| skill.content.clone())
+        .collect::<Vec<_>>();
+    assert!(
+        bodies.iter().all(|body| !body.contains("OUTSIDE_DIR_TOKEN") && !body.contains("OUTSIDE_FILE_TOKEN")),
+        "skill bodies leaked outside content: {bodies:?}"
+    );
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn test_load_from_dir_loads_a_published_package_symlink() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let skill_root = temp_dir.path().join("skills");
+    let package = temp_dir.path().join("package");
+    let secret = temp_dir.path().join("secret");
+    std::fs::create_dir_all(&skill_root)?;
+    std::fs::create_dir_all(package.join("nested"))?;
+    std::fs::create_dir_all(&secret)?;
+
+    std::fs::write(
+        package.join("SKILL.md"),
+        "---\nname: published-skill\ndescription: Linked package\nkind: instruction\n---\nPACKAGE_TOKEN\n",
+    )?;
+    std::fs::write(
+        secret.join("SKILL.md"),
+        "---\nname: secret-skill\ndescription: Must not be loaded\nkind: instruction\n---\nSECRET_TOKEN\n",
+    )?;
+    std::fs::write(
+        secret.join("leak.md"),
+        "---\nname: secret-file\ndescription: Must not be loaded\nkind: instruction\n---\nSECRET_FILE_TOKEN\n",
+    )?;
+    std::os::unix::fs::symlink(&secret, package.join("nested").join("escape"))?;
+    std::os::unix::fs::symlink(
+        secret.join("leak.md"),
+        package.join("nested").join("leak.md"),
+    )?;
+    std::os::unix::fs::symlink(secret.join("SKILL.md"), package.join("stolen.md"))?;
+    std::os::unix::fs::symlink(&package, skill_root.join("published"))?;
+
+    let registry = SkillRegistry::new();
+    let loaded = registry.load_from_dir(&skill_root)?;
+
+    assert_eq!(loaded, 1, "the linked package is one skill");
+    assert!(registry.get("published-skill").is_some());
+    assert!(registry.get("secret-skill").is_none());
+    assert!(registry.get("secret-file").is_none());
+    let bodies = registry
+        .all()
+        .into_iter()
+        .map(|skill| skill.content.clone())
+        .collect::<Vec<_>>();
+    assert!(
+        bodies.iter().any(|body| body.contains("PACKAGE_TOKEN")),
+        "published package body missing: {bodies:?}"
+    );
+    assert!(
+        bodies
+            .iter()
+            .all(|body| !body.contains("SECRET_TOKEN") && !body.contains("SECRET_FILE_TOKEN")),
+        "skill bodies leaked a nested escape: {bodies:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_load_from_dir_accepts_yaml_list_allowed_tools() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let skill_path = temp_dir.path().join("ci-review.md");
+    std::fs::write(
+        &skill_path,
+        r#"---
+name: ci-review
+description: Review CI failures
+allowed-tools:
+  - Read
+  - Grep
+  - Bash(cargo test -p a3s-code-core:*)
+kind: instruction
+---
+# CI Review
+"#,
+    )?;
+
+    let registry = SkillRegistry::new();
+    let loaded = registry.load_from_dir(temp_dir.path())?;
+
+    assert_eq!(loaded, 1);
+    let skill = registry.get("ci-review").unwrap();
+    assert_eq!(
+        skill.allowed_tools.as_deref(),
+        Some("Read, Grep, Bash(cargo test -p a3s-code-core:*)")
+    );
+    let permissions = skill.parse_allowed_tools();
+    assert!(permissions
+        .iter()
+        .any(|perm| perm.tool == "Read" && perm.pattern == "*"));
+    assert!(permissions
+        .iter()
+        .any(|perm| { perm.tool == "Bash" && perm.pattern == "cargo test -p a3s-code-core:*" }));
+    Ok(())
+}
+
+#[test]
+fn test_load_from_file() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let skill_path = temp_dir.path().join("my-skill.md");
+
+    let mut file = std::fs::File::create(&skill_path)?;
+    writeln!(file, "---")?;
+    writeln!(file, "name: my-skill")?;
+    writeln!(file, "description: My custom skill")?;
+    writeln!(file, "---")?;
+    writeln!(file, "# My Skill")?;
+    drop(file);
+
+    let registry = SkillRegistry::new();
+    let skill = registry.load_from_file(&skill_path)?;
+
+    assert_eq!(skill.name, "my-skill");
+    assert_eq!(registry.len(), 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_to_system_prompt() {
+    let registry = SkillRegistry::with_builtins();
+    let prompt = registry.to_system_prompt();
+
+    assert!(prompt.is_empty());
+}
+
+#[test]
+fn test_load_from_nonexistent_dir() {
+    let registry = SkillRegistry::new();
+    let result = registry.load_from_dir("/nonexistent/path");
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 0);
+}
+
+#[test]
+fn test_load_from_dir_rejects_file_path() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let path = temp_dir.path().join("not-a-directory.md");
+    std::fs::write(&path, "# not a directory")?;
+
+    let registry = SkillRegistry::new();
+    let err = registry.load_from_dir(&path).unwrap_err();
+    assert!(err.to_string().contains("Path is not a directory"));
+    Ok(())
+}
+
+#[test]
+fn test_load_from_dir_duplicate_name_overrides_previous_definition() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+
+    let first = temp_dir.path().join("first.md");
+    std::fs::write(
+        &first,
+        "---\nname: duplicate-skill\ndescription: First copy\n---\n# First\nalpha\n",
+    )?;
+
+    let nested = temp_dir.path().join("nested");
+    std::fs::create_dir_all(&nested)?;
+    let second = nested.join("SKILL.md");
+    std::fs::write(
+        &second,
+        "---\nname: duplicate-skill\ndescription: Second copy\n---\n# Second\nbeta\n",
+    )?;
+
+    let registry = SkillRegistry::new();
+    let loaded = registry.load_from_dir(temp_dir.path())?;
+
+    assert_eq!(loaded, 2);
+    assert_eq!(registry.len(), 1);
+    assert_eq!(
+        registry.get("duplicate-skill").unwrap().description,
+        "Second copy"
+    );
+    Ok(())
+}
+
+// --- Validator integration ---
+
+#[test]
+fn test_register_with_validator_accepts_old_builtin_name() {
+    use crate::skills::validator::DefaultSkillValidator;
+
+    let registry = SkillRegistry::new();
+    registry.set_validator(Arc::new(DefaultSkillValidator::default()));
+
+    let skill = Arc::new(Skill {
+        name: "code-search".to_string(),
+        description: "External skill using a formerly built-in name".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "Search code carefully.".to_string(),
+        tags: vec![],
+        version: None,
+    });
+
+    let result = registry.register(skill);
+    assert!(result.is_ok());
+    assert_eq!(registry.len(), 1);
+}
+
+#[test]
+fn test_register_with_validator_accepts_valid() {
+    use crate::skills::validator::DefaultSkillValidator;
+
+    let registry = SkillRegistry::new();
+    registry.set_validator(Arc::new(DefaultSkillValidator::default()));
+
+    let skill = Arc::new(Skill {
+        name: "my-custom-skill".to_string(),
+        description: "A valid skill".to_string(),
+        allowed_tools: Some("read(*), grep(*)".to_string()),
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "Help with code review.".to_string(),
+        tags: vec![],
+        version: None,
+    });
+
+    assert!(registry.register(skill).is_ok());
+    assert_eq!(registry.len(), 1);
+}
+
+#[test]
+fn test_register_without_validator_accepts_anything() {
+    let registry = SkillRegistry::new();
+    // No validator set
+
+    let skill = Arc::new(Skill {
+        name: "code-search".to_string(),
+        description: "test".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "test".to_string(),
+        tags: vec![],
+        version: None,
+    });
+
+    assert!(registry.register(skill).is_ok());
+}
+
+#[test]
+fn test_all_and_personas() {
+    let registry = SkillRegistry::new();
+
+    registry.register_unchecked(Arc::new(Skill {
+        name: "persona-skill".to_string(),
+        description: "Persona".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Persona,
+        content: "Persona content".to_string(),
+        tags: vec!["voice".to_string()],
+        version: None,
+    }));
+    registry.register_unchecked(Arc::new(Skill {
+        name: "instruction-skill".to_string(),
+        description: "Instruction".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "Instruction content".to_string(),
+        tags: vec!["workflow".to_string()],
+        version: None,
+    }));
+
+    let all_names: Vec<String> = registry
+        .all()
+        .into_iter()
+        .map(|skill| skill.name.clone())
+        .collect();
+    assert_eq!(
+        all_names,
+        vec!["instruction-skill".to_string(), "persona-skill".to_string()]
+    );
+    assert_eq!(registry.personas().len(), 1);
+    assert_eq!(registry.personas()[0].name, "persona-skill");
+}
+
+#[test]
+fn test_load_from_file_with_validator_accepts_old_builtin_name() {
+    use crate::skills::validator::DefaultSkillValidator;
+
+    let temp_dir = TempDir::new().unwrap();
+    let skill_path = temp_dir.path().join("code-search.md");
+
+    let mut file = std::fs::File::create(&skill_path).unwrap();
+    writeln!(file, "---").unwrap();
+    writeln!(file, "name: code-search").unwrap();
+    writeln!(file, "description: External search skill").unwrap();
+    writeln!(file, "---").unwrap();
+    writeln!(file, "# Search").unwrap();
+    drop(file);
+
+    let registry = SkillRegistry::new();
+    registry.set_validator(Arc::new(DefaultSkillValidator::default()));
+
+    let result = registry.load_from_file(&skill_path);
+    assert!(result.is_ok());
+    assert_eq!(registry.len(), 1);
+}
+
+#[test]
+fn test_fork_is_independent() {
+    let original = SkillRegistry::with_builtins();
+    let fork = original.fork();
+
+    // Fork has same skills as original
+    assert_eq!(fork.len(), original.len());
+
+    // Adding to fork does not affect original
+    fork.register_unchecked(Arc::new(Skill {
+        name: "session-only".to_string(),
+        description: "Only in fork".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "content".to_string(),
+        tags: vec![],
+        version: None,
+    }));
+
+    assert_eq!(fork.len(), original.len() + 1);
+    assert!(fork.get("session-only").is_some());
+    assert!(original.get("session-only").is_none());
+}
+
+#[test]
+fn test_fork_inherits_empty_compatibility_builtins() {
+    let fork = SkillRegistry::with_builtins().fork();
+    assert!(fork.is_empty());
+}
+
+#[test]
+fn test_fork_preserves_validator() {
+    use crate::skills::validator::DefaultSkillValidator;
+
+    let original = SkillRegistry::new();
+    original.set_validator(Arc::new(DefaultSkillValidator::default()));
+
+    let fork = original.fork();
+    let invalid = Arc::new(Skill {
+        name: "BadName".to_string(),
+        description: "invalid".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "content".to_string(),
+        tags: vec![],
+        version: None,
+    });
+
+    assert!(fork.register(invalid).is_err());
+}
+
+#[test]
+fn test_search_skills_ranks_matches() {
+    let registry = SkillRegistry::new();
+
+    registry.register_unchecked(Arc::new(Skill {
+        name: "build-planner".to_string(),
+        description: "Plan complex builds".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "Planner instructions".to_string(),
+        tags: vec!["architecture".to_string()],
+        version: None,
+    }));
+    let matches = registry.search("architecture plan", 5);
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].name, "build-planner");
+}
+
+#[test]
+fn test_match_skills_matches_name_tag_and_description() {
+    let registry = SkillRegistry::new();
+
+    registry.register_unchecked(Arc::new(Skill {
+        name: "build-planner".to_string(),
+        description: "Plan complex builds".to_string(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "Planner instructions".to_string(),
+        tags: vec!["architecture".to_string()],
+        version: None,
+    }));
+    let by_name = registry.match_skills("please use build-planner for this task");
+    assert!(by_name.contains("Planner instructions"));
+
+    let by_tag = registry.match_skills("need architecture guidance");
+    assert!(by_tag.contains("Planner instructions"));
+
+    let by_description = registry.match_skills("help me plan the release");
+    assert!(by_description.contains("Planner instructions"));
+
+    assert!(registry
+        .match_skills("totally unrelated request")
+        .is_empty());
+}
+
+#[test]
+fn disable_model_invocation_skills_are_not_model_discoverable() {
+    let registry = SkillRegistry::new();
+    registry.register_unchecked(Arc::new(Skill {
+        name: "user-only-skill".to_string(),
+        description: "Host invoked only".to_string(),
+        allowed_tools: Some("read(*)".to_string()),
+        disable_model_invocation: true,
+        kind: SkillKind::Instruction,
+        content: "Do not expose to the model.".to_string(),
+        tags: vec!["secret".to_string()],
+        version: None,
+    }));
+    registry.register_unchecked(Arc::new(Skill {
+        name: "model-skill".to_string(),
+        description: "Model may use this".to_string(),
+        allowed_tools: Some("read(*)".to_string()),
+        disable_model_invocation: false,
+        kind: SkillKind::Instruction,
+        content: "Visible.".to_string(),
+        tags: Vec::new(),
+        version: None,
+    }));
+
+    let matches = registry.search("skill", 10);
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].name, "model-skill");
+    assert!(registry.match_skills("user-only-skill").is_empty());
+    assert!(!registry.to_system_prompt().is_empty());
+}
+
+#[test]
+fn watched_directory_changes_are_live_for_a_running_registry() {
+    let root = TempDir::new().unwrap();
+    let skills = root.path().join("skills");
+    std::fs::create_dir_all(skills.join("first")).unwrap();
+    write_skill(&skills.join("first").join("SKILL.md"), "first", "one");
+
+    let registry = SkillRegistry::new();
+    registry.load_from_dir(&skills).unwrap();
+    assert!(registry.get("first").is_some());
+
+    // A second package lands after the session started (the install path).
+    std::fs::create_dir_all(skills.join("second")).unwrap();
+    write_skill(&skills.join("second").join("SKILL.md"), "second", "two");
+    let reloaded = registry.refresh_watched_dirs();
+    assert_eq!(reloaded, 1, "the changed directory must reload");
+    assert!(registry.get("second").is_some(), "install must be live");
+    assert!(registry.get("first").is_some(), "reload keeps other skills");
+
+    // A removed package disappears on refresh.
+    std::fs::remove_dir_all(skills.join("first")).unwrap();
+    registry.refresh_watched_dirs();
+    assert!(registry.get("first").is_none(), "removal must be live");
+    assert!(registry.get("second").is_some());
+}
+
+#[test]
+fn a_directory_that_did_not_exist_is_picked_up_when_created() {
+    let root = TempDir::new().unwrap();
+    let skills = root.path().join("skills");
+
+    let registry = SkillRegistry::new();
+    registry.watch_dir(&skills);
+    assert_eq!(registry.refresh_watched_dirs(), 0, "nothing to do yet");
+
+    std::fs::create_dir_all(skills.join("late")).unwrap();
+    write_skill(&skills.join("late").join("SKILL.md"), "late", "arrives");
+    assert_eq!(registry.refresh_watched_dirs(), 1);
+    assert!(registry.get("late").is_some());
+}
+
+#[test]
+fn forking_keeps_the_watched_directories() {
+    let root = TempDir::new().unwrap();
+    let skills = root.path().join("skills");
+    std::fs::create_dir_all(skills.join("first")).unwrap();
+    write_skill(&skills.join("first").join("SKILL.md"), "first", "one");
+    let registry = SkillRegistry::new();
+    registry.load_from_dir(&skills).unwrap();
+
+    let forked = registry.fork();
+    std::fs::create_dir_all(skills.join("second")).unwrap();
+    write_skill(&skills.join("second").join("SKILL.md"), "second", "two");
+    assert_eq!(forked.refresh_watched_dirs(), 1);
+    assert!(forked.get("second").is_some());
+}
+
+fn write_skill(path: &std::path::Path, name: &str, description: &str) {
+    let mut file = std::fs::File::create(path).unwrap();
+    writeln!(
+        file,
+        "---\nname: {name}\ndescription: {description}\n---\n# {name}\n"
+    )
+    .unwrap();
+}
+
+#[test]
+#[cfg(unix)]
+fn projected_file_is_not_loaded_through_a_link_or_after_directory_refresh() {
+    let root = TempDir::new().unwrap();
+    let managed = root.path().join("managed");
+    let local = root.path().join("skills");
+    std::fs::create_dir_all(&managed).unwrap();
+    std::fs::create_dir_all(&local).unwrap();
+    let content = "---\nname: review\ndescription: Managed review\n---\nReview documents.";
+    std::fs::write(managed.join("SKILL.md"), content).unwrap();
+    std::os::unix::fs::symlink(&managed, local.join("review")).unwrap();
+    let registry = SkillRegistry::new();
+    registry.load_from_dir(&local).unwrap();
+    let fork = registry.fork();
+    fork.exclude_discovered_files(&[std::fs::canonicalize(managed.join("SKILL.md")).unwrap()]);
+    assert!(fork.get("review").is_none());
+    assert!(
+        registry.get("review").is_some(),
+        "other sessions retain their catalog"
+    );
+    std::fs::write(
+        local.join("other.md"),
+        "---\nname: other\ndescription: Local skill\n---\nLocal instruction.",
+    )
+    .unwrap();
+    fork.refresh_watched_dirs();
+    assert!(fork.get("other").is_some());
+    assert!(
+        fork.get("review").is_none(),
+        "refresh reintroduced projected bytes"
+    );
+    let projected = Arc::new(Skill::from_file(managed.join("SKILL.md")).unwrap());
+    assert!(fork
+        .snapshot_with_external_skills([projected.clone()])
+        .is_ok());
+    std::fs::remove_file(local.join("review")).unwrap();
+    std::fs::create_dir(local.join("review")).unwrap();
+    std::fs::write(local.join("review/SKILL.md"), content).unwrap();
+    fork.load_from_dir(&local).unwrap();
+    assert!(
+        matches!(
+            fork.snapshot_with_external_skills([projected]),
+            Err(SkillRegistrySnapshotError::NameConflict { .. })
+        ),
+        "unrelated same-name skill must still conflict"
+    );
+}
+
+#[test]
+fn projected_file_exclusion_preserves_an_explicit_host_replacement() {
+    let root = TempDir::new().unwrap();
+    let file = root.path().join("review.md");
+    std::fs::write(
+        &file,
+        "---\nname: review\ndescription: Directory review\n---\nDirectory.",
+    )
+    .unwrap();
+    let registry = SkillRegistry::new();
+    registry.load_from_dir(root.path()).unwrap();
+    let host =
+        Arc::new(Skill::parse("---\nname: review\ndescription: Host review\n---\nHost.").unwrap());
+    registry.register_host(host.clone());
+    registry.exclude_discovered_files(&[std::fs::canonicalize(file).unwrap()]);
+    assert!(Arc::ptr_eq(&registry.get("review").unwrap(), &host));
+    assert!(registry.snapshot_with_external_skills([host]).is_err());
+}

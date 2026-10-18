@@ -1,0 +1,24 @@
+[package]
+license = "Apache-2.0"
+name = "ptyctl-cli"
+version = "0.1.0"
+description = "CLI for ptyctl headless PTY controller"
+publish = false
+edition = "2024"
+
+[[bin]]
+name = "ptyctl"
+path = "src/main.rs"
+
+[dependencies]
+ptyctl = {path = "../ptyctl"}
+axum = {workspace = true}
+clap = {workspace = true}
+reqwest = {workspace = true}
+tokio = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+anyhow = {workspace = true}
+env_logger = {version = "0.11"}
+chrono = {version = "0.4", features = ["serde"]}
+dirs = {workspace = true}

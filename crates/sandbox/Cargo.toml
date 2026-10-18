@@ -1,0 +1,59 @@
+[package]
+name = "a3s-sandbox"
+version = "0.2.3"
+edition = "2021"
+authors = ["A3S Lab Team"]
+license = "MIT"
+repository = "https://github.com/A3S-Lab/Sandbox"
+description = "Cross-platform native command sandbox for A3S"
+keywords = ["sandbox", "security", "a3s"]
+categories = ["os", "development-tools"]
+publish = false
+
+[lib]
+name = "a3s_sandbox"
+path = "src/lib.rs"
+
+[[bin]]
+name = "a3s-sandbox"
+path = "src/bin/a3s_sandbox.rs"
+
+[[bin]]
+name = "a3s-sandbox-relay"
+path = "src/bin/a3s_sandbox_relay.rs"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = {workspace = true}
+dirs = {workspace = true}
+serde_json = "1.0"
+sha2 = {workspace = true}
+tempfile = "3.10"
+tokio = {version = "1.35", features = [
+    "fs",
+    "io-util",
+    "macros",
+    "net",
+    "process",
+    "rt-multi-thread",
+    "sync",
+    "time",
+]}
+
+[target.'cfg(unix)'.dependencies]
+libc = {workspace = true}
+
+[target.'cfg(windows)'.dependencies]
+base64 = "0.21"
+tracing = {workspace = true}
+windows-sys = {version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Security_Isolation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_JobObjects",
+    "Win32_System_Pipes",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+]}
