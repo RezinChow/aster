@@ -20,6 +20,9 @@ use crate::tools::process::{BoundedCapture, OutputStream as CaptureStream};
 
 mod bundle;
 mod output;
+mod version;
+
+pub(crate) use version::{guest_agent_hello, host_runtime_version};
 
 /// Explicit asset-directory override for installed or development companions.
 pub const SANDBOX_ASSETS_ENV: &str = "ASTER_SANDBOX_DIR";

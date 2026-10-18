@@ -454,6 +454,18 @@ const REHOME_ENV_KEYS: &[&str] = &[
     "XDG_STATE_HOME",
 ];
 
+/// Compose the native sanitized environment for an executor with denied networking.
+/// `scratch` is the absolute temporary directory visible inside that executor.
+pub fn sandboxed_command_environment(
+    scratch: &Path,
+    explicit: Option<&HashMap<String, String>>,
+) -> Result<BTreeMap<OsString, OsString>> {
+    if !scratch.is_absolute() {
+        bail!("sandbox scratch path must be absolute");
+    }
+    compose_child_env(explicit, scratch, None, None, None)
+}
+
 fn compose_child_env(
     explicit: Option<&HashMap<String, String>>,
     scratch: &Path,
@@ -1646,8 +1658,7 @@ mod tests {
             ("BASH_ENV".to_string(), "/tmp/attack".to_string()),
             ("LD_PRELOAD".to_string(), "/tmp/attack.so".to_string()),
         ]);
-        let environment =
-            compose_child_env(Some(&explicit), scratch.path(), None, None, None).unwrap();
+        let environment = sandboxed_command_environment(scratch.path(), Some(&explicit)).unwrap();
 
         assert_eq!(
             environment.get(OsStr::new("SAFE_VALUE")),

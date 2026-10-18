@@ -28,13 +28,14 @@ pub use policy::{
     decide_mediated_connect, decide_mediated_http, decide_mediated_socks, decide_network,
     decide_read, decide_write, ensure_policy_not_broader, hard_link_count,
     hard_link_count_for_open_file, is_protected_workspace_path, matching_secret_injections,
-    normalize_policy_path, policy_digest, sensitive_paths, should_skip_workspace_scan_directory,
-    workspace_credential_hardlink_aliases, workspace_hardlink_paths, workspace_sensitive_paths,
-    AccessDecision, BackendCapabilities, FeatureFlags, FilesystemMount, FilesystemRules,
-    MediatedHttpRequest, MountMode, NetworkAllowRule, NetworkDefault, NetworkGrant, NetworkRules,
-    NormalizedPath, PathRule, PolicyUpdateOptions, ResolvedResourceBudget, ResourceLimits,
-    SandboxPolicy, SecretHeaderInjection, SessionWriteMode, SocketRules, POLICY_VERSION,
-    PROTECTED_WORKSPACE_DIRECTORIES, PROTECTED_WORKSPACE_FILES,
+    normalize_policy_path, policy_digest, sandboxed_command_environment, sensitive_paths,
+    should_skip_workspace_scan_directory, workspace_credential_hardlink_aliases,
+    workspace_hardlink_paths, workspace_sensitive_paths, AccessDecision, BackendCapabilities,
+    FeatureFlags, FilesystemMount, FilesystemRules, MediatedHttpRequest, MountMode,
+    NetworkAllowRule, NetworkDefault, NetworkGrant, NetworkRules, NormalizedPath, PathRule,
+    PolicyUpdateOptions, ResolvedResourceBudget, ResourceLimits, SandboxPolicy,
+    SecretHeaderInjection, SessionWriteMode, SocketRules, WorkspaceFilesystemBoundary,
+    POLICY_VERSION, PROTECTED_WORKSPACE_DIRECTORIES, PROTECTED_WORKSPACE_FILES,
 };
 
 const DEFAULT_TIMEOUT_MS: u64 = 120_000;

@@ -497,6 +497,20 @@ mod tests {
             Some(value) => std::env::set_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV, value),
             None => std::env::remove_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV),
         }
+        eprintln!(
+            "missing exec_command={} exec={} observer={} sentinel={}",
+            exec_command
+                .as_ref()
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_else(|| "ran".into()),
+            exec.as_ref()
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_else(|| "ran".into()),
+            observer.0.load(Ordering::SeqCst),
+            sentinel.exists()
+        );
         for error in [exec_command.err(), exec.err()] {
             let error = error.expect("a missing guest probe must not run the command");
             assert!(
@@ -510,6 +524,541 @@ mod tests {
         assert_eq!(observer.0.load(Ordering::SeqCst), 0);
         assert!(!sentinel.exists());
         assert!(!sandbox.supports_background_execution());
+    }
+
+    /// Companion files that pass discovery keep Deny on the OCI Host even
+    /// when process-host is opted in. Mediated never takes that Host.
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[tokio::test]
+    async fn validated_companion_files_keep_deny_on_oci_and_mediated_off_the_vm() {
+        let root = tempfile::tempdir().unwrap();
+        let assets = root.path().join("assets");
+        for relative in [
+            "a3s-oci",
+            "a3s-oci-krun-shim",
+            "system-image.json",
+            "bundle/config.json",
+            "bundle/rootfs/bin/bash",
+        ] {
+            let path = assets.join(relative);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, b"stub").unwrap();
+        }
+        let workspace = root.path().join("work");
+        std::fs::create_dir(&workspace).unwrap();
+        let _assets_env = AssetsEnv::set(&assets);
+        crate::sandbox::oci::OciBashSandbox::discover(&workspace)
+            .expect("stub companion files must satisfy discovery");
+
+        let mut deny = SessionOptions::new().with_allow_process_host_sandbox(true);
+        install_default_local_sandbox(&workspace, &mut deny);
+        let deny = deny.sandbox_handle.as_ref().unwrap();
+        assert_eq!(
+            deny.execution_overhead_ms(),
+            90_000,
+            "opt-in must not replace a discovered OCI Host"
+        );
+        assert!(
+            deny.policy_digest().is_none(),
+            "the OCI Host is not the native backend"
+        );
+
+        let sentinel = workspace.join("mediated-sentinel");
+        let mut mediated = SessionOptions::new()
+            .with_allow_process_host_sandbox(true)
+            .with_sandbox_network_mode(crate::sandbox::SandboxNetworkMode::Mediated)
+            .with_sandbox_network_allow(vec!["example.com".into()]);
+        install_default_local_sandbox(&workspace, &mut mediated);
+        let mediated = mediated.sandbox_handle.as_ref().unwrap();
+        assert_ne!(
+            mediated.execution_overhead_ms(),
+            90_000,
+            "mediated posture must not select the deny-only OCI Host"
+        );
+        let command = format!("printf leaked > '{}'", sentinel.display());
+        let exec_command = mediated.exec_command(&command, "/workspace").await;
+        let exec = mediated
+            .exec(SandboxCommandRequest {
+                command,
+                guest_workspace: "/workspace".into(),
+                timeout_ms: 1_000,
+                output_observer: None,
+                env: None,
+            })
+            .await;
+        for error in [exec_command.err(), exec.err()] {
+            let error = error.expect("mediated posture must not run the command");
+            let message = error.to_string();
+            assert!(
+                message.contains("native_process_lifetime_unqualified")
+                    || message.contains("process-host fallback was NOT installed"),
+                "{error:#}"
+            );
+        }
+        assert!(!sentinel.exists());
+        eprintln!(
+            "hermetic deny_overhead={} mediated_overhead={} mediated_digest={}",
+            deny.execution_overhead_ms(),
+            mediated.execution_overhead_ms(),
+            mediated.policy_digest().is_some()
+        );
+    }
+
+    /// Real companions: Deny plus the process-host opt-in executes on the OCI
+    /// Host. The same companions with a mediated posture do not run.
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "requires signed HVF assets; run explicitly on Apple Silicon"]
+    async fn validated_companions_select_oci_for_deny_and_refuse_mediated() {
+        let assets = std::env::var_os("ASTER_TEST_OCI_ASSETS")
+            .expect("explicit real OCI assets in ASTER_TEST_OCI_ASSETS");
+        let _assets_env = AssetsEnv::set(&assets);
+        let workspace = tempfile::tempdir_in("/private/var/tmp").unwrap();
+        let root = workspace.path().canonicalize().unwrap();
+        crate::sandbox::oci::OciBashSandbox::discover(&root)
+            .expect("validated companions must discover before either posture runs");
+
+        let mut deny_opts = SessionOptions::new().with_allow_process_host_sandbox(true);
+        install_default_local_sandbox(&root, &mut deny_opts);
+        let deny = Arc::clone(deny_opts.sandbox_handle.as_ref().unwrap());
+        assert_eq!(deny.execution_overhead_ms(), 90_000);
+        assert!(deny.policy_digest().is_none());
+        let baseline_hosts = hvf_host_count();
+        let watch = HostWatch::start();
+        let exec_output = deny
+            .exec(SandboxCommandRequest {
+                command: "printf 'deny-exec\\n'; uname -s; exit 7".into(),
+                guest_workspace: root.display().to_string(),
+                timeout_ms: 120_000,
+                output_observer: None,
+                env: None,
+            })
+            .await
+            .expect("deny exec through the installed OCI Host");
+        let exec_host = watch.saw();
+        watch.reset();
+        let command_output = deny
+            .exec_command(
+                "printf 'deny-exec-command\\n'; uname -s; exit 8",
+                &root.display().to_string(),
+            )
+            .await
+            .expect("deny exec_command through the installed OCI Host");
+        let command_host = watch.saw();
+        let deny_transcript = format!(
+            "deny workspace={} overhead={} exec_exit={} exec_host={exec_host} exec_stdout={:?} exec_stderr={:?} command_exit={} command_host={command_host} command_stdout={:?} command_stderr={:?}",
+            root.display(),
+            deny.execution_overhead_ms(),
+            exec_output.exit_code,
+            exec_output.stdout,
+            exec_output.stderr,
+            command_output.exit_code,
+            command_output.stdout,
+            command_output.stderr,
+        );
+        eprintln!("{deny_transcript}");
+        assert!(
+            exec_output.stdout.contains("deny-exec\n"),
+            "blank or foreign stdout is a product failure: {deny_transcript}"
+        );
+        assert!(
+            exec_output.stdout.contains("Linux\n"),
+            "a host-process result is a product failure: {deny_transcript}"
+        );
+        assert_eq!(exec_output.exit_code, 7, "{deny_transcript}");
+        assert!(
+            exec_host,
+            "macos-hvf-host-service was not alive during exec"
+        );
+        assert!(
+            command_output.stdout.contains("deny-exec-command\n"),
+            "{deny_transcript}"
+        );
+        assert!(
+            command_output.stdout.contains("Linux\n"),
+            "a host-process result is a product failure: {deny_transcript}"
+        );
+        assert_eq!(command_output.exit_code, 8, "{deny_transcript}");
+        assert!(
+            command_host,
+            "macos-hvf-host-service was not alive during exec_command"
+        );
+        deny.shutdown().await;
+        drop(watch);
+        wait_for_hvf_host_count(baseline_hosts).await;
+
+        let sentinel = root.join("mediated-sentinel");
+        let mut mediated_opts = SessionOptions::new()
+            .with_allow_process_host_sandbox(true)
+            .with_sandbox_network_mode(crate::sandbox::SandboxNetworkMode::Mediated)
+            .with_sandbox_network_allow(vec!["example.com".into()]);
+        install_default_local_sandbox(&root, &mut mediated_opts);
+        let mediated = Arc::clone(mediated_opts.sandbox_handle.as_ref().unwrap());
+        assert_ne!(mediated.execution_overhead_ms(), 90_000);
+        let command = format!("printf leaked > '{}'", sentinel.display());
+        let watch = HostWatch::start();
+        let exec_error = mediated
+            .exec(SandboxCommandRequest {
+                command: command.clone(),
+                guest_workspace: root.display().to_string(),
+                timeout_ms: 30_000,
+                output_observer: None,
+                env: None,
+            })
+            .await
+            .err()
+            .expect("mediated posture must not run on the OCI Host or process-host");
+        let command_error = mediated
+            .exec_command(&command, &root.display().to_string())
+            .await
+            .err()
+            .expect("mediated exec_command must not run");
+        let mediated_host = watch.saw();
+        let hosts_after = hvf_host_count();
+        let mediated_transcript = format!(
+            "mediated overhead={} digest_some={} host_seen={mediated_host} hosts_before={baseline_hosts} hosts_after={hosts_after} sentinel={} exec_error={} command_error={}",
+            mediated.execution_overhead_ms(),
+            mediated.policy_digest().is_some(),
+            sentinel.exists(),
+            exec_error,
+            command_error,
+        );
+        eprintln!("{mediated_transcript}");
+        for error in [&exec_error, &command_error] {
+            let message = error.to_string();
+            assert!(
+                message.contains("native_process_lifetime_unqualified")
+                    || message.contains("process-host fallback was NOT installed"),
+                "{mediated_transcript}"
+            );
+        }
+        assert!(!sentinel.exists(), "{mediated_transcript}");
+        assert_eq!(hosts_after, baseline_hosts, "{mediated_transcript}");
+        if baseline_hosts == 0 {
+            assert!(!mediated_host, "{mediated_transcript}");
+        }
+        mediated.shutdown().await;
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    struct AssetsEnv {
+        previous: Option<std::ffi::OsString>,
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    impl AssetsEnv {
+        fn set(directory: impl AsRef<std::ffi::OsStr>) -> Self {
+            let previous = std::env::var_os(crate::sandbox::oci::SANDBOX_ASSETS_ENV);
+            std::env::set_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV, directory);
+            Self { previous }
+        }
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    impl Drop for AssetsEnv {
+        fn drop(&mut self) {
+            match self.previous.take() {
+                Some(value) => std::env::set_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV, value),
+                None => std::env::remove_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV),
+            }
+        }
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn hvf_host_count() -> usize {
+        let output = std::process::Command::new("/bin/ps")
+            .args(["-ax", "-o", "command="])
+            .output()
+            .expect("ps");
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|line| line.contains("macos-hvf-host-service"))
+            .count()
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    async fn wait_for_hvf_host_count(expected: usize) {
+        let start = std::time::Instant::now();
+        while start.elapsed() < std::time::Duration::from_secs(20) {
+            if hvf_host_count() == expected {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        panic!(
+            "macos-hvf-host-service count stayed {}, expected {expected}",
+            hvf_host_count()
+        );
+    }
+
+    /// The guest agent inside the image discovery's host will boot must hello
+    /// with that host binary's runtime version. A mismatch is not success.
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "requires signed HVF assets; run explicitly on Apple Silicon"]
+    async fn guest_hello_matches_the_host_runtime_discovery_launches() {
+        let assets = std::env::var_os("ASTER_TEST_OCI_ASSETS")
+            .expect("explicit real OCI assets in ASTER_TEST_OCI_ASSETS");
+        let _assets_env = AssetsEnv::set(&assets);
+        let directory = std::path::PathBuf::from(&assets);
+        let workspace = tempfile::tempdir_in("/private/var/tmp").unwrap();
+        let root = workspace.path().canonicalize().unwrap();
+        crate::sandbox::oci::OciBashSandbox::discover(&root)
+            .expect("discovery must open the companions this test reads");
+
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(directory.join("system-image.json")).expect("system image manifest"),
+        )
+        .expect("system image manifest is json");
+        let image_name = manifest["image"]["name"]
+            .as_str()
+            .expect("manifest image.name is the file the host boots");
+        assert!(
+            !image_name.is_empty()
+                && !image_name.contains('/')
+                && !image_name.contains('\\')
+                && !image_name.contains('\0'),
+            "image.name must be one plain file name, got {image_name:?}"
+        );
+        let image = directory.join(image_name);
+        let host_path = directory.join("a3s-oci");
+        let host_bytes = std::fs::read(&host_path).expect("host binary discovery launches");
+        let agent_path = root.join("a3s-oci-agent");
+        let agent_bytes = guest_agent_bytes(&image, &agent_path);
+        let host_version = crate::sandbox::oci::host_runtime_version(&host_bytes)
+            .expect("host runtime version sits before the mismatch error");
+        let hello = crate::sandbox::oci::guest_agent_hello(&agent_bytes, "aarch64")
+            .expect("guest hello sits immediately before aarch64");
+        eprintln!(
+            "host_binary={} image={} host_runtime={host_version} guest_hello={hello}",
+            host_path.display(),
+            image.display()
+        );
+        assert_eq!(
+            hello, host_version,
+            "the launched pair disagrees; a mismatch is not a successful command"
+        );
+
+        let mut opts = SessionOptions::new();
+        install_default_local_sandbox(&root, &mut opts);
+        let sandbox = Arc::clone(opts.sandbox_handle.as_ref().unwrap());
+        assert_eq!(sandbox.execution_overhead_ms(), 90_000);
+        let output = sandbox
+            .exec(SandboxCommandRequest {
+                command: "printf 'version-pair-ok\\n'; exit 4".into(),
+                guest_workspace: root.display().to_string(),
+                timeout_ms: 120_000,
+                output_observer: None,
+                env: None,
+            })
+            .await
+            .expect("a matched pair returns the program result, not a version error");
+        let transcript = format!(
+            "version_exit={} version_stdout={:?} version_stderr={:?}",
+            output.exit_code, output.stdout, output.stderr
+        );
+        eprintln!("{transcript}");
+        assert!(
+            !output.stdout.contains("guest agent version does not match")
+                && !output.stderr.contains("guest agent version does not match"),
+            "{transcript}"
+        );
+        assert!(output.stdout.contains("version-pair-ok\n"), "{transcript}");
+        assert!(!output.stdout.trim().is_empty(), "{transcript}");
+        assert_eq!(output.exit_code, 4, "{transcript}");
+        sandbox.shutdown().await;
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn guest_agent_bytes(image: &std::path::Path, destination: &std::path::Path) -> Vec<u8> {
+        let debugfs = "/opt/homebrew/opt/e2fsprogs/sbin/debugfs";
+        let dump = format!("dump /usr/bin/a3s-oci-agent {}", destination.display());
+        let output = std::process::Command::new(debugfs)
+            .args(["-R", &dump])
+            .arg(image)
+            .output()
+            .unwrap_or_else(|error| panic!("debugfs is required to read the guest agent: {error}"));
+        assert!(
+            output.status.success(),
+            "debugfs dump of /usr/bin/a3s-oci-agent failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        std::fs::read(destination).expect("dumped guest agent")
+    }
+
+    /// Installer path: caller-only uid map, denied credential and hardlink,
+    /// no outside file, and a `setsid` descendant that stops after timeout
+    /// or cancellation. The timeout case runs twice.
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "requires signed HVF assets; run explicitly on Apple Silicon"]
+    async fn default_install_checks_uid_map_credentials_and_setsid() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let assets = std::env::var_os("ASTER_TEST_OCI_ASSETS")
+            .expect("explicit real OCI assets in ASTER_TEST_OCI_ASSETS");
+        let _assets_env = AssetsEnv::set(&assets);
+        let parent = tempfile::Builder::new()
+            .prefix("aster-contract-")
+            .tempdir_in("/private/var/tmp")
+            .unwrap();
+        let workspace = parent.path().join("work");
+        let outside = parent.path().join("outside");
+        std::fs::create_dir(&workspace).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(workspace.join("marker.txt"), b"CONTRACT-MARKER-9f3c").unwrap();
+        std::fs::write(workspace.join(".env"), b"credential").unwrap();
+        std::fs::create_dir_all(workspace.join("node_modules/pkg")).unwrap();
+        std::fs::hard_link(
+            workspace.join(".env"),
+            workspace.join("node_modules/pkg/config"),
+        )
+        .unwrap();
+        std::fs::set_permissions(&workspace, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::set_permissions(
+            workspace.join("marker.txt"),
+            std::fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+        std::fs::set_permissions(
+            workspace.join(".env"),
+            std::fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+        let root = workspace.canonicalize().unwrap();
+        let escape = outside.canonicalize().unwrap().join("escaped");
+        let euid = unsafe { libc::geteuid() };
+        let egid = unsafe { libc::getegid() };
+
+        let mut opts = SessionOptions::new();
+        install_default_local_sandbox(&root, &mut opts);
+        let sandbox = Arc::clone(opts.sandbox_handle.as_ref().unwrap());
+        assert_eq!(sandbox.execution_overhead_ms(), 90_000);
+
+        let command = format!(
+            "marker=$(cat marker.txt) || marker=UNREADABLE\n\
+             printf 'marker=%s\\n' \"$marker\"\n\
+             read -r u0 u1 u2 _ < /proc/self/uid_map\n\
+             printf 'uid=%s %s %s\\n' \"$u0\" \"$u1\" \"$u2\"\n\
+             read -r g0 g1 g2 _ < /proc/self/gid_map\n\
+             printf 'gid=%s %s %s\\n' \"$g0\" \"$g1\" \"$g2\"\n\
+             if cat .env >/dev/null 2>&1; then echo env=readable; else echo env=unreadable; fi\n\
+             if cat node_modules/pkg/config >/dev/null 2>&1; then echo link=readable; else echo link=unreadable; fi\n\
+             if printf leaked > '{}' 2>/dev/null; then echo outside=wrote; else echo outside=blocked; fi\n\
+             exit 7",
+            escape.display()
+        );
+        let output = sandbox
+            .exec(SandboxCommandRequest {
+                command,
+                guest_workspace: root.display().to_string(),
+                timeout_ms: 120_000,
+                output_observer: None,
+                env: None,
+            })
+            .await
+            .expect("installer command returns the program result");
+        let transcript = format!(
+            "contract_exit={} contract_stdout={:?} contract_stderr={:?} escape_exists={}",
+            output.exit_code,
+            output.stdout,
+            output.stderr,
+            escape.exists()
+        );
+        eprintln!("{transcript}");
+        assert_eq!(output.exit_code, 7, "{transcript}");
+        assert!(
+            output.stdout.contains("marker=CONTRACT-MARKER-9f3c\n"),
+            "a readable marker distinguishes policy denial from a uid-map failure: {transcript}"
+        );
+        assert!(
+            output.stdout.contains(&format!("uid=0 {euid} 1\n")),
+            "{transcript}"
+        );
+        assert!(
+            output.stdout.contains(&format!("gid=0 {egid} 1\n")),
+            "{transcript}"
+        );
+        assert!(output.stdout.contains("env=unreadable\n"), "{transcript}");
+        assert!(output.stdout.contains("link=unreadable\n"), "{transcript}");
+        assert!(output.stdout.contains("outside=blocked\n"), "{transcript}");
+        assert!(!escape.exists(), "{transcript}");
+        assert_eq!(std::fs::read(root.join(".env")).unwrap(), b"credential");
+
+        for counter in ["counter-a", "counter-b"] {
+            let output = sandbox
+                .exec(SandboxCommandRequest {
+                    command: setsid_loop(counter),
+                    guest_workspace: root.display().to_string(),
+                    timeout_ms: 1_000,
+                    output_observer: None,
+                    env: None,
+                })
+                .await
+                .expect("timeout settles the setsid descendant");
+            let path = root.join(counter);
+            let length = std::fs::metadata(&path)
+                .unwrap_or_else(|error| panic!("{counter} missing after timeout: {error}"))
+                .len();
+            eprintln!(
+                "timeout counter={counter} exit={} timed_out={} length={length}",
+                output.exit_code, output.timed_out
+            );
+            assert!(output.timed_out, "{counter}");
+            assert_eq!(output.exit_code, 124, "{counter}");
+            assert!(length > 0, "{counter}");
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().len(),
+                length,
+                "{counter} kept writing after timeout"
+            );
+        }
+
+        let running = Arc::clone(&sandbox);
+        let cancel_root = root.clone();
+        let task = tokio::spawn(async move {
+            running
+                .exec(SandboxCommandRequest {
+                    command: setsid_loop("counter-c"),
+                    guest_workspace: cancel_root.display().to_string(),
+                    timeout_ms: 60_000,
+                    output_observer: None,
+                    env: None,
+                })
+                .await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(45), async {
+            while !root.join("counter-c").exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            }
+        })
+        .await
+        .expect("cancelled descendant did not start writing");
+        task.abort();
+        assert!(
+            matches!(task.await, Err(error) if error.is_cancelled()),
+            "cancellation must drop the exec future"
+        );
+        tokio::time::timeout(std::time::Duration::from_secs(35), sandbox.shutdown())
+            .await
+            .expect("shutdown settles the owned host");
+        let length = std::fs::metadata(root.join("counter-c")).unwrap().len();
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        assert_eq!(
+            std::fs::metadata(root.join("counter-c")).unwrap().len(),
+            length,
+            "cancelled setsid descendant kept writing"
+        );
+        assert!(length > 0);
+        eprintln!("cancel counter-c length={length} stable=true");
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn setsid_loop(counter: &str) -> String {
+        format!(
+            "/bin/busybox setsid /bin/bash -c 'while :; do printf x >> {counter}; sleep 0.05; done' >/dev/null 2>&1 & wait"
+        )
     }
 
     /// The session AsterDream installs: Bash, a Python program through that
