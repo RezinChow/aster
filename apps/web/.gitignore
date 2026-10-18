@@ -1,0 +1,10 @@
+node_modules
+dist/
+.DS_Store
+*.local
+*.log*
+.rspack-profile-*/
+
+.env
+.env.development
+.env.local

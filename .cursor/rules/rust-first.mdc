@@ -1,0 +1,17 @@
+---
+description: Kense OS — Rust-first for services and shared libraries
+alwaysApply: true
+---
+
+# Rust first
+
+For Kense OS (`kense-labs/os` and its submodules):
+
+1. **Default to Rust** for new services, data-plane processes, shared libraries, Gateway upstreams, edge processes (auth / billing / config / runtime), and any logic that is not a browser UI.
+2. **Do not** introduce or expand Bun/Node/TypeScript **server** packages without an explicit user decision. “Faster to write adapters” or “fits the Bun workspace” is not sufficient justification.
+3. **Allowed TypeScript** only where it is genuinely frontend/product shell:
+   - Console / marketing apps (`apps/web`, `apps/official`)
+   - Shared UI kit (`packages/ui`)
+   - Browser-only glue that must run in the page
+4. When both a Rust and a TS option exist for the same server responsibility, **choose or migrate to Rust** (see `a3s-runtime` replacing `a3s-runtime`).
+5. New OS spine processes should follow existing Rust patterns (`a3s-boot` / axum / `a3s-orm`), not add another TS microservice.

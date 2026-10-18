@@ -15,7 +15,7 @@
       "source": "git@github.com:aster-ai-lab/work.git",
       "revision": "4bb27b9b7c4d9b88d7edb8159f4a7b92ad4a3cff",
       "package": "aster-dream",
-      "version": "2.1.3"
+      "version": "0.1.0"
     },
     {
       "package": "a3s-acl",
@@ -95,15 +95,7 @@
       "version": "0.3.0"
     },
     {
-      "package": "aster-flow-legacy",
-      "version": "1.1.0",
       "path": "crates/flow",
-      "source": "https://github.com/A3S-Lab/Flow",
-      "revision": "2948ad51a1395177764766c3ddf7e44338f9e374",
-      "source_manifest_sha256": "7fb72fae5f99be4b72cb4f5569c822a53afdfe4c3497e80fb34292e4466e9a34"
-    },
-    {
-      "path": "crates/flow-v2",
       "source": "apps/work/vendor/crates/flow",
       "revision": null,
       "package": "a3s-flow",
@@ -1021,14 +1013,6 @@
       "version": "0.1.1"
     },
     {
-      "package": "a3s-updater",
-      "version": "0.2.0",
-      "path": "crates/updater",
-      "source": "https://crates.io/crates/a3s-updater/0.2.0",
-      "revision": null,
-      "source_manifest_sha256": "c881c1a176f99938b2e0f3bc1d23ebd453f0c0f98ee07145f35cf8071f6a00ed"
-    },
-    {
       "package": "a3s-use-core",
       "version": "0.2.4",
       "path": "crates/use/core",
@@ -1065,6 +1049,168 @@
       "source": "../a3s/crates/vec",
       "revision": "924c65cc626c46b102db1e36873113fa8da7a166",
       "source_manifest_sha256": "28111e8b7e94a865adfef866630e48e4d2661455355c298453ce6971203e3775"
+    },
+    {
+      "path": "apps/studio/src-tauri",
+      "source": "../a3s/apps/studio/src-tauri",
+      "revision": "f31479b0eb5f687d715b7c468764ff19707bc8e7",
+      "source_manifest_sha256": "a08d2f5f14f0391f398c17d0ed3c1a947c26eaaf874cd9df21d9cc7d85ad3ed9",
+      "package": "a3s-studio",
+      "version": "2.1.3"
+    },
+    {
+      "path": "apps/studio/native/data-sqlite",
+      "source": "../a3s/apps/studio/native/data-sqlite",
+      "revision": "f31479b0eb5f687d715b7c468764ff19707bc8e7",
+      "source_manifest_sha256": "6662058564c55d1d5f6bfed17804f094217df76739bac3d8f1f89f543581db98",
+      "package": "a3s-studio-data-sqlite",
+      "version": "0.1.0"
+    },
+    {
+      "path": "apps/studio/src-tauri/contract",
+      "source": "../a3s/apps/studio/src-tauri/contract",
+      "revision": "f31479b0eb5f687d715b7c468764ff19707bc8e7",
+      "source_manifest_sha256": "8728acce86fe8f320b79a0e99b6c34de2e1f5ccae2e4fd7d8c84807c5abd103c",
+      "package": "a3s-studio-desktop-contract",
+      "version": "0.0.0"
     }
-  ]
+  ],
+  "studio_import": {
+    "date": "2026-10-18",
+    "source": "../a3s/apps/studio",
+    "note": "Includes local source changes. Shared Rust APIs are merged additively. Credentials, sessions, nested Git metadata, Cargo lockfiles, and build caches are excluded.",
+    "sources": [
+      {
+        "path": "apps/studio",
+        "source": "../a3s/apps/studio",
+        "revision": "f31479b0eb5f687d715b7c468764ff19707bc8e7",
+        "source_manifest_sha256": "5892ea2800c705ba982507df13acd7a5b8839eb8b13519261d598fd67c7df1b5"
+      },
+      {
+        "path": "packages/ui",
+        "source": "../a3s/packages/ui",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7",
+        "source_manifest_sha256": "dae86d9854233d6490e0dff05441de3f6999594a328ece0ff0939e7d6ef6f0d6"
+      },
+      {
+        "path": "packages/intelligent-ui",
+        "source": "../a3s/packages/intelligent-ui",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7",
+        "source_manifest_sha256": "5a3107d29b3168c8f0d9619d0aefedb1266dbcf0707382405966c3a041bf32e7"
+      },
+      {
+        "path": "packages/intelligent-ui-aix",
+        "source": "../a3s/packages/intelligent-ui-aix",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7",
+        "source_manifest_sha256": "a79078c97035c893c73950aa85a3793e68d067202b2f8fdd8bb1b4acb251ab7e"
+      },
+      {
+        "path": "packages/ce",
+        "source": "../a3s/packages/ce",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7",
+        "source_manifest_sha256": "40ebc1383291f3eb5973682d188cb5fe4baebefe773a93526e4951790adb1c26"
+      },
+      {
+        "path": "packages/form",
+        "source": "../a3s/packages/form",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7",
+        "source_manifest_sha256": "60793e80e11cfeb201b867b172460ae0efbf546f85d54d93c83edad8966952a0"
+      },
+      {
+        "path": "packages/office",
+        "source": "apps/work/vendor/packages/office",
+        "revision": "c4be02b30e62a60cc94a08bb7ae9c0d91921cad5",
+        "source_manifest_sha256": "630668005ed720cd9f8991231beb125297c7738d4bd330d2613b1a4be30a18f6"
+      },
+      {
+        "path": "crates/orm",
+        "source": "../a3s/crates/orm",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7",
+        "source_manifest_sha256": "d80367f4f4219e2733c7675f63cc3e1489afda6d50ceeffd25f69beb4c2fc4b8"
+      },
+      {
+        "path": "crates/use/extension",
+        "source": "../a3s/crates/use/crates/extension",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7",
+        "source_manifest_sha256": "72c5cfcab6929ec9403e4a59cba0883fca665f480923db927f365111cb10eb5c"
+      },
+      {
+        "path": "apps/use-registry/packages",
+        "source": "../a3s/apps/use-registry/packages",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7"
+      },
+      {
+        "path": "apps/web/src/flow-designer",
+        "source": "../a3s/apps/web/src/flow-designer",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7"
+      },
+      {
+        "path": "apps/web/public/tenant",
+        "source": "../a3s/apps/web/public/tenant",
+        "revision": "200f65cf6a9d866e5dbb1562f57c600600e797b7"
+      }
+    ],
+    "cleanup": {
+      "removed_from_source": [
+        "apps/studio",
+        "packages/intelligent-ui",
+        "packages/intelligent-ui-aix"
+      ],
+      "retained_shared_dependencies": [
+        "packages/ui",
+        "packages/office",
+        "packages/form",
+        "packages/ce",
+        "crates/flow/packages/ui"
+      ],
+      "backend_fixture": "../a3s/fixtures/paperloom/two-pages.pdf",
+      "recovery_location": "/Users/roylin/.Trash/aster-studio-migration-20261018-154138"
+    }
+  },
+  "backend_import": {
+    "date": "2026-10-18",
+    "source_root": "../a3s",
+    "revision": "cde6ae1e0a1b0ee36078e12cf5defeeb814715d4",
+    "note": "OS backend services registered as workspace members. Git dependencies on A3S-Lab Boot and ORM are replaced by the local crates/boot and crates/orm copies; the Use extension path follows this repository's crates/use layout. Member Cargo.lock files are dropped for the one-lockfile rule. Rust sources are reformatted to workspace rustfmt defaults and the maas-leave remote agent is removed together with the deleted a3s-maas service. The hash is taken over the landed tree: sha256 of the sorted 'sha256(file)  path' manifest, excluding target, .data, .a3s, Cargo.lock, and .env.",
+    "sources": [
+      {
+        "path": "apps/api",
+        "source": "../a3s/apps/api",
+        "source_manifest_sha256": "9523860168cb4349ca64780d48cf9e5140b76b3fa56d0392232ada1e42843b81"
+      },
+      {
+        "path": "apps/auth",
+        "source": "../a3s/apps/auth",
+        "source_manifest_sha256": "b73bbdee89b1494deb372bb19deb3c2abe824adc8a7abb7b4df9d0d8671356c4"
+      },
+      {
+        "path": "apps/billing",
+        "source": "../a3s/apps/billing",
+        "source_manifest_sha256": "f14b8638f08b7afc187917c16c86e0312c99e70316b037432db4063fea3951bf"
+      },
+      {
+        "path": "apps/config",
+        "source": "../a3s/apps/config",
+        "source_manifest_sha256": "e253d2b15d722c59f28df64767c0d482c40de8d5ec9f0c99b5bc99de45859f27"
+      },
+      {
+        "path": "apps/cloud/crates/sdk",
+        "source": "../a3s/apps/cloud/crates/sdk",
+        "source_manifest_sha256": "f8ef4c9de361940e827f1016da4a81f7d4b7d7ddff75cbd98c3e18477279f3fe"
+      },
+      {
+        "path": "apps/use-registry",
+        "source": "../a3s/apps/use-registry",
+        "note": "Content only; caches and build outputs excluded. The maas-leave package is removed with the service.",
+        "source_manifest_sha256": "fb26710dbe4e92b0bf4b4bae207562926dc4603cb6558522b24aad1f7d7dc345"
+      },
+      {
+        "path": "apps/web",
+        "source": "../a3s/apps/web",
+        "note": "Content only; node_modules and build outputs excluded.",
+        "source_manifest_sha256": "25d1b4f8854cbbadf17ff619694acc78016c58bcad845ee6819a9d529918e4c4"
+      }
+    ],
+    "verification": "cargo check --tests on the five members; workspace cargo fmt --check; clean-room boot of a3s-config :7654, a3s-auth :7642, a3s-billing :7655, a3s-api :3000 against the live middleware with fresh databases: /health all up, admin login through the auth directory, notes round-trip."
+  }
 }

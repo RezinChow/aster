@@ -1,0 +1,11 @@
+---
+description: apps = deployable processes; packages = libraries only
+alwaysApply: true
+---
+
+# Apps vs packages
+
+- **`apps/`**: deployable processes and products (listen ports, operator binaries, Console shells). Examples: cloud, api, auth, billing, config, gateway, runtime, sentry, web, official.
+- **`packages/`**: pure libraries consumed via path/workspace deps. Examples: boot, orm, flow, acl, ui, bus.
+- Do **not** place a microservice or long-running server under `packages/`.
+- Symlinks like `packages/code` → nested library paths inside an app (e.g. sentry) are allowed.

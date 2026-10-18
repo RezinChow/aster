@@ -2,7 +2,15 @@
 resolver = "3"
 exclude = ["crates/code/fixtures/s3-compat"]
 members = [
+    "apps/api",
     "apps/aster",
+    "apps/auth",
+    "apps/billing",
+    "apps/cloud/crates/sdk",
+    "apps/config",
+    "apps/studio/src-tauri",
+    "apps/studio/src-tauri/contract",
+    "apps/studio/native/data-sqlite",
     "crates/acl",
     "crates/apofasi",
     "crates/browser",
@@ -117,7 +125,6 @@ members = [
     "crates/terminal/third_party/graphlib_rust",
     "crates/terminal/third_party/mermaid-to-svg",
     "crates/terminal/third_party/ordered_hashmap",
-    "crates/updater",
     "crates/use/core",
     "crates/use/reconcile",
     "crates/vec",
@@ -126,7 +133,6 @@ members = [
     "crates/boot/macros",
     "crates/event",
     "crates/orm",
-    "crates/flow-v2",
     "crates/ocr",
     "crates/use/extension",
     "crates/use/tool-acquire",

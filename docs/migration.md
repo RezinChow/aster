@@ -1,8 +1,8 @@
 # Harness migration
 
 The 2026-10-18 import copies the required Rust source snapshots from
-`../a3s` into a standalone Aster workspace. The source checkout is left
-untouched. Package-level provenance is recorded in
+`../a3s` into a standalone Aster workspace. The OS/backend checkout remains separate; the later Studio cleanup is
+recorded below. Package-level provenance is recorded in
 [`source-manifest.json`](source-manifest.json). Local snapshots include
 working-tree changes; repository revisions do not imply release certification.
 
@@ -92,12 +92,15 @@ backends, and release certification are separate from the local migration.
 `just code` builds both default workspace members and runs the current
 `aster` TUI. Arguments are forwarded as positional shell arguments.
 
-`just work` opens the newest executable macOS bundle from the workspace
-target directory or the previous Work target directory. Work is included
-in the same Rust workspace. Its former Git metadata is preserved locally
-under `.git/imported-work.git`; its source files are part of this repository.
-The launcher uses executable modification times, preserves paths containing
-spaces, and reports an actionable error when no compiled bundle exists.
+`just work` runs `just build-work`, then starts
+`{cargo metadata target_directory}/debug/aster-dream`. A failed build does
+not launch. It replaces an older running primary AsterDream, including one
+under `apps/work/src-tauri/target` or the primary Application Support app,
+so the new build is not asked to show the old window. `just dev` starts the
+same desktop through `apps/work`'s launcher with Rsbuild dev on
+127.0.0.1:4318, so renderer edits hot-reload. Work is included in
+the same Rust workspace. Its former Git metadata is preserved locally under
+`.git/imported-work.git`; its source files are part of this repository.
 
 The welcome screen uses the supplied Aster logo, retained at
 `assets/aster-logo.png`, with full and compact ASCII artwork. Forty-eight
@@ -109,7 +112,7 @@ uses the terminal's existing quantization and NO_COLOR handling.
 
 ## Complete internalization
 
-The workspace now contains 135 Rust packages. A3S dependencies in every
+The workspace now contains 137 Rust packages. A3S dependencies in every
 manifest and the lockfile resolve to local source, including optional,
 target-specific, and test dependencies. Every workspace member is marked
 `publish = false`. The additional source snapshots are recorded in
@@ -121,11 +124,11 @@ Office's four native/kernel crates are included. The pinned OpenAI client
 fork and Work's modified PTY adapter are local as well. OCR's image dependency
 uses the workspace-compatible 0.25.10 release.
 
-Code's Flow 1 API remains at `crates/flow`, with internal package name
-`aster-flow-legacy` and the existing `a3s_flow` library identity. Work's Flow
-2 API and authoring source live at `crates/flow-v2`. Both use local service
-integrations and compile with all their features. This preserves each
-consumer's contracts without a forced engine API migration.
+Code, Work, and Studio share the Flow 2 engine at `crates/flow`, with
+package name `a3s-flow` and library identity `a3s_flow`. The initial import
+retained Flow 1 separately for Code; that duplicate engine is removed as
+Code migrates to the shared API. The workflow authoring package stays under
+`crates/flow/packages/ui`.
 
 Work's desktop copies of the shared Rust libraries and its separate lockfile
 are removed. Its renderer stays in a pnpm workspace. Office's full editor
@@ -138,6 +141,57 @@ Linux container build use the root Cargo workspace and target directory.
 
 Work remains AGPL-3.0 under `apps/work/LICENSE`; the Rust libraries and third-
 party forks retain their respective original licenses.
+
+## Studio import
+
+Studio is imported from `../a3s/apps/studio`, including its local source
+changes. Provenance is recorded in `source-manifest.json`. It stays at
+`apps/studio` alongside Aster Work. The host (`a3s-studio`), native database
+runner, and lightweight desktop contract tests join the root Cargo workspace.
+There is one Cargo lockfile and target directory; the default members stay
+Aster and ACP. All three imported packages have `publish = false`.
+
+Studio shares local ACL 0.3, Boot, Flow 2, OKF, OCR, Vec, and Use libraries.
+The duplicate ACL authoring dependency is consolidated into the local parser.
+ORM gains the upstream engine catalog and statement-grid APIs. Use Extension
+gains the Paperloom host mode and composer-mode contract. These additions
+preserve existing public APIs. Stale Studio memory diagnostics and tests use
+the current personal/private scope contract; room-memory isolation remains.
+
+Frontend libraries live under `packages`: UI, Intelligent UI, Form, CE, and
+an independently installable copy of the internalized Office source and kernel.
+Flow UI stays under `crates/flow/packages/ui`. `apps/web` contains only the
+shared Flow designer, supporting components, tenant assets, and an AIX fixture.
+Registry source packages under `apps/use-registry/packages` supply renderer
+imports and native fixtures; no web or cloud service is imported.
+
+Install the frontend in `apps/studio` with `pnpm install --frozen-lockfile`.
+Run `just build-studio` at the root to build ACP and Office, then Studio.
+`just studio` starts the development window. On macOS,
+`just build-studio-release` packages the frontend, host, and companions.
+Launch and packaging scripts resolve custom target directories through Cargo.
+Studio keeps its upstream package, binary, tenant, and application identifiers.
+Existing user data is not copied or migrated.
+
+Studio retains AGPL-3.0 under `apps/studio/LICENSE`; libraries retain their
+original licenses and notices. Standalone publication scripts and release
+workflows are excluded. No credentials, local environment secrets, sessions,
+Git metadata, build caches, or compiled companion binaries are imported.
+
+The Studio renderer builds successfully. Its full TypeScript check still
+reports upstream errors (324 diagnostics locally, compared with 349 in the
+source checkout); every distinct local error also appears upstream. CI gates
+the Studio renderer build and launcher tests while retaining Work's existing
+type-check gate. Fixing unrelated frontend typing is outside this import.
+
+After validation, `../a3s/apps/studio`, `../a3s/packages/intelligent-ui`, and
+`../a3s/packages/intelligent-ui-aix` are removed from the source tree and moved
+to the local Trash for recovery. OS, API, Gateway, and shared UI/Office/Form/CE/
+Flow sources remain there. Studio's old submodule entry and launch commands
+are removed from the OS checkout. Four backend live tests now read the identical
+PDF fixture at `../a3s/fixtures/paperloom/two-pages.pdf`, so removing Studio does
+not remove their input. Offline frontend installation and Rust checks pass
+again with the source Studio directory absent.
 
 ## macOS command lifetime follow-up
 
@@ -153,3 +207,33 @@ binds the exact local sources and signed fixture artifact. Native macOS Shell
 remains refused; product packaging, policy composition, control-file recovery,
 network mediation, background streaming and the Python environment remain open.
 No additional language SDK or in-process code sandbox was introduced.
+
+## Backend services import
+
+A second 2026-10-18 import brings the A3S OS backend into this workspace as
+five new members: `apps/api`, `apps/auth`, `apps/billing`, `apps/config`, and
+`apps/cloud/crates/sdk`, cut from `../a3s` at revision
+`cde6ae1e0a1b0ee36078e12cf5defeeb814715d4`. Provenance and per-tree hashes are
+recorded in [`source-manifest.json`](source-manifest.json) under
+`backend_import`.
+
+- Dependencies resolve locally: the four service manifests replace the
+  `A3S-Lab/Boot` and `A3S-Lab/ORM` git pins with `crates/boot` (0.2.0) and
+  `crates/orm` (0.3.1), the same versions the pins named. The Use extension
+  path follows this repository's flattened `crates/use/extension` layout.
+- Member `Cargo.lock` files are dropped; the root lockfile is the only one.
+- Rust sources are reformatted to the workspace's rustfmt defaults. A
+  whitespace-insensitive audit attributed every differing source file to that
+  reformatting; the only content change is the removal of the `maas-leave`
+  remote agent, deleted together with the a3s-maas service in the source
+  repository.
+- `apps/use-registry` and `apps/web` are imported as content trees (no Cargo
+  membership); caches, build outputs, and local state are excluded.
+- Validation: `cargo check --tests` on the five members, workspace
+  `cargo fmt --check`, and a clean-room boot of all four processes against the
+  live middleware on fresh databases — `/health` fully up, admin login through
+  the auth directory, and a notes round-trip. See
+  [`source-manifest.json`](source-manifest.json) `backend_import.verification`.
+- Inherited debt: a subset of the api's in-source test campaigns fail at the
+  source revision too (one overflows its stack, one architecture ratchet is
+  red); they are recorded here rather than fixed, to keep the copy faithful.
