@@ -1301,7 +1301,7 @@ async fn shipped_agent_session_wire() {
 }
 
 #[test]
-fn shipped_tui_reports_an_exited_agent_before_the_connect_budget() {
+fn shipped_tui_reports_configuration_failure_before_the_connect_budget() {
     let root = tempfile::tempdir().expect("fixture");
     let home = root.path().join("home");
     let workspace = root.path().join("workspace");
@@ -1329,7 +1329,7 @@ fn shipped_tui_reports_an_exited_agent_before_the_connect_budget() {
             let screen = pty.screen();
             let _ = pty.child.kill();
             let _ = pty.child.wait();
-            panic!("an exited ACP agent must not consume the connect budget\n{screen}");
+            panic!("an invalid ACP configuration must not consume the connect budget\n{screen}");
         }
         pty.pump(Duration::from_millis(40));
     };
@@ -1337,16 +1337,16 @@ fn shipped_tui_reports_an_exited_agent_before_the_connect_budget() {
     let raw = String::from_utf8_lossy(&pty.raw);
     assert!(!status.success(), "an invalid host catalog cannot start");
     assert!(
-        raw.contains("agent connection closed before initialization"),
+        raw.contains("Cannot load trusted ACL configuration") && raw.contains("missing/model"),
         "{raw}"
     );
     assert!(
-        raw.contains("trusted ACL") && raw.contains("--config"),
+        raw.contains("trusted ACL") && raw.contains("A3S_CONFIG"),
         "{raw}"
     );
     assert!(!raw.contains("startup timed out"), "{raw}");
     oracle(
-        "shipped_tui_reports_an_exited_agent_before_the_connect_budget",
+        "shipped_tui_reports_configuration_failure_before_the_connect_budget",
         "agent-exit",
         "configuration refusal closes startup with trusted-ACL guidance before the connect budget",
     );

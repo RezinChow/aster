@@ -523,7 +523,7 @@ async fn initialize(tx: &AcpAgentTx, flags: &ConnectFlags) -> Result<Initialized
             let closed = a3s_acp_lib::acp_channel_failure(&error).is_some();
             let error = anyhow::Error::from(error);
             if closed {
-                error.context("The agent connection closed before initialization. Check default_model and providers in the trusted ACL configuration, or select a file with `a3s --config /path/to/config.acl code`.")
+                error.context("The agent connection closed before initialization. Check the agent's startup logs and executable. To select a trusted ACL configuration, use `A3S_CONFIG=/path/to/config.acl just code`.")
             } else {
                 error
             }

@@ -106,7 +106,10 @@ pub fn load_launch_config_with_imports(
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| {
             if let Some(orphan) = withheld_orphan {
-                return anyhow!("default_model {orphan} is not declared by the merged providers");
+                return anyhow!(
+                    "default_model {orphan} is not declared by the merged providers; \
+                     workspace providers are untrusted and must be declared in a trusted ACL"
+                );
             }
             anyhow!(
                 "default_model must be set in provider/model format \

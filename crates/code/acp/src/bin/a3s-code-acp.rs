@@ -10,6 +10,9 @@ use agent_client_protocol as acp;
 use anyhow::{Context, Result};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+#[path = "a3s-code-acp/startup_error.rs"]
+mod startup_error;
+
 struct Args {
     cwd: PathBuf,
     config: Option<PathBuf>,
@@ -273,8 +276,10 @@ async fn run() -> Result<()> {
         std::env::set_var("A3S_DEFAULT_MODEL", model);
     }
     let (mut launch, admission) =
-        load_launch_config_with_imports(args.cwd, args.config, &args.import_accounts)
-            .context("load A3S ACL")?;
+        match load_launch_config_with_imports(args.cwd, args.config, &args.import_accounts) {
+            Ok(launch) => launch,
+            Err(error) => return startup_error::report(error.context("load A3S ACL")).await,
+        };
     if args.plugin_store.is_some() || args.studio_documents {
         launch.workspace =
             std::path::absolute(&launch.workspace).context("bind native workspace")?;
