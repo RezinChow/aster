@@ -117,3 +117,18 @@ Git preserves pnpm patch bytes so checkout normalization cannot invalidate
 their locked hashes.
 The Linux container package script and macOS release packaging paths were
 updated; signed/release installers and non-macOS execution were not run here.
+
+## macOS Guest command follow-up
+
+The [2026-10-18 execution record](evidence/execution/2026-10-18-macos-guest-owner/OUTCOME.md)
+retains two real owner-death failures before the fix and five passing native
+cases on a frozen signed shim afterwards. The Aster consumer passed all seven
+real Guest lifecycle checks, its 63-test sandbox family and the explicitly
+invoked Bash routing soak. Core strict Clippy passed. Known execution refusal
+is now visible in the first model request and disappears after recovery.
+
+This is development evidence. The default macOS native guard stays refused;
+Guest packaging, protected metadata policy, stale control-file recovery,
+network mediation, background streaming and Python/openpyxl remain unqualified.
+The fixture image and shim were supplied explicitly, so these results do not
+qualify installation or an ordinary user's default command workflow.

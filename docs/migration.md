@@ -138,3 +138,18 @@ Linux container build use the root Cargo workspace and target directory.
 
 Work remains AGPL-3.0 under `apps/work/LICENSE`; the Rust libraries and third-
 party forks retain their respective original licenses.
+
+## macOS command lifetime follow-up
+
+On 2026-10-18, Aster adopted the owner-bound Guest adapter from Code commit
+`cd3764c9` and the host-availability provider from `cb5b5521`. The paired OCI
+Runtime shim is source commit `3189636cb`; it watches both the direct Core
+process and the shim that owns the VM worker. The adapter and shim must be
+deployed together. Exclusive command-script creation also rejects existing
+files and links without overwriting them.
+
+[Retained execution evidence](evidence/execution/2026-10-18-macos-guest-owner/OUTCOME.md)
+binds the exact local sources and signed fixture artifact. Native macOS Shell
+remains refused; product packaging, policy composition, control-file recovery,
+network mediation, background streaming and the Python environment remain open.
+No additional language SDK or in-process code sandbox was introduced.

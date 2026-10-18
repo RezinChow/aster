@@ -22,6 +22,7 @@ mod host_reports;
 mod loop_source;
 mod navigation;
 mod nested_governance;
+mod sandbox_availability;
 mod work_policy;
 
 struct CountingText {
