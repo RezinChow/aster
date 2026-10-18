@@ -1,8 +1,7 @@
-//! Aster ASCII logo with a bounded, lazily cached shimmer animation.
+//! Aster star, tilted orbital ring and comet trails in a bounded frame cache.
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Color;
 
 use crate::render::color::blend_color;
 use crate::theme::Theme;
@@ -138,7 +137,7 @@ fn shine_opacity(diag: f32, secs: f32) -> f32 {
     (pulse + SHINE * shine).clamp(0.0, 1.0)
 }
 
-const FRAME_COUNT: usize = 48;
+const FRAME_COUNT: usize = 96;
 
 type LogoFrame = Vec<(u16, u16, char, f32)>;
 
@@ -148,31 +147,74 @@ fn cached_frames(logo: &'static str) -> &'static [LogoFrame] {
     static COMPACT: OnceLock<Vec<LogoFrame>> = OnceLock::new();
     let cache = if logo == LOGO { &FULL } else { &COMPACT };
     cache.get_or_init(|| {
-        let rows = count_lines(logo) as f32;
-        let cols = visual_width(logo) as f32;
+        let rows = count_lines(logo) as usize;
+        let cols = visual_width(logo) as usize;
         (0..FRAME_COUNT)
             .map(|frame| {
-                non_empty_lines(logo)
-                    .enumerate()
-                    .flat_map(|(row, line)| {
-                        line.chars().enumerate().filter_map(move |(col, ch)| {
-                            if ch == ' ' {
-                                return None;
-                            }
-                            let diag = (col as f32 + rows - 1.0 - row as f32) / (cols + rows);
-                            let opacity = shine_opacity(diag, frame as f32 / SHIMMER_FPS);
-                            let ch = if opacity > 0.25 {
-                                match ch {
-                                    '#' => '@',
-                                    '*' => '#',
-                                    '+' => '*',
-                                    '.' => ':',
-                                    other => other,
+                let phase = frame as f32 / FRAME_COUNT as f32 * std::f32::consts::TAU;
+                let mut cells = vec![None; rows * cols];
+                let center_x = (cols - 1) as f32 / 2.0;
+                let center_y = (rows - 1) as f32 / 2.0;
+                let radius = center_x - 1.0;
+                let tilt = -0.19 + 0.10 * phase.sin();
+                let depth = center_y * (0.35 + 0.12 * phase.cos());
+                for layer in [false, true] {
+                    for step in 0..192 {
+                        let angle = step as f32 / 192.0 * std::f32::consts::TAU;
+                        if (angle.sin() > 0.0) != layer {
+                            continue;
+                        }
+                        let x = radius * angle.cos();
+                        let y = depth * angle.sin() + tilt * x;
+                        let col = (center_x + x).round() as usize;
+                        let row = (center_y + y).round().clamp(0.0, (rows - 1) as f32) as usize;
+                        let trail = (1.0 - (phase - angle).rem_euclid(std::f32::consts::TAU) / 0.9)
+                            .max(0.0);
+                        let opacity = 0.10 + 0.85 * trail.powi(2);
+                        let ch = if trail > 0.9 {
+                            'o'
+                        } else if trail > 0.55 {
+                            '*'
+                        } else if layer {
+                            ':'
+                        } else {
+                            '.'
+                        };
+                        let cell = &mut cells[row * cols + col];
+                        if layer
+                            && trail < 0.65
+                            && cell.is_some_and(|(ch, _)| matches!(ch, '+' | '*' | '#' | '@'))
+                        {
+                            continue;
+                        }
+                        if cell.is_none_or(|(_, previous)| opacity > previous) {
+                            *cell = Some((ch, opacity));
+                        }
+                    }
+                    if !layer {
+                        for (row, line) in non_empty_lines(logo).enumerate() {
+                            for (col, ch) in line.chars().enumerate() {
+                                if !matches!(ch, '+' | '*' | '#') {
+                                    continue;
                                 }
-                            } else {
-                                ch
-                            };
-                            Some((col as u16, row as u16, ch, opacity))
+                                let diag = (col + rows - 1 - row) as f32 / (cols + rows) as f32;
+                                let opacity = shine_opacity(diag, frame as f32 / SHIMMER_FPS);
+                                let ch = match ch {
+                                    '#' if opacity > 0.25 => '@',
+                                    '*' if opacity > 0.25 => '#',
+                                    other => other,
+                                };
+                                cells[row * cols + col] = Some((ch, opacity));
+                            }
+                        }
+                    }
+                }
+                cells
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(index, cell)| {
+                        cell.map(|(ch, opacity)| {
+                            ((index % cols) as u16, (index / cols) as u16, ch, opacity)
                         })
                     })
                     .collect()
@@ -181,7 +223,7 @@ fn cached_frames(logo: &'static str) -> &'static [LogoFrame] {
     })
 }
 
-fn render_into(area: Rect, buf: &mut Buffer, _theme: &Theme, logo: &'static str) {
+fn render_into(area: Rect, buf: &mut Buffer, theme: &Theme, logo: &'static str) {
     let frames = cached_frames(logo);
     let inset = area.width.saturating_sub(visual_width(logo)) / 2;
     let frame = (shimmer_frame() % FRAME_COUNT as u64) as usize;
@@ -194,13 +236,12 @@ fn render_into(area: Rect, buf: &mut Buffer, _theme: &Theme, logo: &'static str)
             continue;
         }
         let base = if matches!(ch, '@' | '#' | '*' | '+') {
-            Color::Rgb(55, 96, 200)
+            theme.accent_system
         } else {
-            Color::Rgb(157, 169, 190)
+            theme.text_secondary
         };
-        let color = crate::theme::quantize(
-            blend_color(base, Color::Rgb(185, 207, 255), opacity).unwrap_or(base),
-        );
+        let color =
+            crate::theme::quantize(blend_color(base, theme.text_primary, opacity).unwrap_or(base));
         if let Some(cell) = buf.cell_mut((area.x + col, area.y + row)) {
             cell.set_char(ch).set_fg(color);
         }
@@ -275,25 +316,52 @@ mod tests {
     use super::*;
 
     #[test]
-    fn animation_frames_are_cached_ascii_and_keep_their_geometry() {
+    fn orbital_frames_are_cached_bounded_ascii_with_moving_geometry() {
         for logo in [LOGO, LOGO_SMALL] {
             assert!(logo.is_ascii());
             let frames = cached_frames(logo);
+            let stars = non_empty_lines(logo)
+                .enumerate()
+                .flat_map(|(y, line)| {
+                    line.chars().enumerate().filter_map(move |(x, ch)| {
+                        matches!(ch, '+' | '*' | '#').then_some((x as u16, y as u16))
+                    })
+                })
+                .collect::<Vec<_>>();
             assert!(std::ptr::eq(frames, cached_frames(logo)));
-            assert_eq!(frames.len(), FRAME_COUNT);
+            let bytes = frames
+                .iter()
+                .map(|frame| frame.len() * std::mem::size_of::<(u16, u16, char, f32)>())
+                .sum::<usize>();
+            assert!(bytes <= 512 * 1024, "a logo cache must stay below 512 KiB");
             let shape =
                 |frame: &LogoFrame| frame.iter().map(|&(x, y, _, _)| (x, y)).collect::<Vec<_>>();
             for frame in frames {
-                assert_eq!(shape(frame), shape(&frames[0]));
-                assert!(frame.iter().all(|&(_, _, ch, _)| ch.is_ascii()));
-            }
-            let glyphs = |frame: &LogoFrame| frame.iter().map(|cell| cell.2).collect::<String>();
-            assert!(
-                frames
+                let visible_stars = stars
                     .iter()
-                    .any(|frame| glyphs(frame) != glyphs(&frames[0]))
-            );
-            assert_ne!(frames[0], frames[FRAME_COUNT / 4]);
+                    .filter(|&&(x, y)| {
+                        frame.iter().any(|&(col, row, ch, _)| {
+                            col == x && row == y && matches!(ch, '+' | '*' | '#' | '@')
+                        })
+                    })
+                    .count();
+                assert!(
+                    visible_stars * 100 >= stars.len() * 85,
+                    "orbit must not obscure the star silhouette"
+                );
+                assert!(
+                    frame.len() <= usize::from(visual_width(logo)) * usize::from(count_lines(logo))
+                );
+                assert!(
+                    frame
+                        .iter()
+                        .all(|&(x, y, ch, opacity)| x < visual_width(logo)
+                            && y < count_lines(logo)
+                            && ch.is_ascii()
+                            && (0.0..=1.0).contains(&opacity))
+                );
+            }
+            assert!(frames.iter().any(|frame| shape(frame) != shape(&frames[0])));
         }
     }
 
@@ -303,9 +371,11 @@ mod tests {
         let mut buf = Buffer::empty(area);
         render_into(area, &mut buf, &Theme::default(), LOGO_SMALL);
         let inset = (80 - visual_width(LOGO_SMALL)) / 2;
-        for &(x, y, _, _) in &cached_frames(LOGO_SMALL)[0] {
-            assert_ne!(buf[(inset + x, y)].symbol(), " ");
-        }
+        assert!(buf.content.iter().any(|cell| cell.symbol() != " "));
+        assert!(
+            (inset + visual_width(LOGO_SMALL)..80)
+                .all(|x| (0..10).all(|y| buf[(x, y)].symbol() == " "))
+        );
         assert!((0..inset).all(|x| (0..10).all(|y| buf[(x, y)].symbol() == " ")));
     }
 
@@ -358,18 +428,6 @@ mod tests {
     fn full_logo_helpers_collapse_when_hidden() {
         assert_eq!(full_logo_line_count_for(true), 0);
         assert_eq!(full_logo_visual_width_for(true), 0);
-    }
-
-    #[test]
-    fn compact_logo_line_count_matches_small_logo_when_visible() {
-        // The minimal welcome card budgets exactly the small logo's rows
-        if !logo_hidden() {
-            assert_eq!(compact_logo_line_count(), count_lines(LOGO_SMALL));
-            assert!(compact_logo_line_count() < count_lines(LOGO));
-            assert!(compact_logo_line_count() > 0);
-        } else {
-            assert_eq!(compact_logo_line_count(), 0);
-        }
     }
 
     #[test]

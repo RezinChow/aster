@@ -3810,7 +3810,7 @@ mod tests {
                 !row.trim().is_empty()
                     && row
                         .chars()
-                        .all(|ch| matches!(ch, ' ' | '.' | ':' | '=' | '+' | '*' | '#' | '@'))
+                        .all(|ch| matches!(ch, ' ' | '.' | ':' | '=' | '+' | '*' | '#' | '@' | 'o'))
             })
             .count() as u16
     }

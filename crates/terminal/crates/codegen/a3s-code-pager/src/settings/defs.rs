@@ -35,13 +35,13 @@ const THEME_CHOICES: &[EnumChoice] = &[
     },
     EnumChoice {
         canonical: "groknight",
-        display: "A3S Code Night",
-        description: "Neutral dark with magenta accent.",
+        display: "Aster Night",
+        description: "Aster blue and silver on a dark canvas.",
     },
     EnumChoice {
         canonical: "grokday",
-        display: "A3S Code Day",
-        description: "Light theme for bright environments.",
+        display: "Aster Day",
+        description: "Aster brand blue on silver surfaces.",
     },
     EnumChoice {
         canonical: "tokyonight",
@@ -423,13 +423,13 @@ const VOICE_STT_LANGUAGE_CHOICES: &[EnumChoice] = &[
 const CONCRETE_THEME_CHOICES: &[EnumChoice] = &[
     EnumChoice {
         canonical: "groknight",
-        display: "A3S Code Night",
-        description: "Neutral dark with magenta accent.",
+        display: "Aster Night",
+        description: "Aster blue and silver on a dark canvas.",
     },
     EnumChoice {
         canonical: "grokday",
-        display: "A3S Code Day",
-        description: "Light theme for bright environments.",
+        display: "Aster Day",
+        description: "Aster brand blue on silver surfaces.",
     },
     EnumChoice {
         canonical: "tokyonight",

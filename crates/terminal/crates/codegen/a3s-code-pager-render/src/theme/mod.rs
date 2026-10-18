@@ -1,5 +1,5 @@
 //! All colors come from the `Theme` struct. No hardcoded colors elsewhere.
-//! The default theme is GrokNight (neutral gray base with TokyoNight accents).
+//! The default theme uses Aster blue and silver; stored theme keys stay compatible.
 //!
 //! ## Color support
 //!
@@ -130,9 +130,9 @@ impl ThemeKind {
     /// Alternate lowercase spellings accepted by [`from_name`](Self::from_name), excluding [`display_name`](Self::display_name).
     pub fn aliases(self) -> &'static [&'static str] {
         match self {
-            Self::GrokNight => &["grok-night", "dark"],
+            Self::GrokNight => &["grok-night", "aster-night", "dark"],
             Self::TokyoNight => &["tokyo-night", "tokyo"],
-            Self::GrokDay => &["grok-day", "light", "day"],
+            Self::GrokDay => &["grok-day", "aster-day", "light", "day"],
             Self::RosePineMoon => &["rosepine", "rose-pine", "rose-pine-moon"],
             Self::OscuraMidnight => &["oscura"],
             Self::Terminal => &["terminal-default", "transparent", "native"],
@@ -180,13 +180,13 @@ pub fn canonical_name(value: &str) -> Option<&'static str> {
     ThemeKind::from_name(value).map(|k| k.display_name())
 }
 
-/// Human-friendly display name for a canonical theme value (e.g. `"groknight"` becomes `"A3S Code Night"`).
+/// Human-friendly display name for a canonical theme value (e.g. `"groknight"` becomes `"Aster Night"`).
 /// Falls back to `value` verbatim.
 pub fn display_name_for_canonical(value: &str) -> &str {
     match value {
         "auto" => "Auto",
-        "groknight" => "A3S Code Night",
-        "grokday" => "A3S Code Day",
+        "groknight" => "Aster Night",
+        "grokday" => "Aster Day",
         "tokyonight" => "Tokyo Night",
         "rosepine-moon" => "Rose Pine Moon",
         "terminal" => "Terminal",
@@ -1139,6 +1139,50 @@ mod tests {
         }
         // Reset is the only no-op.
         assert_eq!(resolve_to_rgb(Color::Reset), None);
+    }
+
+    #[test]
+    fn aster_defaults_keep_readable_accents_and_semantic_status_colors() {
+        use ratatui::style::Color;
+
+        fn luminance(color: Color) -> f64 {
+            let Color::Rgb(r, g, b) = color else {
+                panic!("brand palette must use RGB")
+            };
+            let linear = |v: u8| {
+                let v = f64::from(v) / 255.0;
+                if v <= 0.04045 {
+                    v / 12.92
+                } else {
+                    ((v + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+        }
+        for theme in [Theme::groknight(), Theme::grokday()] {
+            for foreground in [
+                theme.accent_system,
+                theme.md_code,
+                theme.link_fg,
+                theme.accent_model,
+            ] {
+                let a = luminance(foreground);
+                let b = luminance(theme.bg_base);
+                assert!(
+                    (a.max(b) + 0.05) / (a.min(b) + 0.05) >= 4.5,
+                    "brand text must remain readable"
+                );
+            }
+            assert_ne!(theme.accent_error, theme.accent_system);
+            assert_ne!(theme.accent_success, theme.accent_system);
+            assert_ne!(theme.warning, theme.accent_system);
+        }
+        assert_eq!(Theme::grokday().accent_system, Color::Rgb(0, 90, 187));
+        assert_eq!(
+            ThemeKind::from_name("aster-night"),
+            Some(ThemeKind::GrokNight)
+        );
+        assert_eq!(ThemeKind::from_name("aster-day"), Some(ThemeKind::GrokDay));
     }
 
     #[test]

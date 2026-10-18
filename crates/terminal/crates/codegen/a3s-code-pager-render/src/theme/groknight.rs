@@ -1,4 +1,4 @@
-//! GrokNight theme: neutral gray base with TokyoNight accent colors.
+//! Aster Night: blue and starlight silver on a quiet dark canvas.
 //!
 //! The canonical palette is defined in RGB (`Color::Rgb`).
 //! At startup [`Theme::quantized`] downgrades every color to the terminal's detected capability level (256-color, 16-color, etc.).
@@ -11,7 +11,7 @@ const fn rgb(r: u8, g: u8, b: u8) -> Color {
     Color::Rgb(r, g, b)
 }
 
-// Grayscale ramp anchored at bg #141414 / fg #f3f3f3. Accents are TokyoNight Night hex.
+// Keep neutral surfaces legible when terminals quantize the brand accents.
 #[allow(dead_code)]
 mod palette {
     use super::*;
@@ -24,15 +24,15 @@ mod palette {
     pub const BG_HIGHLIGHT: Color = rgb(36, 36, 36); //  #242424, highlight bg
 
     // ── Text / grays ────────────────────────────────────────────────────
-    pub const FG: Color = rgb(225, 225, 225); // #e1e1e1, primary text
+    pub const FG: Color = rgb(226, 237, 252); // #E2EDFC, starlight silver
     pub const FG_DARK: Color = rgb(200, 200, 200); // #c8c8c8, secondary text
     pub const FG_GUTTER: Color = rgb(65, 65, 65); //  #414141, dim
     pub const COMMENT: Color = rgb(108, 108, 108); //  #6c6c6c, muted
     pub const DARK3: Color = rgb(90, 90, 90); //  #5a5a5a, medium gray
     pub const DARK5: Color = rgb(120, 120, 120); // #787878, bright gray
 
-    // ── Accent colors (TokyoNight Night) ─────────────────────────────────
-    pub const BLUE: Color = rgb(122, 162, 247); // #7aa2f7
+    // ── Brand and semantic colors ─────────────────────────────────
+    pub const BLUE: Color = rgb(39, 137, 237); // #2789ED, the bright blue from Aster’s logo
     pub const BLUE0: Color = rgb(61, 89, 161); // #3d59a1
     pub const BLUE1: Color = rgb(58, 149, 171); // #3A95AB
     pub const CYAN: Color = rgb(125, 207, 255); // #7dcfff
@@ -61,14 +61,14 @@ impl Theme {
             bg_hover: rgb(44, 44, 44),
             bg_terminal: BG,
 
-            accent_user: FG_DARK,
-            accent_assistant: MAGENTA,
-            accent_thinking: MAGENTA,
+            accent_user: BLUE,
+            accent_assistant: BLUE,
+            accent_thinking: FG_DARK,
             accent_tool: DARK5,
             accent_system: BLUE,
             accent_error: RED,
             accent_success: GREEN,
-            accent_running: MAGENTA,
+            accent_running: BLUE,
             accent_skill: BLUE,
 
             text_primary: FG,
@@ -78,9 +78,9 @@ impl Theme {
             gray: COMMENT,
             gray_bright: DARK5,
 
-            command: YELLOW,
-            path: ORANGE,
-            running: CYAN,
+            command: BLUE,
+            path: BLUE,
+            running: BLUE,
             warning: YELLOW,
 
             fuzzy_accent: BLUE,
@@ -93,10 +93,10 @@ impl Theme {
 
             selection_border: rgb(60, 60, 65),
             prompt_border: rgb(50, 50, 55), // #323237, dimmer prompt chrome
-            prompt_border_active: rgb(80, 80, 88), // #505058, brighter when focused
+            prompt_border_active: BLUE,
             hover_border: rgb(30, 30, 34),
 
-            accent_model: TEAL,
+            accent_model: BLUE,
 
             scrollbar_bg: BG_STORM_DARK,
             scrollbar_fg: BG_HIGHLIGHT,
@@ -114,11 +114,11 @@ impl Theme {
             paste_fg: FG_DARK,
             paste_dim: FG_GUTTER,
 
-            md_heading_h1: TEAL,
+            md_heading_h1: BLUE,
             md_heading_h1_mod: Modifier::BOLD,
             md_heading_h2: BLUE,
             md_heading_h2_mod: Modifier::BOLD,
-            md_heading_h3: PURPLE,
+            md_heading_h3: BLUE,
             md_heading_h3_mod: Modifier::BOLD,
             md_heading_h4: DARK5, // bright gray
             md_heading_h4_mod: Modifier::BOLD,
@@ -126,13 +126,13 @@ impl Theme {
             md_heading_h5_mod: Modifier::BOLD,
             md_heading_h6: DARK3, // medium gray, unbold
             md_heading_h6_mod: Modifier::empty(),
-            md_code: BLUE1,
+            md_code: BLUE,
             md_task_checked: GREEN,
             md_task_unchecked: FG_DARK, // text_secondary
             md_muted: COMMENT,
             md_code_bg: rgb(28, 28, 28),
             md_text: FG_DARK,
-            link_fg: rgb(122, 166, 218), // #7aa6da, soft blue for dark bg
+            link_fg: BLUE,
         }
     }
 }

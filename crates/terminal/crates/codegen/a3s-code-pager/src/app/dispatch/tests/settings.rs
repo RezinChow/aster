@@ -3472,8 +3472,8 @@ fn set_theme_toast_format_uses_display_name() {
             "toast must contain label, got: {toast:?}",
         );
         assert!(
-            toast.contains("A3S Code Day"),
-            "toast must use display name `A3S Code Day`, not canonical `grokday`, got: {toast:?}",
+            toast.contains("Aster Day"),
+            "toast must use display name `Aster Day`, not canonical `grokday`, got: {toast:?}",
         );
         assert!(toast.contains('\u{2713}'), "toast must contain the ✓ glyph");
     });
@@ -3485,7 +3485,7 @@ fn set_auto_dark_theme_toast_format_uses_display_name() {
         let _ = dispatch(Action::SetAutoDarkTheme("grokday".into()), &mut app);
         let toast = read_toast(&app);
         assert!(toast.contains("Auto dark theme"));
-        assert!(toast.contains("A3S Code Day"));
+        assert!(toast.contains("Aster Day"));
         assert!(toast.contains('\u{2713}'));
     });
 }
@@ -3496,7 +3496,7 @@ fn set_auto_light_theme_toast_format_uses_display_name() {
         let _ = dispatch(Action::SetAutoLightTheme("groknight".into()), &mut app);
         let toast = read_toast(&app);
         assert!(toast.contains("Auto light theme"));
-        assert!(toast.contains("A3S Code Night"));
+        assert!(toast.contains("Aster Night"));
     });
 }
 /// `apply_setting_rollback` for theme keys: a failed persist reverts `app.current_ui.theme` AND the live cache.

@@ -1300,6 +1300,63 @@ async fn shipped_agent_session_wire() {
         .await;
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn shipped_agent_sends_aster_identity_to_the_model() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let root = tempfile::tempdir().expect("fixture");
+            let workspace = root.path().join("workspace");
+            let home = root.path().join("home");
+            std::fs::create_dir_all(&workspace).expect("workspace");
+            std::fs::create_dir_all(&home).expect("home");
+            let (addr, state) = spawn_mock(&workspace.join("unused"), &workspace.join("late"));
+            let config = write_acl(&home, &workspace, &format!("http://{addr}/v1"));
+            let agent = connect_agent(&workspace, &config, &home).await;
+            let session = acp::Agent::new_session(
+                agent.conn.as_ref(),
+                acp::NewSessionRequest::new(workspace),
+            )
+            .await
+            .expect("session");
+            tokio::time::timeout(
+                Duration::from_secs(30),
+                acp::Agent::prompt(
+                    agent.conn.as_ref(),
+                    user_prompt(&session.session_id, "Hello"),
+                ),
+            )
+            .await
+            .expect("bounded turn")
+            .expect("prompt");
+            let bodies = state.lock().expect("mock").bodies.clone();
+            let product_request = first_tool_request(&bodies);
+            let body: serde_json::Value =
+                serde_json::from_str(product_request).expect("model body");
+            let system = body["messages"]
+                .as_array()
+                .expect("messages")
+                .iter()
+                .filter(|message| message["role"] == "system")
+                .map(|message| message["content"].to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(
+                system.contains("You are Aster, an expert AI coding agent"),
+                "Aster identity must reach the model"
+            );
+            assert!(
+                !system.contains("You are A3S Code"),
+                "the inherited identity must be replaced"
+            );
+            assert!(
+                system.contains("## Boundaries") && system.contains("## Runtime Contract"),
+                "branding must retain safety and runtime instructions"
+            );
+            stop_agent(agent).await;
+        })
+        .await;
+}
+
 #[test]
 fn shipped_tui_reports_configuration_failure_before_the_connect_budget() {
     let root = tempfile::tempdir().expect("fixture");

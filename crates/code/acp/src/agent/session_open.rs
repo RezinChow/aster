@@ -75,7 +75,9 @@ impl A3sCodeAgent {
         }
         guideline.push_str(SESSION_OUTCOME_BOUNDARY);
         options = options.with_prompt_slots(
-            a3s_code_core::SystemPromptSlots::default().with_guidelines(guideline),
+            a3s_code_core::SystemPromptSlots::default()
+                .with_role("You are Aster, an expert AI coding agent.")
+                .with_guidelines(guideline),
         );
         options
     }
