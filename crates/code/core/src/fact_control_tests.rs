@@ -1564,6 +1564,28 @@ fn fact_log_plan_guardrail_denies_a_write_the_default_policy_would_ask() {
         execution_permission(&denied, Some(&allowing), "write", &write_args),
         PermissionDecision::Deny
     );
+    let allowing_office = PermissionPolicy::new().allow("office_file");
+    assert_eq!(
+        execution_permission(
+            &policy,
+            Some(&allowing_office),
+            "office_file",
+            &serde_json::json!({"file_path":"report.xlsx"})
+        ),
+        PermissionDecision::Ask
+    );
+    let denied_output = PermissionPolicy::new().deny("output_check");
+    let output_guardrail =
+        crate::permissions::InteractiveToolGuardrail::for_mode("default").unwrap();
+    assert_eq!(
+        execution_permission(
+            &denied_output,
+            Some(&output_guardrail),
+            "output_check",
+            &serde_json::json!({"action":"text_length","text":"报告"})
+        ),
+        PermissionDecision::Deny
+    );
     let quiet = crate::permissions::InteractiveToolGuardrail::for_mode("default").unwrap();
     assert_eq!(
         execution_permission(

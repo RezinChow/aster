@@ -1,0 +1,17 @@
+[package]
+publish = false
+name = "a3s-oci-core"
+version = "0.3.2"
+edition = "2021"
+license = "MIT"
+description = "Pure capability and OCI lifecycle contracts for A3S OCI Runtime"
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
+
+[lints]
+workspace = true

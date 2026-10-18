@@ -13,6 +13,7 @@ use crate::agent_protocol::{
 use crate::agent_protocol_host::{
     AgentProtocolExactRecoveryError, AgentProtocolHost, AgentProtocolHostError,
 };
+use crate::config::A3S_INFERENCE_PROVIDER;
 use crate::error::CodeError;
 use crate::release::{agent_harness_compatibility_v1, AgentReleaseError, AgentReleaseManifest};
 use crate::session_checkpoint::{SessionCheckpointError, SessionCheckpointExportV1};
@@ -26,23 +27,13 @@ use tokio::sync::{Mutex, RwLock};
 /// Finite default number of conversation sessions retained by one Harness.
 pub const AGENT_PROTOCOL_HARNESS_MAX_SESSIONS: usize = 1_024;
 
-// Test-only force switch, scoped by run id. Always compiled so
-// `--no-cfg-coverage` does not leave a dead stub diluting line coverage;
-// production never arms it. Keying by run id keeps a one-shot armed by one
-// test from being consumed by a concurrent test's recovery.
-fn forced_invalid_runs() -> &'static std::sync::Mutex<std::collections::HashSet<String>> {
-    static FLAGGED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> =
-        std::sync::OnceLock::new();
-    FLAGGED.get_or_init(|| std::sync::Mutex::new(std::collections::HashSet::new()))
-}
+// Test-only force switch. Always compiled so `--no-cfg-coverage` does not leave
+// a dead stub diluting line coverage; production never flips this atomic.
+static TEST_FORCE_INVALID_RECOVERY_BINDING: AtomicBool = AtomicBool::new(false);
 
-/// Force the next recovery capability-binding check for exactly this run to
-/// fail as `InvalidField`.
-pub fn force_invalid_recovery_binding_for_test(run_id: &str) {
-    forced_invalid_runs()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .insert(run_id.to_string());
+/// Force the next recovery capability-binding check to fail as `InvalidField`.
+pub fn force_invalid_recovery_binding_for_test() {
+    TEST_FORCE_INVALID_RECOVERY_BINDING.store(true, Ordering::SeqCst);
 }
 
 /// Stable failures returned by the Code-owned multi-session Harness kernel.
@@ -276,7 +267,20 @@ impl AgentProtocolHarness {
         // recovery has its own exact admission API below and may construct an
         // unpublished Session from the supplied checkpoint.
         let create_if_missing = matches!(command, AgentProtocolCommandV1::Start { .. });
-        let host = self.host_for(command.identity(), create_if_missing).await?;
+        // Model pins ride the Start command from the governing host; the
+        // first sorted pin names the conversation's Inference route model
+        // and is applied when the Session is created.
+        let model_override = match command {
+            AgentProtocolCommandV1::Start { request } => request
+                .models
+                .as_ref()
+                .and_then(|models| models.first())
+                .map(|pin| format!("{A3S_INFERENCE_PROVIDER}/{}", pin.alias)),
+            _ => None,
+        };
+        let host = self
+            .host_for(command.identity(), create_if_missing, model_override)
+            .await?;
         // Harness close drains an already admitted session. Callers see harness Closed.
         match host.execute(command).await {
             Ok(receipt) => Ok(receipt),
@@ -407,18 +411,15 @@ impl AgentProtocolHarness {
             .map_err(AgentProtocolHarnessError::from)?;
         match (&logical_resume.capability_binding, capability_batch.take()) {
             (Some(expected), batch) => {
-                let forced_invalid = forced_invalid_runs()
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .remove(request.identity.run_id.as_str());
-                let binding_result = if forced_invalid {
-                    Err(crate::capability::RunCapabilityBindingError::InvalidField {
-                        field: "schema",
-                        message: "forced invalid recovery binding".into(),
-                    })
-                } else {
-                    session.ensure_recovery_capability_binding(expected)
-                };
+                let binding_result =
+                    if TEST_FORCE_INVALID_RECOVERY_BINDING.swap(false, Ordering::SeqCst) {
+                        Err(crate::capability::RunCapabilityBindingError::InvalidField {
+                            field: "schema",
+                            message: "forced invalid recovery binding".into(),
+                        })
+                    } else {
+                        session.ensure_recovery_capability_binding(expected)
+                    };
                 match binding_result {
                     Ok(()) if batch.is_none() => {}
                     Ok(()) => {
@@ -506,7 +507,7 @@ impl AgentProtocolHarness {
         request: &AgentProtocolEventPageRequestV1,
     ) -> Result<AgentProtocolEventPageV1, AgentProtocolHarnessError> {
         request.validate()?;
-        let host = self.host_for(&request.identity, false).await?;
+        let host = self.host_for(&request.identity, false, None).await?;
         host.event_page_for(request).await.map_err(Into::into)
     }
 
@@ -516,7 +517,7 @@ impl AgentProtocolHarness {
         request: &AgentProtocolChangeSetRequestV1,
     ) -> Result<AgentProtocolChangeSetV1, AgentProtocolHarnessError> {
         request.validate()?;
-        let host = self.host_for(&request.identity, false).await?;
+        let host = self.host_for(&request.identity, false, None).await?;
         host.change_set_for(request).await.map_err(Into::into)
     }
 
@@ -534,6 +535,7 @@ impl AgentProtocolHarness {
         &self,
         identity: &AgentProtocolRunIdentityV1,
         create_if_missing: bool,
+        model_override: Option<String>,
     ) -> Result<Arc<AgentProtocolHost>, AgentProtocolHarnessError> {
         identity.validate()?;
         if identity.agent_release_identity != self.manifest.artifact().digest() {
@@ -570,11 +572,14 @@ impl AgentProtocolHarness {
         }
 
         let workspace = HarnessSessionWorkspace::prepare(PathBuf::from(&self.workspace)).await?;
-        let options = self
+        let mut options = self
             .session_options
             .clone()
             .with_session_id(&identity.session_id)
             .with_auto_save(true);
+        if let Some(model) = model_override {
+            options.model = Some(model);
+        }
         let session = self
             .agent
             .open_protocol_session_async(

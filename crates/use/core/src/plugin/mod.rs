@@ -226,3 +226,17 @@ fn canonical_digest(bytes: &[u8]) -> String {
 fn contract_error(error_code: &'static str, message: impl Into<String>) -> UseError {
     UseError::new(error_code, message)
 }
+
+/// Host-assignable plugin surfaces: the subset of package surfaces a
+/// governed host mounts directly. Narrower than [`PackageSurfaceKind`],
+/// which also covers agent and plugin self-packaging.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PluginSurfaceKind {
+    Flow,
+    Mcp,
+    Okf,
+    Skill,
+    Tool,
+    Ui,
+}

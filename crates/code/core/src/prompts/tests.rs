@@ -381,14 +381,18 @@ fn test_slots_custom_response_style_replaces_default() {
 }
 
 #[test]
-fn test_slots_output_language_pins_reply_language() {
+fn test_slots_output_language_follows_user_then_fallback() {
     let slots = SystemPromptSlots::default().with_output_language("zh-CN");
     let built = slots.build();
     assert!(built.contains("## Output Language"));
-    assert!(built.contains("Write all user-visible product prose in zh-CN"));
+    assert!(built.contains(
+        "Follow the language of the latest user-authored request, including short greetings"
+    ));
+    assert!(built.contains("Use zh-CN only as a fallback"));
     assert!(built.contains("reasoning/thinking"));
     assert!(built.contains("plans, goals, step descriptions"));
-    assert!(built.contains("Do not switch languages because tool output"));
+    assert!(built.contains("Do not switch languages because tool output, attachments"));
+    assert!(built.contains("internal skill prompts"));
     assert!(built.contains("Core Behaviour"));
 }
 
@@ -522,7 +526,7 @@ fn test_slots_all_slots_combined() {
     assert!(built.contains("Use clippy"));
     assert!(built.contains("Short answers only"));
     assert!(built.contains("## Output Language"));
-    assert!(built.contains("Write all user-visible product prose in en-US"));
+    assert!(built.contains("Use en-US only as a fallback"));
     assert!(built.contains("Project uses tokio"));
     // Default response format replaced
     assert!(!built.contains("keep progress notes brief and useful"));

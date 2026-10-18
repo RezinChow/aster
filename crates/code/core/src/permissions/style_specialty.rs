@@ -26,7 +26,14 @@ fn explore_permissions() -> PermissionPolicy {
             "web_search",
             "update_plan",
         ])
-        .deny_all(&["write", "edit", "download", "task", "parallel_task"])
+        .deny_all(&[
+            "write",
+            "edit",
+            "download",
+            "office_file",
+            "task",
+            "parallel_task",
+        ])
         .allow("Bash(ls:*)")
         .allow("Bash(cat:*)")
         .allow("Bash(head:*)")
@@ -43,7 +50,15 @@ fn explore_permissions() -> PermissionPolicy {
 pub(crate) fn plan_permissions() -> PermissionPolicy {
     let mut policy = PermissionPolicy::new()
         .allow_all(&["read", "search", "ls", "update_plan"])
-        .deny_all(&["write", "edit", "download", "bash", "task", "parallel_task"]);
+        .deny_all(&[
+            "write",
+            "edit",
+            "download",
+            "office_file",
+            "bash",
+            "task",
+            "parallel_task",
+        ]);
     policy.default_decision = PermissionDecision::Deny;
     policy
 }
@@ -59,7 +74,14 @@ fn verification_permissions() -> PermissionPolicy {
             "web_search",
             "update_plan",
         ])
-        .deny_all(&["write", "edit", "download", "task", "parallel_task"]);
+        .deny_all(&[
+            "write",
+            "edit",
+            "download",
+            "office_file",
+            "task",
+            "parallel_task",
+        ]);
     policy.default_decision = PermissionDecision::Deny;
     policy
 }
@@ -92,5 +114,22 @@ mod tests {
     #[test]
     fn general_purpose_has_no_specialty_overlay() {
         assert!(specialty_permission_policy(AgentStyle::GeneralPurpose).is_none());
+    }
+
+    #[test]
+    fn read_only_specialties_deny_artifact_publication() {
+        for style in [
+            AgentStyle::Explore,
+            AgentStyle::Plan,
+            AgentStyle::Verification,
+            AgentStyle::CodeReview,
+        ] {
+            let policy = specialty_permission_policy(style).unwrap();
+            assert!(!policy.expose_to_model("office_file"));
+            assert_eq!(
+                policy.check("office_file", &json!({"file_path":"report.xlsx"})),
+                PermissionDecision::Deny
+            );
+        }
     }
 }

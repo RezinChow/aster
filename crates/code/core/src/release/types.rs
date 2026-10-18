@@ -276,3 +276,25 @@ impl AgentReleaseCompatibility {
         &self.capabilities
     }
 }
+
+/// Declared inference environment slot contract. The release manifest
+/// authorizes the governing host to inject endpoint values under exactly
+/// this environment-variable prefix; the manifest still owns the runtime
+/// intent because only the declared slot may carry a value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentReleaseInference {
+    pub(crate) endpoint_env_prefix: String,
+    pub(crate) credential_env_prefix: Option<String>,
+}
+
+impl AgentReleaseInference {
+    pub fn endpoint_env_prefix(&self) -> &str {
+        &self.endpoint_env_prefix
+    }
+
+    /// Declared credential slot prefix; a secret binding may target
+    /// environment entries under exactly this prefix.
+    pub fn credential_env_prefix(&self) -> Option<&str> {
+        self.credential_env_prefix.as_deref()
+    }
+}

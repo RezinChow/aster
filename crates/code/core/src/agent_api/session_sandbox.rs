@@ -73,18 +73,32 @@ pub(crate) fn select_default_local_sandbox(
     allow_process_host: bool,
     native: anyhow::Result<crate::sandbox::native::NativeBashSandbox>,
 ) -> Arc<dyn BashSandbox> {
-    // A mediated request needs the native posture. The guest has no mediator,
-    // so it must not silently replace that request with a deny-only VM.
-    #[cfg(target_os = "macos")]
-    if matches!(requested, crate::sandbox::SandboxNetworkMode::Deny) {
-        if let Ok(guest) = crate::sandbox::guest::GuestLifetimeSandbox::discover(local_root) {
-            tracing::debug!(
-                workspace = %local_root.display(),
-                "macOS guest lifetime sandbox probed successfully"
-            );
-            return Arc::new(guest);
+    // A mediated request needs the native posture. This deny-only VM has no
+    // mediator, so it must not replace that request. The direct HVF guest
+    // shim is not the product default.
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    let native = if matches!(requested, crate::sandbox::SandboxNetworkMode::Deny) {
+        match crate::sandbox::oci::OciBashSandbox::discover(local_root) {
+            Ok(sandbox) => {
+                tracing::debug!(
+                    workspace = %local_root.display(),
+                    "macOS OCI Host sandbox selected"
+                );
+                return Arc::new(sandbox);
+            }
+            Err(error) => {
+                let reason = format!("{error:#}");
+                tracing::warn!(
+                    workspace = %local_root.display(),
+                    error = %reason,
+                    "macOS OCI Host sandbox is unavailable; native execution remains refused"
+                );
+                native.map(|sandbox| sandbox.with_guest_unavailable_reason(reason))
+            }
         }
-    }
+    } else {
+        native
+    };
 
     match native {
         Ok(sandbox) => Arc::new(sandbox),
@@ -161,6 +175,8 @@ mod tests {
     use super::*;
     #[cfg(unix)]
     use crate::sandbox::SandboxCommandRequest;
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    use std::sync::Arc;
 
     struct CustomSandbox;
 
@@ -217,11 +233,17 @@ mod tests {
     // Harbor / Terminal-Bench process-host bash is a Unix outer-isolation path.
     // Windows product bash uses PowerShell; Git Bash spawned from MSVC is not
     // the supported process-host contract.
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[tokio::test]
     async fn native_execution_refusal_never_selects_initialization_fallback() {
         use crate::tools::Tool;
         let workspace = tempfile::tempdir().unwrap();
+        let missing = workspace.path().join("missing-oci-companions");
+        let previous_assets = std::env::var_os(crate::sandbox::oci::SANDBOX_ASSETS_ENV);
+        std::env::set_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV, &missing);
+        let companion_error = crate::sandbox::oci::OciBashSandbox::discover(workspace.path())
+            .err()
+            .expect("this hermetic refusal test has no OCI companions");
         let native = crate::sandbox::native::NativeBashSandbox::new(workspace.path()).unwrap();
         let digest = native.policy_digest();
         let sandbox = select_default_local_sandbox(
@@ -230,6 +252,10 @@ mod tests {
             true,
             Ok(native),
         );
+        match previous_assets {
+            Some(value) => std::env::set_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV, value),
+            None => std::env::remove_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV),
+        }
         assert_eq!(sandbox.policy_digest(), digest);
         for _ in 0..2 {
             let output = crate::tools::builtin::bash::BashTool
@@ -244,6 +270,7 @@ mod tests {
             assert!(output
                 .content
                 .contains("native_process_lifetime_unqualified"));
+            assert!(output.content.contains(&companion_error.to_string()));
             assert!(matches!(
                 output.error_kind,
                 Some(crate::tools::ToolErrorKind::Unsupported { .. })
@@ -408,9 +435,9 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     #[tokio::test]
-    async fn missing_guest_probe_keeps_both_native_apis_refused() {
+    async fn missing_oci_companions_keep_both_native_apis_refused() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
 
@@ -433,10 +460,15 @@ mod tests {
 
         let previous_image = std::env::var_os(GUEST_SYSTEM_IMAGE_ENV);
         let previous_shim = std::env::var_os(GUEST_KRUN_SHIM_ENV);
+        let previous_assets = std::env::var_os(crate::sandbox::oci::SANDBOX_ASSETS_ENV);
         std::env::remove_var(GUEST_SYSTEM_IMAGE_ENV);
         std::env::remove_var(GUEST_KRUN_SHIM_ENV);
 
         let workspace = tempfile::tempdir().unwrap();
+        std::env::set_var(
+            crate::sandbox::oci::SANDBOX_ASSETS_ENV,
+            workspace.path().join("missing-oci-companions"),
+        );
         let mut opts = SessionOptions::new().with_allow_process_host_sandbox(true);
         install_default_local_sandbox(workspace.path(), &mut opts);
         let sandbox = opts.sandbox_handle.as_ref().unwrap();
@@ -461,6 +493,10 @@ mod tests {
             Some(value) => std::env::set_var(GUEST_KRUN_SHIM_ENV, value),
             None => std::env::remove_var(GUEST_KRUN_SHIM_ENV),
         }
+        match previous_assets {
+            Some(value) => std::env::set_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV, value),
+            None => std::env::remove_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV),
+        }
         for error in [exec_command.err(), exec.err()] {
             let error = error.expect("a missing guest probe must not run the command");
             assert!(
@@ -474,5 +510,238 @@ mod tests {
         assert_eq!(observer.0.load(Ordering::SeqCst), 0);
         assert!(!sentinel.exists());
         assert!(!sandbox.supports_background_execution());
+    }
+
+    /// The session AsterDream installs: Bash, a Python program through that
+    /// Bash backend, and the in-process read tool, on a caller-owned mode
+    /// `0700` workspace whose path contains a literal backslash.
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "requires signed HVF assets; run explicitly on Apple Silicon"]
+    async fn default_local_sandbox_reads_a_private_backslash_workspace() {
+        use std::os::unix::fs::PermissionsExt;
+
+        use crate::tools::Tool;
+
+        const MARKER_NAME: &str = "private-bytes.txt";
+        let assets = std::env::var_os("ASTER_TEST_OCI_ASSETS")
+            .expect("explicit real OCI assets in ASTER_TEST_OCI_ASSETS");
+        let previous_assets = std::env::var_os(crate::sandbox::oci::SANDBOX_ASSETS_ENV);
+        std::env::set_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV, &assets);
+
+        let parent = tempfile::Builder::new()
+            .prefix("aster-core-")
+            .tempdir_in("/private/var/tmp")
+            .unwrap();
+        let workspace = parent.path().join("leaf\\name");
+        let outside = parent.path().join("outside-sink");
+        std::fs::create_dir(&workspace).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        let marker = workspace.join(MARKER_NAME);
+        let file_bytes = b"CORE-0700-BYTES-9f3c".to_vec();
+        std::fs::write(&marker, &file_bytes).unwrap();
+        std::fs::set_permissions(&marker, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::set_permissions(&workspace, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let workspace = workspace.canonicalize().unwrap();
+        assert!(
+            workspace
+                .components()
+                .any(|component| component.as_os_str().to_string_lossy().contains('\\')),
+            "the workspace path must keep a literal backslash"
+        );
+        let file_bytes = std::fs::read(workspace.join(MARKER_NAME)).unwrap();
+        let file_text = String::from_utf8(file_bytes.clone()).unwrap();
+
+        let mut opts = SessionOptions::new();
+        install_default_local_sandbox(&workspace, &mut opts);
+        let sandbox = Arc::clone(opts.sandbox_handle.as_ref().unwrap());
+        let context =
+            crate::tools::ToolContext::new(workspace.clone()).with_sandbox(Arc::clone(&sandbox));
+        let watch = HostWatch::start();
+        let escape = outside.join("escaped");
+        let mut transcripts = Vec::new();
+        for run in 1..=2 {
+            assert!(
+                !escape.exists(),
+                "a previous run left a file outside the workspace"
+            );
+            let bash = format!(
+                "cat {MARKER_NAME}; printf '\\nkern=%s\\n' \"$(uname -s)\"; printf 'pwd=%s\\n' \"$PWD\"; printf allowed > allowed-write.txt; printf leaked > '{}' || true; exit 7",
+                escape.display()
+            );
+            watch.reset();
+            let bash_output = crate::tools::builtin::bash::BashTool
+                .execute(
+                    &serde_json::json!({"command": bash, "timeout": 120000}),
+                    &context,
+                )
+                .await
+                .expect("bash tool returns a settled result");
+            let bash_saw_host = watch.saw();
+            let python = "PYTHONDONTWRITEBYTECODE=1 python3 -c 'import os, pathlib, sys; data = pathlib.Path(\"private-bytes.txt\").read_bytes(); sys.stdout.buffer.write(data); sys.stdout.buffer.write(b\"\\nkern=\"); sys.stdout.buffer.write(os.uname().sysname.encode()); sys.stdout.buffer.write(b\"\\n\"); raise SystemExit(7)'";
+            watch.reset();
+            let python_output = crate::tools::builtin::bash::BashTool
+                .execute(
+                    &serde_json::json!({"command": python, "timeout": 120000}),
+                    &context,
+                )
+                .await
+                .expect("python through bash returns a settled result");
+            let python_saw_host = watch.saw();
+            let read_output = crate::tools::builtin::read::ReadTool
+                .execute(&serde_json::json!({"file_path": MARKER_NAME}), &context)
+                .await
+                .expect("read tool returns a settled result");
+            let transcript = format!(
+                "run={run}\nworkspace={}\nfile_bytes={file_text:?}\nbash_exit={:?}\nbash_host={bash_saw_host}\nbash={:?}\npython_exit={:?}\npython_host={python_saw_host}\npython={:?}\nread_success={}\nread={:?}\nallowed={:?}\nescape_exists={}\n",
+                workspace.display(),
+                exit_code_of(&bash_output),
+                bash_output.content,
+                exit_code_of(&python_output),
+                python_output.content,
+                read_output.success,
+                read_output.content,
+                std::fs::read(workspace.join("allowed-write.txt")).ok(),
+                escape.exists(),
+            );
+            eprintln!("{transcript}");
+            assert!(
+                bash_output.content.contains(&file_text),
+                "bash did not return the file bytes: {transcript}"
+            );
+            assert!(
+                bash_output.content.contains("kern=Linux"),
+                "bash did not run in the VM: {transcript}"
+            );
+            assert!(
+                bash_output
+                    .content
+                    .contains(&workspace.display().to_string()),
+                "bash did not use the backslash workspace path: {transcript}"
+            );
+            assert_eq!(
+                exit_code_of(&bash_output),
+                Some(7),
+                "bash exit is the program's: {transcript}"
+            );
+            assert!(
+                bash_saw_host,
+                "OCI Host was not alive during bash: {transcript}"
+            );
+            assert!(
+                python_output.content.contains(&file_text),
+                "python did not return the file bytes: {transcript}"
+            );
+            assert!(
+                python_output.content.contains("kern=Linux"),
+                "python did not run in the VM: {transcript}"
+            );
+            assert_eq!(
+                exit_code_of(&python_output),
+                Some(7),
+                "python exit is the program's: {transcript}"
+            );
+            assert!(
+                python_saw_host,
+                "OCI Host was not alive during python: {transcript}"
+            );
+            assert!(read_output.success, "read failed: {transcript}");
+            assert!(
+                read_output.content.contains(&file_text),
+                "read did not return the file bytes: {transcript}"
+            );
+            assert_eq!(
+                std::fs::read(workspace.join("allowed-write.txt")).unwrap(),
+                b"allowed",
+                "an allowed write must appear on the host: {transcript}"
+            );
+            assert!(
+                !escape.exists(),
+                "a write outside the workspace created a host file: {transcript}"
+            );
+            transcripts.push(transcript);
+        }
+        assert_eq!(
+            transcripts[0]
+                .lines()
+                .filter(|line| !line.starts_with("run="))
+                .collect::<Vec<_>>(),
+            transcripts[1]
+                .lines()
+                .filter(|line| !line.starts_with("run="))
+                .collect::<Vec<_>>()
+        );
+        sandbox.shutdown().await;
+        drop(watch);
+        match previous_assets {
+            Some(value) => std::env::set_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV, value),
+            None => std::env::remove_var(crate::sandbox::oci::SANDBOX_ASSETS_ENV),
+        }
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn exit_code_of(output: &crate::tools::ToolOutput) -> Option<i64> {
+        output
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get("exit_code"))
+            .and_then(serde_json::Value::as_i64)
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    struct HostWatch {
+        seen: Arc<std::sync::atomic::AtomicBool>,
+        stop: Arc<std::sync::atomic::AtomicBool>,
+        thread: Option<std::thread::JoinHandle<()>>,
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    impl HostWatch {
+        fn start() -> Self {
+            use std::sync::atomic::{AtomicBool, Ordering};
+            let seen = Arc::new(AtomicBool::new(false));
+            let stop = Arc::new(AtomicBool::new(false));
+            let seen_flag = Arc::clone(&seen);
+            let stop_flag = Arc::clone(&stop);
+            let thread = std::thread::spawn(move || {
+                while !stop_flag.load(Ordering::Relaxed) {
+                    if let Ok(output) = std::process::Command::new("/bin/ps")
+                        .args(["-ax", "-o", "command="])
+                        .output()
+                    {
+                        if String::from_utf8_lossy(&output.stdout)
+                            .contains("macos-hvf-host-service")
+                        {
+                            seen_flag.store(true, Ordering::Relaxed);
+                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(30));
+                }
+            });
+            Self {
+                seen,
+                stop,
+                thread: Some(thread),
+            }
+        }
+
+        fn reset(&self) {
+            self.seen.store(false, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        fn saw(&self) -> bool {
+            self.seen.load(std::sync::atomic::Ordering::Relaxed)
+        }
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    impl Drop for HostWatch {
+        fn drop(&mut self) {
+            self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+        }
     }
 }

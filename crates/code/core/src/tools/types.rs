@@ -1028,6 +1028,15 @@ impl ToolErrorKind {
     }
 }
 
+/// A registered host tool's check of its own saved artifact bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolArtifactVerification {
+    pub file_path: String,
+    /// Standard SHA-256 of the saved bytes, as lowercase hexadecimal.
+    pub content_digest: String,
+    pub check: String,
+}
+
 /// Tool execution output
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolOutput {
@@ -1171,6 +1180,16 @@ pub trait Tool: Send + Sync {
         _ctx: &ToolContext,
     ) -> Result<()> {
         Ok(())
+    }
+
+    /// Host-owned evidence for bytes this invocation actually validated.
+    /// External/model metadata cannot opt into this default-disabled hook.
+    fn artifact_verification(
+        &self,
+        _args: &serde_json::Value,
+        _output: &ToolOutput,
+    ) -> Option<ToolArtifactVerification> {
+        None
     }
 
     /// Whether tool-owned metadata requires this invocation to pass through

@@ -83,8 +83,8 @@ pub use selector::{select_tools_for_messages, select_tools_for_prompt};
 pub use task::{task_params_schema, TaskExecutor, TaskParams, TaskResult, TaskTool};
 pub(crate) use types::{AgentEventBarrier, AgentEventBarrierReceiver};
 pub use types::{
-    InvocationRuntime, Tool, ToolCapabilities, ToolContext, ToolErrorKind, ToolEventSender,
-    ToolOutput, ToolOutputKind, ToolStreamEvent,
+    InvocationRuntime, Tool, ToolArtifactVerification, ToolCapabilities, ToolContext,
+    ToolErrorKind, ToolEventSender, ToolOutput, ToolOutputKind, ToolStreamEvent,
 };
 
 use crate::llm::ToolDefinition;
@@ -688,7 +688,7 @@ impl ToolExecutor {
         ctx: &ToolContext,
     ) -> Result<()> {
         let path_field = match name {
-            "read" | "write" | "edit" | "patch" | "download" => Some("file_path"),
+            "read" | "write" | "edit" | "patch" | "download" | "office_file" => Some("file_path"),
             "ls" | "search" | "code_symbols" | "code_navigation" | "code_diagnostics" => {
                 Some("path")
             }

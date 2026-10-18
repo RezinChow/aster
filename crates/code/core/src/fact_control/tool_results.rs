@@ -404,6 +404,7 @@ pub(super) fn side_effect_tool(name: &str) -> bool {
             | "delete"
             | "move"
             | "download"
+            | "office_file"
             | "apply_patch"
             | "task"
             | "parallel_task"

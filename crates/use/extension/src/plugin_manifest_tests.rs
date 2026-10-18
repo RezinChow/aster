@@ -672,7 +672,7 @@ extension "a3s/counsel" {
 }
 
 #[test]
-fn a_skill_host_is_the_closed_set_docx_review() {
+fn a_skill_host_is_the_closed_set_docx_review_and_paperloom() {
     let base = r#"
 extension "a3s/review" {
   schema_version = 3
@@ -711,6 +711,13 @@ extension "a3s/review" {
         Some(crate::SkillHostMode::DocxReview)
     );
     assert_eq!(parsed.agents[0].requires_skills, ["review"]);
+    let paperloom =
+        ExtensionManifest::parse_acl(&base.replace("docx-review", "paperloom")).unwrap();
+    assert_eq!(
+        paperloom.skills[0].host,
+        Some(crate::SkillHostMode::Paperloom)
+    );
+    assert_eq!(crate::SkillHostMode::Paperloom.as_str(), "paperloom");
     let rejected = base.replace("docx-review", "segmented-document");
     let error = ExtensionManifest::parse_acl(&rejected).unwrap_err();
     assert!(error.message.contains("closed set: docx-review"));

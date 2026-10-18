@@ -2,6 +2,27 @@
 use super::*;
 
 #[test]
+fn malformed_components_are_rejected_before_waiting_for_an_answer() {
+    for form in [
+        "root = Card(\"Title\", \"subtitle instead of children\")",
+        "root = Stack([Text(\"inline call\"), Button(\"submit\", \"Go\")])",
+        "root = Card(\"First\", [go])\nroot = Stack([go])\ngo = Button(\"submit\", \"Go\")",
+        "root = Widget(\"unsupported component\")",
+    ] {
+        assert!(
+            check_form_shape(form).is_err(),
+            "invalid form was admitted: {form}"
+        );
+    }
+    let widget = check_form_shape("root = Widget(\"unsupported component\")")
+        .expect_err("widget is outside the catalog");
+    assert!(
+        widget.contains("unsupported terminal form component: Widget"),
+        "{widget}"
+    );
+}
+
+#[test]
 fn accepts_openui_and_refuses_mdx_or_json() {
     let form = "root = Card(\"Details\", [reason, submit])\nreason = Input(\"reason\", \"Reason\")\nsubmit = Button(\"submit\", \"Continue\")";
     assert!(check_form_shape(form).is_ok());

@@ -22,12 +22,14 @@ pub(crate) use a3s_sandbox::{
 #[derive(Debug)]
 pub struct NativeBashSandbox {
     inner: a3s_sandbox::NativeSandbox,
+    guest_unavailable_reason: Option<String>,
 }
 
 impl NativeBashSandbox {
     pub fn new(workspace: impl Into<PathBuf>) -> Result<Self> {
         Ok(Self {
             inner: a3s_sandbox::NativeSandbox::new(workspace)?,
+            guest_unavailable_reason: None,
         })
     }
 
@@ -50,7 +52,10 @@ impl NativeBashSandbox {
                 a3s_sandbox::NativeSandbox::with_policy(workspace, policy)?
             }
         };
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            guest_unavailable_reason: None,
+        })
     }
 
     /// Whether Gate 4 mediation is armed in the active policy.
@@ -70,9 +75,21 @@ impl NativeBashSandbox {
         self.inner.probe().await
     }
 
+    #[cfg(target_os = "macos")]
+    pub(crate) fn with_guest_unavailable_reason(mut self, reason: String) -> Self {
+        self.guest_unavailable_reason = Some(reason);
+        self
+    }
+
     fn ensure_process_lifetime_qualified(&self) -> Result<()> {
         if cfg!(target_os = "macos") {
-            return Err(native_process_lifetime_unqualified());
+            let error = native_process_lifetime_unqualified();
+            return Err(match &self.guest_unavailable_reason {
+                Some(reason) => error.context(format!(
+                    "{NATIVE_PROCESS_LIFETIME_UNQUALIFIED}; OCI companion discovery: {reason}"
+                )),
+                None => error,
+            });
         }
         Ok(())
     }
@@ -82,7 +99,7 @@ impl NativeBashSandbox {
 ///
 /// Callers identify the refusal by downcasting that type. This text is the
 /// operator-facing reason, not a classifier.
-pub(crate) const NATIVE_PROCESS_LIFETIME_UNQUALIFIED: &str = "native_process_lifetime_unqualified: macOS native command execution is unavailable until descendant lifetime and settlement are qualified";
+pub(crate) const NATIVE_PROCESS_LIFETIME_UNQUALIFIED: &str = "native_process_lifetime_unqualified: macOS native command execution is unavailable until descendant lifetime and settlement are qualified. Full access or a permission change cannot enable it. Do not retry this process tool while this reason remains; use in-process native Office/file tools for artifacts, or install a qualified v2 guest backend with A3S_CODE_GUEST_SYSTEM_IMAGE and A3S_CODE_KRUN_SHIM";
 
 /// The native backend refused before any command process existed.
 ///

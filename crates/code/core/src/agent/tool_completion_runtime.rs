@@ -312,6 +312,58 @@ impl crate::agent::TurnEngine {
         reports.extend(state.verification_reports);
     }
 
+    pub(crate) fn record_native_artifact_verification(
+        &self,
+        call: &ToolCall,
+        result: &a3s_effect::ToolExecutionResultV1,
+        output: &str,
+        metadata: &mut Option<serde_json::Value>,
+        ledger: &mut crate::harness_loop::MutationLedger,
+        reports: &mut Vec<crate::verification::VerificationReport>,
+    ) {
+        if result.validate().is_err()
+            || result.identity.tool_call_id != call.id
+            || result.outcome != a3s_effect::ToolExecutionOutcome::Succeeded
+            || result.exit_code != Some(0)
+            || result.effects.completeness != a3s_effect::ToolObservationCompleteness::Complete
+            || !result.effects.unresolved_external_operations.is_empty()
+            || metadata.as_ref().is_some_and(|value| {
+                !value.is_object() || value.get("verification_report").is_some()
+            })
+        {
+            return;
+        }
+        let Some(tool) = self.tool_executor.registry().get(&call.name) else {
+            return;
+        };
+        let mut tool_output = crate::tools::ToolOutput::success(output);
+        tool_output.metadata = metadata.clone();
+        let Some(proof) = tool.artifact_verification(&call.args, &tool_output) else {
+            return;
+        };
+        let Some(change) = result
+            .effects
+            .changes
+            .iter()
+            .find(|change| change.path == proof.file_path)
+        else {
+            return;
+        };
+        ledger.record_native_artifact_verification(
+            &call.name,
+            proof,
+            &change.after,
+            &self.tool_context.workspace,
+        );
+        if let Some(report) =
+            ledger.native_artifact_verification_report(&self.tool_context.workspace)
+        {
+            metadata.get_or_insert_with(|| serde_json::json!({}))["verification_report"] =
+                report.to_value();
+            reports.push(report);
+        }
+    }
+
     fn bind_or_synthesize_mutation_path_verification(
         &self,
         state: &mut ExecutionLoopState,
@@ -633,6 +685,9 @@ fn on_disk_content_digest(workspace: &std::path::Path, relative: &str) -> Option
 
 #[cfg(test)]
 mod verification_metadata_tests;
+
+#[cfg(test)]
+mod native_artifact_verification_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1075,7 +1130,7 @@ mod tests {
                 ToolCompletionInput {
                     tool_call: &ToolCall {
                         id: "leave-1".into(),
-                        name: "mcp_a3s-maas__leave_apply".into(),
+                        name: "mcp__leave__apply".into(),
                         args: serde_json::json!({"text": "明天请假"}),
                     },
                     event_tx: &Some(tx),

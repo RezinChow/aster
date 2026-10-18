@@ -235,7 +235,7 @@ fn invocation_crosses_local_symlink(
             });
     }
     let field = match tool.as_str() {
-        "write" | "edit" | "patch" | "download" => "file_path",
+        "write" | "edit" | "patch" | "download" | "office_file" => "file_path",
         "search" | "ls" | "code_symbols" | "code_navigation" | "code_diagnostics" => "path",
         _ => return false,
     };
@@ -309,7 +309,7 @@ pub(super) fn atomic_tool_is_bounded(
     match tool_name.to_ascii_lowercase().as_str() {
         // Workspace-confined edits and ordinary structured Git changes are the
         // bounded operations that auto mode exists to streamline.
-        "write" | "edit" | "patch" => bounded_file_target(args, workspace),
+        "write" | "edit" | "patch" | "office_file" => bounded_file_target(args, workspace),
         // A missing destination is still bounded because download derives and
         // sanitizes a workspace-relative filename from the response metadata.
         "download" => args.get("file_path").is_none() || bounded_file_target(args, workspace),
@@ -371,9 +371,9 @@ pub(super) fn classify_atomic_tool(
         "search" | "ls" | "code_symbols" | "code_navigation" | "code_diagnostics" => {
             classify_scoped_path(args, "path", PermissionDecision::Allow, workspace)
         }
-        "web_search" | "web_fetch" | "search_skills" | "generate_object" | "update_plan"
-        | "ask_user" | "ask_user_form" => PermissionDecision::Allow,
-        "write" | "edit" => {
+        "web_search" | "web_fetch" | "search_skills" | "generate_object" | "output_check"
+        | "update_plan" | "ask_user" | "ask_user_form" => PermissionDecision::Allow,
+        "write" | "edit" | "office_file" => {
             classify_scoped_path(args, "file_path", PermissionDecision::Ask, workspace)
         }
         "download" if args.get("file_path").is_none() => PermissionDecision::Ask,

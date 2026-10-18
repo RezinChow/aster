@@ -23,12 +23,14 @@ pub(super) async fn complete_detached(
         return Ok(interrupted_response());
     }
     let attempt = cancel.child_token();
-    match client
-        .complete_streaming(messages, system, tools, attempt.clone())
-        .await
-    {
+    let _request_on_drop = attempt.clone().drop_guard();
+    let stream = tokio::select! {
+        biased;
+        _ = cancel.cancelled() => return Ok(interrupted_response()),
+        result = client.complete_streaming(messages, system, tools, attempt.clone()) => result,
+    };
+    match stream {
         Ok(mut events) => {
-            let mut done = None;
             loop {
                 let event = tokio::select! {
                     biased;
@@ -45,24 +47,28 @@ pub(super) async fn complete_detached(
                     },
                 };
                 if let crate::llm::StreamEvent::Done(response) = event {
-                    done = Some(response);
+                    return Ok(response);
                 }
-            }
-            if let Some(response) = done {
-                return Ok(response);
             }
             if cancel.is_cancelled() {
                 return Ok(interrupted_response());
             }
-            client
-                .complete(messages, system, tools)
-                .await
-                .map_err(model_error)
+            Err(ActorError::Handler {
+                key: "infer".into(),
+                message: "stream ended before a response".into(),
+            })
         }
-        Err(_) => client
-            .complete(messages, system, tools)
-            .await
-            .map_err(model_error),
+        Err(error) => {
+            let failure = model_error(error);
+            if matches!(failure, ActorError::Defect(_)) {
+                return Err(failure);
+            }
+            tokio::select! {
+                biased;
+                _ = cancel.cancelled() => Ok(interrupted_response()),
+                result = client.complete(messages, system, tools) => result.map_err(model_error),
+            }
+        }
     }
 }
 
@@ -244,7 +250,9 @@ pub(super) async fn project_model_frame(
             return Ok(Some(response));
         }
         FactModelFrame::RawStream(crate::llm::StreamEvent::TextDelta(text)) => {
-            surface.streamed_text.store(true, Ordering::Relaxed);
+            if !text.is_empty() {
+                surface.streamed_text.store(true, Ordering::Relaxed);
+            }
             AgentEvent::TextDelta { text }
         }
         FactModelFrame::RawStream(crate::llm::StreamEvent::ReasoningDelta(text))
@@ -391,6 +399,8 @@ pub(super) async fn read_model_response(
     attempt: &tokio_util::sync::CancellationToken,
     activity: &tokio::sync::Notify,
 ) -> Result<crate::llm::LlmResponse, ActorError> {
+    // Delivery belongs to this response, including a non-streaming fallback.
+    surface.streamed_text.store(false, Ordering::Relaxed);
     let (evidence_events, usage_binding) = surface
         .agent
         .fact_model_evidence(messages, system, tools)
@@ -414,17 +424,6 @@ pub(super) async fn read_model_response(
         .await
     {
         Ok(mut events) => {
-            // Per-response, not per-turn: each model response streams on its
-            // own. A final response that produced no deltas (non-streaming
-            // fallback, an empty finish) must be re-sent at settle even when
-            // an earlier response in the same turn streamed — the old
-            // turn-level flag suppressed the re-send here while the host's
-            // turn-level de-dup guard dropped the End text, losing the final
-            // answer on both rails at once.
-            surface
-                .streamed_text
-                .store(false, std::sync::atomic::Ordering::Relaxed);
-            let mut done = None;
             loop {
                 let event = tokio::select! {
                     biased;
@@ -450,9 +449,9 @@ pub(super) async fn read_model_response(
                         // This is the streaming path to the host: forward each
                         // delta and mark the surface so the settled replay does
                         // not re-send the full assistant text.
-                        surface
-                            .streamed_text
-                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                        if !text.is_empty() {
+                            surface.streamed_text.store(true, Ordering::Relaxed);
+                        }
                         let event = crate::agent::AgentEvent::TextDelta { text };
                         if let (Some(store), Some(run_id)) = (&surface.run_store, &surface.run_id) {
                             store.record_event(run_id, event.clone()).await;
@@ -473,14 +472,13 @@ pub(super) async fn read_model_response(
                             let _ = sender.send(event).await;
                         }
                     }
-                    crate::llm::StreamEvent::Done(response) => done = Some(response),
+                    crate::llm::StreamEvent::Done(response) => {
+                        record_usage(surface, &response);
+                        record_model_usage_event(surface, usage_binding.as_ref(), &response).await;
+                        return Ok(response);
+                    }
                     _ => {}
                 }
-            }
-            if let Some(response) = done {
-                record_usage(surface, &response);
-                record_model_usage_event(surface, usage_binding.as_ref(), &response).await;
-                return Ok(response);
             }
             if surface.cancel.is_cancelled() || attempt.is_cancelled() {
                 return Ok(interrupted_response());

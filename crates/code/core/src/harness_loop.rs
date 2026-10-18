@@ -203,6 +203,17 @@ pub struct MutationLedger {
     applied_tool_receipts: std::collections::BTreeSet<String>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
     applied_background_receipts: std::collections::BTreeSet<String>,
+    /// Only live registered-tool hooks populate these; checkpoint metadata
+    /// cannot manufacture verification authority after recovery.
+    #[serde(skip)]
+    native_artifact_verifications: std::collections::BTreeMap<String, NativeArtifactVerification>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NativeArtifactVerification {
+    tool: String,
+    identity: a3s_effect::ToolFileIdentityV1,
+    check: String,
 }
 
 /// Normalize a mutation path to its workspace-relative form: a model may
@@ -625,6 +636,13 @@ impl MutationLedger {
         if path.is_empty() || crate::porcelain::is_harness_path(path) {
             return;
         }
+        if self
+            .native_artifact_verifications
+            .get(path)
+            .is_some_and(|proof| proof.tool != tool || &proof.identity != after)
+        {
+            self.native_artifact_verifications.remove(path);
+        }
         // Whole-workspace observations overlap within a prepared batch. The
         // observer and invocation are provenance, not a new file state.
         if self
@@ -700,6 +718,7 @@ impl MutationLedger {
         if path.is_empty() {
             return;
         }
+        self.native_artifact_verifications.remove(path);
         self.records.push(MutationRecord {
             tool,
             path: path.to_string(),
@@ -707,6 +726,114 @@ impl MutationLedger {
             after_identity: None,
         });
         self.rehash();
+    }
+
+    pub(crate) fn record_native_artifact_verification(
+        &mut self,
+        tool: &str,
+        proof: crate::tools::ToolArtifactVerification,
+        expected: &a3s_effect::ToolFileIdentityV1,
+        workspace: &std::path::Path,
+    ) {
+        if proof.check.trim().is_empty()
+            || proof.content_digest.len() != 64
+            || !proof
+                .content_digest
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || self.observation_incomplete
+            || !self.unresolved_tool_effects.is_empty()
+        {
+            return;
+        }
+        let observed = crate::porcelain::observe_path_effects(
+            workspace,
+            crate::porcelain::PathDelta {
+                paths: vec![proof.file_path.clone()],
+                incomplete: false,
+            },
+        );
+        let [change] = observed.changes.as_slice() else {
+            return;
+        };
+        if observed.completeness != a3s_effect::ToolObservationCompleteness::Complete
+            || &change.after != expected
+            || change.after.kind != a3s_effect::ToolFileKind::File
+            || change.after.content_digest.as_deref()
+                != Some(format!("sha256:{}", proof.content_digest).as_str())
+            || !self.records.iter().any(|record| {
+                record.path == proof.file_path
+                    && record.tool == tool
+                    && record.after_identity.as_ref() == Some(&change.after)
+            })
+        {
+            return;
+        }
+        self.native_artifact_verifications.insert(
+            proof.file_path,
+            NativeArtifactVerification {
+                tool: tool.to_owned(),
+                identity: change.after.clone(),
+                check: proof.check,
+            },
+        );
+    }
+
+    pub(crate) fn native_artifact_verification_report(
+        &self,
+        workspace: &std::path::Path,
+    ) -> Option<crate::verification::VerificationReport> {
+        use crate::verification::{VerificationCheck, VerificationReport, VerificationStatus};
+        if self.is_empty()
+            || self.observation_incomplete
+            || self.has_open_children()
+            || !self.unresolved_tool_effects.is_empty()
+            || !self.observes_current_workspace(workspace)
+        {
+            return None;
+        }
+        let mut checks = Vec::new();
+        for record in &self.records {
+            let proof = self.native_artifact_verifications.get(&record.path)?;
+            if record.after_identity.as_ref() != Some(&proof.identity) || record.tool != proof.tool
+            {
+                return None;
+            }
+            checks.push(
+                VerificationCheck::required(
+                    format!("artifact:{}", record.path),
+                    "native_artifact",
+                    &proof.check,
+                )
+                .with_status(VerificationStatus::Passed),
+            );
+        }
+        Some(VerificationReport::new("native-artifacts", checks).with_effect_digest(self.digest()))
+    }
+
+    pub(crate) fn absorb_native_artifact_verifications(
+        &mut self,
+        observed: &Self,
+        tool: &str,
+        result: &a3s_effect::ToolExecutionResultV1,
+    ) {
+        for change in &result.effects.changes {
+            let path = &change.path;
+            let Some(proof) = observed.native_artifact_verifications.get(path) else {
+                continue;
+            };
+            if proof.tool != tool {
+                continue;
+            }
+            if self.records.iter().any(|record| {
+                record.path == *path
+                    && record.tool == proof.tool
+                    && record.after_identity.as_ref() == Some(&proof.identity)
+            }) {
+                self.native_artifact_verifications
+                    .insert(path.clone(), proof.clone());
+            }
+        }
     }
 
     fn rehash(&mut self) {

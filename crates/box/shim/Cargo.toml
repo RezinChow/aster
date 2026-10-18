@@ -1,0 +1,46 @@
+[package]
+name = "a3s-box-shim"
+version = "3.2.7"
+edition = "2021"
+license = "MIT"
+description = "MicroVM shim process for A3S Box"
+
+[[bin]]
+name = "a3s-box-shim"
+path = "src/main.rs"
+
+[dependencies]
+a3s-box-core = { path = "../core" }
+a3s-oci-sdk = { workspace = true }
+libkrun-sys = { version = "3.0", path = "../deps/libkrun-sys", package = "a3s-libkrun-sys" }
+
+# Async runtime used by the detached managed-OCI init log projector.
+tokio = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+a3s-box-netproxy = { path = "../netproxy" }
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.48", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Pipes",
+    "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

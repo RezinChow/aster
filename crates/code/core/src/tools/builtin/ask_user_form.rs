@@ -24,7 +24,10 @@ impl Tool for AskUserFormTool {
          more information from the user (a platform card asking for missing fields, a plain-text \
          follow-up question, or a confirmation before an action) instead of asking in prose. \
          Build OpenUI Lang: one statement per line, `root = Component(...)`, arguments in \
-         catalog prop order. Use Card, Stack, Text, Input, Textarea, Select, Checkbox, \
+         catalog prop order. Example: `root = Card(\"Details\", [notes, go])` followed by \
+         `notes = Textarea(\"notes\", \"Notes\", \"\", true, \"Enter details\")` and \
+         `go = Button(\"submit\", \"Continue\")`, each on its own line. Container children \
+         are lists of node identifiers. Use Card, Stack, Text, Input, Textarea, Select, Checkbox, \
          Slider, Metric, BarChart and one Button(\"submit\", \"label\"). No Markdown fence, \
          imports, DOM tags or JavaScript calls. Write the card title, field labels, \
          placeholders, options and button label in the language the user writes in; keep \
@@ -148,22 +151,94 @@ fn submitted_values(answer: &str) -> Result<serde_json::Value, String> {
     }
 }
 
-/// Source envelope guard. The session renderer validates every component name.
-fn check_form_shape(form: &str) -> Result<(), &'static str> {
+/// Source envelope guard. Unknown components use the same rejection text the
+/// terminal renderer returns, so one unsupported call ends the form instead of
+/// being offered again.
+fn check_form_shape(form: &str) -> Result<(), String> {
     let form = form.trim();
     if form.is_empty() {
-        return Err("form must not be empty");
+        return Err("form must not be empty".to_string());
     }
     if form.len() > MAX_FORM_BYTES {
-        return Err("form exceeds its size bound");
+        return Err("form exceeds its size bound".to_string());
     }
     if !form
         .lines()
         .any(|line| line.trim_start().starts_with("root = "))
     {
-        return Err("form must be OpenUI Lang and assign root");
+        return Err("form must be OpenUI Lang and assign root".to_string());
+    }
+    let document = a3s_acl::parse_with_limits(
+        form,
+        a3s_acl::ParseLimits {
+            max_document_bytes: MAX_FORM_BYTES,
+            max_nesting_depth: 16,
+            max_collection_items: 160,
+            max_token_bytes: 4096,
+            ..Default::default()
+        },
+    )
+    .map_err(|_| "form must contain valid OpenUI statements".to_string())?;
+    let mut names = std::collections::HashSet::new();
+    for node in document.blocks {
+        if !names.insert(node.name.clone())
+            || !node.labels.is_empty()
+            || !node.blocks.is_empty()
+            || node.attributes.len() != 1
+        {
+            return Err("form must assign each node once, without nested statements".to_string());
+        }
+        let Some(a3s_acl::Value::Call(kind, arguments)) = node.attributes.get(&node.name) else {
+            return Err("form nodes must be component assignments".to_string());
+        };
+        if !matches!(
+            kind.as_str(),
+            "Card"
+                | "Stack"
+                | "Grid"
+                | "Text"
+                | "Input"
+                | "Textarea"
+                | "Select"
+                | "Checkbox"
+                | "Slider"
+                | "Metric"
+                | "BarChart"
+                | "Button"
+        ) {
+            return Err(format!("unsupported terminal form component: {kind}"));
+        }
+        if !arguments.iter().all(form_argument) {
+            return Err("form arguments must be literals or node references; assign child components on separate lines".to_string());
+        }
+        let children = match kind.as_str() {
+            "Card" | "Grid" => Some(1),
+            "Stack" => Some(0),
+            _ => None,
+        };
+        if let Some(index) = children {
+            if !matches!(arguments.get(index), Some(a3s_acl::Value::List(_)))
+                || arguments.len() != index + 1
+            {
+                return Err(
+                    "Card, Stack and Grid require a list of child node identifiers".to_string(),
+                );
+            }
+        }
+    }
+    if !names.contains("root") {
+        return Err("form must assign root".to_string());
     }
     Ok(())
+}
+
+fn form_argument(value: &a3s_acl::Value) -> bool {
+    match value {
+        a3s_acl::Value::String(_) | a3s_acl::Value::Bool(_) | a3s_acl::Value::Null => true,
+        a3s_acl::Value::Number(number) => number.is_finite(),
+        a3s_acl::Value::List(values) => values.iter().all(form_argument),
+        _ => false,
+    }
 }
 
 #[cfg(test)]

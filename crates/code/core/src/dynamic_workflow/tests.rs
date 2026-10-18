@@ -879,6 +879,28 @@ async fn completed_step_recovery_is_bound_to_exact_run_query_and_step() {
     store
         .append(
             run_id,
+            FlowEvent::StepCreated {
+                step_id: "checkpoint_initial_retrieval".to_string(),
+                step_name: "checkpoint".to_string(),
+                input: json!({}),
+                retry: Default::default(),
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .append(
+            run_id,
+            FlowEvent::StepStarted {
+                step_id: "checkpoint_initial_retrieval".to_string(),
+                attempt: 1,
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .append(
+            run_id,
             FlowEvent::StepCompleted {
                 step_id: "checkpoint_initial_retrieval".to_string(),
                 output: json!({ "mode": "inquiry_collection", "evidence": [1] }),

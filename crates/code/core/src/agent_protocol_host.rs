@@ -24,17 +24,12 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::{Mutex, RwLock};
 
-const CANCEL_TERMINAL_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+const CANCELLATION_SETTLEMENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
-// Preserve the published v1 HostError variant set. The existing runtime-error
-// carrier keeps this typed source, while runtime_code() exposes the category
-// without classifying error text or changing a receipt schema.
 #[derive(Debug, Error)]
-#[error("A3S Code Agent cancellation is pending original terminal publication")]
-struct OriginalCancellationPending;
-
-impl OriginalCancellationPending {
-    const CODE: &'static str = "a3s.code.agent_protocol.run_cancellation_pending";
+#[error("Run '{run_id}' cancellation is pending original worker retirement")]
+struct RunCancellationPending {
+    run_id: String,
 }
 
 /// Stable failures returned by the Code-owned headless protocol adapter.
@@ -63,6 +58,19 @@ pub enum AgentProtocolHostError {
 }
 
 impl AgentProtocolHostError {
+    /// Additive runtime classification without changing the public variants.
+    pub fn runtime_code(&self) -> &'static str {
+        match self {
+            Self::Code(CodeError::Internal(source))
+                if source.downcast_ref::<RunCancellationPending>().is_some() =>
+            {
+                "a3s.code.agent_protocol.run_cancellation_pending"
+            }
+            Self::Code(error) => error.runtime_code(),
+            _ => self.code(),
+        }
+    }
+
     pub const fn code(&self) -> &'static str {
         match self {
             Self::Protocol(error) => error.code(),
@@ -75,19 +83,6 @@ impl AgentProtocolHostError {
             Self::ChangeSetPending => "a3s.code.agent_protocol.change_set_pending",
             Self::ChangeSetUnavailable => "a3s.code.agent_protocol.change_set_unavailable",
             Self::Code(error) => error.code(),
-        }
-    }
-
-    /// Runtime machine code for additive typed failures, including a cancel
-    /// request still awaiting the original Run's terminal publication.
-    /// The published const [`Self::code`] classification remains unchanged.
-    pub fn runtime_code(&self) -> &'static str {
-        match self {
-            Self::Code(CodeError::Internal(cause)) if cause.is::<OriginalCancellationPending>() => {
-                OriginalCancellationPending::CODE
-            }
-            Self::Code(error) => error.runtime_code(),
-            _ => self.code(),
         }
     }
 }
@@ -205,10 +200,6 @@ impl AgentProtocolHost {
     /// Execute, cancel, or recover one exact run and return a digest-bound
     /// receipt. Start and recovery return after Code has admitted the detached
     /// worker; progress is observed through [`Self::event_page`].
-    /// Cancel waits up to five seconds for the original Run's terminal
-    /// publication. An accepted request still awaiting publication returns
-    /// an error whose [`AgentProtocolHostError::runtime_code`] is
-    /// `a3s.code.agent_protocol.run_cancellation_pending`, without a receipt.
     pub async fn execute(
         &self,
         command: &AgentProtocolCommandV1,
@@ -255,23 +246,34 @@ impl AgentProtocolHost {
             }
             AgentProtocolCommandV1::Cancel { request } => {
                 let snapshot = self.snapshot(&request.identity).await?;
-                if snapshot.status.is_terminal() {
-                    true
-                } else if self.session.cancel_run(&request.identity.run_id).await {
-                    false
-                } else if self.snapshot(&request.identity).await?.status.is_terminal() {
-                    true
-                } else {
-                    return Err(AgentProtocolHostError::RunUnavailable);
+                match self
+                    .session
+                    .cancel_run_and_wait_for_release(
+                        &request.identity.run_id,
+                        CANCELLATION_SETTLEMENT_TIMEOUT,
+                    )
+                    .await
+                {
+                    Some(true) => snapshot.status.is_terminal(),
+                    Some(false) => {
+                        return Err(CodeError::Internal(anyhow::Error::new(
+                            RunCancellationPending {
+                                run_id: request.identity.run_id.clone(),
+                            },
+                        ))
+                        .into());
+                    }
+                    None if snapshot.status.is_terminal()
+                        || self.snapshot(&request.identity).await?.status.is_terminal() =>
+                    {
+                        true
+                    }
+                    None => return Err(AgentProtocolHostError::RunUnavailable),
                 }
             }
         };
 
-        let snapshot = if matches!(command, AgentProtocolCommandV1::Cancel { .. }) {
-            self.cancel_terminal_snapshot(command.identity()).await?
-        } else {
-            self.snapshot(command.identity()).await?
-        };
+        let snapshot = self.snapshot(command.identity()).await?;
         let receipt = AgentProtocolCommandReceiptV1 {
             schema: AgentProtocolCommandReceiptV1::SCHEMA.into(),
             action: command.action(),
@@ -580,29 +582,6 @@ impl AgentProtocolHost {
         Ok(())
     }
 
-    async fn cancel_terminal_snapshot(
-        &self,
-        identity: &AgentProtocolRunIdentityV1,
-    ) -> Result<RunSnapshot, AgentProtocolHostError> {
-        // Observe the original Run store only. Cancellation acceptance and
-        // this observation deadline cannot publish state or retire its owner.
-        tokio::time::timeout(CANCEL_TERMINAL_WAIT, async {
-            loop {
-                let snapshot = self.snapshot(identity).await?;
-                if snapshot.status.is_terminal() {
-                    return Ok(snapshot);
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .map_err(|_| {
-            AgentProtocolHostError::Code(CodeError::Internal(anyhow::Error::new(
-                OriginalCancellationPending,
-            )))
-        })?
-    }
-
     async fn snapshot(
         &self,
         identity: &AgentProtocolRunIdentityV1,
@@ -625,6 +604,10 @@ fn now_ms() -> u64 {
         .map(|duration| duration.as_millis() as u64)
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+#[path = "agent_protocol_host_error_tests.rs"]
+mod error_tests;
 
 #[cfg(test)]
 mod tests {

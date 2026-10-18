@@ -42,6 +42,35 @@ impl AgentSession {
         RunControl::from_session(self).cancel_run(run_id).await
     }
 
+    /// `None` means no matching original is active; `Some` reports whether
+    /// that exact original retired before the deadline, without aborting it.
+    pub(crate) async fn cancel_run_and_wait_for_release(
+        &self,
+        run_id: &str,
+        timeout: std::time::Duration,
+    ) -> Option<bool> {
+        let original = match self.run_admission.try_current_original() {
+            Ok(original) => original?,
+            Err(_) => return Some(false),
+        };
+        let run = match original.bound_handle_for_settlement(&self.session_id) {
+            Ok(Some(run)) if run.id() == run_id => run,
+            Ok(_) => return None,
+            Err(_) => return Some(false),
+        };
+        tokio::time::timeout(timeout, async {
+            let _ = run.cancel().await;
+            Some(
+                self.run_admission
+                    .wait_for_original_release(&original, timeout)
+                    .await
+                    .is_some(),
+            )
+        })
+        .await
+        .unwrap_or(Some(false))
+    }
+
     /// Return snapshots for runs recorded by this session.
     pub async fn runs(&self) -> Vec<crate::run::RunSnapshot> {
         RunControl::from_session(self).runs().await

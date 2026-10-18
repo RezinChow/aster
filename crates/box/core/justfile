@@ -1,0 +1,13 @@
+# A3S Box Core - Justfile
+# Most commands available via root: just test, just fmt, just lint
+
+default:
+    @just --list
+
+# Run tests (this crate only)
+test:
+    cargo test -p a3s-box-core --lib
+
+# Run single test
+test-one TEST:
+    cargo test -p a3s-box-core --lib -- {{TEST}}

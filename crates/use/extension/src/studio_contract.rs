@@ -19,6 +19,8 @@ pub enum StudioExtensionPoint {
     Applets,
     #[serde(rename = "studio.composer.actions")]
     Composer,
+    #[serde(rename = "studio.composer.modes")]
+    ComposerModes,
     #[serde(rename = "studio.harness.components")]
     Harness,
     /// Command palette entries. Menus and keybindings reference these ids.
@@ -39,7 +41,7 @@ pub enum StudioExtensionPoint {
 }
 
 impl StudioExtensionPoint {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::ActivityBar,
         Self::Editor,
         Self::Sidebar,
@@ -47,6 +49,7 @@ impl StudioExtensionPoint {
         Self::Workspace,
         Self::Applets,
         Self::Composer,
+        Self::ComposerModes,
         Self::Harness,
         Self::Commands,
         Self::Menus,
@@ -76,6 +79,7 @@ impl StudioExtensionPoint {
             Self::Workspace => "studio.workspace",
             Self::Applets => "studio.applets",
             Self::Composer => "studio.composer.actions",
+            Self::ComposerModes => "studio.composer.modes",
             Self::Harness => "studio.harness.components",
             Self::Commands => "studio.commands",
             Self::Menus => "studio.menus",
@@ -94,6 +98,7 @@ impl StudioExtensionPoint {
             Self::Workspace => "workspace",
             Self::Applets => "applet",
             Self::Composer => "composer",
+            Self::ComposerModes => "composerMode",
             Self::Harness => "harness",
             Self::Commands => "command",
             Self::Menus => "menu",
@@ -107,6 +112,7 @@ impl StudioExtensionPoint {
         use StudioExtensionPoint::*;
         let declaration = match self {
             ActivityBar | Sidebar | Panel => Some(StudioDeclaration::ViewContainer),
+            ComposerModes => Some(StudioDeclaration::ComposerMode),
             Harness | Commands | Menus | Keybindings | Home => None,
             _ => Some(StudioDeclaration::Ui),
         };
@@ -126,6 +132,7 @@ impl StudioExtensionPoint {
                 PluginUiScope::Turn,
             ],
             Workspace => vec![PluginUiScope::Workspace],
+            ComposerModes => vec![PluginUiScope::Workspace, PluginUiScope::Session],
             Harness => vec![],
             _ => vec![PluginUiScope::Window],
         };
@@ -137,7 +144,14 @@ impl StudioExtensionPoint {
             scopes,
             composition: if matches!(
                 self,
-                Composer | Harness | Commands | Menus | Keybindings | CustomEditor | Home
+                Composer
+                    | ComposerModes
+                    | Harness
+                    | Commands
+                    | Menus
+                    | Keybindings
+                    | CustomEditor
+                    | Home
             ) {
                 StudioComposition::Collection
             } else {
@@ -156,6 +170,7 @@ impl StudioExtensionPoint {
 pub enum StudioDeclaration {
     Ui,
     ViewContainer,
+    ComposerMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -200,7 +215,7 @@ macro_rules! closed_contract_set {
     };
 }
 
-closed_contract_set!(StudioDeclaration, Ui => "ui", ViewContainer => "view_container");
+closed_contract_set!(StudioDeclaration, Ui => "ui", ViewContainer => "view_container", ComposerMode => "composer_mode");
 closed_contract_set!(StudioComposition, Keyed => "keyed", Collection => "collection");
 closed_contract_set!(StudioCompositionMode, Append => "append");
 closed_contract_set!(StudioFallback, Host => "host");

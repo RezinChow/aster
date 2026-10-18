@@ -2,6 +2,25 @@ use super::*;
 use serde_json::json;
 
 #[test]
+fn output_check_is_a_closed_read_only_tool_in_interactive_modes() {
+    let args = json!({"action":"text_length","text":"报告，2 秒"});
+    for mode in ["default", "plan", "auto", "force"] {
+        let guardrail = InteractiveToolGuardrail::for_mode(mode).unwrap();
+        let assessment = guardrail.assess("output_check", &args);
+        assert_eq!(assessment.dimensions.tool_type, ToolRiskType::ReadOnly);
+        assert_eq!(assessment.level, ToolRiskLevel::Routine);
+        assert_eq!(
+            guardrail.check("output_check", &args),
+            PermissionDecision::Allow
+        );
+    }
+    assert_eq!(
+        InteractiveToolGuardrail::default().check("output_check_write", &args),
+        PermissionDecision::Ask
+    );
+}
+
+#[test]
 fn seam_admission_permission_posture_denies_under_yolo() {
     let policy = policy_for_posture("yolo").deny("bash(*)");
     assert_eq!(
@@ -489,6 +508,30 @@ fn download_is_a_bounded_mixed_workspace_mutation() {
             })
         ),
         PermissionDecision::Deny
+    );
+}
+
+#[test]
+fn office_file_uses_workspace_mutation_and_path_rule_admission() {
+    let auto = InteractiveToolGuardrail::for_mode("auto").unwrap();
+    let args = json!({"file_path": "report.xlsx", "kind": "xlsx"});
+    assert_eq!(
+        auto.assess("office_file", &args).dimensions.tool_type,
+        ToolRiskType::WorkspaceMutation
+    );
+    assert_eq!(auto.check("office_file", &args), PermissionDecision::Allow);
+    assert_eq!(
+        auto.check("office_file", &json!({"file_path": "../report.xlsx"})),
+        PermissionDecision::Deny
+    );
+    let policy = policy_for_posture("yolo").deny("office_file(private/*)");
+    assert_eq!(
+        policy.check("office_file", &json!({"file_path": "private/report.xlsx"})),
+        PermissionDecision::Deny
+    );
+    assert_eq!(
+        policy.check("office_file", &args),
+        PermissionDecision::Allow
     );
 }
 

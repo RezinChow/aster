@@ -175,8 +175,53 @@ async fn missing_probe_artifacts_use_the_stable_refusal() {
     };
     restore_env(super::GUEST_SYSTEM_IMAGE_ENV, previous_image);
     restore_env(super::GUEST_KRUN_SHIM_ENV, previous_shim);
-    assert_eq!(error.to_string(), NATIVE_PROCESS_LIFETIME_UNQUALIFIED);
+    assert_eq!(
+        error.to_string(),
+        format!("guest backend requires {}", super::GUEST_SYSTEM_IMAGE_ENV)
+    );
+    assert!(format!("{error:#}").contains(NATIVE_PROCESS_LIFETIME_UNQUALIFIED));
     assert!(is_native_process_lifetime_unqualified(&error));
+}
+
+#[test]
+fn unavailable_artifacts_name_the_failed_input_and_preserve_the_typed_refusal() {
+    let root = tempfile::tempdir().unwrap();
+    let artifact = root.path().join("artifact");
+    std::fs::write(&artifact, "{}").unwrap();
+    let missing = root.path().join("missing");
+    for (workspace, manifest, shim, expected) in [
+        (
+            missing.as_path(),
+            artifact.as_path(),
+            artifact.as_path(),
+            "guest workspace",
+        ),
+        (
+            root.path(),
+            missing.as_path(),
+            artifact.as_path(),
+            "guest system image manifest",
+        ),
+        (
+            root.path(),
+            artifact.as_path(),
+            missing.as_path(),
+            "guest shim",
+        ),
+        (
+            root.path(),
+            root.path(),
+            artifact.as_path(),
+            "not a regular file",
+        ),
+    ] {
+        let error = match GuestLifetimeSandbox::from_artifacts(workspace, manifest, shim) {
+            Ok(_) => panic!("unavailable artifact unexpectedly accepted"),
+            Err(error) => error,
+        };
+        assert!(format!("{error:#}").contains(expected), "{error:#}");
+        assert!(is_native_process_lifetime_unqualified(&error));
+    }
 }
 
 fn restore_env(key: &str, previous: Option<std::ffi::OsString>) {

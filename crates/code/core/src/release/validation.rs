@@ -1,8 +1,8 @@
 use super::types::{
     AgentReleaseArtifact, AgentReleaseCacheMode, AgentReleaseCapability, AgentReleaseEntrypoint,
-    AgentReleaseHealth, AgentReleasePersistentDataMode, AgentReleaseProvenance,
-    AgentReleaseSecretRequirement, AgentReleaseSecretTarget, AgentReleaseStorage,
-    AgentReleaseWorkspaceMode,
+    AgentReleaseHealth, AgentReleaseInference, AgentReleasePersistentDataMode,
+    AgentReleaseProvenance, AgentReleaseSecretRequirement, AgentReleaseSecretTarget,
+    AgentReleaseStorage, AgentReleaseWorkspaceMode,
 };
 use super::{
     AgentReleaseError, AgentReleaseField, AGENT_RELEASE_ENTRYPOINT_ARGS_V1,
@@ -440,4 +440,46 @@ pub(crate) fn validate_provenance_uri(uri: &str) -> Result<(), AgentReleaseError
             AgentReleaseField::ProvenanceUri,
         ))
     }
+}
+
+fn valid_env_prefix(prefix: &str) -> bool {
+    (8..=64).contains(&prefix.len())
+        && prefix
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
+        && prefix.starts_with(|byte: char| byte.is_ascii_uppercase())
+        && prefix.ends_with('_')
+}
+
+pub(crate) fn parse_inference(block: &Block) -> Result<AgentReleaseInference, AgentReleaseError> {
+    let endpoint_env_prefix = required_string(
+        block,
+        "endpoint_env_prefix",
+        AgentReleaseField::InferenceEndpointEnvPrefix,
+    )?;
+    if !valid_env_prefix(&endpoint_env_prefix) {
+        return Err(AgentReleaseError::InvalidField(
+            AgentReleaseField::InferenceEndpointEnvPrefix,
+        ));
+    }
+    let credential_env_prefix = match block.attributes.get("credential_env_prefix") {
+        None => None,
+        Some(Value::String(value)) => {
+            if !valid_env_prefix(value) {
+                return Err(AgentReleaseError::InvalidField(
+                    AgentReleaseField::InferenceCredentialEnvPrefix,
+                ));
+            }
+            Some(value.clone())
+        }
+        _ => {
+            return Err(AgentReleaseError::InvalidField(
+                AgentReleaseField::InferenceCredentialEnvPrefix,
+            ))
+        }
+    };
+    Ok(AgentReleaseInference {
+        endpoint_env_prefix,
+        credential_env_prefix,
+    })
 }

@@ -14,7 +14,7 @@ const OUTPUT_HEAD_BYTES: usize = 64 * 1024;
 const PROCESS_SETTLEMENT_MS: u64 = 500;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum OutputStream {
+pub(crate) enum OutputStream {
     Stdout,
     Stderr,
 }
@@ -25,7 +25,7 @@ struct CapturedByte {
     byte: u8,
 }
 
-struct BoundedCapture {
+pub(crate) struct BoundedCapture {
     head: Vec<CapturedByte>,
     tail: VecDeque<CapturedByte>,
     total_bytes: usize,
@@ -34,7 +34,7 @@ struct BoundedCapture {
 }
 
 impl BoundedCapture {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             head: Vec::with_capacity(OUTPUT_HEAD_BYTES),
             tail: VecDeque::with_capacity(MAX_OUTPUT_SIZE - OUTPUT_HEAD_BYTES),
@@ -44,7 +44,7 @@ impl BoundedCapture {
         }
     }
 
-    fn push(&mut self, stream: OutputStream, bytes: &[u8]) {
+    pub(crate) fn push(&mut self, stream: OutputStream, bytes: &[u8]) {
         self.total_bytes = self.total_bytes.saturating_add(bytes.len());
         match stream {
             OutputStream::Stdout => {
@@ -73,7 +73,7 @@ impl BoundedCapture {
         }
     }
 
-    fn summary(&self, timed_out: bool) -> CommandOutputSummary {
+    pub(crate) fn summary(&self, timed_out: bool) -> CommandOutputSummary {
         CommandOutputSummary {
             total_bytes: self.total_bytes,
             captured_bytes: self.head.len() + self.tail.len(),
@@ -97,7 +97,7 @@ impl BoundedCapture {
         rendered
     }
 
-    fn render_stream(&self, stream: OutputStream) -> String {
+    pub(crate) fn render_stream(&self, stream: OutputStream) -> String {
         let head = self
             .head
             .iter()

@@ -721,7 +721,9 @@ impl Tool for BashTool {
                     env: command_env,
                 });
                 let result = match tokio::time::timeout(
-                    std::time::Duration::from_millis(timeout_ms),
+                    std::time::Duration::from_millis(
+                        timeout_ms.saturating_add(sandbox.execution_overhead_ms()),
+                    ),
                     execution,
                 )
                 .await

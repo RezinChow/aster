@@ -20,6 +20,8 @@ use crate::workspace::CommandOutputObserver;
 
 pub mod guest;
 pub mod native;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub mod oci;
 pub mod process_host;
 
 pub use a3s_sandbox::{
@@ -169,6 +171,11 @@ pub trait BashSandbox: Send + Sync {
         self.exec_command(&request.command, &request.guest_workspace)
             .await
             .map(Into::into)
+    }
+
+    /// Additional time to settle an executor's startup and owned cleanup.
+    fn execution_overhead_ms(&self) -> u64 {
+        0
     }
 
     /// Whether [`Self::exec`] supports Run-owned background execution.

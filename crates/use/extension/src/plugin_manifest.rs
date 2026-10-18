@@ -263,11 +263,31 @@ pub struct PackagePluginSurface {
 }
 
 /// Host work a published skill asks the shell to do before the model turn.
-/// The closed set is `docx-review`.
+/// The closed set is `docx-review`, `paperloom`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SkillHostMode {
     DocxReview,
+    Paperloom,
+}
+
+impl SkillHostMode {
+    pub fn parse(value: &str) -> UseResult<Self> {
+        match value {
+            "docx-review" => Ok(Self::DocxReview),
+            "paperloom" => Ok(Self::Paperloom),
+            _ => Err(manifest_error(format!(
+                "Skill host '{value}' is not in the closed set: docx-review, paperloom."
+            ))),
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DocxReview => "docx-review",
+            Self::Paperloom => "paperloom",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -807,15 +827,9 @@ pub(crate) fn parse_skill(block: &Block) -> UseResult<PluginSkillSurface> {
             "Skill surface '{id}' must point to SKILL.md."
         )));
     }
-    let host = match optional_string_attribute(block, "host")?.as_deref() {
-        None => None,
-        Some("docx-review") => Some(SkillHostMode::DocxReview),
-        Some(value) => {
-            return Err(manifest_error(format!(
-                "Skill surface '{id}' host '{value}' is not in the closed set: docx-review."
-            )));
-        }
-    };
+    let host = optional_string_attribute(block, "host")?
+        .map(|value| SkillHostMode::parse(&value))
+        .transpose()?;
     let requires_tools = dependency_ids(block, "requires_tool", "Tool")?;
     let requires_mcp = dependency_ids(block, "requires_mcp", "MCP")?;
     Ok(PluginSkillSurface {

@@ -7,10 +7,15 @@ members = [
     "apps/auth",
     "apps/billing",
     "apps/cloud/crates/sdk",
+    "apps/cloud/crates/contracts",
+    "apps/cloud/crates/node-agent",
+    "crates/box/core",
+    "crates/box/runtime",
+    "crates/box/netproxy",
+    "crates/runtime",
+    "crates/sms",
+    "crates/form-core",
     "apps/config",
-    "apps/studio/src-tauri",
-    "apps/studio/src-tauri/contract",
-    "apps/studio/native/data-sqlite",
     "crates/acl",
     "crates/apofasi",
     "crates/browser",
@@ -199,7 +204,7 @@ prost = {version = "0.14"}
 pulldown-cmark = {version = "0.13"}
 rand = {version = "0.9"}
 ratatui = {features = ["crossterm", "unstable-widget-ref"], version = "0.29"}
-rcgen = {features = ["pem"], version = "0.13"}
+rcgen = {features = ["pem", "x509-parser"], version = "0.13"}
 regex = {version = "1"}
 reqwest = {default-features = false, features = ["rustls-tls", "stream", "json", "multipart", "http2", "blocking", "socks"], version = "0.12"}
 reqwest-middleware = {features = ["json", "multipart"], version = "0.4.1"}
@@ -231,13 +236,117 @@ unicode-segmentation = {version = "1.12.0"}
 unicode-width = {version = "0.2"}
 url = {version = "2"}
 urlencoding = {version = "2"}
-uuid = {features = ["serde", "v4", "v5"], version = "1"}
+uuid = {features = ["serde", "v4", "v5", "v7"], version = "1"}
 walkdir = {version = "2"}
 webbrowser = {version = "1.0.4"}
 which = {version = "8"}
 windows = {features = ["Win32_Security", "Win32_Security_Authorization", "Win32_Foundation", "Win32_System_Threading", "Win32_System_JobObjects", "Win32_System_Console", "Win32_System_Pipes"], version = "0.61"}
 wiremock = {version = "0.6"}
 zstd = {version = "0.13"}
+
+a3s-acl = { path = "crates/acl" }
+a3s-boot = { path = "crates/boot", features = [
+    "auth",
+    "axum",
+    "cqrs",
+    "health",
+    "logging",
+    "macros",
+    "openapi-schemas",
+    "queue-postgres",
+    "security",
+], default-features = false }
+a3s-box-core = { path = "crates/box/core" }
+a3s-box-runtime = { path = "crates/box/runtime", features = ["build", "vm"], default-features = false }
+a3s-code-core = { path = "crates/code/core", default-features = false }
+a3s-event = { path = "crates/event", features = ["nats", "iggy"], default-features = false }
+a3s-flow = { path = "crates/flow", features = ["boot", "postgres"], default-features = false }
+a3s-form-core = { path = "crates/form-core" }
+a3s-orm = { path = "crates/orm", features = ["postgres"], default-features = false }
+a3s-runtime = { path = "crates/runtime" }
+a3s-use-extension = { path = "crates/use/extension" }
+aes-gcm = "0.10"
+argon2 = "0.5"
+chrono-tz = "=0.10.4"
+cron = "=0.17.0"
+getrandom = "0.3"
+hickory-resolver = { version = "0.24.4", default-features = false, features = [
+    "system-config",
+    "tokio-runtime",
+] }
+hmac = "0.12"
+http-body-util = "0.1"
+hyper = { version = "0.14", features = ["client"] }
+
+# Serialization
+hyper-util = { version = "0.1", features = ["server-auto", "service", "tokio"] }
+jsonschema = { version = "0.48.5", default-features = false }
+lettre = { version = "=0.11.23", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls"] }
+object_store = { version = "=0.12.4", default-features = false, features = ["aws"] }
+openidconnect = { version = "=4.0.1", default-features = false, features = [
+    "reqwest",
+    "rustls-tls",
+] }
+ring = "0.17"
+
+# Shared types (transport protocol, privacy, tools)
+rustls-pemfile = "2"
+serde_urlencoded = "0.7"
+subtle = "2"
+time = "0.3"
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tower = "0.4"
+x509-parser = "0.16"
+zeroize = "1"
+
+# Cryptography (for TEE attestation verification)
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+a3s-oci-sdk = { path = "crates/oci-runtime/crates/sdk" }
+a3s-transport = { version = "0.1.1", package = "a3s-common", path = "crates/common" }
+der = { version = "0.7", features = ["std", "alloc"] }
+ecdsa = { version = "0.16", features = ["verifying"] }
+hex = "0.4"
+oci-distribution = "0.11"
+
+# Table formatting
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
+p384 = { version = "0.13", features = ["ecdsa"] }
+rustls-pki-types = "1"
+
+# HTTP client (for skill downloads)
+spki = "0.7"
+
+# RA-TLS (Remote Attestation TLS)
+sysinfo = "0.30"
+x509-cert = { version = "0.2", features = ["std"] }
+
+comfy-table = { version = "7", default-features = false }
+
+# Random
+olpc-cjson = "0.1"
+rmcp = { version = "=0.8.5", default-features = false, features = ["base64", "client", "macros", "server", "transport-io", "transport-streamable-http-client-reqwest", "transport-streamable-http-server"] }
+tonic-build = "0.11"
+
+a3s-libkrun-sys = "=3.1.0"
+cap-fs-ext = "=4.0.2"
+cap-std = "=4.0.2"
+libloading = "0.8"
+oci-spec = { version = "0.10", default-features = false, features = ["runtime"] }
+serde_ignored = "0.1"
+windows-sys = { version = "0.59", features = [
+    "Wdk_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_JobObjects",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Pipes",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+] }
 
 [workspace.dependencies.a3s-office-formula-parser]
 path = "crates/office/crates/formula-parser"
@@ -274,6 +383,7 @@ uninlined_format_args = "allow"
 useless_format = "allow"
 
 [patch.crates-io]
+oci-spec = { path = "crates/oci-runtime/vendor/oci-spec-0.10.0" }
 
 [patch.crates-io.async-openai]
 path = "crates/third-party/async-openai"

@@ -5,7 +5,7 @@
 
 use crate::verification::{VerificationCheck, VerificationReport, VerificationStatus};
 
-const MUTATING_TOOLS: &[&str] = &["write", "edit", "patch", "download"];
+const MUTATING_TOOLS: &[&str] = &["write", "edit", "patch", "download", "office_file"];
 /// Nested loops do not inherit the verifier flag, so they can write after this
 /// turn has already been labeled read-only.
 const NESTED_WRITER_TOOLS: &[&str] = &["skill", "task", "batch"];
@@ -17,7 +17,7 @@ pub enum ReportAuthor {
     Host,
 }
 
-pub const VERIFIER_TURN_INPUT: &str = "Verification role for this turn only. Presented tools exclude write, edit, patch, download, Skill, task, and batch. A sentence does not close the completion gate.";
+pub const VERIFIER_TURN_INPUT: &str = "Verification role for this turn only. Presented tools exclude write, edit, patch, download, office_file, Skill, task, and batch. A sentence does not close the completion gate.";
 
 pub fn should_invoke(enabled: bool, mutated: bool) -> bool {
     enabled && mutated
@@ -155,6 +155,10 @@ mod tests {
         assert!(!tool_allowed("edit", &serde_json::json!({})));
         assert!(!tool_allowed("patch", &serde_json::json!({})));
         assert!(!tool_allowed(
+            "office_file",
+            &serde_json::json!({"file_path":"report.xlsx"})
+        ));
+        assert!(!tool_allowed(
             "bash",
             &serde_json::json!({"command": "echo hi > file"})
         ));
@@ -203,6 +207,7 @@ mod tests {
         assert!(!presentable("edit"));
         assert!(!presentable("patch"));
         assert!(!presentable("download"));
+        assert!(!presentable("office_file"));
         assert!(presentable("read"));
         assert!(presentable("bash"));
         assert!(!should_invoke(false, true));

@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+use super::model_call::{complete_detached, read_model_response};
 use super::*;
 use crate::agent::{FactModelAccountingObservation, FactOutputObservation, FactStoreObservation};
 use crate::budget::{BudgetDecision, BudgetGuard};
@@ -307,4 +308,111 @@ async fn dropping_actual_blocked_public_projection_keeps_real_store_some_and_ent
         accounting.projection_has_missing_return(),
         "actual entered send blocks the model release conjunction"
     );
+}
+
+struct DeliveryProvider {
+    fallback: bool,
+    sender: Mutex<Option<tokio::sync::mpsc::Sender<StreamEvent>>>,
+}
+
+#[async_trait::async_trait]
+impl LlmClient for DeliveryProvider {
+    async fn complete(
+        &self,
+        _: &[Message],
+        _: Option<&str>,
+        _: &[ToolDefinition],
+    ) -> anyhow::Result<LlmResponse> {
+        assert!(self.fallback);
+        Ok(response())
+    }
+
+    async fn complete_streaming(
+        &self,
+        _: &[Message],
+        _: Option<&str>,
+        _: &[ToolDefinition],
+        _: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<tokio::sync::mpsc::Receiver<StreamEvent>> {
+        anyhow::ensure!(!self.fallback, "streaming unavailable");
+        let (sender, receiver) = tokio::sync::mpsc::channel(2);
+        sender
+            .send(StreamEvent::TextDelta(String::new()))
+            .await
+            .unwrap();
+        sender.send(StreamEvent::Done(response())).await.unwrap();
+        *self.sender.lock().unwrap() = Some(sender);
+        Ok(receiver)
+    }
+}
+
+#[tokio::test]
+async fn final_response_fallback_does_not_inherit_earlier_streamed_text() {
+    let (_workspace, surface, _, _) = surface().await;
+    surface.streamed_text.store(true, Ordering::Relaxed);
+    let provider = DeliveryProvider {
+        fallback: true,
+        sender: Mutex::new(None),
+    };
+    let actual = read_model_response(
+        &provider,
+        &[Message::user("answer after the tool")],
+        None,
+        &[],
+        &surface,
+        &surface.cancel.child_token(),
+        &tokio::sync::Notify::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(actual.text(), response().text());
+    assert!(!surface.streamed_text.load(Ordering::Relaxed));
+}
+
+#[tokio::test]
+async fn done_delivers_without_waiting_for_provider_channel_eof() {
+    let (_workspace, surface, _, _) = surface().await;
+    let provider = Arc::new(DeliveryProvider {
+        fallback: false,
+        sender: Mutex::new(None),
+    });
+    let actual = tokio::time::timeout(
+        std::time::Duration::from_millis(200),
+        read_model_response(
+            provider.as_ref(),
+            &[Message::user("answer")],
+            None,
+            &[],
+            &surface,
+            &surface.cancel.child_token(),
+            &tokio::sync::Notify::new(),
+        ),
+    )
+    .await
+    .expect("Done is the provider terminal")
+    .unwrap();
+    assert_eq!(actual.text(), response().text());
+    assert!(!surface.streamed_text.load(Ordering::Relaxed));
+    assert_eq!(surface.usage.lock().unwrap().total_tokens, 30);
+    let actual = tokio::time::timeout(
+        std::time::Duration::from_millis(200),
+        complete_detached(provider, &[], None, &[], surface.cancel.child_token()),
+    )
+    .await
+    .expect("a detached Done also terminates")
+    .unwrap();
+    assert_eq!(actual.text(), response().text());
+}
+
+#[tokio::test]
+async fn an_empty_provider_delta_does_not_suppress_the_final_answer() {
+    let (_workspace, surface, _, _) = surface().await;
+    project_model_frame(
+        &surface,
+        crate::agent::FactModelFrame::RawStream(StreamEvent::TextDelta(String::new())),
+        &FactModelAccountingObservation::default(),
+    )
+    .await
+    .unwrap();
+    assert!(!surface.streamed_text.load(Ordering::Relaxed));
 }

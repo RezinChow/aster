@@ -54,6 +54,25 @@ impl OriginalExecutionContext {
             _ => Err(owner_error("no actual Created handle")),
         }
     }
+
+    /// Settlement reads the immutable binding even after live slots retire;
+    /// cancellation through the returned pin still checks live authority.
+    pub(in crate::agent_api) fn bound_handle_for_settlement(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<crate::run::RunHandle>> {
+        if self.session_id != session_id {
+            return Err(owner_error("foreign original settlement identity"));
+        }
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| owner_error("poisoned original settlement identity"))?;
+        Ok(match &state.run {
+            OriginalRunBinding::Created { handle, .. } => Some(handle.clone()),
+            _ => None,
+        })
+    }
     pub(in crate::agent_api) async fn correlated_current_control(
         self: &Arc<Self>,
         session_id: &str,

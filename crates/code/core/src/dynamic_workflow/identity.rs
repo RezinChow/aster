@@ -345,6 +345,9 @@ pub fn dynamic_workflow_execution_plan(history: &[FlowEventEnvelope]) -> Executi
             FlowEvent::StepFailed { step_id, .. } => {
                 plan.mark_status(step_id, TaskStatus::Failed);
             }
+            FlowEvent::StepCancelled { step_id, .. } => {
+                plan.mark_status(step_id, TaskStatus::Cancelled);
+            }
             FlowEvent::RunFailed { .. }
             | FlowEvent::RunTimedOut { .. }
             | FlowEvent::RunRetryExhausted { .. } => {

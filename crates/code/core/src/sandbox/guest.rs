@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use std::time::Duration;
 
+use anyhow::Context;
 use async_trait::async_trait;
 use serde::Deserialize;
 
@@ -31,7 +32,7 @@ pub const GUEST_SYSTEM_IMAGE_ENV: &str = "A3S_CODE_GUEST_SYSTEM_IMAGE";
 /// Signed `a3s-oci-krun-shim` that implements `guest-command`.
 pub const GUEST_KRUN_SHIM_ENV: &str = "A3S_CODE_KRUN_SHIM";
 
-const GUEST_COMMAND_SCHEMA: &str = "a3s.oci.guest-command.v1";
+const GUEST_COMMAND_SCHEMA: &str = "a3s.oci.guest-command.v2";
 const GUEST_SCRIPT_NAME: &str = ".a3s-guest-command";
 const TIMEOUT_EXIT_CODE: i32 = 124;
 const EXEC_COMMAND_TIMEOUT_MS: u64 = 600_000;
@@ -150,9 +151,10 @@ impl GuestLifetimeSandbox {
     }
 
     pub fn from_artifacts(workspace: &Path, manifest: &Path, shim: &Path) -> anyhow::Result<Self> {
-        let workspace = existing_dir(workspace)?;
-        let manifest = existing_file(manifest)?;
-        let shim = existing_file(shim)?;
+        let workspace = existing_dir(workspace).context("guest workspace is unavailable")?;
+        let manifest =
+            existing_file(manifest).context("guest system image manifest is unavailable")?;
+        let shim = existing_file(shim).context("guest shim is unavailable")?;
         Ok(Self {
             workspace,
             manifest,
@@ -164,10 +166,13 @@ impl GuestLifetimeSandbox {
 
     fn prepare(&self) -> anyhow::Result<()> {
         if !self.manifest.is_file() || !self.shim.is_file() || !self.workspace.is_dir() {
-            return Err(native_process_lifetime_unqualified());
+            return Err(native_process_lifetime_unqualified()
+                .context("guest workspace, system image manifest, or shim is no longer present"));
         }
         if !hvf_available() {
-            return Err(native_process_lifetime_unqualified());
+            return Err(native_process_lifetime_unqualified().context(
+                "guest backend requires available macOS HVF support (kern.hv_support=1)",
+            ));
         }
         Ok(())
     }
@@ -622,29 +627,36 @@ fn shell_quote(value: &str) -> String {
 }
 
 fn env_path(key: &str) -> anyhow::Result<PathBuf> {
-    let value = std::env::var_os(key).ok_or_else(native_process_lifetime_unqualified)?;
+    let value = std::env::var_os(key).ok_or_else(|| {
+        native_process_lifetime_unqualified().context(format!("guest backend requires {key}"))
+    })?;
     if value.is_empty() {
-        return Err(native_process_lifetime_unqualified());
+        return Err(native_process_lifetime_unqualified()
+            .context(format!("guest backend requires a non-empty {key}")));
     }
     Ok(PathBuf::from(value))
 }
 
 fn existing_dir(path: &Path) -> anyhow::Result<PathBuf> {
-    let canonical = path
-        .canonicalize()
-        .map_err(|_| native_process_lifetime_unqualified())?;
+    let canonical = path.canonicalize().map_err(|error| {
+        native_process_lifetime_unqualified()
+            .context(format!("cannot resolve {}: {error}", path.display()))
+    })?;
     if !canonical.is_dir() {
-        return Err(native_process_lifetime_unqualified());
+        return Err(native_process_lifetime_unqualified()
+            .context(format!("{} is not a directory", path.display())));
     }
     Ok(canonical)
 }
 
 fn existing_file(path: &Path) -> anyhow::Result<PathBuf> {
-    let canonical = path
-        .canonicalize()
-        .map_err(|_| native_process_lifetime_unqualified())?;
+    let canonical = path.canonicalize().map_err(|error| {
+        native_process_lifetime_unqualified()
+            .context(format!("cannot resolve {}: {error}", path.display()))
+    })?;
     if !canonical.is_file() {
-        return Err(native_process_lifetime_unqualified());
+        return Err(native_process_lifetime_unqualified()
+            .context(format!("{} is not a regular file", path.display())));
     }
     Ok(canonical)
 }

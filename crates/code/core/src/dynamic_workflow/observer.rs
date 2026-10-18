@@ -158,6 +158,18 @@ impl FlowEventObserver for AgentEventFlowObserver {
                     total_steps,
                 });
             }
+            FlowEvent::StepCancelled { step_id, .. } => {
+                let mut state = self.state.lock().await;
+                state.mark_status(&step_id, TaskStatus::Cancelled);
+                self.emit_task_update(state.tasks());
+                let (step_number, total_steps) = state.step_position(&step_id);
+                let _ = self.tx.send(AgentEvent::StepEnd {
+                    step_id,
+                    status: TaskStatus::Cancelled,
+                    step_number,
+                    total_steps,
+                });
+            }
             FlowEvent::RunFailed { .. }
             | FlowEvent::RunTimedOut { .. }
             | FlowEvent::RunRetryExhausted { .. } => {

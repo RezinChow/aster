@@ -174,7 +174,14 @@ impl RunAdmission {
     }
 
     pub(super) fn current_original(&self) -> Option<Arc<OriginalExecutionContext>> {
-        self.original.lock().ok()?.clone()
+        self.try_current_original().ok().flatten()
+    }
+
+    pub(super) fn try_current_original(&self) -> Result<Option<Arc<OriginalExecutionContext>>> {
+        self.original
+            .lock()
+            .map(|original| original.clone())
+            .map_err(|_| owner_error("poisoned original admission identity"))
     }
 
     fn register_stream_workers(&self, aborts: Vec<AbortHandle>) {

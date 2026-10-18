@@ -24,6 +24,15 @@ fn declared_points_require_their_native_declaration_and_available_scope() {
         Some(StudioDeclaration::ViewContainer)
     );
     assert!(PluginUiPoint::parse(contracts["sidebar"].id.as_str()).is_err());
+    assert_eq!(
+        contracts["composerMode"].declaration,
+        Some(StudioDeclaration::ComposerMode)
+    );
+    assert_eq!(contracts["composerMode"].composition.as_str(), "collection");
+    assert_eq!(
+        contracts["composerMode"].scopes,
+        [PluginUiScope::Workspace, PluginUiScope::Session]
+    );
     assert!(contracts["harness"].declaration.is_none());
     for slot in ["command", "menu", "keybinding"] {
         assert!(contracts[slot].declaration.is_none());

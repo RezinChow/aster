@@ -27,6 +27,9 @@ mod workspace_trust;
 pub use account_import::AccountImport;
 pub use editor::{rewrite_acl_sections, ConfigSection};
 pub(crate) use loader::parse_mcp_server_block;
+/// Built-in provider name for Cloud-admitted Inference route models.
+pub const A3S_INFERENCE_PROVIDER: &str = "a3s-inference";
+
 pub use loader::{
     host_authoritative_block, withhold_untrusted_host_authoritative_blocks, LayerAcl,
     HOST_AUTHORITATIVE_BLOCKS,

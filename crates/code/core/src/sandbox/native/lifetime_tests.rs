@@ -80,3 +80,37 @@ async fn both_native_apis_refuse_uniformly_without_effects_or_output() {
     assert!(!workspace.path().join("invocation-sentinel").exists());
     assert_eq!(std::fs::read_dir(workspace.path()).unwrap().count(), 0);
 }
+
+#[tokio::test]
+async fn guest_discovery_detail_reaches_both_native_apis_without_changing_policy() {
+    let workspace = tempfile::tempdir().unwrap();
+    let sandbox = NativeBashSandbox::new(workspace.path()).unwrap();
+    let policy_digest = sandbox.policy_digest();
+    let reason = "guest shim is unavailable: cannot resolve /missing/shim";
+    let sandbox = sandbox.with_guest_unavailable_reason(reason.to_string());
+    for result in [
+        sandbox.validate_execution_available(),
+        sandbox
+            .exec_command("touch must-not-run", "/workspace")
+            .await
+            .map(|_| ()),
+        sandbox
+            .exec(SandboxCommandRequest {
+                command: "touch must-not-run".to_string(),
+                guest_workspace: "/workspace".to_string(),
+                timeout_ms: 5_000,
+                output_observer: None,
+                env: None,
+            })
+            .await
+            .map(|_| ()),
+    ] {
+        let error = result.expect_err("unqualified execution stays refused");
+        assert!(error.to_string().contains(reason), "{error:#}");
+        assert!(error.to_string().contains("Do not retry this process tool"));
+        assert!(is_native_process_lifetime_unqualified(&error));
+    }
+    assert_eq!(sandbox.policy_digest(), policy_digest);
+    assert!(!sandbox.supports_background_execution());
+    assert!(!workspace.path().join("must-not-run").exists());
+}

@@ -71,7 +71,7 @@ tokio = {version = "1.35", features = [
     "process", "fs", "macros"
 ]}
 tokio-stream = {version = "0.1", features = ["net", "time"]}
-tokio-util = {version = "0.7.19", features = ["codec"]}
+tokio-util = {version = "0.7.19", features = ["codec", "rt"]}
 
 # Serialization
 serde = {version = "1.0", features = ["derive"]}
@@ -175,12 +175,15 @@ a3s-acl = {path = "../../acl"}
 a3s-vec = {optional = true, path = "../../vec"}
 a3s-apofasi = {default-features = false, features = ["router"], optional = true, path = "../../apofasi"}
 a3s-sandbox = {path = "../../sandbox"}
-a3s-flow = {default-features = false, optional = true, path = "../../flow", package = "aster-flow-legacy"}
+a3s-flow = {default-features = false, optional = true, path = "../../flow"}
 a3s-search = {default-features = false, path = "../../search"}
 a3s-lane = {path = "../../lane"}
 a3s-memory = {path = "../../memory"}
 a3s-common = {path = "../../common"}
 a3s-effect = {path = "../../effect"}
+
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+a3s-oci-sdk = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = {workspace = true}

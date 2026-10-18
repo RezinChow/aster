@@ -237,3 +237,25 @@ recorded in [`source-manifest.json`](source-manifest.json) under
 - Inherited debt: a subset of the api's in-source test campaigns fail at the
   source revision too (one overflows its stack, one architecture ratchet is
   red); they are recorded here rather than fixed, to keep the copy faithful.
+
+## Cloud control-plane import
+
+The same day, the cloud dependency closure lands: `crates/box` (the sandbox
+runtime workspace: core, runtime, netproxy, plus the vendored deps and
+guest sources that stay unregistered), `crates/runtime`, `crates/sms`,
+`crates/form-core` (from the pinned A3S-Lab/UI source), `crates/oci-sdk`
+and `crates/oci-runtime` (from the pinned A3S-Lab/OCI-Runtime source), the
+`a3s-use` umbrella package, and the cloud members `apps/cloud/crates/
+{contracts,node-agent}` joining the already-present sdk.
+
+- `apps/cloud/crates/control-plane` is copied but not registered: its HEAD
+  depends on the in-flight use-core lane (PluginSurfaceKind and the
+  PluginSurfaceRef narrowing) that no published use-core carries yet. It
+  registers once that lane lands.
+- Version pins carry over as local paths: Boot/ORM/ACL/Use resolve to the
+  in-tree crates; Box 3.2.7, Runtime 0.8.0, and UI form-core resolve to the
+  copied trees. The box runtime keeps axum 0.6 next to the workspace's 0.8
+  (its scale API predates the 0.7 rename), and use's rusqlite aligns to 0.37
+  for the single native sqlite3 linkage.
+- Validation: `cargo check` on contracts, node-agent, runtime, sms,
+  form-core, and box-runtime, plus workspace-wide `cargo fmt --check`.

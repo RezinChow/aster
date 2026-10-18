@@ -1015,3 +1015,6 @@ fn source_hash(source: &str) -> String {
 #[cfg(test)]
 #[path = "dynamic_workflow/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod flow_compatibility_tests;

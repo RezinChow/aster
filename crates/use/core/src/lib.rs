@@ -47,7 +47,7 @@ pub use plugin::{
     PluginOperationPlanDraft, PluginOperationPlanEnvelope, PluginPackageDependency,
     PluginPackageId, PluginPackageLock, PluginPackageLockHost, PluginPackageResolver,
     PluginPermissionCeiling, PluginPlanSource, PluginPlanningBundle, PluginReleaseChannel,
-    PluginSurfaceRef, PluginWorkspaceGrant, PluginWorkspaceGrantChangeSet,
+    PluginSurfaceKind, PluginSurfaceRef, PluginWorkspaceGrant, PluginWorkspaceGrantChangeSet,
     PluginWorkspaceGrantProposal, PluginWorkspaceGrantSnapshot, ResolvedWorkspaceGrant,
     ResolvedWorkspaceGrantChangeSet, ResourcePermissionCeiling, SurfaceChangeKind,
     SurfacePermissionCeiling, ToolWorkloadClass, UiHttpPermission, VerifiedCatalogProvenance,

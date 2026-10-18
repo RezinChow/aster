@@ -522,6 +522,22 @@ fn projection_patch(
             [("status", json!("completed")), ("output", output.clone())],
             &mut operations,
         )?,
+        FlowEvent::StepCancelled {
+            step_id,
+            attempt,
+            reason,
+        } => update_subject(
+            graph,
+            &run_id,
+            &step_object_id(&envelope.run_id, step_id),
+            envelope.sequence,
+            [
+                ("status", json!("cancelled")),
+                ("attempt", json!(attempt)),
+                ("reason", json!(reason)),
+            ],
+            &mut operations,
+        )?,
         FlowEvent::StepRetrying {
             step_id,
             attempt,
@@ -612,9 +628,7 @@ fn projection_patch(
             [("status", json!("disposed"))],
             &mut operations,
         )?,
-        // Flow events added compatibly during the 1.x line remain durably
-        // observed by the external cursor even before Code projects their
-        // domain-specific fields.
+        // Unprojected Flow events still advance the durable external cursor.
         _ => {}
     }
     Ok(GraphPatch::new(graph.version(), operations))

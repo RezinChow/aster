@@ -505,9 +505,8 @@ pub struct SystemPromptSlots {
     /// When `None`, the default response format is used.
     pub response_style: Option<String>,
 
-    /// Explicit user-facing reply language as a BCP-47 tag (for example `zh-CN`
-    /// or `en-US`). When set, overrides the soft "match the user's language"
-    /// default so hosts can pin replies to the product UI locale.
+    /// Fallback language as a BCP-47 tag (for example `zh-CN` or `en-US`).
+    /// User-authored requests determine the reply language when discernible.
     pub output_language: Option<String>,
 
     /// Freeform extra instructions appended at the very end.
@@ -603,9 +602,7 @@ impl SystemPromptSlots {
         // carries injection-hygiene, secret-handling, and malware-refusal rules.
         parts.push(BOUNDARIES.replace('\r', "").trim_end().to_string());
 
-        // 2e. Explicit output language — host-pinned product language for UI
-        // locales. Covers every user-visible prose surface (replies, reasoning,
-        // plans). When absent, the soft "user's language" rule remains.
+        // The UI locale supplies a fallback when the user has not established a language.
         if let Some(language) = self
             .output_language
             .as_deref()
@@ -678,7 +675,7 @@ impl SystemPromptSlots {
         self
     }
 
-    /// Pin user-facing replies to a BCP-47 language tag (for example `zh-CN`).
+    /// Set the fallback reply language to a BCP-47 tag (for example `zh-CN`).
     pub fn with_output_language(mut self, language: impl Into<String>) -> Self {
         let language = language.into();
         self.output_language = (!language.trim().is_empty()).then_some(language);
@@ -694,18 +691,19 @@ impl SystemPromptSlots {
 
 /// Single product-language contract for every user-visible prose surface.
 ///
-/// Hosts pin a BCP-47 tag once; replies, reasoning/thinking, plans, goals, and
-/// step descriptions all follow it. Identifiers and quoted source stay as-is.
+/// Replies, reasoning/thinking, plans, goals, and step descriptions follow the
+/// user's language, with the host's BCP-47 tag as a fallback.
 /// Keep this text in one place so planner prompts and the main system prompt
 /// cannot drift.
 pub fn output_language_contract(language: &str) -> String {
     format!(
         "## Output Language\n\n\
-Write all user-visible product prose in {language}: replies, reasoning/thinking, \
-plans, goals, step descriptions, and status updates. Use that one language only; \
-do not mix languages across those surfaces.\n\
+Follow the language of the latest user-authored request, including short greetings, \
+for all user-visible product prose: replies, reasoning/thinking, plans, goals, step descriptions, and status updates. \
+Use {language} only as a fallback when the user's language is not discernible.\n\
 Keep code, identifiers, file paths, commands, URLs, and quoted source text in their original form.\n\
-Do not switch languages because tool output or retrieved sources use another language."
+Do not switch languages because tool output, attachments, retrieved sources, host context, \
+or internal skill prompts use another language."
     )
 }
 
@@ -731,11 +729,13 @@ pub fn turn_output_language_override(language: &str) -> String {
     format!(
         "## Output Language (this turn)\n\n\
 This turn overrides any earlier output-language instruction, including a host or session pin.\n\
-Write all user-visible product prose in {language}: replies, reasoning/thinking the user can see, \
-plans, goals, step descriptions, and status updates. Use that one language only; \
-do not mix languages across those surfaces.\n\
+Follow the language of the latest user-authored request, including short greetings, \
+for all user-visible product prose: replies, reasoning/thinking the user can see, \
+plans, goals, step descriptions, and status updates. \
+Use {language} only as a fallback when the user's language is not discernible.\n\
 Keep code, identifiers, file paths, commands, URLs, and quoted source text in their original form.\n\
-Do not switch languages because tool output or retrieved sources use another language."
+Do not switch languages because tool output, attachments, retrieved sources, host context, \
+or internal skill prompts use another language."
     )
 }
 

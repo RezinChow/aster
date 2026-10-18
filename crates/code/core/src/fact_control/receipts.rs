@@ -515,6 +515,20 @@ pub(super) async fn prepare_tools(
                         &mut reports,
                     )
                     .await;
+                agent.record_native_artifact_verification(
+                    &verification_call,
+                    &result,
+                    &envelope.text,
+                    &mut envelope.metadata,
+                    &mut projected,
+                    &mut reports,
+                );
+                if let Some(ledger) = &tools.ledger {
+                    ledger
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .absorb_native_artifact_verifications(&projected, &call.name, &result);
+                }
                 // Only reports from this execution may acquire this digest.
                 // Do not rebind a previous call's reports to a later effect.
                 if let Some(current) = &tools.reports {

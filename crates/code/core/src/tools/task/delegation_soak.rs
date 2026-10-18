@@ -63,6 +63,10 @@ fn source_digest(root: &std::path::Path) -> String {
         };
         for entry in entries.flatten() {
             let path = entry.path();
+            let relative = path.strip_prefix(root).unwrap().to_string_lossy();
+            if crate::porcelain::is_harness_path(&relative) {
+                continue;
+            }
             if path.is_dir() {
                 stack.push(path);
             } else if let Ok(bytes) = std::fs::read(&path) {
@@ -78,6 +82,24 @@ fn source_digest(root: &std::path::Path) -> String {
         hasher.update(&bytes);
     }
     format!("{:x}", hasher.finalize())
+}
+
+#[test]
+fn source_digest_excludes_harness_state_and_tracks_source_edits() {
+    let workspace = tempfile::tempdir().unwrap();
+    let before = source_digest(workspace.path());
+    let harness = workspace.path().join(".a3s/child-runs/one");
+    std::fs::create_dir_all(&harness).unwrap();
+    std::fs::write(harness.join("one.jsonl"), "durable child fact").unwrap();
+    assert_eq!(source_digest(workspace.path()), before);
+    std::fs::write(workspace.path().join("source.rs"), "original").unwrap();
+    let original = source_digest(workspace.path());
+    assert_ne!(original, before);
+    std::fs::write(workspace.path().join("source.rs"), "edited").unwrap();
+    let edited = source_digest(workspace.path());
+    assert_ne!(edited, original);
+    std::fs::write(workspace.path().join(".ordinary-source"), "tracked").unwrap();
+    assert_ne!(source_digest(workspace.path()), edited);
 }
 
 #[tokio::test]
