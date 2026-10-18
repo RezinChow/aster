@@ -3,11 +3,11 @@ use super::*;
 
 #[test]
 fn refuses_non_object_answers_and_preserves_typed_values() {
-    assert!(submitted_values(r#"{"values":[]}"#).is_none());
-    assert!(submitted_values(r#"{"values":null}"#).is_none());
+    assert!(submitted_values(r#"{"values":[]}"#).is_err());
+    assert!(submitted_values(r#"{"values":null}"#).is_err());
     assert_eq!(
         submitted_values(r#"{"values":{"count":3,"ready":true,"topic":"work"}}"#),
-        Some(json!({"count":3,"ready":true,"topic":"work"}))
+        Ok(json!({"count":3,"ready":true,"topic":"work"}))
     );
 }
 
@@ -51,9 +51,10 @@ async fn openui_request_round_trips_without_a_core_session() {
                     // ACP prefixes extension methods with an underscore on
                     // the wire; Studio matches exactly `_a3s/form/request`.
                     assert_eq!(frame["method"], "_a3s/form/request");
+                    assert_eq!(frame["params"]["sessionId"], "session-1");
                     assert_eq!(
                         frame["params"],
-                        json!({"formId":"form-1","prompt":"请填写原因","spec":spec,"format":"openui"})
+                        json!({"sessionId":"session-1","formId":"form-1","prompt":"请填写原因","spec":spec,"format":"openui"})
                     );
                     let reply = json!({
                         "jsonrpc":"2.0",
@@ -67,12 +68,12 @@ async fn openui_request_round_trips_without_a_core_session() {
                     (reader, write)
                 };
                 let (values, _raw_client) = tokio::join!(
-                    request_form(&connection, "form-1", "请填写原因", spec),
+                    request_form_in_session(&connection, "session-1", "form-1", "请填写原因", spec),
                     raw_reply
                 );
                 assert_eq!(
                     values,
-                    Some(json!({"reason":"需要休息","count":3,"ready":true}))
+                    Ok(json!({"reason":"需要休息","count":3,"ready":true}))
                 );
             };
             let result = tokio::time::timeout(std::time::Duration::from_secs(2), exchange).await;
@@ -87,4 +88,11 @@ async fn openui_request_round_trips_without_a_core_session() {
             .count(),
         0
     );
+}
+
+#[test]
+fn cancelled_forms_return_an_explicit_error() {
+    for reply in [r#"{"outcome":"cancel"}"#, r#"{"outcome":"decline"}"#] {
+        assert!(submitted_values(reply).unwrap_err().contains("cancelled"));
+    }
 }

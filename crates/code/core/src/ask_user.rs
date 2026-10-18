@@ -8,6 +8,7 @@ use std::sync::{Mutex, OnceLock};
 
 pub const USER_QUESTION_SCHEMA: &str = "a3s.code.user-question.v1";
 pub const USER_ANSWER_SCHEMA: &str = "a3s.code.user-answer.v1";
+pub const USER_FORM_ERROR_SCHEMA: &str = "a3s.code.user-form-error.v1";
 const MAX_QUESTIONS_PER_RUN: u32 = 3;
 const MAX_OPTIONS: usize = 8;
 

@@ -51,6 +51,7 @@ pub enum ElicitationStage {
 }
 
 pub struct FormStage {
+    pub require_nonempty: bool,
     pub fields: Vec<FormFieldUi>,
     pub parse_error: Option<String>,
     pub field_cursor: usize,
@@ -304,6 +305,19 @@ impl ElicitationViewState {
                 }));
                 let (fields, parse_error) = match parse_form_schema(&schema) {
                     Ok(mut specs) => {
+                        if req.require_nonempty {
+                            if let Some(order) = schema
+                                .get("x-a3s-field-order")
+                                .and_then(serde_json::Value::as_array)
+                            {
+                                specs.sort_by_key(|spec| {
+                                    order
+                                        .iter()
+                                        .position(|name| name.as_str() == Some(&spec.name))
+                                        .unwrap_or(usize::MAX)
+                                });
+                            }
+                        }
                         for spec in &mut specs {
                             sanitize_spec(spec);
                         }
@@ -313,6 +327,7 @@ impl ElicitationViewState {
                 };
                 let has_fields = !fields.is_empty();
                 let stage = ElicitationStage::Form(FormStage {
+                    require_nonempty: req.require_nonempty,
                     fields,
                     parse_error,
                     field_cursor: 0,
@@ -635,6 +650,24 @@ impl ElicitationViewState {
             ElicitationStage::Form(form) => {
                 if form.parse_error.is_some() {
                     return None;
+                }
+                if form.require_nonempty {
+                    let mut invalid = false;
+                    for field in &mut form.fields {
+                        field.error = None;
+                        let empty = match &field.value {
+                            FieldValueUi::Text { draft } => draft.trim().is_empty(),
+                            FieldValueUi::Toggle { on } => !on,
+                            _ => false,
+                        };
+                        if field.spec.required && empty {
+                            field.error = Some("required".into());
+                            invalid = true;
+                        }
+                    }
+                    if invalid {
+                        return None;
+                    }
                 }
                 let specs: Vec<ElicitFieldSpec> =
                     form.fields.iter().map(|f| f.spec.clone()).collect();

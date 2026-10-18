@@ -1049,6 +1049,7 @@ fn open_elicitation(agent: &mut AgentView) {
     use a3s_code_tools::mcp_elicitation::{McpElicitExtRequest, McpElicitModeFields};
     agent.elicitation_view = Some(ElicitationViewState::from_request(
         McpElicitExtRequest {
+            require_nonempty: false,
             session_id: "s".into(),
             tool_call_id: "mcp-elicit-1".into(),
             server_name: "demo".into(),
@@ -1252,6 +1253,7 @@ fn open_url_elicitation(
     use a3s_code_tools::mcp_elicitation::{McpElicitExtRequest, McpElicitModeFields};
     agent.elicitation_view = Some(ElicitationViewState::from_request(
         McpElicitExtRequest {
+            require_nonempty: false,
             session_id: "s".into(),
             tool_call_id: "mcp-elicit-url".into(),
             server_name: "demo".into(),
@@ -1301,6 +1303,7 @@ fn open_two_field_elicitation(agent: &mut AgentView) {
     use a3s_code_tools::mcp_elicitation::{McpElicitExtRequest, McpElicitModeFields};
     agent.elicitation_view = Some(ElicitationViewState::from_request(
         McpElicitExtRequest {
+            require_nonempty: false,
             session_id: "s".into(),
             tool_call_id: "mcp-elicit-2".into(),
             server_name: "demo".into(),

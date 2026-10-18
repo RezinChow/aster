@@ -82,6 +82,7 @@ async fn handle_one_job(
     let tool_call_id = format!("mcp-elicit-{}", uuid::Uuid::new_v4());
 
     let ext_req = McpElicitExtRequest {
+        require_nonempty: false,
         session_id: session_id.0.to_string(),
         tool_call_id: tool_call_id.clone(),
         server_name: server_name.clone(),

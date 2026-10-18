@@ -45,8 +45,15 @@ pub struct McpElicitExtRequest {
     pub tool_call_id: String,
     pub server_name: String,
     pub message: String,
+    /// OpenUI required fields reject whitespace-only text and unchecked toggles.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub require_nonempty: bool,
     #[serde(flatten)]
     pub mode: McpElicitModeFields,
+}
+
+fn is_false(value: &bool) -> bool {
+    !value
 }
 
 impl McpElicitExtRequest {
@@ -86,6 +93,7 @@ mod tests {
     #[test]
     fn request_serializes_camel_case() {
         let req = McpElicitExtRequest {
+            require_nonempty: false,
             session_id: "s1".into(),
             tool_call_id: "mcp-elicit-1".into(),
             server_name: "github".into(),
@@ -109,6 +117,7 @@ mod tests {
     #[test]
     fn form_request_round_trips() {
         let req = McpElicitExtRequest {
+            require_nonempty: false,
             session_id: "s1".into(),
             tool_call_id: "mcp-elicit-1".into(),
             server_name: "github".into(),
@@ -132,6 +141,7 @@ mod tests {
     #[test]
     fn url_request_round_trips() {
         let req = McpElicitExtRequest {
+            require_nonempty: false,
             session_id: "s1".into(),
             tool_call_id: "mcp-elicit-2".into(),
             server_name: "oauth-server".into(),
@@ -169,6 +179,7 @@ mod tests {
         };
 
         let form = McpElicitExtRequest {
+            require_nonempty: false,
             session_id: "s1".into(),
             tool_call_id: "mcp-elicit-1".into(),
             server_name: "github".into(),
@@ -206,6 +217,7 @@ mod tests {
         );
 
         let url = McpElicitExtRequest {
+            require_nonempty: false,
             session_id: "s1".into(),
             tool_call_id: "mcp-elicit-2".into(),
             server_name: "oauth-server".into(),

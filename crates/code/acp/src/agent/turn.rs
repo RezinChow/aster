@@ -306,17 +306,23 @@ impl A3sCodeAgent {
                     let client = self.client.borrow().clone();
                     let values = match client {
                         Some(client) => {
-                            crate::form_request::request_form(
+                            crate::form_request::request_form_in_session(
                                 &client,
+                                session_id.0.as_ref(),
                                 &question_id,
                                 &question,
                                 form,
                             )
                             .await
                         }
-                        None => None,
+                        None => Err("form client is unavailable".into()),
                     };
-                    let answer = values.unwrap_or(serde_json::Value::Null);
+                    let answer = values.unwrap_or_else(|message| {
+                        serde_json::json!([
+                            a3s_code_core::ask_user::USER_FORM_ERROR_SCHEMA,
+                            message
+                        ])
+                    });
                     let _ = a3s_code_core::ask_user::answer(&question_id, &answer.to_string());
                     return;
                 }

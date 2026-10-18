@@ -29,6 +29,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 mod background;
 mod follow_ups;
+mod form;
 mod interactions;
 mod mcp;
 mod permissions;
@@ -735,6 +736,7 @@ fn handle_interjection(notif: &acp::ExtNotification, app: &mut AppView) -> bool 
 }
 fn handle_ext_method(ext: a3s_acp_lib::AcpArgs<acp::ExtRequest>, app: &mut AppView) -> bool {
     match ext.request.method.as_ref() {
+        "a3s/form/request" => form::handle_form_request(ext, app),
         "x.ai/ask_user_question" => handle_ask_user_question(ext, app),
         "x.ai/exit_plan_mode" => handle_exit_plan_mode(ext, app),
         "x.ai/mcp/elicit" => handle_mcp_elicit(ext, app),

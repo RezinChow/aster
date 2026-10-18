@@ -3244,11 +3244,10 @@ async fn drain_and_process(
         }
     }
     let mut coalesced = startup_events;
-    if app.gboom_active() {
-        coalesced.extend(live_events);
-    } else {
-        coalesced.extend(coalesce_live_keys(live_events));
-    }
+    let preserve_keys = app.gboom_active()
+        || matches!(app.active_view, ActiveView::Agent(id)
+            if app.agents.get(&id).is_some_and(|agent| agent.focused_card().is_some()));
+    coalesced.extend(coalesce_live_keys(live_events, preserve_keys));
     let coalesced = csi_filter.filter(coalesced);
     let coalesced = x10_filter.filter(coalesced);
     let coalesced = coalesced
@@ -3619,11 +3618,11 @@ fn coalesce_rapid_keys_since(
     let live_start = events.partition_point(|event| event.arrived_at < live_input_started_at);
     let mut events = events;
     let live_events = events.split_off(live_start);
-    events.extend(coalesce_live_keys(live_events));
+    events.extend(coalesce_live_keys(live_events, false));
     events
 }
-fn coalesce_live_keys(events: Vec<TimedInputEvent>) -> Vec<TimedInputEvent> {
-    if events.len() < PASTE_COALESCE_THRESHOLD {
+fn coalesce_live_keys(events: Vec<TimedInputEvent>, preserve_keys: bool) -> Vec<TimedInputEvent> {
+    if preserve_keys || events.len() < PASTE_COALESCE_THRESHOLD {
         return events;
     }
     let (mut has_paste, mut has_keys) = (false, false);
@@ -5499,6 +5498,28 @@ mod tests {
         assert_eq!(normalized.paste_provenance, PasteProvenance::Terminal);
         assert_eq!(crate::clipboard::primary_selection_read_call_count(), 1);
         crate::clipboard::clear_clipboard_probe_hook();
+    }
+    #[test]
+    fn blocking_cards_keep_navigation_keys_separate_from_pasted_values() {
+        let events = vec![
+            press(KeyCode::Tab),
+            press(KeyCode::Enter),
+            TimedInputEvent::now(Event::Paste("Ada".into())),
+            press(KeyCode::Enter),
+            press(KeyCode::Tab),
+        ];
+        let expected = events
+            .iter()
+            .map(|event| event.event.clone())
+            .collect::<Vec<_>>();
+        let actual = coalesce_live_keys(events, true)
+            .into_iter()
+            .map(|event| event.event)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual, expected,
+            "navigation cannot become part of the field value"
+        );
     }
     #[test]
     fn coalesce_multiline_paste_without_bracketed_paste() {

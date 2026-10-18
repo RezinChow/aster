@@ -75,3 +75,15 @@ async fn a_host_without_values_fails_the_call_instead_of_hanging() {
         output.content
     );
 }
+
+#[tokio::test]
+async fn a_rejected_renderer_returns_the_reason_without_claiming_submission() {
+    let output = run_form(
+        r#"["a3s.code.user-form-error.v1","unsupported terminal form component: Metric"]"#,
+    )
+    .await;
+    assert!(!output.success);
+    assert!(output
+        .content
+        .contains("unsupported terminal form component: Metric"));
+}

@@ -101,8 +101,9 @@ impl Tool for AskUserFormTool {
                 "form was cancelled before it was submitted",
             ));
         };
-        let Some(values) = submitted_values(&answer) else {
-            return Ok(ToolOutput::error("the client returned no form values"));
+        let values = match submitted_values(&answer) {
+            Ok(values) => values,
+            Err(message) => return Ok(ToolOutput::error(message)),
         };
         let content = serde_json::json!({
             "schema": USER_FORM_SCHEMA,
@@ -124,10 +125,27 @@ impl Tool for AskUserFormTool {
 
 /// The host answers with the submitted values object; JSON `null` means the
 /// client could not render the form or the member left it unsubmitted.
-fn submitted_values(answer: &str) -> Option<serde_json::Value> {
-    serde_json::from_str::<serde_json::Value>(answer)
-        .ok()
-        .filter(serde_json::Value::is_object)
+fn submitted_values(answer: &str) -> Result<serde_json::Value, String> {
+    let value: serde_json::Value = serde_json::from_str(answer)
+        .map_err(|_| "the client returned invalid form values".to_string())?;
+    if let Some(parts) = value.as_array() {
+        if parts.first().and_then(serde_json::Value::as_str)
+            == Some(ask_user::USER_FORM_ERROR_SCHEMA)
+        {
+            return Err(parts
+                .get(1)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("form request failed")
+                .chars()
+                .take(4096)
+                .collect());
+        }
+    }
+    if value.is_object() {
+        Ok(value)
+    } else {
+        Err("the client returned no form values".into())
+    }
 }
 
 /// Source envelope guard. The session renderer validates every component name.

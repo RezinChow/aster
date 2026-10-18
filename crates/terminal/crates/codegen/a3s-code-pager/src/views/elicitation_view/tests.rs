@@ -12,6 +12,7 @@ use crate::theme::Theme;
 
 fn form_req() -> McpElicitExtRequest {
     McpElicitExtRequest {
+        require_nonempty: false,
         session_id: "s".into(),
         tool_call_id: "mcp-elicit-1".into(),
         server_name: "demo".into(),
@@ -31,6 +32,7 @@ fn form_req() -> McpElicitExtRequest {
 
 fn url_req(url: &str) -> McpElicitExtRequest {
     McpElicitExtRequest {
+        require_nonempty: false,
         session_id: "s".into(),
         tool_call_id: "mcp-elicit-2".into(),
         server_name: "oauth".into(),

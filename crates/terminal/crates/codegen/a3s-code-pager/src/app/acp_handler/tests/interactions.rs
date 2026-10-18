@@ -595,6 +595,27 @@
     }
 
     #[test]
+    fn user_form_for_unknown_session_cannot_open_on_the_active_session() {
+        let mut app = make_app_with_agent("sess-A");
+        let (tx, mut rx) = tokio::sync::oneshot::channel();
+        let raw = serde_json::value::to_raw_value(&serde_json::json!({
+            "sessionId": "sess-unknown",
+            "formId": "form-1",
+            "prompt": "Name",
+            "format": "openui",
+            "spec": "root = Input(\"name\", \"Name\")",
+        })).unwrap();
+        let changed = handle(AcpClientMessage::ExtMethod(a3s_acp_lib::AcpArgs {
+            request: acp::ExtRequest::new("a3s/form/request", raw.into()),
+            response_tx: tx,
+        }), &mut app);
+        assert!(!changed);
+        assert!(test_agent(&app, AgentId(0)).elicitation_view.is_none());
+        let error = rx.try_recv().expect("explicit response").expect_err("unknown session");
+        assert!(error.message.contains("form session has no local view"));
+    }
+
+    #[test]
     fn ask_user_question_unknown_session_parks_without_error() {
         // No local view for the session, and the active agent HAS a session_id (so the race-window fallback does not fire)
         // The reverse-request must be left UNANSWERED (dropped), NOT failed with an error, which would render the tool red

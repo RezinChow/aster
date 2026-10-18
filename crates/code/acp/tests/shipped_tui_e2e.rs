@@ -28,6 +28,11 @@ const WIRE_TEST: &str = "shipped_agent_session_wire";
 /// twelve-distinct-evidence limit), bounded by the configured tool budget.
 const READ_ONLY_EVIDENCE_STOP: usize = 24;
 const PTY_TEST: &str = "shipped_tui_launch_resume_and_visible_commands";
+const NATIVE_FORM: &str = r#"root = Card("Aster form", [name, amount, ready, submit])
+name = Input("name", "Name", "", "text", null, null, null, true)
+amount = Input("amount", "Amount", 3, "number", 1, 5)
+ready = Checkbox("ready", "Ready", false, true)
+submit = Button("submit", "Continue")"#;
 
 fn oracle(test: &str, name: &str, detail: &str) {
     let detail = detail.replace(['\n', '\r'], " ");
@@ -218,6 +223,41 @@ fn decide(raw: &str, state: &mut MockState) -> String {
         return reply_text(&pre_analysis_object(), streaming);
     }
     let tools = has_tools(&parsed);
+    if raw.contains("FORM-ORACLE") {
+        if let Some(values) = returned_form_values(&parsed["messages"]) {
+            let valid = values["name"] == "Ada"
+                && values["amount"].as_f64() == Some(4.0)
+                && values["ready"] == true;
+            return reply_text(
+                if valid {
+                    "FORM-SUBMITTED"
+                } else {
+                    "FORM-BAD-VALUES"
+                },
+                streaming,
+            );
+        }
+        if raw.contains("form was cancelled by the user") {
+            return reply_text("FORM-CANCELLED", streaming);
+        }
+        if raw.contains("unsupported terminal form component") {
+            return reply_text("FORM-REJECTED", streaming);
+        }
+        if parsed["tools"].as_array().is_some_and(|tools| {
+            tools
+                .iter()
+                .any(|tool| tool["function"]["name"] == "ask_user_form")
+        }) {
+            let form = if raw.contains("FORM-ORACLE-INVALID") {
+                "root = Widget(\"x\")"
+            } else {
+                NATIVE_FORM
+            };
+            let args = serde_json::json!({"form":form,"prompt":"Fill in details"}).to_string();
+            return reply_tool("ask_user_form", &args, state, streaming);
+        }
+        return reply_text("FORM-UNAVAILABLE", streaming);
+    }
     if raw.contains("WRITE-ORACLE") && tools {
         if state.write_tool_replies >= 1 {
             return reply_text("ok", streaming);
@@ -295,6 +335,20 @@ fn has_tools(body: &serde_json::Value) -> bool {
     body.get("tools")
         .and_then(serde_json::Value::as_array)
         .is_some_and(|tools| !tools.is_empty())
+}
+
+fn returned_form_values(value: &serde_json::Value) -> Option<serde_json::Value> {
+    if value["schema"] == "a3s.code.user-form.v1" {
+        return value.get("values").cloned();
+    }
+    match value {
+        serde_json::Value::Object(fields) => fields.values().find_map(returned_form_values),
+        serde_json::Value::Array(items) => items.iter().find_map(returned_form_values),
+        serde_json::Value::String(text) => serde_json::from_str(text)
+            .ok()
+            .and_then(|nested| returned_form_values(&nested)),
+        _ => None,
+    }
 }
 
 fn budget_number(body: &str, marker: &str) -> Option<u64> {
@@ -1355,6 +1409,56 @@ async fn shipped_agent_sends_aster_identity_to_the_model() {
             stop_agent(agent).await;
         })
         .await;
+}
+
+#[test]
+#[ignore = "requires a3s-test and built Aster/ACP executables"]
+fn shipped_native_form_submit_cancel_and_reject() {
+    let root = tempfile::Builder::new()
+        .prefix("aster-native-form-")
+        .tempdir()
+        .expect("fixture")
+        .keep();
+    let workspace = root.join("workspace");
+    let home = root.join("home");
+    std::fs::create_dir_all(&workspace).expect("workspace");
+    std::fs::create_dir_all(&home).expect("home");
+    let (addr, _state) = spawn_mock(&workspace.join("unused"), &workspace.join("late"));
+    let config = write_acl(&home, &workspace, &format!("http://{addr}/v1"));
+    let manifest =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../tests/e2e/ask-form.acl");
+    let output = std::process::Command::new("a3s-test")
+        .args(["run"])
+        .arg(manifest)
+        .arg("--tui-executable")
+        .arg(tui_binary())
+        .arg("--tui-working-directory")
+        .arg(&workspace)
+        .args(["--tui-columns", "120", "--tui-rows", "40", "--json"])
+        .current_dir(&root)
+        .envs(child_env(
+            env!("CARGO_BIN_EXE_a3s-code-acp"),
+            &config,
+            &home,
+        ))
+        .env("A3S_HOME", home.join(".a3s"))
+        .output()
+        .expect("run a3s-test");
+    let evidence = std::env::temp_dir().join("aster-form-e2e-result.json");
+    std::fs::write(&evidence, &output.stdout).expect("save bounded test result");
+    assert!(
+        output.status.success(),
+        "A3S Test failed: {}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON result");
+    assert_eq!(result["status"], "passed");
+    oracle(
+        "native-form",
+        "submit-cancel-reject",
+        &evidence.display().to_string(),
+    );
 }
 
 #[test]
