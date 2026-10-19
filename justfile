@@ -202,20 +202,18 @@ down:
     bash scripts/stop-web.sh || true
     bash scripts/stop-billing.sh || true
     bash scripts/stop-auth.sh || true
-    just --justfile apps/cloud/justfile down || true
     bash scripts/stop-cloud-containers.sh || true
     bash scripts/stop-search.sh || true
     bash scripts/stop-api.sh || true
     bash scripts/stop-config.sh || true
     docker compose down || true
 
-# Bring up the OS backend stack from this workspace: control plane
-# (:18080), api (:3000), auth, billing, config — against the compose
-# middleware (Postgres, Redis, RustFS, Iggy, etcd).
+# Bring up the OS backend stack from this workspace: api (:3000),
+# auth, billing, config — against the compose middleware (Postgres,
+# Redis, RustFS, Iggy, etcd).
 backend-up:
     #!/usr/bin/env bash
     set -euo pipefail
-    bash scripts/cloud-up.sh
     bash scripts/backend-e2e.sh
 
 # Middleware only (Postgres, Redis, RustFS, Iggy, etcd) from the OS compose.
@@ -226,7 +224,7 @@ middleware-up:
 backend-down:
     #!/usr/bin/env bash
     set -euo pipefail
-    for name in a3s-api a3s-config a3s-auth a3s-billing a3s-cloud-control-plane; do
+    for name in a3s-api a3s-config a3s-auth a3s-billing; do
         pkill -f "target/debug/$name" 2>/dev/null || true
     done
     echo "backend services stopped"
@@ -234,11 +232,4 @@ backend-down:
 # Run the layered backend test suites (hermetic members in parallel,
 # Postgres/S3 campaigns serially). Requires the middleware for campaigns.
 backend-test:
-    cargo test --locked -p a3s-gateway -p a3s-gateway-runtime -p a3s-runner -p a3s-vec -p a3s-cloud-contracts -p a3s-cloud-node-agent -p a3s-cloud-sdk
-    A3S_CLOUD_TEST_POSTGRES_URL='postgres://a3s_api:a3s_api@127.0.0.1:5432/postgres' \
-    A3S_CLOUD_TEST_S3_ENDPOINT='http://127.0.0.1:9000' \
-    A3S_CLOUD_TEST_S3_REGION='us-east-1' \
-    A3S_CLOUD_TEST_S3_BUCKET='kense' \
-    A3S_CLOUD_TEST_S3_ACCESS_KEY_ID='kense' \
-    A3S_CLOUD_TEST_S3_SECRET_ACCESS_KEY='a3s-rustfs-dev-secret' \
-    cargo test --locked -p a3s-cloud-control-plane -- --test-threads=1
+    cargo test --locked -p a3s-gateway -p a3s-gateway-runtime -p a3s-runner -p a3s-vec

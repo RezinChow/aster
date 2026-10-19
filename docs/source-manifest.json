@@ -1194,11 +1194,6 @@
         "source_manifest_sha256": "e253d2b15d722c59f28df64767c0d482c40de8d5ec9f0c99b5bc99de45859f27"
       },
       {
-        "path": "apps/cloud/crates/sdk",
-        "source": "../a3s/apps/cloud/crates/sdk",
-        "source_manifest_sha256": "f8ef4c9de361940e827f1016da4a81f7d4b7d7ddff75cbd98c3e18477279f3fe"
-      },
-      {
         "path": "apps/use-registry",
         "source": "../a3s/apps/use-registry",
         "note": "Content only; caches and build outputs excluded. The maas-leave package is removed with the service.",

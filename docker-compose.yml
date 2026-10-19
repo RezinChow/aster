@@ -104,7 +104,7 @@ services:
       start_period: 10s
 
   # Apache Iggy events broker — REPLACES the former nats service in the
-  # dev stack (iggy integration path: apps/cloud/docs/project-roadmaps/
+  # dev stack (iggy integration path: the cloud repo project roadmaps
   # iggy-integration-path.md). The runtime kense.config.changed fan-out
   # plane still speaks NATS core and migrates on its own track; run a
   # broker for it ad hoc until then (docker run -p 4222:4222 nats:2.10-alpine).
