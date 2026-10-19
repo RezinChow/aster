@@ -102,20 +102,27 @@ CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000
 
 echo "--- E2E 5: control-plane bootstrap (first organization) ---"
 CP_TOKEN=$(grep -ho 'Bootstrap token: [a-f0-9]*' /tmp/cloud-up-aster*.log 2>/dev/null | tail -1 | awk '{print $3}')
-# Fall back to the token echoed by the most recent cloud-up run.
-if [ -z "$CP_TOKEN" ]; then
-  echo "bootstrap token not found; skipping functional assertion"
-else
-  BOOT=$(curl -s --max-time 10 -X POST http://127.0.0.1:18080/bootstrap \
-    -H 'content-type: application/json' -H 'idempotency-key: aster-e2e-bootstrap-001' \
-    -d "{\"organizationName\":\"Aster E2E\",\"tokenName\":\"aster-e2e\",\"token\":\"$CP_TOKEN\"}")
-  echo "$BOOT" | python3 -c "
+BOOT_CODE=$(curl -s -o /tmp/e2e-boot.json -w '%{http_code}' --max-time 10 -X POST http://127.0.0.1:18080/api/v1/bootstrap \
+  -H 'content-type: application/json' -H 'idempotency-key: aster-e2e-bootstrap-001' \
+  -H "x-a3s-bootstrap-token: $CP_TOKEN" \
+  -d "{\"organizationName\":\"Aster E2E\",\"tokenName\":\"aster-e2e\",\"token\":\"a3s_$CP_TOKEN\"}")
+case "$BOOT_CODE" in
+  201) echo "bootstrap: OK (created)";;
+  409) echo "bootstrap: OK (already bootstrapped)";;
+  *) echo "bootstrap FAILED: HTTP $BOOT_CODE"; cat /tmp/e2e-boot.json; exit 1;;
+esac
+
+echo "--- E2E 6: automations definitions read-through (api→proxy→control-plane) ---"
+AUTOS=$(curl -s --max-time 10 http://127.0.0.1:3000/v1/api/admin/cloud/automation-definitions \
+  -H "authorization: Bearer $TOKEN")
+echo "$AUTOS" | python3 -c "
 import json,sys
 d = json.load(sys.stdin)
-assert d.get('code') in (0, None) or d.get('success') in (True, None), d
-print('bootstrap: OK')
-" || { echo "bootstrap FAILED: $BOOT"; exit 1; }
-fi
+data = d.get('data')
+ok = d.get('success') is True and isinstance(data, list)
+print('automations read:', 'OK (' + str(len(data)) + ' definitions)' if ok else 'FAILED')
+sys.exit(0 if ok else 1)
+" || { echo "automations read FAILED: $AUTOS"; exit 1; }
 
 echo
 echo "E2E: ALL GREEN"

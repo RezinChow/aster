@@ -46,6 +46,7 @@ export type OsDestinationId =
   | 'gateway'
   | 'topology'
   | 'events'
+  | 'automations'
   | 'customers'
   | 'channels'
   | 'suppliers'
@@ -337,6 +338,13 @@ export const OS_DESTINATIONS: Record<OsDestinationId, OsDestination> = {
     labelKey: 'nav.events',
     descriptionKey: 'nav.eventsDesc',
     icon: 'events',
+  },
+  automations: {
+    id: 'automations',
+    to: admin('/automations'),
+    labelKey: 'nav.automations',
+    descriptionKey: 'nav.automationsDesc',
+    icon: 'fleet',
   },
   customers: {
     id: 'customers',

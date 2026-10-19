@@ -23,6 +23,7 @@ import { FlowsPage } from '@/pages/FlowsPage';
 import { FunctionsPage } from '@/pages/FunctionsPage';
 import { CellsPage } from '@/pages/CellsPage';
 import { AgentRuntimesPage } from '@/pages/AgentRuntimesPage';
+import { AutomationsPage } from '@/pages/AutomationsPage';
 import { GatewayPage } from '@/pages/GatewayPage';
 import { SupplierModelsPage } from '@/pages/modelService/SupplierModelsPage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -201,6 +202,7 @@ export function AppRoutes() {
           <Route path="tasks" element={<Navigate to="/admin/work-orders" replace />} />
           <Route path="functions" element={<FunctionsPage />} />
           <Route path="agents" element={<AgentRuntimesPage />} />
+          <Route path="automations" element={<AutomationsPage />} />
           <Route path="agent-runtimes" element={<Navigate to="/admin/agents" replace />} />
           <Route path="cells" element={<CellsPage />} />
           <Route path="inference" element={<Navigate to="/admin/assets/models" replace />} />
