@@ -42,6 +42,19 @@ pub struct A3sProtoBuilder {
     btree_map_paths: Vec<String>,
 }
 
+fn protoc_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+/// `protoc --dependency_out` starts with `<descriptor-set-out>:`.
+/// Windows `protoc` may echo that path with either slash style.
+fn strip_descriptor_target<'a>(line: &'a str, descriptor: &Path) -> Option<&'a str> {
+    let forward = format!("{}:", protoc_path(descriptor));
+    let native = format!("{}:", descriptor.to_string_lossy());
+    line.strip_prefix(forward.as_str())
+        .or_else(|| line.strip_prefix(native.as_str()))
+}
+
 impl A3sProtoBuilder {
     fn map_builder(
         self,
@@ -150,12 +163,22 @@ impl A3sProtoBuilder {
             );
         }
 
+        // protoc writes a Makefile rule whose target is the descriptor path.
+        // `/dev/stdout` and `/dev/null` are not files on Windows, so both
+        // outputs go to OUT_DIR and the rule is read back from that file.
+        let out_dir = PathBuf::from(std::env::var("OUT_DIR").context("OUT_DIR is not set")?);
         // Can only process one input file when using --dependency_out=FILE.
-        for proto in protos {
+        for (index, proto) in protos.into_iter().enumerate() {
+            let descriptor = out_dir.join(format!("a3s-proto-deps-{index}.pb"));
+            let dependency_file = out_dir.join(format!("a3s-proto-deps-{index}.d"));
+            let descriptor_arg = protoc_path(&descriptor);
             let mut command = Command::new(protoc.unwrap_or(Path::new("protoc")));
             command
-                .arg("--dependency_out=/dev/stdout")
-                .arg("--descriptor_set_out=/dev/null");
+                .arg(format!(
+                    "--dependency_out={}",
+                    protoc_path(&dependency_file)
+                ))
+                .arg(format!("--descriptor_set_out={descriptor_arg}"));
 
             // Add protoc's well-known types include directory first (if found).
             // This is needed for Bazel sandboxed builds where protoc and its
@@ -181,14 +204,17 @@ impl A3sProtoBuilder {
                 return Err(anyhow::anyhow!("protoc command failed"));
             }
 
-            let output =
-                String::from_utf8(output.stdout).context("protoc command output not UTF-8")?;
+            let output = fs::read_to_string(&dependency_file).with_context(|| {
+                format!(
+                    "reading protoc dependency file {}",
+                    dependency_file.display()
+                )
+            })?;
 
             let mut lines = output.lines();
             let first_line = lines.next().context("protoc command output is empty")?;
-            let prefix = "/dev/null:";
-            let rem = first_line.strip_prefix(prefix).with_context(|| {
-                format!("protoc command output must start with /dev/null: {output:?}")
+            let rem = strip_descriptor_target(first_line, &descriptor).with_context(|| {
+                format!("protoc dependency output must start with the descriptor path: {output:?}")
             })?;
             for line in iter::once(rem).chain(lines) {
                 let line = line.trim();
@@ -341,6 +367,29 @@ impl A3sProtoBuilder {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_descriptor_target;
+    use std::path::Path;
+
+    #[test]
+    fn dependency_rule_accepts_either_slash_style() {
+        let descriptor = Path::new("C:/runner/out/a3s-proto-deps-0.pb");
+        let forward = "C:/runner/out/a3s-proto-deps-0.pb: proto/grok-tools.proto";
+        assert_eq!(
+            strip_descriptor_target(forward, descriptor),
+            Some(" proto/grok-tools.proto")
+        );
+
+        let native_descriptor = Path::new("C:\\runner\\out\\a3s-proto-deps-0.pb");
+        let native = "C:\\runner\\out\\a3s-proto-deps-0.pb: proto\\grok-tools.proto";
+        assert_eq!(
+            strip_descriptor_target(native, native_descriptor),
+            Some(" proto\\grok-tools.proto")
+        );
     }
 }
 
