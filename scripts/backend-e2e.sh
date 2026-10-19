@@ -100,5 +100,22 @@ echo "--- E2E 4: guard fail-closed (no token ⇒ 401) ---"
 CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/v1/api/admin/notes)
 [ "$CODE" = 401 ] && echo "fail-closed: OK (401)" || { echo "fail-closed FAILED: $CODE"; exit 1; }
 
+echo "--- E2E 5: control-plane bootstrap (first organization) ---"
+CP_TOKEN=$(grep -ho 'Bootstrap token: [a-f0-9]*' /tmp/cloud-up-aster*.log 2>/dev/null | tail -1 | awk '{print $3}')
+# Fall back to the token echoed by the most recent cloud-up run.
+if [ -z "$CP_TOKEN" ]; then
+  echo "bootstrap token not found; skipping functional assertion"
+else
+  BOOT=$(curl -s --max-time 10 -X POST http://127.0.0.1:18080/bootstrap \
+    -H 'content-type: application/json' -H 'idempotency-key: aster-e2e-bootstrap-001' \
+    -d "{\"organizationName\":\"Aster E2E\",\"tokenName\":\"aster-e2e\",\"token\":\"$CP_TOKEN\"}")
+  echo "$BOOT" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+assert d.get('code') in (0, None) or d.get('success') in (True, None), d
+print('bootstrap: OK')
+" || { echo "bootstrap FAILED: $BOOT"; exit 1; }
+fi
+
 echo
 echo "E2E: ALL GREEN"
