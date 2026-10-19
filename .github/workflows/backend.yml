@@ -1,0 +1,106 @@
+# Backend services CI: the OS service plane carried in this workspace
+# (api, auth, billing, config, cloud, gateway, runner) plus their shared
+# crates. Layered per the development standards: hermetic suites run in
+# parallel, the Postgres/S3 campaigns run serially against disposable
+# databases on real service containers.
+
+name: backend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: 1.97.1
+  A3S_CLOUD_TEST_POSTGRES_URL: postgres://a3s_test:a3s_test@127.0.0.1:5432/postgres
+  A3S_CLOUD_TEST_S3_ENDPOINT: http://127.0.0.1:9000
+  A3S_CLOUD_TEST_S3_REGION: us-east-1
+  A3S_CLOUD_TEST_S3_BUCKET: a3s-test
+  A3S_CLOUD_TEST_S3_ACCESS_KEY_ID: a3s-test
+  A3S_CLOUD_TEST_S3_SECRET_ACCESS_KEY: a3s-test-secret
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1
+      - run: cargo fmt --all -- --check
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --locked --workspace --all-targets
+
+  hermetic:
+    runs-on: ubuntu-latest
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: a3s-api
+          - package: a3s-auth
+          - package: a3s-billing
+          - package: a3s-config
+          - package: a3s-cloud-contracts
+          - package: a3s-cloud-node-agent
+          - package: a3s-cloud-sdk
+          - package: a3s-gateway
+          - package: a3s-gateway-runtime
+          - package: a3s-runner
+          - package: a3s-sms
+          - package: a3s-form-core
+          - package: a3s-box-runtime
+          - package: a3s-use-core
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --locked -p ${{ matrix.package }}
+
+  campaigns:
+    runs-on: ubuntu-latest
+    needs: check
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: a3s_test
+          POSTGRES_PASSWORD: a3s_test
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U a3s_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      s3:
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: a3s-test
+          MINIO_ROOT_PASSWORD: a3s-test-secret
+        ports: ["9000:9000"]
+        options: >-
+          --health-cmd "mc ready local || exit 1"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Create the campaign bucket
+        run: |
+          docker run --rm --network host minio/mc:latest \
+            sh -c "mc alias set gate $A3S_CLOUD_TEST_S3_ENDPOINT a3s-test a3s-test-secret && mc mb gate/$A3S_CLOUD_TEST_S3_BUCKET"
+      - name: Serial Postgres/S3 campaigns (api, node-agent, control-plane)
+        run: |
+          cargo test --locked -p a3s-cloud-control-plane -- --test-threads=1
+          cargo test --locked -p a3s-cloud-node-agent -- --test-threads=1
+          cargo test --locked -p a3s-api -- --test-threads=1

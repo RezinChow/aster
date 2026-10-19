@@ -2607,6 +2607,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "a3s-gateway-runtime"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum 0.8.6",
+ "chrono",
+ "http 1.4.0",
+ "reqwest 0.12.24",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tower 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "a3s-gix-status"
 version = "0.1.0"
 dependencies = [

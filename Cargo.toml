@@ -9,6 +9,7 @@ members = [
     "apps/cloud/crates/sdk",
     "apps/runner",
     "apps/gateway",
+    "apps/runtime",
     "crates/bge",
     "crates/sentry",
     "crates/updater",

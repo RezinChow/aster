@@ -1,0 +1,6 @@
+# Local Function data-plane for a3s-gateway `/v1`.
+.data/
+.env
+node_modules/
+target/
+*.log
