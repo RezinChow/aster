@@ -23,6 +23,9 @@ members = [
     "crates/sms",
     "crates/form-core",
     "apps/config",
+    "apps/studio/src-tauri",
+    "apps/studio/src-tauri/contract",
+    "apps/studio/native/data-sqlite",
     "crates/acl",
     "crates/apofasi",
     "crates/browser",
@@ -140,7 +143,6 @@ members = [
     "crates/use/core",
     "crates/use/reconcile",
     "crates/vec",
-    "apps/work/src-tauri",
     "crates/boot",
     "crates/boot/macros",
     "crates/event",
@@ -267,7 +269,7 @@ a3s-box-core = { path = "crates/box/core" }
 a3s-box-runtime = { path = "crates/box/runtime", features = ["build", "vm"], default-features = false }
 a3s-code-core = { path = "crates/code/core", default-features = false }
 a3s-event = { path = "crates/event", features = ["nats", "iggy"], default-features = false }
-a3s-flow = { path = "crates/flow-v2", features = ["boot", "postgres"], default-features = false }
+a3s-flow = { path = "crates/flow", features = ["boot", "postgres"], default-features = false }
 a3s-form-core = { path = "crates/form-core" }
 a3s-orm = { path = "crates/orm", features = ["postgres"], default-features = false }
 a3s-runtime = { path = "crates/runtime" }
