@@ -1174,11 +1174,6 @@
     "note": "OS backend services registered as workspace members. Git dependencies on A3S-Lab Boot and ORM are replaced by the local crates/boot and crates/orm copies; the Use extension path follows this repository's crates/use layout. Member Cargo.lock files are dropped for the one-lockfile rule. Rust sources are reformatted to workspace rustfmt defaults and the maas-leave remote agent is removed together with the deleted a3s-maas service. The hash is taken over the landed tree: sha256 of the sorted 'sha256(file)  path' manifest, excluding target, .data, .a3s, Cargo.lock, and .env.",
     "sources": [
       {
-        "path": "apps/api",
-        "source": "../a3s/apps/api",
-        "source_manifest_sha256": "9523860168cb4349ca64780d48cf9e5140b76b3fa56d0392232ada1e42843b81"
-      },
-      {
         "path": "apps/auth",
         "source": "../a3s/apps/auth",
         "source_manifest_sha256": "b73bbdee89b1494deb372bb19deb3c2abe824adc8a7abb7b4df9d0d8671356c4"

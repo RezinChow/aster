@@ -2,7 +2,6 @@
 resolver = "3"
 exclude = ["crates/code/fixtures/s3-compat"]
 members = [
-    "apps/api",
     "apps/aster",
     "apps/auth",
     "apps/billing",

@@ -204,30 +204,12 @@ down:
     bash scripts/stop-auth.sh || true
     bash scripts/stop-cloud-containers.sh || true
     bash scripts/stop-search.sh || true
-    bash scripts/stop-api.sh || true
     bash scripts/stop-config.sh || true
     docker compose down || true
-
-# Bring up the OS backend stack from this workspace: api (:3000),
-# auth, billing, config — against the compose middleware (Postgres,
-# Redis, RustFS, Iggy, etcd).
-backend-up:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    bash scripts/backend-e2e.sh
 
 # Middleware only (Postgres, Redis, RustFS, Iggy, etcd) from the OS compose.
 middleware-up:
     docker compose up -d
-
-# Stop the backend services started by backend-up.
-backend-down:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for name in a3s-api a3s-config a3s-auth a3s-billing; do
-        pkill -f "target/debug/$name" 2>/dev/null || true
-    done
-    echo "backend services stopped"
 
 # Run the layered backend test suites (hermetic members in parallel,
 # Postgres/S3 campaigns serially). Requires the middleware for campaigns.
