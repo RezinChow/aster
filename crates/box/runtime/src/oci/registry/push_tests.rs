@@ -35,12 +35,11 @@ impl PushRegistryFixture {
             manifest_bytes: Arc::clone(&manifest_bytes),
         };
         let app = Router::new()
-            .route("/*path", any(push_registry_handler))
+            .route("/{*path}", any(push_registry_handler))
             .with_state(state);
         let task = tokio::spawn(async move {
-            axum::Server::from_tcp(listener)
-                .unwrap()
-                .serve(app.into_make_service())
+            let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+            axum::serve(listener, app.into_make_service())
                 .await
                 .unwrap();
         });
@@ -149,12 +148,11 @@ fn digest(bytes: &[u8]) -> String {
     format!("sha256:{:x}", Sha256::digest(bytes))
 }
 
-async fn body_bytes(mut body: Body) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    while let Some(chunk) = body.data().await {
-        bytes.extend_from_slice(&chunk.unwrap());
-    }
-    bytes
+async fn body_bytes(body: Body) -> Vec<u8> {
+    axum::body::to_bytes(body, usize::MAX)
+        .await
+        .unwrap_or_default()
+        .to_vec()
 }
 
 fn write_blob(layout: &Path, bytes: &[u8]) -> String {

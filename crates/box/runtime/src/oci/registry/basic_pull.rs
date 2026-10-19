@@ -3,7 +3,7 @@ use oci_distribution::manifest::{
     OciImageManifest, OciManifest, IMAGE_MANIFEST_LIST_MEDIA_TYPE, IMAGE_MANIFEST_MEDIA_TYPE,
     OCI_IMAGE_INDEX_MEDIA_TYPE, OCI_IMAGE_MEDIA_TYPE,
 };
-use oci_reqwest::header::ACCEPT;
+use reqwest::header::ACCEPT;
 use sha2::Digest as _;
 
 use super::{
@@ -27,8 +27,8 @@ struct RawManifest {
 /// Basic authentication on protected endpoints but do not advertise that
 /// challenge from `/v2/`.
 pub(super) struct BasicPullClient {
-    http: oci_reqwest::Client,
-    base: oci_reqwest::Url,
+    http: reqwest::Client,
+    base: reqwest::Url,
     repository: String,
     username: String,
     password: String,
@@ -49,7 +49,7 @@ impl BasicPullClient {
         })?;
 
         Ok(Self {
-            http: oci_reqwest::Client::builder().build()?,
+            http: reqwest::Client::builder().build()?,
             base: registry_base_url(protocol, reference)?,
             repository: reference.repository.clone(),
             username,
@@ -245,14 +245,14 @@ fn ensure_digest_matches(
 }
 
 fn ensure_pull_status(
-    response: oci_reqwest::Response,
+    response: reqwest::Response,
     url: &str,
-) -> std::result::Result<oci_reqwest::Response, OciDistributionError> {
+) -> std::result::Result<reqwest::Response, OciDistributionError> {
     let status = response.status();
-    if status == oci_reqwest::StatusCode::OK {
+    if status == reqwest::StatusCode::OK {
         return Ok(response);
     }
-    if status == oci_reqwest::StatusCode::UNAUTHORIZED {
+    if status == reqwest::StatusCode::UNAUTHORIZED {
         return Err(OciDistributionError::UnauthorizedError {
             url: url.to_string(),
         });

@@ -17,7 +17,7 @@ use oci_distribution::manifest::{
 };
 use oci_distribution::secrets::RegistryAuth as OciRegistryAuth;
 use oci_distribution::{Client, Reference, RegistryOperation};
-use oci_reqwest::header::{ACCEPT, CONTENT_LENGTH, CONTENT_TYPE, LOCATION};
+use reqwest::header::{ACCEPT, CONTENT_LENGTH, CONTENT_TYPE, LOCATION};
 use zeroize::Zeroize;
 
 use super::credentials::CredentialStore;
@@ -236,7 +236,7 @@ pub(crate) struct RegistryPuller {
     /// Bounded retry, timeout, and concurrency settings for blob transfers.
     pull_policy: RegistryPullPolicy,
     /// Shared HTTP connection pool for resumable blob requests.
-    blob_http: oci_reqwest::Client,
+    blob_http: reqwest::Client,
 }
 
 impl Default for RegistryPuller {
@@ -292,7 +292,7 @@ impl RegistryPuller {
             progress_fn: None,
             progress_event_fn: None,
             pull_policy: RegistryPullPolicy::from_env(),
-            blob_http: oci_reqwest::Client::new(),
+            blob_http: reqwest::Client::new(),
         }
     }
 
@@ -881,7 +881,7 @@ impl RegistryPusher {
                 .media_type
                 .as_deref()
                 .unwrap_or(OCI_IMAGE_MEDIA_TYPE);
-            let content_type = oci_reqwest::header::HeaderValue::from_bytes(media_type.as_bytes())
+            let content_type = reqwest::header::HeaderValue::from_bytes(media_type.as_bytes())
                 .map_err(|error| {
                     OciDistributionError::GenericError(Some(format!(
                         "invalid manifest media type {media_type:?}: {error}"
@@ -942,7 +942,7 @@ impl RegistryPusher {
                 "preemptive Basic auth retry requires non-empty credentials".to_string(),
             ))
         })?;
-        let http = oci_reqwest::Client::new();
+        let http = reqwest::Client::new();
         let base = registry_base_url(self.protocol, reference)?;
 
         for (layer, descriptor) in layers.iter().zip(&manifest.layers) {
@@ -988,10 +988,7 @@ impl RegistryPusher {
             .await?;
         let response = ensure_registry_status(
             response,
-            &[
-                oci_reqwest::StatusCode::CREATED,
-                oci_reqwest::StatusCode::OK,
-            ],
+            &[reqwest::StatusCode::CREATED, reqwest::StatusCode::OK],
             manifest_url.as_str(),
         )
         .await?;
@@ -1050,7 +1047,7 @@ impl RegistryPusher {
                 "preemptive Basic manifest verification requires non-empty credentials".to_string(),
             ))
         })?;
-        let http = oci_reqwest::Client::new();
+        let http = reqwest::Client::new();
         let base = registry_base_url(self.protocol, reference)?;
         let manifest_ref = reference
             .tag
@@ -1064,12 +1061,9 @@ impl RegistryPusher {
             .header(ACCEPT, MANIFEST_ACCEPT)
             .send()
             .await?;
-        let response = ensure_registry_status(
-            response,
-            &[oci_reqwest::StatusCode::OK],
-            manifest_url.as_str(),
-        )
-        .await?;
+        let response =
+            ensure_registry_status(response, &[reqwest::StatusCode::OK], manifest_url.as_str())
+                .await?;
         let header_digest = response
             .headers()
             .get("docker-content-digest")
@@ -1087,15 +1081,14 @@ impl RegistryPusher {
 fn registry_base_url(
     protocol: RegistryProtocol,
     reference: &ImageReference,
-) -> std::result::Result<oci_reqwest::Url, OciDistributionError> {
+) -> std::result::Result<reqwest::Url, OciDistributionError> {
     // `docker.io` is the canonical image-reference host, but it is not the
     // Docker Registry API host. Requests to `https://docker.io/v2/...` are
     // redirected to the marketing site and can return HTTP 200 HTML; the blob
     // verifier then (correctly) reports a size/digest mismatch. Match Docker's
     // established registry normalization used by `oci-distribution`.
-    let mut base =
-        oci_reqwest::Url::parse(&format!("{}://{}", protocol.scheme(), reference.registry))
-            .map_err(|e| OciDistributionError::UrlParseError(e.to_string()))?;
+    let mut base = reqwest::Url::parse(&format!("{}://{}", protocol.scheme(), reference.registry))
+        .map_err(|e| OciDistributionError::UrlParseError(e.to_string()))?;
 
     // URL parsing lower-cases DNS names and removes an explicitly supplied
     // default port. Preserve non-default ports because `docker.io:5000` can be
@@ -1116,10 +1109,10 @@ fn registry_base_url(
 }
 
 fn registry_blob_upload_url(
-    base: &oci_reqwest::Url,
+    base: &reqwest::Url,
     repository: &str,
-) -> std::result::Result<oci_reqwest::Url, OciDistributionError> {
-    oci_reqwest::Url::parse(&format!(
+) -> std::result::Result<reqwest::Url, OciDistributionError> {
+    reqwest::Url::parse(&format!(
         "{}/v2/{repository}/blobs/uploads/",
         base.as_str().trim_end_matches('/')
     ))
@@ -1127,11 +1120,11 @@ fn registry_blob_upload_url(
 }
 
 fn registry_manifest_url(
-    base: &oci_reqwest::Url,
+    base: &reqwest::Url,
     repository: &str,
     reference: &str,
-) -> std::result::Result<oci_reqwest::Url, OciDistributionError> {
-    oci_reqwest::Url::parse(&format!(
+) -> std::result::Result<reqwest::Url, OciDistributionError> {
+    reqwest::Url::parse(&format!(
         "{}/v2/{repository}/manifests/{reference}",
         base.as_str().trim_end_matches('/')
     ))
@@ -1139,11 +1132,11 @@ fn registry_manifest_url(
 }
 
 fn registry_blob_url(
-    base: &oci_reqwest::Url,
+    base: &reqwest::Url,
     repository: &str,
     digest: &str,
-) -> std::result::Result<oci_reqwest::Url, OciDistributionError> {
-    oci_reqwest::Url::parse(&format!(
+) -> std::result::Result<reqwest::Url, OciDistributionError> {
+    reqwest::Url::parse(&format!(
         "{}/v2/{repository}/blobs/{digest}",
         base.as_str().trim_end_matches('/')
     ))
@@ -1151,23 +1144,23 @@ fn registry_blob_url(
 }
 
 fn resolve_registry_location(
-    base: &oci_reqwest::Url,
+    base: &reqwest::Url,
     location: &str,
-) -> std::result::Result<oci_reqwest::Url, OciDistributionError> {
-    oci_reqwest::Url::parse(location)
+) -> std::result::Result<reqwest::Url, OciDistributionError> {
+    reqwest::Url::parse(location)
         .or_else(|_| base.join(location))
         .map_err(|e| OciDistributionError::UrlParseError(e.to_string()))
 }
 
-fn append_digest_param(location: &oci_reqwest::Url, digest: &str) -> oci_reqwest::Url {
+fn append_digest_param(location: &reqwest::Url, digest: &str) -> reqwest::Url {
     let mut url = location.clone();
     url.query_pairs_mut().append_pair("digest", digest);
     url
 }
 
 fn response_location_or_url(
-    response: &oci_reqwest::Response,
-    fallback: &oci_reqwest::Url,
+    response: &reqwest::Response,
+    fallback: &reqwest::Url,
 ) -> std::result::Result<String, OciDistributionError> {
     response
         .headers()
@@ -1251,17 +1244,17 @@ fn parse_verified_pulled_manifest(expected_digest: &str, bytes: &[u8]) -> Result
 }
 
 async fn ensure_registry_status(
-    response: oci_reqwest::Response,
-    expected: &[oci_reqwest::StatusCode],
+    response: reqwest::Response,
+    expected: &[reqwest::StatusCode],
     url: &str,
-) -> std::result::Result<oci_reqwest::Response, OciDistributionError> {
+) -> std::result::Result<reqwest::Response, OciDistributionError> {
     let status = response.status();
     if expected.contains(&status) {
         return Ok(response);
     }
 
     let message = response.text().await.unwrap_or_default();
-    if status == oci_reqwest::StatusCode::UNAUTHORIZED {
+    if status == reqwest::StatusCode::UNAUTHORIZED {
         return Err(OciDistributionError::UnauthorizedError {
             url: url.to_string(),
         });
@@ -1275,8 +1268,8 @@ async fn ensure_registry_status(
 }
 
 async fn push_blob_with_basic_auth(
-    http: &oci_reqwest::Client,
-    base: &oci_reqwest::Url,
+    http: &reqwest::Client,
+    base: &reqwest::Url,
     repository: &str,
     username: &str,
     password: &str,
@@ -1296,7 +1289,7 @@ async fn push_blob_with_basic_auth(
         .await?;
     let response = ensure_registry_status(
         response,
-        &[oci_reqwest::StatusCode::ACCEPTED],
+        &[reqwest::StatusCode::ACCEPTED],
         upload_url.as_str(),
     )
     .await?;
@@ -1317,7 +1310,7 @@ async fn push_blob_with_basic_auth(
         .await?;
     let response = ensure_registry_status(
         response,
-        &[oci_reqwest::StatusCode::ACCEPTED],
+        &[reqwest::StatusCode::ACCEPTED],
         location.as_str(),
     )
     .await?;
@@ -1339,7 +1332,7 @@ async fn push_blob_with_basic_auth(
         .await?;
     let response = ensure_registry_status(
         response,
-        &[oci_reqwest::StatusCode::CREATED],
+        &[reqwest::StatusCode::CREATED],
         complete_url.as_str(),
     )
     .await?;
@@ -1353,7 +1346,7 @@ fn is_unauthorized_registry_error(error: &OciDistributionError) -> bool {
         | OciDistributionError::ServerError { code: 401, .. } => true,
         OciDistributionError::RequestError(error) => error
             .status()
-            .is_some_and(|status| status == oci_reqwest::StatusCode::UNAUTHORIZED),
+            .is_some_and(|status| status == reqwest::StatusCode::UNAUTHORIZED),
         OciDistributionError::RegistryError { envelope, .. } => envelope
             .errors
             .iter()

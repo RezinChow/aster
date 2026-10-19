@@ -171,7 +171,7 @@ impl tokio::io::AsyncWrite for HashingFileWriter {
 #[derive(Clone, Copy)]
 pub(super) struct BlobPullTransport<'a> {
     pub(super) client: &'a Client,
-    pub(super) http: &'a oci_reqwest::Client,
+    pub(super) http: &'a reqwest::Client,
     pub(super) oci_ref: &'a Reference,
     pub(super) image_ref: &'a ImageReference,
     pub(super) force_basic: bool,

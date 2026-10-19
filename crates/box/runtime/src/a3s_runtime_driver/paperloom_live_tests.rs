@@ -338,7 +338,7 @@ fn use_service_plan(spec: &RuntimeUnitSpec) -> a3s_use::plugin_runtime::RuntimeS
     };
 
     let mut descriptor: serde_json::Value = serde_json::from_slice(include_bytes!(
-        "../../../../../use/fixtures/runtime-v4/tool-service.json"
+        "../../../../use/fixtures/runtime-v4/tool-service.json"
     ))
     .unwrap();
     descriptor["artifact"]["digest"] = json!(spec.artifact.digest);

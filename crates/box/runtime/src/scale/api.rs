@@ -68,7 +68,7 @@ impl ScaleApiState {
 
 pub fn scale_router(authority: SharedScaleAuthority) -> Router {
     Router::new()
-        .route("/v1/scale/:service", get(observe).post(apply))
+        .route("/v1/scale/{service}", get(observe).post(apply))
         .layer(DefaultBodyLimit::max(64 * 1024))
         .with_state(authority)
 }
@@ -88,8 +88,10 @@ pub async fn serve_scale_api(
             state.reconcile_desired_services().await;
         }
     });
-    let result = axum::Server::bind(&address)
-        .serve(scale_router(authority).into_make_service())
+    let listener = tokio::net::TcpListener::bind(address)
+        .await
+        .map_err(std::io::Error::other)?;
+    let result = axum::serve(listener, scale_router(authority).into_make_service())
         .await
         .map_err(std::io::Error::other);
     convergence.abort();

@@ -102,7 +102,7 @@ async fn request_blob(
     transport: &BlobPullTransport<'_>,
     descriptor: &OciDescriptor,
     offset: u64,
-) -> std::result::Result<oci_reqwest::Response, AttemptFailure> {
+) -> std::result::Result<reqwest::Response, AttemptFailure> {
     let base = registry_base_url(transport.protocol, transport.image_ref)
         .map_err(|error| AttemptFailure::fatal(error.to_string(), false))?;
     let url = registry_blob_url(&base, &transport.image_ref.repository, &descriptor.digest)
@@ -141,7 +141,7 @@ async fn request_blob(
         transport.force_basic,
     )
     .await?;
-    if response.status() == oci_reqwest::StatusCode::UNAUTHORIZED
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED
         && !transport.force_basic
         && transport.auth.basic_credentials().is_some()
     {
@@ -155,7 +155,7 @@ async fn request_blob(
     if !response.status().is_success() {
         if let Some(urls) = &descriptor.urls {
             for candidate in urls {
-                let Ok(url) = oci_reqwest::Url::parse(candidate) else {
+                let Ok(url) = reqwest::Url::parse(candidate) else {
                     continue;
                 };
                 if !matches!(url.scheme(), "http" | "https") {
@@ -175,14 +175,14 @@ async fn request_blob(
 
 async fn send_request(
     transport: &BlobPullTransport<'_>,
-    url: oci_reqwest::Url,
+    url: reqwest::Url,
     offset: u64,
     bearer_token: Option<&str>,
     basic: bool,
-) -> std::result::Result<oci_reqwest::Response, AttemptFailure> {
+) -> std::result::Result<reqwest::Response, AttemptFailure> {
     let mut request = transport.http.get(url);
     if offset > 0 {
-        request = request.header(oci_reqwest::header::RANGE, format!("bytes={offset}-"));
+        request = request.header(reqwest::header::RANGE, format!("bytes={offset}-"));
     }
     if let Some(token) = bearer_token {
         request = request.bearer_auth(token);
@@ -203,20 +203,20 @@ async fn send_request(
 }
 
 fn classify_response(
-    response: oci_reqwest::Response,
+    response: reqwest::Response,
     offset: u64,
-) -> std::result::Result<oci_reqwest::Response, AttemptFailure> {
+) -> std::result::Result<reqwest::Response, AttemptFailure> {
     let status = response.status();
-    if status == oci_reqwest::StatusCode::OK || status == oci_reqwest::StatusCode::PARTIAL_CONTENT {
+    if status == reqwest::StatusCode::OK || status == reqwest::StatusCode::PARTIAL_CONTENT {
         return Ok(response);
     }
-    if status == oci_reqwest::StatusCode::RANGE_NOT_SATISFIABLE && offset > 0 {
+    if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && offset > 0 {
         return Err(AttemptFailure::retryable_reset(
             "registry rejected the requested resume offset".to_string(),
         ));
     }
-    let retryable = status == oci_reqwest::StatusCode::REQUEST_TIMEOUT
-        || status == oci_reqwest::StatusCode::TOO_MANY_REQUESTS
+    let retryable = status == reqwest::StatusCode::REQUEST_TIMEOUT
+        || status == reqwest::StatusCode::TOO_MANY_REQUESTS
         || status.is_server_error();
     let message = format!("registry returned HTTP {}", status.as_u16());
     if retryable {
@@ -227,20 +227,20 @@ fn classify_response(
 }
 
 async fn prepare_response(
-    response: &oci_reqwest::Response,
+    response: &reqwest::Response,
     writer: &mut HashingFileWriter,
     requested_offset: u64,
     expected_size: u64,
 ) -> std::result::Result<(), AttemptFailure> {
-    if requested_offset > 0 && response.status() == oci_reqwest::StatusCode::OK {
+    if requested_offset > 0 && response.status() == reqwest::StatusCode::OK {
         writer.reset().await.map_err(|error| {
             AttemptFailure::fatal(format!("failed to restart blob file: {error}"), true)
         })?;
-    } else if response.status() == oci_reqwest::StatusCode::PARTIAL_CONTENT {
+    } else if response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
         validate_content_range(response, requested_offset, expected_size)?;
     }
 
-    if response.status() == oci_reqwest::StatusCode::OK {
+    if response.status() == reqwest::StatusCode::OK {
         if let Some(length) = response.content_length() {
             if length != expected_size {
                 return Err(AttemptFailure::fatal(
@@ -256,13 +256,13 @@ async fn prepare_response(
 }
 
 fn validate_content_range(
-    response: &oci_reqwest::Response,
+    response: &reqwest::Response,
     requested_offset: u64,
     expected_size: u64,
 ) -> std::result::Result<(), AttemptFailure> {
     let value = response
         .headers()
-        .get(oci_reqwest::header::CONTENT_RANGE)
+        .get(reqwest::header::CONTENT_RANGE)
         .ok_or_else(|| {
             AttemptFailure::fatal("206 response omitted Content-Range".to_string(), false)
         })?

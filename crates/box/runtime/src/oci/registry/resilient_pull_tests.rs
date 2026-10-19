@@ -10,6 +10,7 @@ use axum::http::header::{CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE};
 use axum::http::{Method, Request, Response, StatusCode};
 use axum::routing::any;
 use axum::Router;
+use bytes::Bytes;
 use serde_json::json;
 use sha2::Digest as _;
 
@@ -116,15 +117,14 @@ impl ResilientRegistryFixture {
             max_active_layer_requests: Arc::clone(&max_active_layer_requests),
         };
         let app = Router::new()
-            .route("/*path", any(registry_handler))
+            .route("/{*path}", any(registry_handler))
             .with_state(state);
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let address = listener.local_addr().unwrap();
         let task = tokio::spawn(async move {
-            axum::Server::from_tcp(listener)
-                .unwrap()
-                .serve(app.into_make_service())
+            let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+            axum::serve(listener, app.into_make_service())
                 .await
                 .unwrap();
         });
@@ -227,12 +227,15 @@ async fn registry_handler(
         LayerFault::DropFirst { prefix_bytes } if request_number == 1 => {
             let prefix_bytes = prefix_bytes.min(layer.bytes.len());
             let prefix = layer.bytes[..prefix_bytes].to_vec();
-            let (mut sender, body) = Body::channel();
+            let (sender, receiver) =
+                tokio::sync::mpsc::channel::<Result<Bytes, std::convert::Infallible>>(1);
+            let body = Body::from_stream(tokio_stream::wrappers::ReceiverStream::new(receiver));
             tokio::spawn(async move {
-                if sender.send_data(prefix.into()).await.is_ok() {
+                if sender.send(Ok(prefix.into())).await.is_ok() {
                     tokio::time::sleep(Duration::from_millis(50)).await;
                 }
-                sender.abort();
+                // Dropping the sender truncates the stream after the prefix.
+                drop(sender);
             });
             Response::builder()
                 .status(StatusCode::OK)
@@ -289,7 +292,9 @@ fn ranged_response(layer: &BlobFixture, range: Option<&str>) -> Response<Body> {
 }
 
 fn stalled_response(content_length: usize) -> Response<Body> {
-    let (sender, body) = Body::channel();
+    let (sender, receiver) =
+        tokio::sync::mpsc::channel::<Result<Bytes, std::convert::Infallible>>(1);
+    let body = Body::from_stream(tokio_stream::wrappers::ReceiverStream::new(receiver));
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_secs(5)).await;
         drop(sender);

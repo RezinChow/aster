@@ -154,7 +154,7 @@ impl PrivateRegistry {
             requests: Arc::clone(&requests),
         };
         let app = Router::new()
-            .route("/*path", any(registry_handler))
+            .route("/{*path}", any(registry_handler))
             .with_state(state);
         let listener = std::net::TcpListener::bind("127.0.0.1:0")
             .map_err(|error| external("bind private OCI registry", error))?;
@@ -166,11 +166,9 @@ impl PrivateRegistry {
             .map_err(|error| external("inspect private OCI registry listener", error))?
             .to_string();
         let task = tokio::spawn(async move {
-            if let Err(error) = axum::Server::from_tcp(listener)
-                .expect("private registry listener must remain valid")
-                .serve(app.into_make_service())
-                .await
-            {
+            let listener = tokio::net::TcpListener::from_std(listener)
+                .expect("private registry listener must remain valid");
+            if let Err(error) = axum::serve(listener, app.into_make_service()).await {
                 tracing::error!(%error, "Private registry conformance server failed");
             }
         });

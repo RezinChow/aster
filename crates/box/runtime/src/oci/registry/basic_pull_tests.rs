@@ -193,15 +193,14 @@ impl RegistryFixture {
             requests: Arc::clone(&requests),
         };
         let app = Router::new()
-            .route("/*path", any(registry_handler))
+            .route("/{*path}", any(registry_handler))
             .with_state(state);
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let addr = listener.local_addr().unwrap();
         let task = tokio::spawn(async move {
-            axum::Server::from_tcp(listener)
-                .unwrap()
-                .serve(app.into_make_service())
+            let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+            axum::serve(listener, app.into_make_service())
                 .await
                 .unwrap();
         });
@@ -286,9 +285,8 @@ impl RedirectTarget {
         listener.set_nonblocking(true).unwrap();
         let addr = listener.local_addr().unwrap();
         let task = tokio::spawn(async move {
-            axum::Server::from_tcp(listener)
-                .unwrap()
-                .serve(app.into_make_service())
+            let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+            axum::serve(listener, app.into_make_service())
                 .await
                 .unwrap();
         });
