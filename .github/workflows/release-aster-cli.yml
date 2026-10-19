@@ -2,9 +2,16 @@ name: Release aster-cli
 
 on:
   workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Publish archives already uploaded by this run. Leave empty to build them.
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: aster-cli-v0.1.0
@@ -12,6 +19,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ inputs.artifact_run_id == '' }}
     name: ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
@@ -73,6 +81,7 @@ jobs:
   publish:
     name: publish
     needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -81,9 +90,14 @@ jobs:
           pattern: aster-cli-*
           merge-multiple: true
           path: dist
+          run-id: ${{ inputs.artifact_run_id != '' && inputs.artifact_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Publish aster-cli v0.1.0
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+          BUILD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -92,6 +106,11 @@ jobs:
             echo "expected 3 release assets, found ${#files[@]}" >&2
             printf '%s\n' "${files[@]:-}" >&2
             exit 1
+          fi
+          if [[ -n "$ARTIFACT_RUN_ID" ]]; then
+            target="$(gh api "repos/${GH_REPO}/actions/runs/${ARTIFACT_RUN_ID}" --jq .head_sha)"
+          else
+            target="$BUILD_SHA"
           fi
           cat > notes.md <<'EOF'
           aster-cli v0.1.0
@@ -104,6 +123,7 @@ jobs:
             gh release upload aster-cli-v0.1.0 "${files[@]}" --clobber
           else
             gh release create aster-cli-v0.1.0 \
+              --target "$target" \
               --title "aster-cli v0.1.0" \
               --notes-file notes.md \
               "${files[@]}"
