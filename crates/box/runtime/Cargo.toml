@@ -164,8 +164,9 @@ xz2 = "0.1"
 a3s-runtime = { workspace = true }
 
 [dev-dependencies]
+rand-legacy = { package = "rand", version = "0.8" }
 a3s-use = { path = "../../use", default-features = false, features = ["extensions"] }
-rand = { version = "0.8", features = ["std_rng"] }
+rand = { workspace = true }
 bytes = { workspace = true }
 tokio-stream = { workspace = true }
 rcgen = { workspace = true }

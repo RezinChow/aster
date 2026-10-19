@@ -670,7 +670,7 @@ mod tests {
     fn generate_test_p256_key() -> (p256::ecdsa::SigningKey, Vec<u8>, String) {
         use p256::ecdsa::SigningKey;
 
-        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signing_key = SigningKey::random(&mut rand_legacy::thread_rng());
         let verifying_key = signing_key.verifying_key();
         let pub_bytes = verifying_key.to_encoded_point(false).as_bytes().to_vec();
 
@@ -781,7 +781,7 @@ mod tests {
     fn test_verify_ecdsa_p256_valid_signature() {
         use p256::ecdsa::{signature::Signer, SigningKey};
 
-        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signing_key = SigningKey::random(&mut rand_legacy::thread_rng());
         let verifying_key = signing_key.verifying_key();
         let pub_bytes = verifying_key.to_encoded_point(false).as_bytes().to_vec();
 
@@ -796,8 +796,8 @@ mod tests {
     fn test_verify_ecdsa_p256_wrong_key_rejects() {
         use p256::ecdsa::{signature::Signer, SigningKey};
 
-        let signing_key = SigningKey::random(&mut rand::thread_rng());
-        let wrong_key = SigningKey::random(&mut rand::thread_rng());
+        let signing_key = SigningKey::random(&mut rand_legacy::thread_rng());
+        let wrong_key = SigningKey::random(&mut rand_legacy::thread_rng());
         let wrong_pub = wrong_key
             .verifying_key()
             .to_encoded_point(false)
@@ -815,7 +815,7 @@ mod tests {
     fn test_verify_ecdsa_p256_tampered_message_rejects() {
         use p256::ecdsa::{signature::Signer, SigningKey};
 
-        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signing_key = SigningKey::random(&mut rand_legacy::thread_rng());
         let pub_bytes = signing_key
             .verifying_key()
             .to_encoded_point(false)
@@ -833,7 +833,7 @@ mod tests {
     fn test_verify_ecdsa_p256_fixed_size_signature() {
         use p256::ecdsa::{signature::Signer, Signature, SigningKey};
 
-        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signing_key = SigningKey::random(&mut rand_legacy::thread_rng());
         let pub_bytes = signing_key
             .verifying_key()
             .to_encoded_point(false)
@@ -1017,7 +1017,7 @@ mod tests {
         use p256::ecdsa::SigningKey;
         use p256::pkcs8::EncodePrivateKey;
 
-        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signing_key = SigningKey::random(&mut rand_legacy::thread_rng());
         let pkcs8_der = p256::SecretKey::from(signing_key).to_pkcs8_der().unwrap();
         let b64 = base64_encode(pkcs8_der.as_bytes());
         format!(
@@ -1108,7 +1108,7 @@ mod tests {
     #[test]
     fn test_parse_pem_private_key_sec1() {
         // Generate a P-256 key and export as SEC1 PEM
-        let signing_key = p256::ecdsa::SigningKey::random(&mut rand::thread_rng());
+        let signing_key = p256::ecdsa::SigningKey::random(&mut rand_legacy::thread_rng());
         let secret_key = signing_key.as_nonzero_scalar();
         let _sec1_der = secret_key.to_bytes();
 
@@ -1153,7 +1153,7 @@ mod tests {
         use p256::ecdsa::{signature::Signer, SigningKey};
 
         // Generate key pair
-        let signing_key = SigningKey::random(&mut rand::thread_rng());
+        let signing_key = SigningKey::random(&mut rand_legacy::thread_rng());
         let pub_bytes = signing_key
             .verifying_key()
             .to_encoded_point(false)
