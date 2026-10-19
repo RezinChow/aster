@@ -37,6 +37,82 @@ then
   echo "error: install entry fetches or names an upstream CLI asset" >&2
   exit 1
 fi
+grep -q 'https://github.com/aster-ai-lab/aster.git' "$install"
+grep -q 'https://github.com/aster-ai-lab/aster.git' "$ps1"
+grep -q 'https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh' "$install"
+grep -q 'https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1' "$ps1"
+readme="${repo_root}/README.md"
+grep -q 'https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh' "$readme"
+grep -q 'https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1' "$readme"
+
+probe="$(mktemp -d "${TMPDIR:-/var/folders}/aster-install-bootstrap.XXXXXX")"
+cleanup_probe() {
+  rm -rf "$probe"
+}
+trap cleanup_probe EXIT
+mkdir -p "$probe/bin" "$probe/home"
+cat >"$probe/bin/git" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "${GIT_LOG:?}"
+exit 1
+EOF
+cat >"$probe/bin/cargo" <<'EOF'
+#!/bin/sh
+printf '%s\n' "cargo $*" >> "${GIT_LOG:?}"
+exit 1
+EOF
+chmod 755 "$probe/bin/git" "$probe/bin/cargo"
+cp "$install" "$probe/install-aster.sh"
+: >"$probe/git.log"
+set +e
+GIT_LOG="$probe/git.log" PATH="$probe/bin:/usr/bin:/bin" HOME="$probe/home" \
+  ASTER_REPO="$probe/repo" \
+  bash "$probe/install-aster.sh" --prefix "$probe/prefix" \
+  >"$probe/outside.out" 2>"$probe/outside.err"
+outside_code=$?
+set -e
+if [[ "$outside_code" -eq 0 ]]; then
+  echo "error: checkout bootstrap continued without git" >&2
+  exit 1
+fi
+if [[ -e "$probe/prefix" ]]; then
+  echo "error: bootstrap created a prefix" >&2
+  exit 1
+fi
+if ! grep -q 'clone --depth 1 --branch main https://github.com/aster-ai-lab/aster.git' "$probe/git.log"; then
+  echo "error: bootstrap did not clone https://github.com/aster-ai-lab/aster.git" >&2
+  exit 1
+fi
+if grep -q '^cargo ' "$probe/git.log"; then
+  echo "error: bootstrap built before the checkout existed" >&2
+  exit 1
+fi
+: >"$probe/git.log"
+set +e
+GIT_LOG="$probe/git.log" PATH="$probe/bin:/usr/bin:/bin" HOME="$probe/home" \
+  ASTER_INSTALL_COMMIT=pinned \
+  bash "$install" --prefix "$probe/in-prefix" \
+  >"$probe/inside.out" 2>"$probe/inside.err"
+inside_code=$?
+set -e
+if [[ "$inside_code" -eq 0 ]]; then
+  echo "error: in-repo install continued after the locked build failed" >&2
+  exit 1
+fi
+if grep -q 'clone --depth 1' "$probe/git.log"; then
+  echo "error: in-repo install tried to clone" >&2
+  exit 1
+fi
+if ! grep -q 'cargo build --locked --release' "$probe/git.log"; then
+  echo "error: in-repo install did not reach the locked build" >&2
+  exit 1
+fi
+if [[ -e "$probe/in-prefix" ]]; then
+  echo "error: failed in-repo build created a prefix" >&2
+  exit 1
+fi
+rm -rf "$probe"
+trap - EXIT
 
 export ASTER_INSTALL_COMMIT="$(git -C "$repo_root" rev-parse HEAD)"
 

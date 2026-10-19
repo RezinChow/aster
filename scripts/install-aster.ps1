@@ -1,6 +1,9 @@
-# Windows branch of ./scripts/install-aster.sh
-# Direct command, from this repository:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-aster.ps1 -Prefix DIR
+# Windows branch of scripts/install-aster.sh
+# Script address:
+#   https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1
+# When this file is not already inside a checkout, it clones
+#   https://github.com/aster-ai-lab/aster.git
+# into %USERPROFILE%\src\aster (or $env:ASTER_REPO) and runs that copy.
 # Builds the locked release of aster and a3s-code-acp, then copies both
 # into one directory. Does not download a CLI binary. Does not enable auto-update.
 param(
@@ -17,7 +20,7 @@ function Refuse-Download([string]$Value) {
 }
 
 if ($env:OS -ne "Windows_NT") {
-    Write-Error "This branch is for Windows. On macOS and Linux run ./scripts/install-aster.sh"
+    Write-Error "This branch is for Windows. On macOS and Linux run https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh"
     exit 1
 }
 if ($env:ASTER_INSTALL_URL -or $env:GROK_INSTALL_URL) {
@@ -29,7 +32,48 @@ foreach ($arg in $args) {
     Refuse-Download ([string]$arg)
 }
 
-$repo = Split-Path -Parent $PSScriptRoot
+$insideRepo = $false
+if ($PSScriptRoot) {
+    $candidate = Split-Path -Parent $PSScriptRoot
+    if (Test-Path -LiteralPath (Join-Path $candidate "Cargo.toml")) {
+        $insideRepo = $true
+        $repo = $candidate
+    }
+}
+if (-not $insideRepo) {
+    if ($env:ASTER_REPO) {
+        $dest = $env:ASTER_REPO
+    } elseif ($env:USERPROFILE) {
+        $dest = Join-Path $env:USERPROFILE "src\aster"
+    } else {
+        Write-Error "USERPROFILE is unset; set ASTER_REPO to the checkout path"
+        exit 1
+    }
+    $gitDir = Join-Path $dest ".git"
+    if ((Test-Path -LiteralPath $dest) -and -not (Test-Path -LiteralPath $gitDir)) {
+        Write-Error "$dest exists and is not an Aster checkout"
+        exit 1
+    }
+    if (-not (Test-Path -LiteralPath $gitDir)) {
+        $parent = Split-Path -Parent $dest
+        if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+        & git clone --depth 1 --branch main "https://github.com/aster-ai-lab/aster.git" $dest
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } else {
+        & git -C $dest pull --ff-only
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    $local = Join-Path $dest "scripts\install-aster.ps1"
+    $invoke = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $local)
+    if ($Prefix) { $invoke += @("-Prefix", $Prefix) }
+    if (Get-Command powershell.exe -ErrorAction SilentlyContinue) {
+        & powershell.exe @invoke
+    } else {
+        & pwsh @invoke
+    }
+    exit $LASTEXITCODE
+}
+
 if (-not $Prefix) {
     if ($env:LOCALAPPDATA) {
         $Prefix = Join-Path $env:LOCALAPPDATA "Aster\bin"

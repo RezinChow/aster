@@ -108,32 +108,35 @@ aster
 安装要解决的是：在本机得到同一目录里的 `aster` 和 `a3s-code-acp`，并且之后能从终端启动。
 `aster` 默认启动旁边的 `a3s-code-acp`。需要别的路径时，设置 `A3S_ACP_AGENT_BIN`。
 
-三个系统都在**仓库根目录**执行，并使用[快速开始](#快速开始)里的 Rust 工具链。
-安装命令运行 `cargo build --locked --release`，再把这两个程序复制到目标目录。
-它不下载上游 CLI，也不打开自动更新。安装程序不修改 shell 配置，因此还要把目标目录放进 `PATH`。
+下面每条安装命令都写全脚本地址，在任意目录执行。
+脚本把 `https://github.com/aster-ai-lab/aster.git` 克隆到固定位置，运行 `cargo build --locked --release`，再把这两个程序复制到目标目录。
+macOS 和 Linux 的仓库在 `$HOME/src/aster`。Windows 的仓库在 `%USERPROFILE%\src\aster`。
+这个目录已经是该仓库时，同一条命令只快进仓库，再安装到原来的目录。
+它不下载上游 CLI，也不打开自动更新。执行前需要[快速开始](#快速开始)里的 Rust 工具链，并且本机有 `git`。
+安装程序不修改 shell 配置，因此还要把目标目录放进 `PATH`。
 
 `just code` 只在仓库里启动调试构建，不把程序复制到系统目录。
 
-更新就是在拉下新提交后，对安装时的**同一个目录**再执行一次安装命令。
+更新就是再执行一次同一条安装命令。
 `aster update` 发现这是源码构建后会退出，不会替换已安装的文件。
 `aster update --check --json` 只打印状态：`updateAvailable` 为 false，文件长度不变。
 
-卸载只删除这两个程序。`~/.a3s`、`~/.grok`、仓库和 `target/` 都保留。
+卸载只删除这两个程序。`~/.a3s`、`~/.grok`、克隆下来的仓库和 `target/` 都保留。
 装到自定义目录时，更新和卸载都针对那个目录里的同名文件。
 
-| 系统 | 默认目录 | 程序名 |
-| --- | --- | --- |
-| macOS、Linux | `$HOME/.local/bin` | `aster`、`a3s-code-acp` |
-| Windows | `%LOCALAPPDATA%\Aster\bin` | `aster.exe`、`a3s-code-acp.exe` |
+| 系统 | 脚本地址 | 默认目录 | 程序名 |
+| --- | --- | --- | --- |
+| macOS、Linux | https://github.com/aster-ai-lab/aster/blob/main/scripts/install-aster.sh | `$HOME/.local/bin` | `aster`、`a3s-code-acp` |
+| Windows | https://github.com/aster-ai-lab/aster/blob/main/scripts/install-aster.ps1 | `%LOCALAPPDATA%\Aster\bin` | `aster.exe`、`a3s-code-acp.exe` |
 
 安装后的程序与仓库里的发布构建相同。macOS 上原生 Shell 工具仍会被拒绝，见[快速开始](#快速开始)中的限制。
 
 ### macOS 和 Linux
 
-安装。省略 `--prefix` 时目录也是 `$HOME/.local/bin`。
+安装。命令取用的 raw 地址就是上表那个脚本。省略参数时目录是 `$HOME/.local/bin`。
 
 ```sh
-./scripts/install-aster.sh --prefix "$HOME/.local/bin"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh)"
 export PATH="$HOME/.local/bin:$PATH"
 aster version --json
 a3s-code-acp --version
@@ -141,13 +144,18 @@ a3s-code-acp --version
 
 `export` 只作用于当前终端。要长期生效，把同一行写入 shell 的启动文件。
 `aster version --json` 里的 `product` 是 `Aster`，`currentVersion` 以 `0.1.0` 开头。
-括号中的修订号是这次安装**开始时**的提交。`a3s-code-acp --version` 打印 ACP 的包版本。
+括号中的修订号是这次安装开始时的提交。`a3s-code-acp --version` 打印 ACP 的包版本。
+
+仓库已经在 `$HOME/src/aster`、并且要换目录时，执行这个绝对路径：
+
+```sh
+"$HOME/src/aster/scripts/install-aster.sh" --prefix "$HOME/.local/bin"
+```
 
 更新：
 
 ```sh
-git pull
-./scripts/install-aster.sh --prefix "$HOME/.local/bin"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh)"
 aster version --json
 ```
 
@@ -159,22 +167,29 @@ rm -f "$HOME/.local/bin/aster" "$HOME/.local/bin/a3s-code-acp"
 
 ### Windows
 
-在 PowerShell 中安装。省略 `-Prefix` 时目录是 `%LOCALAPPDATA%\Aster\bin`。
+在 PowerShell 中安装。第一条命令把脚本存到临时文件，第二条执行它。省略 `-Prefix` 时目录是 `%LOCALAPPDATA%\Aster\bin`。
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-aster.ps1
+irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1" -OutFile "$env:TEMP\install-aster.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install-aster.ps1"
 $env:Path = "$env:LOCALAPPDATA\Aster\bin;" + $env:Path
 aster version --json
 a3s-code-acp --version
 ```
 
-上面的 `Path` 赋值只作用于当前窗口。Git Bash 中可以执行 `./scripts/install-aster.sh`，它会转去同一个 PowerShell 脚本。
+上面的 `Path` 赋值只作用于当前窗口。Git Bash 使用 macOS 和 Linux 的同一条命令，它会转去这个 PowerShell 脚本。
+
+仓库已经在 `%USERPROFILE%\src\aster`、并且要换目录时，执行这个绝对路径：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\src\aster\scripts\install-aster.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
+```
 
 更新：
 
 ```powershell
-git pull
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-aster.ps1
+irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1" -OutFile "$env:TEMP\install-aster.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install-aster.ps1"
 aster version --json
 ```
 
