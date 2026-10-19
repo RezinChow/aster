@@ -122,6 +122,8 @@ pub struct AcpConnection {
     pub session_recap_available: bool,
     /// Shell-side feedback trace-offer eligibility (see `feedbackTraceOffer`).
     pub feedback_trace_offer: bool,
+    /// This launch created `~/.a3s/config.acl`. Open the model config page.
+    pub open_model_config: bool,
     /// `AuthManager` for pager-side authenticated channels (voice STT and TTS).
     /// In-process mode shares the agent's instance (single token cache); leader mode builds a dedicated one off the same local `auth.json`.
     /// Either way it resolves a fresh bearer per request via the refresh chain.
@@ -294,6 +296,7 @@ pub(in crate::acp) async fn initialize_connection(
         cancel_rewind_enabled: agent.cancel_rewind_enabled,
         session_recap_available: agent.session_recap_available,
         feedback_trace_offer: agent.feedback_trace_offer,
+        open_model_config: agent.open_model_config,
         auth_manager,
     })
 }
@@ -502,6 +505,7 @@ pub(crate) struct InitializedAgent {
     pub(crate) cancel_rewind_enabled: bool,
     pub(crate) session_recap_available: bool,
     pub(crate) feedback_trace_offer: bool,
+    pub(crate) open_model_config: bool,
 }
 /// Send InitializeRequest and parse the response.
 async fn initialize(tx: &AcpAgentTx, flags: &ConnectFlags) -> Result<InitializedAgent> {
@@ -551,6 +555,7 @@ async fn initialize(tx: &AcpAgentTx, flags: &ConnectFlags) -> Result<Initialized
         .unwrap_or(true);
     let session_recap_available = parse_session_recap_available(resp.meta.as_ref());
     let feedback_trace_offer = parse_feedback_trace_offer(resp.meta.as_ref());
+    let open_model_config = parse_open_model_config(resp.meta.as_ref());
     let default_auth_method_id = parse_default_auth_method_id(resp.meta.as_ref());
     Ok(InitializedAgent {
         models,
@@ -562,6 +567,7 @@ async fn initialize(tx: &AcpAgentTx, flags: &ConnectFlags) -> Result<Initialized
         cancel_rewind_enabled,
         session_recap_available,
         feedback_trace_offer,
+        open_model_config,
     })
 }
 /// Parse `a3sCode` from `InitializeResponse.meta`.
@@ -594,9 +600,28 @@ pub fn parse_feedback_trace_offer(meta: Option<&acp::Meta>) -> bool {
         .unwrap_or(false)
 }
 
+/// Parse `openModelConfig` from `InitializeResponse.meta`.
+///
+/// Set only when this agent process created `~/.a3s/config.acl`.
+pub fn parse_open_model_config(meta: Option<&acp::Meta>) -> bool {
+    meta.and_then(|m| m.get("openModelConfig"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod a3s_code_meta_tests {
     use super::*;
+
+    #[test]
+    fn parse_open_model_config_is_only_an_explicit_true() {
+        assert!(!parse_open_model_config(None));
+        let mut meta = acp::Meta::new();
+        meta.insert("openModelConfig".into(), serde_json::json!(false));
+        assert!(!parse_open_model_config(Some(&meta)));
+        meta.insert("openModelConfig".into(), serde_json::json!(true));
+        assert!(parse_open_model_config(Some(&meta)));
+    }
 
     #[test]
     fn parse_a3s_code_defaults_false() {

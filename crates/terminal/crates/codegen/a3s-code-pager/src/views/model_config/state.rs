@@ -69,6 +69,36 @@ impl ModelConfigState {
         Self::from_draft(ConfigDraft::load_default())
     }
 
+    /// First-run page: show the default provider's key so it can be replaced.
+    pub(crate) fn load_for_first_run() -> Self {
+        let mut state = Self::load_default();
+        state.focus_setup_key();
+        state
+    }
+
+    fn focus_setup_key(&mut self) {
+        let provider = self
+            .draft
+            .default_model
+            .split_once('/')
+            .map(|(provider, _)| provider);
+        if let Some(provider) = provider
+            && let Some(index) = self
+                .draft
+                .providers
+                .iter()
+                .position(|item| item.id == provider)
+        {
+            self.provider_index = index;
+        }
+        if self.selected_provider().is_some() {
+            self.focus = Focus::Detail;
+            self.focus_field(DetailField::ApiKey);
+            self.reveal_key = true;
+            self.status = "Replace the API key, then save.".to_string();
+        }
+    }
+
     pub(crate) fn from_draft(draft: ConfigDraft) -> Self {
         let status = if let Some(error) = &draft.load_error {
             format!("Could not read config: {error}")

@@ -545,6 +545,8 @@ pub struct A3sCodeAgent {
     /// What the untrusted workspace layer was refused or left pending.
     workspace_admission: a3s_code_core::config::WorkspaceLayerAdmission,
     client_reads_files: std::cell::Cell<bool>,
+    /// This process created `~/.a3s/config.acl`. The pager opens `/config`.
+    first_run_config: bool,
 }
 
 fn model_picker_label(provider_name: &str, display_name: &str) -> String {
@@ -597,7 +599,14 @@ impl A3sCodeAgent {
             unattended: None,
             workspace_admission: Default::default(),
             client_reads_files: std::cell::Cell::new(false),
+            first_run_config: false,
         }
+    }
+
+    /// The pager should open the model config page for this launch.
+    pub fn with_first_run_config(mut self) -> Self {
+        self.first_run_config = true;
+        self
     }
 
     /// Report the launch's workspace-layer admission to the client.
@@ -912,6 +921,7 @@ impl acp::Agent for A3sCodeAgent {
                     "sessionRecap": false,
                     "feedbackTraceOffer": false,
                     "a3s": self.workspace_admission_meta(),
+                    "openModelConfig": self.first_run_config,
                 })
                 .as_object()
                 .cloned(),
@@ -1258,6 +1268,11 @@ impl acp::Agent for A3sCodeAgent {
         let prompt = Self::prompt_text(&args.prompt);
         if prompt.trim().is_empty() {
             return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
+        }
+        if self.model_id.lock().await.trim().is_empty() {
+            return Err(acp::Error::invalid_params().data(
+                "no model is configured; open /config and save ~/.a3s/config.acl, then start aster again",
+            ));
         }
         // Queue behind an active turn instead of failing: the pager's
         // send-now / queue-reissue expect the agent to accept and serialize.

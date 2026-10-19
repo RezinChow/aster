@@ -275,11 +275,27 @@ async fn run() -> Result<()> {
     if let Some(model) = args.model {
         std::env::set_var("A3S_DEFAULT_MODEL", model);
     }
+    let created_user_acl = if args.config.is_none() && args.unattended.is_none() {
+        match a3s_code_acp::ensure_user_acl() {
+            Ok(created) => created,
+            Err(error) => {
+                return startup_error::report(error.context("create ~/.a3s/config.acl")).await;
+            }
+        }
+    } else {
+        false
+    };
     let (mut launch, admission) =
         match load_launch_config_with_imports(args.cwd, args.config, &args.import_accounts) {
             Ok(launch) => launch,
             Err(error) => return startup_error::report(error.context("load A3S ACL")).await,
         };
+    if launch.model_id.is_empty() && args.unattended.is_some() {
+        return startup_error::report(anyhow::anyhow!(
+            "A3S ACL configuration was not found; pass --config or create ~/.a3s/config.acl"
+        ))
+        .await;
+    }
     if args.plugin_store.is_some() || args.studio_documents {
         launch.workspace =
             std::path::absolute(&launch.workspace).context("bind native workspace")?;
@@ -295,6 +311,9 @@ async fn run() -> Result<()> {
     }
     let workspace = launch.workspace.clone();
     let mut agent = A3sCodeAgent::new(launch).with_workspace_admission(admission);
+    if created_user_acl {
+        agent = agent.with_first_run_config();
+    }
     if let Some(unattended) = args.unattended {
         let root = a3s_code_acp::unattended::install_state_root()?;
         tracing::info!(state_root = %root.display(), "unattended launch");

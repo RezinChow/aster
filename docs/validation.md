@@ -60,7 +60,7 @@ python3 tests/e2e/startup.py
 python3 tests/just_work.py
 ```
 
-`just code --version` builds both default members and reports Aster 0.1.0.
+`just code --version` builds both default members and reports Aster 0.1.1.
 `just work` was also used to launch the existing compiled Work bundle;
 Work now builds from this same workspace; its frontend remains a local pnpm workspace.
 

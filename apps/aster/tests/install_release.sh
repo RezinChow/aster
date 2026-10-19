@@ -10,7 +10,7 @@ package="${repo_root}/scripts/package-aster-cli.sh"
 workflow="${repo_root}/.github/workflows/release-aster-cli.yml"
 readme="${repo_root}/README.md"
 evidence="${1:-${ASTER_INSTALL_EVIDENCE:-}}"
-release_base="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0"
+release_base="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1"
 
 pkg_version="$(
   awk -F'"' '/^version = / { print $2; exit }' "${repo_root}/apps/aster/Cargo.toml"
@@ -18,8 +18,8 @@ pkg_version="$(
 acp_version="$(
   awk -F'"' '/^version = / { print $2; exit }' "${repo_root}/crates/code/acp/Cargo.toml"
 )"
-if [[ "$pkg_version" != "0.1.0" ]]; then
-  echo "error: apps/aster version is ${pkg_version}, want 0.1.0" >&2
+if [[ "$pkg_version" != "0.1.1" ]]; then
+  echo "error: apps/aster version is ${pkg_version}, want 0.1.1" >&2
   exit 1
 fi
 if [[ -z "$acp_version" ]]; then
@@ -34,26 +34,26 @@ if grep -E 'https://x\.ai/cli|git clone|cargo build' "$install" "$ps1"; then
   echo "error: install entry clones, compiles, or fetches an upstream CLI" >&2
   exit 1
 fi
-grep -q "${release_base}/aster-cli-v0.1.0-macos.tar.gz" "$install"
-grep -q "${release_base}/aster-cli-v0.1.0-linux.tar.gz" "$install"
-grep -q "${release_base}/aster-cli-v0.1.0-windows.zip" "$install" "$ps1"
+grep -q "${release_base}/aster-cli-v0.1.1-macos.tar.gz" "$install"
+grep -q "${release_base}/aster-cli-v0.1.1-linux.tar.gz" "$install"
+grep -q "${release_base}/aster-cli-v0.1.1-windows.zip" "$install" "$ps1"
 grep -q 'macos-latest' "$workflow"
 grep -q 'ubuntu-latest' "$workflow"
 grep -q 'windows-latest' "$workflow"
 grep -q 'contents: write' "$workflow"
 grep -q 'cargo build --locked --release -p aster -p a3s-code-acp' "$workflow"
-grep -q 'aster-cli-v0.1.0-macos.tar.gz' "$workflow"
-grep -q 'aster-cli-v0.1.0-linux.tar.gz' "$workflow"
-grep -q 'aster-cli-v0.1.0-windows.zip' "$workflow"
+grep -q 'aster-cli-v0.1.1-macos.tar.gz' "$workflow"
+grep -q 'aster-cli-v0.1.1-linux.tar.gz' "$workflow"
+grep -q 'aster-cli-v0.1.1-windows.zip' "$workflow"
 
 section="$(awk '/^## 安装、更新和卸载$/{flag=1} flag{print} /^## 理解 Meta Harness$/{flag=0}' "$readme")"
 if grep -E 'git clone|cargo build' <<<"$section"; then
   echo "error: README install section clones or compiles" >&2
   exit 1
 fi
-grep -q "${release_base}/aster-cli-v0.1.0-macos.tar.gz" <<<"$section"
-grep -q "${release_base}/aster-cli-v0.1.0-linux.tar.gz" <<<"$section"
-grep -q "${release_base}/aster-cli-v0.1.0-windows.zip" <<<"$section"
+grep -q "${release_base}/aster-cli-v0.1.1-macos.tar.gz" <<<"$section"
+grep -q "${release_base}/aster-cli-v0.1.1-linux.tar.gz" <<<"$section"
+grep -q "${release_base}/aster-cli-v0.1.1-windows.zip" <<<"$section"
 grep -q 'scripts/install.sh' <<<"$section"
 grep -q 'scripts/install.ps1' <<<"$section"
 
@@ -117,12 +117,12 @@ printf 'linux-acp' >"$work/linux-bin/a3s-code-acp"
 printf 'win-aster' >"$work/windows-bin/aster.exe"
 printf 'win-acp' >"$work/windows-bin/a3s-code-acp.exe"
 
-"$package" macos "$work/macos-bin" "$work/dist/aster-cli-v0.1.0-macos.tar.gz"
-"$package" linux "$work/linux-bin" "$work/dist/aster-cli-v0.1.0-linux.tar.gz"
-"$package" windows "$work/windows-bin" "$work/dist/aster-cli-v0.1.0-windows.zip"
-tar -tzf "$work/dist/aster-cli-v0.1.0-macos.tar.gz" | sort >"$work/macos-members.txt"
-tar -tzf "$work/dist/aster-cli-v0.1.0-linux.tar.gz" | sort >"$work/linux-members.txt"
-python3 - "$work/dist/aster-cli-v0.1.0-windows.zip" >"$work/windows-members.txt" <<'PY'
+"$package" macos "$work/macos-bin" "$work/dist/aster-cli-v0.1.1-macos.tar.gz"
+"$package" linux "$work/linux-bin" "$work/dist/aster-cli-v0.1.1-linux.tar.gz"
+"$package" windows "$work/windows-bin" "$work/dist/aster-cli-v0.1.1-windows.zip"
+tar -tzf "$work/dist/aster-cli-v0.1.1-macos.tar.gz" | sort >"$work/macos-members.txt"
+tar -tzf "$work/dist/aster-cli-v0.1.1-linux.tar.gz" | sort >"$work/linux-members.txt"
+python3 - "$work/dist/aster-cli-v0.1.1-windows.zip" >"$work/windows-members.txt" <<'PY'
 import sys, zipfile
 print("\n".join(sorted(zipfile.ZipFile(sys.argv[1]).namelist())))
 PY
@@ -184,7 +184,7 @@ if [[ -s "$work/tool.log" ]]; then
 fi
 [[ -x "${prefix_a}/aster" ]]
 [[ -x "${prefix_a}/a3s-code-acp" ]]
-grep -q 'asset=.*/aster-cli-v0.1.0-macos.tar.gz' "$work/prefix-a-run1.out"
+grep -q 'asset=.*/aster-cli-v0.1.1-macos.tar.gz' "$work/prefix-a-run1.out"
 if grep -E 'Cloning|Compiling' "$work/prefix-a-run1.out" "$work/prefix-a-run1.err"; then
   echo "error: install cloned or compiled" >&2
   exit 1

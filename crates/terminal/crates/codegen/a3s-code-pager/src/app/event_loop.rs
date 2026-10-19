@@ -1048,6 +1048,7 @@ pub(crate) async fn run(
     mut writer_event_rx: tokio::sync::mpsc::UnboundedReceiver<WriterEvent>,
     reader_thread: &mut ReaderThread,
 ) -> anyhow::Result<RunResult> {
+    let open_model_config = connection.open_model_config;
     crate::unified_log::init(connection.tx.clone());
     crate::unified_log::info("pager started", None, None);
     a3s_code_telemetry::startup::enter(a3s_code_telemetry::startup::StartupPhase::AppInit);
@@ -1844,6 +1845,22 @@ pub(crate) async fn run(
             return Ok(finish_run(&mut app));
         }
         presenter.request_presentation(&mut app, terminal, false);
+    }
+    if open_model_config {
+        if app.session_startup_allowed() {
+            let effs = dispatch::dispatch(
+                Action::OpenModelConfig(Box::new(
+                    crate::views::model_config::ModelConfigState::load_for_first_run(),
+                )),
+                &mut app,
+            );
+            if process_effects(effs, &mut tasks, &mut app, &progress_tx) {
+                return Ok(finish_run(&mut app));
+            }
+            presenter.request_presentation(&mut app, terminal, false);
+        } else {
+            app.deferred_startup.open_model_config = true;
+        }
     }
     if let Some(effect) = app.begin_foreign_resume_detection()
         && process_effects(vec![effect], &mut tasks, &mut app, &progress_tx)

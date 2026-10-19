@@ -1,16 +1,16 @@
-# Install aster-cli v0.1.0 on Windows from this repository's GitHub Release.
+# Install aster-cli v0.1.1 on Windows from this repository's GitHub Release.
 # One command:
 #   irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.ps1" -OutFile "$env:TEMP\install.ps1"
 #   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
-# Downloads aster-cli-v0.1.0-windows.zip, which contains aster.exe and a3s-code-acp.exe.
+# Downloads aster-cli-v0.1.1-windows.zip, which contains aster.exe and a3s-code-acp.exe.
 # Does not clone this repository and does not compile.
 param(
     [string]$Prefix = ""
 )
 
 $ErrorActionPreference = "Stop"
-$OfficialBase = "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0"
-$AssetName = "aster-cli-v0.1.0-windows.zip"
+$OfficialBase = "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1"
+$AssetName = "aster-cli-v0.1.1-windows.zip"
 $OfficialAsset = "$OfficialBase/$AssetName"
 
 function Refuse-Download {
@@ -62,7 +62,7 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 try {
     $archive = Join-Path $work $AssetName
     Write-Output "platform=windows"
-    Write-Output "release=aster-cli-v0.1.0"
+    Write-Output "release=aster-cli-v0.1.1"
     Write-Output "asset=$assetUrl"
     if ($localAsset) {
         Copy-Item -LiteralPath $localAsset -Destination $archive -Force
@@ -82,7 +82,7 @@ try {
     $destAcp = Join-Path $Prefix "a3s-code-acp.exe"
     Copy-Item -LiteralPath $srcAster -Destination $destAster -Force
     Copy-Item -LiteralPath $srcAcp -Destination $destAcp -Force
-    Write-Output "installed Aster v0.1.0 into $Prefix"
+    Write-Output "installed Aster v0.1.1 into $Prefix"
     Write-Output "aster=$destAster"
     Write-Output "a3s-code-acp=$destAcp"
 } finally {

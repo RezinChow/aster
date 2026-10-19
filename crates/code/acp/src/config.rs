@@ -89,6 +89,10 @@ pub fn load_launch_config_with_imports(
             let mut empty = CodeConfig::default();
             if merge_account_imports(&mut empty, requested) {
                 empty
+            } else if explicit_config.is_none() && is_missing_acl(&error) {
+                // A new install has no trusted file. The terminal can open
+                // and write ~/.a3s/config.acl from /config. Do not create it here.
+                empty
             } else {
                 return Err(error);
             }
@@ -103,21 +107,32 @@ pub fn load_launch_config_with_imports(
     let model_id = config
         .default_model
         .clone()
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| {
-            if let Some(orphan) = withheld_orphan {
-                return anyhow!(
-                    "default_model {orphan} is not declared by the merged providers; \
-                     workspace providers are untrusted and must be declared in a trusted ACL"
-                );
-            }
-            anyhow!(
-                "default_model must be set in provider/model format \
-                 (configure ~/.a3s/config.acl, or opt into a local account with \
-                 `import_accounts = [\"cursor\"]` there or `--import-accounts cursor`; \
-                 sources: cc-switch, grok, cursor)"
-            )
-        })?;
+        .filter(|value| !value.trim().is_empty());
+    let Some(model_id) = model_id else {
+        if let Some(orphan) = withheld_orphan {
+            return Err(anyhow!(
+                "default_model {orphan} is not declared by the merged providers; \
+                 workspace providers are untrusted and must be declared in a trusted ACL"
+            ));
+        }
+        if explicit_config.is_none() && config.providers.is_empty() {
+            tracing::info!("no trusted ACL file; starting without a model");
+            return Ok((
+                LaunchConfig {
+                    workspace,
+                    model_id: String::new(),
+                    config,
+                },
+                admission,
+            ));
+        }
+        return Err(anyhow!(
+            "default_model must be set in provider/model format \
+             (configure ~/.a3s/config.acl, or opt into a local account with \
+             `import_accounts = [\"cursor\"]` there or `--import-accounts cursor`; \
+             sources: cc-switch, grok, cursor)"
+        ));
+    };
     if !model_id.contains('/') {
         return Err(anyhow!(
             "default_model must use the provider/model format (got {model_id})"
@@ -287,6 +302,82 @@ fn admit_workspace_layer(
         );
     }
     Ok(admission)
+}
+
+const FIRST_RUN_ACL: &str = "\
+# 首次启动生成。把 api_key 换成你的密钥，然后保存。
+# 默认模型是 deepseek/deepseek-flash。只用智谱时，把 default_model 改成 zhipu/glm-5.3。
+# 智谱编码套餐把 base_url 改成 https://open.bigmodel.cn/api/coding/paas/v4
+default_model = \"deepseek/deepseek-flash\"
+
+providers \"zhipu\" {
+  base_url = \"https://open.bigmodel.cn/api/paas/v4\"
+  api_key = \"替换为你的密钥\"
+  models \"glm-5.3\" { name = \"GLM-5.3\" }
+  models \"glm-5.3-flash\" { name = \"GLM-5.3-Flash\" }
+}
+
+providers \"deepseek\" {
+  base_url = \"https://api.deepseek.com\"
+  api_key = \"替换为你的密钥\"
+  models \"deepseek-flash\" { name = \"DeepSeek Flash\" }
+  models \"deepseek-v4-pro\" { name = \"DeepSeek V4 Pro\" }
+}
+";
+
+/// Create `~/.a3s/config.acl` when the user has none.
+///
+/// Returns whether this call wrote the file. An existing file is left unchanged.
+/// The models are the current GLM and DeepSeek ids; the key is a placeholder.
+pub fn ensure_user_acl() -> Result<bool> {
+    let Some(home) = std::env::var_os("HOME").filter(|value| !value.is_empty()) else {
+        return Ok(false);
+    };
+    let path = PathBuf::from(home).join(".a3s").join("config.acl");
+    if path.is_file() {
+        return Ok(false);
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        // umask can still widen this; the exact mode is set after the write.
+        options.mode(0o600);
+    }
+    let mut file = match options.open(&path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
+        Err(error) => {
+            return Err(error).with_context(|| format!("create {}", path.display()));
+        }
+    };
+    if let Err(error) = std::io::Write::write_all(&mut file, FIRST_RUN_ACL.as_bytes()) {
+        drop(file);
+        let _ = std::fs::remove_file(&path);
+        return Err(error).with_context(|| format!("write {}", path.display()));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(error) = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+        {
+            drop(file);
+            let _ = std::fs::remove_file(&path);
+            return Err(error).with_context(|| format!("restrict {}", path.display()));
+        }
+    }
+    tracing::info!(path = %path.display(), "created the first-run ACL");
+    Ok(true)
+}
+
+fn is_missing_acl(error: &anyhow::Error) -> bool {
+    error
+        .to_string()
+        .contains("A3S ACL configuration was not found")
 }
 
 fn layer_sources(workspace: &Path, explicit: Option<&Path>) -> Result<Vec<LayerSource>> {
@@ -648,19 +739,64 @@ providers "mock" {
     }
 
     #[test]
-    fn no_config_anywhere_fails_closed_without_imports() {
+    fn first_run_acl_is_created_once_and_can_open_a_session_model() {
+        env_locked(|| {
+            let home = tempfile::tempdir().unwrap();
+            let workspace = tempfile::tempdir().unwrap();
+            std::env::set_var("HOME", home.path());
+            std::env::remove_var("A3S_DEFAULT_MODEL");
+            assert!(ensure_user_acl().unwrap());
+            let path = home.path().join(".a3s/config.acl");
+            let launch = load_launch_config(workspace.path().to_path_buf(), None).unwrap();
+            assert_eq!(launch.model_id, "deepseek/deepseek-flash");
+            let deepseek = launch
+                .config
+                .find_provider("deepseek")
+                .expect("deepseek provider");
+            assert_eq!(
+                deepseek.base_url.as_deref(),
+                Some("https://api.deepseek.com")
+            );
+            assert!(deepseek.find_model("deepseek-flash").is_some());
+            assert!(deepseek.find_model("deepseek-v4-pro").is_some());
+            assert!(launch
+                .config
+                .llm_config("deepseek", "deepseek-flash")
+                .is_some());
+            let zhipu = launch
+                .config
+                .find_provider("zhipu")
+                .expect("zhipu provider");
+            assert_eq!(
+                zhipu.base_url.as_deref(),
+                Some("https://open.bigmodel.cn/api/paas/v4")
+            );
+            assert!(zhipu.find_model("glm-5.3").is_some());
+            assert!(zhipu.find_model("glm-5.3-flash").is_some());
+            assert!(launch.config.llm_config("zhipu", "glm-5.3").is_some());
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+                assert_eq!(mode & 0o777, 0o600);
+            }
+            std::fs::write(&path, "sentinel\n").unwrap();
+            assert!(!ensure_user_acl().unwrap());
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), "sentinel\n");
+        });
+    }
+
+    #[test]
+    fn no_config_anywhere_starts_without_writing_a_file() {
         env_locked(|| {
             let user = tempfile::tempdir().unwrap();
             let workspace = tempfile::tempdir().unwrap();
             std::env::set_var("HOME", user.path());
-            let error = load_launch_config(workspace.path().to_path_buf(), None)
-                .expect_err("no layers and no imports must fail");
-            assert!(
-                error
-                    .to_string()
-                    .contains("A3S ACL configuration was not found"),
-                "unexpected error: {error}"
-            );
+            let launch = load_launch_config(workspace.path().to_path_buf(), None)
+                .expect("a missing ACL file still starts");
+            assert!(launch.model_id.is_empty());
+            assert!(launch.config.providers.is_empty());
+            assert!(!user.path().join(".a3s/config.acl").exists());
         });
     }
 
@@ -1103,11 +1239,10 @@ default_model = "mock/m1"
             let home = tempfile::tempdir().unwrap();
             let workspace = tempfile::tempdir().unwrap();
             std::env::set_var("HOME", home.path());
-            let error = load_launch_config(workspace.path().to_path_buf(), None)
-                .expect_err("no ACL and no opt-in must refuse");
-            assert!(error
-                .to_string()
-                .contains("A3S ACL configuration was not found"));
+            let launch = load_launch_config(workspace.path().to_path_buf(), None)
+                .expect("no ACL still starts");
+            assert!(launch.model_id.is_empty());
+            assert!(!has_provider(&launch, "cursor"));
             let (launch, _) = load_launch_config_with_imports(
                 workspace.path().to_path_buf(),
                 None,

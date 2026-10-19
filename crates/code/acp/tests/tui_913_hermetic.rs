@@ -858,7 +858,7 @@ fn shipped_binaries_report_current_version() {
     let tui = version_line(&require_tui());
     let acp = version_line(&PathBuf::from(env!("CARGO_BIN_EXE_a3s-code-acp")));
     let version = env!("CARGO_PKG_VERSION");
-    assert!(tui.starts_with("aster 0.1.0 "), "pager version {tui}");
+    assert!(tui.starts_with("aster 0.1.1 "), "pager version {tui}");
     assert_eq!(acp, version, "acp version {acp}");
     eprintln!("VERSION tui={tui}");
     eprintln!("VERSION acp={acp}");

@@ -986,6 +986,7 @@ pub(in crate::app::dispatch) fn drain_startup_actions(app: &mut AppView) -> Vec<
         new_session,
         prompt,
         open_dashboard,
+        open_model_config,
         pending_chat,
         #[cfg(feature = "local-workspace")]
         history_load_as_build,
@@ -1102,6 +1103,14 @@ pub(in crate::app::dispatch) fn drain_startup_actions(app: &mut AppView) -> Vec<
     }
     if open_dashboard {
         effects.extend(dispatch(Action::OpenDashboard, app));
+    }
+    if open_model_config {
+        effects.extend(dispatch(
+            Action::OpenModelConfig(Box::new(
+                crate::views::model_config::ModelConfigState::load_for_first_run(),
+            )),
+            app,
+        ));
     }
     effects
 }

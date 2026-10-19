@@ -21,7 +21,7 @@ impl A3sCodeAgent {
             info = info.meta(Some(reasoning_effort_catalog_meta(&id)));
             infos.push(info);
         }
-        if infos.is_empty() {
+        if infos.is_empty() && !self.launch.model_id.is_empty() {
             let id = self.launch.model_id.clone();
             let info = acp::ModelInfo::new(acp::ModelId::new(id.clone()), id.clone())
                 .meta(Some(reasoning_effort_catalog_meta(&id)));

@@ -57,6 +57,8 @@ pub struct DeferredStartupActions {
     pub new_session: bool,
     pub prompt: Option<String>,
     pub open_dashboard: bool,
+    /// First-run ACL: open the model config page once the startup gate allows it.
+    pub open_model_config: bool,
     pub pending_chat: bool,
     /// Welcome history local-disk bypass persisted across the startup gate.
     #[cfg(feature = "local-workspace")]
@@ -78,6 +80,7 @@ impl DeferredStartupActions {
             || self.new_session
             || self.prompt.is_some()
             || self.open_dashboard
+            || self.open_model_config
     }
 }
 /// Build `x.ai/session/fork` params shared by TUI effects and headless.
