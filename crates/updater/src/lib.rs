@@ -4,12 +4,23 @@
 //! [`run_update`] to check for a newer release, download the matching
 //! platform asset, and replace the running binary in-place.
 
+mod component;
 mod download;
 mod github;
 mod install;
 mod platform;
 
-pub use github::Release;
+pub use component::{
+    uninstall_owned_files, ComponentReceipt, DirectoryActivation, InstallProvenance, ReceiptStore,
+    RECEIPT_SCHEMA_VERSION,
+};
+pub use download::{
+    download_asset, extract_release_archive, extract_tar_gz_archive, extract_zip_archive,
+    sha256_hex, verify_sha256,
+};
+pub use github::{
+    fetch_latest_release, fetch_release, find_matching_asset, parse_version, Asset, Release,
+};
 
 /// Configuration for the update check — each binary provides its own.
 pub struct UpdateConfig {
@@ -62,9 +73,10 @@ pub async fn run_update(config: &UpdateConfig) -> anyhow::Result<()> {
         config.binary_name, latest_version, os, arch
     );
 
-    let new_binary =
+    let (new_binary, _temp_dir) =
         download::download_and_extract(&asset.browser_download_url, config.binary_name).await?;
     install::replace_binary(&new_binary)?;
+    // _temp_dir is dropped here, automatically cleaning up the temp directory
 
     println!(
         "\nUpdated {}: {} -> {}",
@@ -83,6 +95,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn test_platform_detection() {
         let result = platform::platform_target();
         assert!(result.is_ok(), "platform_target() should succeed");
@@ -159,10 +172,12 @@ mod tests {
                 github::Asset {
                     name: "a3s-code-0.3.0-darwin-arm64.tar.gz".to_string(),
                     browser_download_url: "https://example.com/darwin-arm64.tar.gz".to_string(),
+                    digest: None,
                 },
                 github::Asset {
                     name: "a3s-code-0.3.0-linux-x86_64.tar.gz".to_string(),
                     browser_download_url: "https://example.com/linux-x86_64.tar.gz".to_string(),
+                    digest: None,
                 },
             ],
         };

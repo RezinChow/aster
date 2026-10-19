@@ -1,0 +1,8 @@
+//! Observability — metrics, access logging, and tracing
+//!
+//! Provides structured access logging, Prometheus-compatible metrics,
+//! and OpenTelemetry tracing integration.
+
+pub mod access_log;
+pub mod metrics;
+pub mod tracing;

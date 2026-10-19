@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "a3s-updater"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["A3S Lab"]
 build = false
 autolib = false
@@ -24,26 +24,53 @@ description = "Self-update library for A3S CLI binaries via GitHub Releases"
 readme = false
 license = "MIT"
 repository = "https://github.com/a3s-lab/a3s"
-publish = false
 
 [lib]
 name = "a3s_updater"
 path = "src/lib.rs"
 
-[dependencies]
-semver = {workspace = true}
-serde = {workspace = true}
-serde_json = {workspace = true}
-tar = {workspace = true}
-anyhow = {version = "1"}
-flate2 = {version = "1"}
-reqwest = {version = "0.12", features = [
+[dependencies.anyhow]
+version = "1"
+
+[dependencies.flate2]
+version = "1"
+
+[dependencies.reqwest]
+version = "0.12"
+features = [
     "rustls-tls",
     "json",
     "stream",
-], default-features = false}
-tokio = {version = "1", features = [
+]
+default-features = false
+
+[dependencies.semver]
+version = "1"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1"
+
+[dependencies.sha2]
+version = "0.10"
+
+[dependencies.tar]
+version = "0.4"
+
+[dependencies.tempfile]
+version = "3"
+
+[dependencies.tokio]
+version = "1"
+features = [
     "fs",
     "io-util",
-]}
+]
 
+[dependencies.zip]
+version = "2.4"
+features = ["deflate"]
+default-features = false
