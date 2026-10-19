@@ -2083,6 +2083,12 @@ fn main() {
         eprintln!("grok: {err:#}");
         std::process::exit(1);
     });
+    // Core already refuses macOS native commands. The pager bash tool reads this
+    // and returns before spawn; library tests leave it unset.
+    #[cfg(target_os = "macos")]
+    unsafe {
+        std::env::set_var("A3S_REFUSE_UNQUALIFIED_NATIVE_SHELL", "1");
+    }
     a3s_code_pager::memory_trace::start(a3s_code_pager::memory_trace::default_dir());
     raise_fd_limit();
     if let Err(e) = a3s_code_config::validate_requirements() {
@@ -2227,6 +2233,7 @@ async fn async_main(mut args: PagerArgs) -> Result<()> {
             Command::Version { json } => {
                 if json {
                     let payload = serde_json::json!({
+                        "product": "Aster",
                         "currentVersion": env!("VERSION_WITH_COMMIT"),
                         "channel": a3s_code_update::channel_name().unwrap_or("unknown"),
                     });
@@ -2652,7 +2659,30 @@ async fn run_update_command(
     trigger: auto_update::CliUpdateTrigger,
     base_update_config: &UpdateConfig,
 ) -> Result<()> {
-    anyhow::bail!("Aster is built from source; rebuild this workspace to update it")
+    // A source build never downloads or replaces this binary. `--check` still
+    // prints a machine-readable status when asked, and it does not install.
+    if !check {
+        anyhow::bail!("Aster is built from source; rebuild this workspace to update it");
+    }
+    let _ = (
+        force_reinstall,
+        version,
+        channel_switch,
+        trigger,
+        base_update_config,
+    );
+    let status = a3s_code_update::UpdateStatus {
+        current_version: env!("VERSION_WITH_COMMIT").to_string(),
+        latest_version: None,
+        update_available: false,
+        installer: None,
+        channel: a3s_code_update::channel_name()
+            .unwrap_or("unknown")
+            .to_string(),
+        auto_update: Some(false),
+        error: Some("Aster is built from source; rebuild this workspace to update it".to_string()),
+    };
+    a3s_code_update::auto_update::print_update_status(&status, json)
 }
 /// After a successful `a3s update`, ask any running leader on this machine that is older than `installed_version`
 /// to relaunch onto the new binary. Best-effort and non-fatal: discovery/connect/control failures are logged and

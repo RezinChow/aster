@@ -1,49 +1,37 @@
 #!/usr/bin/env bash
-# Install Aster v0.1.0 and the sibling ACP agent from this repository.
+# Install aster-cli v0.1.0 from this repository's GitHub Release.
 #
-# One command from any directory. The script address is:
-#   https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh
-# When this file is not already inside a checkout, it clones
-#   https://github.com/aster-ai-lab/aster.git
-# into $HOME/src/aster (or $ASTER_REPO) and runs that copy.
-# From an existing checkout, pass this file by its absolute path.
+# One command:
+#   curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh | bash -s -- --prefix "$HOME/.local/bin"
 #
-# Platforms:
-#   macOS  (uname Darwin) — locked release, then copy aster and a3s-code-acp
-#   Linux  (uname Linux)  — locked release, then copy aster and a3s-code-acp
-#   Windows (MINGW, MSYS, Cygwin, or OS=Windows_NT) — scripts/install-aster.ps1
-#
-# The command runs `cargo build --locked --release` in this workspace.
-# It copies both binaries into one directory. It does not download a CLI
-# binary, and it does not enable auto-update. Rebuild this tree to upgrade.
+# The release page is:
+#   https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.0
+# macOS downloads aster-cli-v0.1.0-macos.tar.gz.
+# Linux downloads aster-cli-v0.1.0-linux.tar.gz.
+# Windows downloads aster-cli-v0.1.0-windows.zip.
+# Each archive contains aster and a3s-code-acp.
+# The command does not clone this repository and does not compile.
 set -euo pipefail
-source_file="${BASH_SOURCE[0]:-}"
+
+official_base="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0"
 
 usage() {
   echo "Usage: install-aster.sh [--prefix DIR]" >&2
   echo "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh" >&2
+  echo "${official_base}/aster-cli-v0.1.0-macos.tar.gz" >&2
   exit 2
 }
 
-refuse_download() {
-  local arg
-  for arg in "$@"; do
-    case "$arg" in
-      *://*)
-        echo "error: this installer does not download binaries" >&2
-        exit 1
-        ;;
-    esac
-  done
-  if [[ -n "${ASTER_INSTALL_URL:-}" || -n "${GROK_INSTALL_URL:-}" ]]; then
-    echo "error: this installer does not download binaries" >&2
-    exit 1
-  fi
+refuse() {
+  echo "error: this installer does not download that binary" >&2
+  exit 1
 }
 
+if [[ -n "${ASTER_INSTALL_URL:-}" || -n "${GROK_INSTALL_URL:-}" ]]; then
+  refuse
+fi
+
 prefix=""
-orig_args=("$@")
-refuse_download "$@"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefix)
@@ -57,6 +45,15 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       usage
       ;;
+    *://*)
+      case "$1" in
+        "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0/aster-cli-v0.1.0-macos.tar.gz"|"https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0/aster-cli-v0.1.0-linux.tar.gz"|"https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0/aster-cli-v0.1.0-windows.zip")
+          ;;
+        *)
+          refuse
+          ;;
+      esac
+      ;;
     *)
       echo "error: unknown argument: $1" >&2
       usage
@@ -64,49 +61,16 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-refuse_download "$prefix"
 
-repo_root=""
-if [[ -n "$source_file" && -f "$source_file" ]]; then
-  script_dir="$(cd "$(dirname "$source_file")" && pwd)"
-  candidate="$(cd "${script_dir}/.." && pwd)"
-  if [[ -f "${candidate}/Cargo.toml" && -f "${script_dir}/install-aster.sh" ]]; then
-    repo_root="$candidate"
-  fi
-fi
-if [[ -z "$repo_root" ]]; then
-  if [[ -z "${ASTER_REPO:-}" && -z "${HOME:-}" ]]; then
-    echo "error: HOME is unset; set ASTER_REPO to the checkout path" >&2
-    exit 1
-  fi
-  repo_root="${ASTER_REPO:-${HOME}/src/aster}"
-  if [[ -e "$repo_root" && ! -d "${repo_root}/.git" ]]; then
-    echo "error: ${repo_root} exists and is not an Aster checkout" >&2
-    exit 1
-  fi
-  if [[ ! -d "${repo_root}/.git" ]]; then
-    mkdir -p "$(dirname "$repo_root")"
-    git clone --depth 1 --branch main "https://github.com/aster-ai-lab/aster.git" "$repo_root"
-  else
-    git -C "$repo_root" pull --ff-only
-  fi
-  if [[ ${#orig_args[@]} -eq 0 ]]; then
-    exec "${repo_root}/scripts/install-aster.sh"
-  fi
-  exec "${repo_root}/scripts/install-aster.sh" "${orig_args[@]}"
-fi
+case "$prefix" in
+  *://*) refuse ;;
+esac
 
 uname_s="$(uname -s 2>/dev/null || true)"
 case "$uname_s" in
-  Darwin)
-    platform=macos
-    ;;
-  Linux)
-    platform=linux
-    ;;
-  MINGW*|MSYS*|CYGWIN*)
-    platform=windows
-    ;;
+  Darwin) platform=macos ;;
+  Linux) platform=linux ;;
+  MINGW*|MSYS*|CYGWIN*) platform=windows ;;
   *)
     if [[ "${OS:-}" == "Windows_NT" ]]; then
       platform=windows
@@ -117,59 +81,87 @@ case "$uname_s" in
     ;;
 esac
 
-if [[ "$platform" == "windows" ]]; then
-  ps1="$repo_root/scripts/install-aster.ps1"
-  if command -v powershell.exe >/dev/null 2>&1; then
-    runner=(powershell.exe)
-  elif command -v pwsh >/dev/null 2>&1; then
-    runner=(pwsh)
-  else
-    echo "error: Windows install needs PowerShell" >&2
-    exit 1
-  fi
-  if [[ -n "$prefix" ]]; then
-    exec "${runner[@]}" -NoProfile -ExecutionPolicy Bypass -File "$ps1" -Prefix "$prefix"
-  fi
-  exec "${runner[@]}" -NoProfile -ExecutionPolicy Bypass -File "$ps1"
+case "$platform" in
+  windows) asset_name="aster-cli-v0.1.0-windows.zip" ;;
+  *) asset_name="aster-cli-v0.1.0-${platform}.tar.gz" ;;
+esac
+
+base="${ASTER_RELEASE_BASE:-$official_base}"
+case "$base" in
+  *x.ai*) refuse ;;
+esac
+if [[ "$base" == "$official_base" ]]; then
+  asset_url="${base}/${asset_name}"
+  local_asset=""
+elif [[ "$base" != *://* && -d "$base" ]]; then
+  asset_url="${base}/${asset_name}"
+  local_asset="$asset_url"
+else
+  refuse
 fi
 
 if [[ -z "$prefix" ]]; then
   prefix="${HOME}/.local/bin"
 fi
 
-cd "$repo_root"
-# Package version 0.1.0 comes from apps/aster. A leftover upstream version
-# variable must not stamp this binary, and no update feature is enabled.
-# The commit stamp is the revision at the start of this command, so a commit
-# that lands while cargo is compiling does not change this install's version.
-commit="${ASTER_INSTALL_COMMIT:-}"
-if [[ -z "$commit" ]]; then
-  commit="$(git -C "$repo_root" rev-parse HEAD 2>/dev/null || true)"
-fi
-if [[ -n "$commit" ]]; then
-  env -u GROK_VERSION GROK_COMMIT="$commit" cargo build --locked --release
+work="$(mktemp -d)"
+cleanup() { rm -rf "$work"; }
+trap cleanup EXIT
+archive="${work}/${asset_name}"
+echo "platform=${platform}"
+echo "release=aster-cli-v0.1.0"
+echo "asset=${asset_url}"
+
+if [[ -n "$local_asset" ]]; then
+  cp -f "$local_asset" "$archive"
 else
-  env -u GROK_VERSION -u GROK_COMMIT cargo build --locked --release
+  curl -fsSL --retry 3 --retry-delay 2 -o "$archive" "$asset_url"
 fi
 
-if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then
-  release_dir="${CARGO_TARGET_DIR}/release"
-else
-  release_dir="${repo_root}/target/release"
-fi
-src_aster="${release_dir}/aster"
-src_acp="${release_dir}/a3s-code-acp"
+unpack="${work}/unpack"
+mkdir -p "$unpack"
+case "$asset_name" in
+  *.tar.gz)
+    tar -C "$unpack" -xzf "$archive"
+    src_aster="${unpack}/aster"
+    src_acp="${unpack}/a3s-code-acp"
+    dest_aster="${prefix}/aster"
+    dest_acp="${prefix}/a3s-code-acp"
+    ;;
+  *.zip)
+    if command -v python3 >/dev/null 2>&1; then
+      py=(python3)
+    elif command -v python >/dev/null 2>&1; then
+      py=(python)
+    else
+      echo "error: extracting the Windows archive needs python" >&2
+      exit 1
+    fi
+    "${py[@]}" - "$archive" "$unpack" <<'PY'
+import sys, zipfile
+zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])
+PY
+    src_aster="${unpack}/aster.exe"
+    src_acp="${unpack}/a3s-code-acp.exe"
+    dest_aster="${prefix}/aster.exe"
+    dest_acp="${prefix}/a3s-code-acp.exe"
+    ;;
+esac
+
 if [[ ! -f "$src_aster" || ! -f "$src_acp" ]]; then
-  echo "error: locked release did not emit aster and a3s-code-acp in ${release_dir}" >&2
+  echo "error: archive ${asset_name} did not contain both aster-cli binaries" >&2
   exit 1
 fi
 
 mkdir -p "$prefix"
-cp -f "$src_aster" "${prefix}/aster"
-cp -f "$src_acp" "${prefix}/a3s-code-acp"
-chmod 755 "${prefix}/aster" "${prefix}/a3s-code-acp"
+cp -f "$src_aster" "$dest_aster"
+cp -f "$src_acp" "$dest_acp"
+chmod 755 "$dest_aster" "$dest_acp"
+if [[ "$platform" == "macos" ]] && command -v xattr >/dev/null 2>&1; then
+  xattr -d com.apple.quarantine "$dest_aster" 2>/dev/null || true
+  xattr -d com.apple.quarantine "$dest_acp" 2>/dev/null || true
+fi
 
-echo "platform=${platform}"
 echo "installed Aster v0.1.0 into ${prefix}"
-echo "aster=${prefix}/aster"
-echo "a3s-code-acp=${prefix}/a3s-code-acp"
+echo "aster=${dest_aster}"
+echo "a3s-code-acp=${dest_acp}"

@@ -109,49 +109,63 @@ aster
 安装要解决的是：在本机得到同一目录里的 `aster` 和 `a3s-code-acp`，并且之后能从终端启动。
 `aster` 默认启动旁边的 `a3s-code-acp`。需要别的路径时，设置 `A3S_ACP_AGENT_BIN`。
 
-每条安装命令都带完整脚本地址，在任意目录执行。
-脚本克隆 `https://github.com/aster-ai-lab/aster.git`，运行 `cargo build --locked --release`，再把这两个程序复制到目标目录。
-macOS 和 Linux 的仓库在 `$HOME/src/aster`，程序在 `$HOME/.local/bin`。
-Windows 的仓库在 `%USERPROFILE%\src\aster`，程序在 `%LOCALAPPDATA%\Aster\bin`。
-再执行同一条命令时，仓库只做快进，程序仍安装到同一目录。
+安装命令下载 [aster-cli v0.1.0](https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.0) 的发布包，并把包里的两个程序放到同一目录。
+它不克隆仓库，也不在本机编译。
+它不下载上游 CLI，也不打开自动更新。
+macOS 和 Linux 需要 `curl`。Windows 使用 PowerShell。安装程序不修改 shell 配置，因此还要把目标目录放进 `PATH`。
 
-执行前需要[快速开始](#快速开始)里的 Rust 工具链，并且本机有 `git`。
-安装程序不修改 shell 配置，不下载上游 CLI，也不打开自动更新。
 `just code` 只在仓库里启动调试构建，不把程序复制到系统目录。
 
 更新就是再执行一次该系统的安装命令，然后执行 `aster version --json`。
-`aster update` 发现这是源码构建后会退出，不会替换已安装的文件。
+它再次下载同一个 v0.1.0 发布包，覆盖同一目录里的两个程序。
+`aster update` 退出后不会替换已安装的文件。
 `aster update --check --json` 只打印状态：`updateAvailable` 为 false，文件长度不变。
 
-卸载只删除这两个程序。`~/.a3s`、`~/.grok`、仓库和 `target/` 都保留。
+卸载只删除这两个程序。`~/.a3s` 和 `~/.grok` 都保留。
 装到其他目录时，更新和卸载都针对那个目录里的同名文件。
 
-| 系统 | 脚本地址 | 默认目录 | 程序名 |
+| 系统 | 发布包 | 默认目录 | 程序名 |
 | --- | --- | --- | --- |
-| macOS、Linux | https://github.com/aster-ai-lab/aster/blob/main/scripts/install-aster.sh | `$HOME/.local/bin` | `aster`、`a3s-code-acp` |
-| Windows | https://github.com/aster-ai-lab/aster/blob/main/scripts/install-aster.ps1 | `%LOCALAPPDATA%\Aster\bin` | `aster.exe`、`a3s-code-acp.exe` |
+| macOS | https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0/aster-cli-v0.1.0-macos.tar.gz | `$HOME/.local/bin` | `aster`、`a3s-code-acp` |
+| Linux | https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0/aster-cli-v0.1.0-linux.tar.gz | `$HOME/.local/bin` | `aster`、`a3s-code-acp` |
+| Windows | https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0/aster-cli-v0.1.0-windows.zip | `%LOCALAPPDATA%\Aster\bin` | `aster.exe`、`a3s-code-acp.exe` |
 
-命令里的地址和上表是同一个脚本。安装后的程序与仓库里的发布构建相同。macOS 上原生 Shell 工具仍会被拒绝，见[快速开始](#快速开始)中的限制。
+安装后的程序就是该发布包里的程序。macOS 上原生 Shell 工具仍会被拒绝，见[快速开始](#快速开始)中的限制。
 
-### macOS 和 Linux
+### macOS
+
+安装命令下载上表中的 macOS 发布包。
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh)"
+curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh | bash -s -- --prefix "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 aster version --json
 a3s-code-acp --version
 ```
 
 `export` 只作用于当前终端。要长期生效，把同一行写入 shell 的启动文件。
-`product` 是 `Aster`，`currentVersion` 以 `0.1.0` 开头。括号中的修订号是这次安装开始时的提交。`a3s-code-acp --version` 打印 ACP 的包版本。
+`product` 是 `Aster`，`currentVersion` 以 `0.1.0` 开头。`a3s-code-acp --version` 打印 ACP 的包版本。
 
-选择其他目录时，使用仓库里的脚本绝对路径。这条命令把程序放到 `$HOME/bin`，该目录需要自己加入 `PATH`：
+卸载：
 
 ```sh
-"$HOME/src/aster/scripts/install-aster.sh" --prefix "$HOME/bin"
+rm -f "$HOME/.local/bin/aster" "$HOME/.local/bin/a3s-code-acp"
 ```
 
-卸载默认目录：
+### Linux
+
+安装命令下载上表中的 Linux 发布包。脚本按本机系统选择发布包。
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh | bash -s -- --prefix "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+aster version --json
+a3s-code-acp --version
+```
+
+`export` 只作用于当前终端。要长期生效，把同一行写入 shell 的启动文件。
+
+卸载：
 
 ```sh
 rm -f "$HOME/.local/bin/aster" "$HOME/.local/bin/a3s-code-acp"
@@ -159,25 +173,19 @@ rm -f "$HOME/.local/bin/aster" "$HOME/.local/bin/a3s-code-acp"
 
 ### Windows
 
-在 PowerShell 中，第一条命令保存脚本，第二条执行它。
+在 PowerShell 中，第一条命令保存安装脚本，第二条下载上表中的 Windows 发布包并复制两个程序。
 
 ```powershell
 irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1" -OutFile "$env:TEMP\install-aster.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install-aster.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install-aster.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
 $env:Path = "$env:LOCALAPPDATA\Aster\bin;" + $env:Path
 aster version --json
 a3s-code-acp --version
 ```
 
-`Path` 赋值只作用于当前窗口。Git Bash 使用 macOS 和 Linux 的第一条命令，它会转去这个 PowerShell 脚本。
+`Path` 赋值只作用于当前窗口。Git Bash 使用 macOS 的同一条命令；脚本在 Windows 上下载 Windows 发布包。
 
-选择其他目录时，使用脚本绝对路径。这条命令把程序放到 `%USERPROFILE%\bin`，该目录需要自己加入 `Path`：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\src\aster\scripts\install-aster.ps1" -Prefix "$env:USERPROFILE\bin"
-```
-
-卸载默认目录：
+卸载：
 
 ```powershell
 Remove-Item -Force "$env:LOCALAPPDATA\Aster\bin\aster.exe", "$env:LOCALAPPDATA\Aster\bin\a3s-code-acp.exe"

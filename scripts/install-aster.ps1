@@ -1,22 +1,21 @@
-# Windows branch of scripts/install-aster.sh
-# Script address:
-#   https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1
-# When this file is not already inside a checkout, it clones
-#   https://github.com/aster-ai-lab/aster.git
-# into %USERPROFILE%\src\aster (or $env:ASTER_REPO) and runs that copy.
-# Builds the locked release of aster and a3s-code-acp, then copies both
-# into one directory. Does not download a CLI binary. Does not enable auto-update.
+# Install aster-cli v0.1.0 on Windows from this repository's GitHub Release.
+# One command:
+#   irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1" -OutFile "$env:TEMP\install-aster.ps1"
+#   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install-aster.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
+# Downloads aster-cli-v0.1.0-windows.zip, which contains aster.exe and a3s-code-acp.exe.
+# Does not clone this repository and does not compile.
 param(
     [string]$Prefix = ""
 )
 
 $ErrorActionPreference = "Stop"
+$OfficialBase = "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0"
+$AssetName = "aster-cli-v0.1.0-windows.zip"
+$OfficialAsset = "$OfficialBase/$AssetName"
 
-function Refuse-Download([string]$Value) {
-    if ($Value -match "://") {
-        Write-Error "this installer does not download binaries"
-        exit 1
-    }
+function Refuse-Download {
+    Write-Error "this installer does not download that binary"
+    exit 1
 }
 
 if ($env:OS -ne "Windows_NT") {
@@ -24,54 +23,30 @@ if ($env:OS -ne "Windows_NT") {
     exit 1
 }
 if ($env:ASTER_INSTALL_URL -or $env:GROK_INSTALL_URL) {
-    Write-Error "this installer does not download binaries"
-    exit 1
+    Refuse-Download
 }
-Refuse-Download $Prefix
+if ($Prefix -match "://") {
+    Refuse-Download
+}
 foreach ($arg in $args) {
-    Refuse-Download ([string]$arg)
+    $text = [string]$arg
+    if ($text -notmatch "://") { continue }
+    if ($text -eq $OfficialAsset) { continue }
+    Refuse-Download
 }
 
-$insideRepo = $false
-if ($PSScriptRoot) {
-    $candidate = Split-Path -Parent $PSScriptRoot
-    if (Test-Path -LiteralPath (Join-Path $candidate "Cargo.toml")) {
-        $insideRepo = $true
-        $repo = $candidate
-    }
+$base = if ($env:ASTER_RELEASE_BASE) { $env:ASTER_RELEASE_BASE } else { $OfficialBase }
+if ($base -match "x\.ai") {
+    Refuse-Download
 }
-if (-not $insideRepo) {
-    if ($env:ASTER_REPO) {
-        $dest = $env:ASTER_REPO
-    } elseif ($env:USERPROFILE) {
-        $dest = Join-Path $env:USERPROFILE "src\aster"
-    } else {
-        Write-Error "USERPROFILE is unset; set ASTER_REPO to the checkout path"
-        exit 1
-    }
-    $gitDir = Join-Path $dest ".git"
-    if ((Test-Path -LiteralPath $dest) -and -not (Test-Path -LiteralPath $gitDir)) {
-        Write-Error "$dest exists and is not an Aster checkout"
-        exit 1
-    }
-    if (-not (Test-Path -LiteralPath $gitDir)) {
-        $parent = Split-Path -Parent $dest
-        if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-        & git clone --depth 1 --branch main "https://github.com/aster-ai-lab/aster.git" $dest
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    } else {
-        & git -C $dest pull --ff-only
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    }
-    $local = Join-Path $dest "scripts\install-aster.ps1"
-    $invoke = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $local)
-    if ($Prefix) { $invoke += @("-Prefix", $Prefix) }
-    if (Get-Command powershell.exe -ErrorAction SilentlyContinue) {
-        & powershell.exe @invoke
-    } else {
-        & pwsh @invoke
-    }
-    exit $LASTEXITCODE
+$localAsset = $null
+if ($base -eq $OfficialBase) {
+    $assetUrl = "$base/$AssetName"
+} elseif (($base -notmatch "://") -and (Test-Path -LiteralPath $base -PathType Container)) {
+    $assetUrl = Join-Path $base $AssetName
+    $localAsset = $assetUrl
+} else {
+    Refuse-Download
 }
 
 if (-not $Prefix) {
@@ -82,43 +57,34 @@ if (-not $Prefix) {
     }
 }
 
-Set-Location $repo
-if (Test-Path Env:GROK_VERSION) { Remove-Item Env:GROK_VERSION }
-if (-not $env:ASTER_INSTALL_COMMIT) {
-    $snap = & git -C $repo rev-parse HEAD 2>$null
-    if ($LASTEXITCODE -eq 0 -and $snap) {
-        $env:ASTER_INSTALL_COMMIT = $snap.Trim()
+$work = Join-Path ([System.IO.Path]::GetTempPath()) ("aster-cli-" + [guid]::NewGuid().ToString("n"))
+New-Item -ItemType Directory -Force -Path $work | Out-Null
+try {
+    $archive = Join-Path $work $AssetName
+    Write-Output "platform=windows"
+    Write-Output "release=aster-cli-v0.1.0"
+    Write-Output "asset=$assetUrl"
+    if ($localAsset) {
+        Copy-Item -LiteralPath $localAsset -Destination $archive -Force
+    } else {
+        Invoke-WebRequest -Uri $assetUrl -OutFile $archive
     }
+    $unpack = Join-Path $work "unpack"
+    Expand-Archive -LiteralPath $archive -DestinationPath $unpack -Force
+    $srcAster = Join-Path $unpack "aster.exe"
+    $srcAcp = Join-Path $unpack "a3s-code-acp.exe"
+    if (-not (Test-Path -LiteralPath $srcAster) -or -not (Test-Path -LiteralPath $srcAcp)) {
+        Write-Error "archive $AssetName did not contain both aster-cli binaries"
+        exit 1
+    }
+    New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
+    $destAster = Join-Path $Prefix "aster.exe"
+    $destAcp = Join-Path $Prefix "a3s-code-acp.exe"
+    Copy-Item -LiteralPath $srcAster -Destination $destAster -Force
+    Copy-Item -LiteralPath $srcAcp -Destination $destAcp -Force
+    Write-Output "installed Aster v0.1.0 into $Prefix"
+    Write-Output "aster=$destAster"
+    Write-Output "a3s-code-acp=$destAcp"
+} finally {
+    Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
-if ($env:ASTER_INSTALL_COMMIT) {
-    $env:GROK_COMMIT = $env:ASTER_INSTALL_COMMIT
-} elseif (Test-Path Env:GROK_COMMIT) {
-    Remove-Item Env:GROK_COMMIT
-}
-& cargo build --locked --release
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-
-if ($env:CARGO_TARGET_DIR) {
-    $release = Join-Path $env:CARGO_TARGET_DIR "release"
-} else {
-    $release = Join-Path $repo "target\release"
-}
-$srcAster = Join-Path $release "aster.exe"
-$srcAcp = Join-Path $release "a3s-code-acp.exe"
-if (-not (Test-Path -LiteralPath $srcAster) -or -not (Test-Path -LiteralPath $srcAcp)) {
-    Write-Error "locked release did not emit aster.exe and a3s-code-acp.exe in $release"
-    exit 1
-}
-
-New-Item -ItemType Directory -Force -Path $Prefix | Out-Null
-$destAster = Join-Path $Prefix "aster.exe"
-$destAcp = Join-Path $Prefix "a3s-code-acp.exe"
-Copy-Item -LiteralPath $srcAster -Destination $destAster -Force
-Copy-Item -LiteralPath $srcAcp -Destination $destAcp -Force
-
-Write-Output "platform=windows"
-Write-Output "installed Aster v0.1.0 into $Prefix"
-Write-Output "aster=$destAster"
-Write-Output "a3s-code-acp=$destAcp"

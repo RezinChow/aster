@@ -1,0 +1,111 @@
+name: Release aster-cli
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aster-cli-v0.1.0
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            asset: aster-cli-v0.1.0-macos.tar.gz
+          - os: ubuntu-latest
+            platform: linux
+            asset: aster-cli-v0.1.0-linux.tar.gz
+          - os: windows-latest
+            platform: windows
+            asset: aster-cli-v0.1.0-windows.zip
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler cmake pkg-config libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+      - name: Install macOS build tools
+        if: runner.os == 'macOS'
+        run: brew install protobuf just
+      - name: Install Windows protoc
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "29.3"
+          $zip = Join-Path $env:RUNNER_TEMP "protoc.zip"
+          $dest = Join-Path $env:RUNNER_TEMP "protoc"
+          Invoke-WebRequest -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v$version/protoc-$version-win64.zip" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dest
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $dest "bin")
+      - name: Install pinned toolchain
+        shell: bash
+        run: rustup show active-toolchain
+      - name: Build locked release
+        shell: bash
+        run: env -u GROK_VERSION cargo build --locked --release -p aster -p a3s-code-acp
+      - name: Package aster-cli archive
+        shell: bash
+        run: |
+          if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then
+            bin_dir="${CARGO_TARGET_DIR}/release"
+          else
+            bin_dir="target/release"
+          fi
+          bash scripts/package-aster-cli.sh "${{ matrix.platform }}" "$bin_dir" "${{ matrix.asset }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: aster-cli-${{ matrix.platform }}
+          path: ${{ matrix.asset }}
+          if-no-files-found: error
+
+  publish:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: aster-cli-*
+          merge-multiple: true
+          path: dist
+      - name: Publish aster-cli v0.1.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/*)
+          if [[ ${#files[@]} -ne 3 ]]; then
+            echo "expected 3 release assets, found ${#files[@]}" >&2
+            printf '%s\n' "${files[@]:-}" >&2
+            exit 1
+          fi
+          cat > notes.md <<'EOF'
+          aster-cli v0.1.0
+
+          Each archive is a locked release build of aster 0.1.0 and a3s-code-acp from this repository.
+          macOS, Linux, and Windows each have one archive. The binaries are unsigned.
+          This release is Aster, built from this repository. It is not an upstream Grok CLI.
+          EOF
+          if gh release view aster-cli-v0.1.0 >/dev/null 2>&1; then
+            gh release upload aster-cli-v0.1.0 "${files[@]}" --clobber
+          else
+            gh release create aster-cli-v0.1.0 \
+              --title "aster-cli v0.1.0" \
+              --notes-file notes.md \
+              "${files[@]}"
+          fi
+          gh release view aster-cli-v0.1.0
