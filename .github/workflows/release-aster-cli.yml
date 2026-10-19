@@ -108,9 +108,9 @@ jobs:
             exit 1
           fi
           if [[ -n "$ARTIFACT_RUN_ID" ]]; then
-            target="$(gh api "repos/${GH_REPO}/actions/runs/${ARTIFACT_RUN_ID}" --jq .head_sha)"
+            built="$(gh api "repos/${GH_REPO}/actions/runs/${ARTIFACT_RUN_ID}" --jq .head_sha)"
           else
-            target="$BUILD_SHA"
+            built="$BUILD_SHA"
           fi
           cat > notes.md <<'EOF'
           aster-cli v0.1.0
@@ -119,11 +119,12 @@ jobs:
           macOS, Linux, and Windows each have one archive. The binaries are unsigned.
           This release is Aster, built from this repository. It is not an upstream Grok CLI.
           EOF
+          printf 'Built from %s.\n' "$built" >> notes.md
+          # GITHUB_TOKEN can create the tag only at the default branch tip.
           if gh release view aster-cli-v0.1.0 >/dev/null 2>&1; then
             gh release upload aster-cli-v0.1.0 "${files[@]}" --clobber
           else
             gh release create aster-cli-v0.1.0 \
-              --target "$target" \
               --title "aster-cli v0.1.0" \
               --notes-file notes.md \
               "${files[@]}"
