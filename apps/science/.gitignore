@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Archives
+*.zip
+
+# Local registry signing material
+.registry-signing-key
+
+# Rust tooling
+tools/registry-builder/target/
+
+# OS
+.DS_Store
+Thumbs.db
