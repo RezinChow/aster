@@ -1,7 +1,7 @@
 # Install aster-cli v0.1.0 on Windows from this repository's GitHub Release.
 # One command:
-#   irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1" -OutFile "$env:TEMP\install-aster.ps1"
-#   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install-aster.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
+#   irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.ps1" -OutFile "$env:TEMP\install.ps1"
+#   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
 # Downloads aster-cli-v0.1.0-windows.zip, which contains aster.exe and a3s-code-acp.exe.
 # Does not clone this repository and does not compile.
 param(
@@ -19,7 +19,7 @@ function Refuse-Download {
 }
 
 if ($env:OS -ne "Windows_NT") {
-    Write-Error "This branch is for Windows. On macOS and Linux run https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh"
+    Write-Error "This branch is for Windows. On macOS and Linux run https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh"
     exit 1
 }
 if ($env:ASTER_INSTALL_URL -or $env:GROK_INSTALL_URL) {

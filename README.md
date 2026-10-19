@@ -137,7 +137,7 @@ macOS 和 Linux 需要 `curl`。Windows 使用 PowerShell。安装程序不修�
 安装命令下载上表中的 macOS 发布包。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh | bash -s -- --prefix "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh | bash -s -- --prefix "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 aster version --json
 a3s-code-acp --version
@@ -157,7 +157,7 @@ rm -f "$HOME/.local/bin/aster" "$HOME/.local/bin/a3s-code-acp"
 安装命令下载上表中的 Linux 发布包。脚本按本机系统选择发布包。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh | bash -s -- --prefix "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh | bash -s -- --prefix "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 aster version --json
 a3s-code-acp --version
@@ -176,8 +176,8 @@ rm -f "$HOME/.local/bin/aster" "$HOME/.local/bin/a3s-code-acp"
 在 PowerShell 中，第一条命令保存安装脚本，第二条下载上表中的 Windows 发布包并复制两个程序。
 
 ```powershell
-irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.ps1" -OutFile "$env:TEMP\install-aster.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install-aster.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
+irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.ps1" -OutFile "$env:TEMP\install.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
 $env:Path = "$env:LOCALAPPDATA\Aster\bin;" + $env:Path
 aster version --json
 a3s-code-acp --version

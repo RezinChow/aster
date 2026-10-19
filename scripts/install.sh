@@ -2,7 +2,7 @@
 # Install aster-cli v0.1.0 from this repository's GitHub Release.
 #
 # One command:
-#   curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh | bash -s -- --prefix "$HOME/.local/bin"
+#   curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh | bash -s -- --prefix "$HOME/.local/bin"
 #
 # The release page is:
 #   https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.0
@@ -16,8 +16,8 @@ set -euo pipefail
 official_base="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.0"
 
 usage() {
-  echo "Usage: install-aster.sh [--prefix DIR]" >&2
-  echo "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install-aster.sh" >&2
+  echo "Usage: install.sh [--prefix DIR]" >&2
+  echo "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh" >&2
   echo "${official_base}/aster-cli-v0.1.0-macos.tar.gz" >&2
   exit 2
 }

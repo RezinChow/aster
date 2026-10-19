@@ -4,8 +4,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-install="${repo_root}/scripts/install-aster.sh"
-ps1="${repo_root}/scripts/install-aster.ps1"
+install="${repo_root}/scripts/install.sh"
+ps1="${repo_root}/scripts/install.ps1"
 package="${repo_root}/scripts/package-aster-cli.sh"
 workflow="${repo_root}/.github/workflows/release-aster-cli.yml"
 readme="${repo_root}/README.md"
@@ -54,8 +54,8 @@ fi
 grep -q "${release_base}/aster-cli-v0.1.0-macos.tar.gz" <<<"$section"
 grep -q "${release_base}/aster-cli-v0.1.0-linux.tar.gz" <<<"$section"
 grep -q "${release_base}/aster-cli-v0.1.0-windows.zip" <<<"$section"
-grep -q 'scripts/install-aster.sh' <<<"$section"
-grep -q 'scripts/install-aster.ps1' <<<"$section"
+grep -q 'scripts/install.sh' <<<"$section"
+grep -q 'scripts/install.ps1' <<<"$section"
 
 work="$(mktemp -d "${TMPDIR:-/var/folders}/aster-install-check.XXXXXX")"
 save_evidence() {
