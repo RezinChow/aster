@@ -13,3 +13,7 @@
 *.profraw
 *.profdata
 __pycache__/
+
+# Local snapshots taken before refreshing Cargo.lock
+*.lock.bak
+*.lock.tag
