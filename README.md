@@ -5,7 +5,7 @@
 Aster 提供终端编程工具 **Aster CLI** 和桌面工作台 **Aster Work**。
 它们使用本仓库维护的 Rust Harness：连接模型、组织上下文、调用工具，并由宿主控制权限和完成条件。
 
-[快速开始](#快速开始) · [理解 Meta Harness](#理解-meta-harness) · [开发 Aster Work](#开发-aster-work) · [参与开发](#参与开发)
+[快速开始](#快速开始) · [安装、更新和卸载](#安装更新和卸载) · [理解 Meta Harness](#理解-meta-harness) · [开发 Aster Work](#开发-aster-work) · [参与开发](#参与开发)
 
 ![Aster Meta Harness：装配工作台的底座固定，推演、执行、核验三个工位可以组合；所有工作遵守同一执行边界。](assets/readme/meta-harness.svg)
 
@@ -96,10 +96,93 @@ cargo install --locked --path apps/aster
 aster
 ```
 
+把程序安装到系统目录、以后更新和卸载，见 [安装、更新和卸载](#安装更新和卸载)。
+
 仅运行 `cargo run -p aster` 时，需要先构建 ACP。
 源码版本通过重新构建更新，上游二进制自动更新已停用。
 
 </details>
+
+## 安装、更新和卸载
+
+安装要解决的是：在本机得到同一目录里的 `aster` 和 `a3s-code-acp`，并且之后能从终端启动。
+`aster` 默认启动旁边的 `a3s-code-acp`。需要别的路径时，设置 `A3S_ACP_AGENT_BIN`。
+
+三个系统都在**仓库根目录**执行，并使用[快速开始](#快速开始)里的 Rust 工具链。
+安装命令运行 `cargo build --locked --release`，再把这两个程序复制到目标目录。
+它不下载上游 CLI，也不打开自动更新。安装程序不修改 shell 配置，因此还要把目标目录放进 `PATH`。
+
+`just code` 只在仓库里启动调试构建，不把程序复制到系统目录。
+
+更新就是在拉下新提交后，对安装时的**同一个目录**再执行一次安装命令。
+`aster update` 发现这是源码构建后会退出，不会替换已安装的文件。
+`aster update --check --json` 只打印状态：`updateAvailable` 为 false，文件长度不变。
+
+卸载只删除这两个程序。`~/.a3s`、`~/.grok`、仓库和 `target/` 都保留。
+装到自定义目录时，更新和卸载都针对那个目录里的同名文件。
+
+| 系统 | 默认目录 | 程序名 |
+| --- | --- | --- |
+| macOS、Linux | `$HOME/.local/bin` | `aster`、`a3s-code-acp` |
+| Windows | `%LOCALAPPDATA%\Aster\bin` | `aster.exe`、`a3s-code-acp.exe` |
+
+安装后的程序与仓库里的发布构建相同。macOS 上原生 Shell 工具仍会被拒绝，见[快速开始](#快速开始)中的限制。
+
+### macOS 和 Linux
+
+安装。省略 `--prefix` 时目录也是 `$HOME/.local/bin`。
+
+```sh
+./scripts/install-aster.sh --prefix "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+aster version --json
+a3s-code-acp --version
+```
+
+`export` 只作用于当前终端。要长期生效，把同一行写入 shell 的启动文件。
+`aster version --json` 里的 `product` 是 `Aster`，`currentVersion` 以 `0.1.0` 开头。
+括号中的修订号是这次安装**开始时**的提交。`a3s-code-acp --version` 打印 ACP 的包版本。
+
+更新：
+
+```sh
+git pull
+./scripts/install-aster.sh --prefix "$HOME/.local/bin"
+aster version --json
+```
+
+卸载：
+
+```sh
+rm -f "$HOME/.local/bin/aster" "$HOME/.local/bin/a3s-code-acp"
+```
+
+### Windows
+
+在 PowerShell 中安装。省略 `-Prefix` 时目录是 `%LOCALAPPDATA%\Aster\bin`。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-aster.ps1
+$env:Path = "$env:LOCALAPPDATA\Aster\bin;" + $env:Path
+aster version --json
+a3s-code-acp --version
+```
+
+上面的 `Path` 赋值只作用于当前窗口。Git Bash 中可以执行 `./scripts/install-aster.sh`，它会转去同一个 PowerShell 脚本。
+
+更新：
+
+```powershell
+git pull
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-aster.ps1
+aster version --json
+```
+
+卸载：
+
+```powershell
+Remove-Item -Force "$env:LOCALAPPDATA\Aster\bin\aster.exe", "$env:LOCALAPPDATA\Aster\bin\a3s-code-acp.exe"
+```
 
 ## 理解 Meta Harness
 
