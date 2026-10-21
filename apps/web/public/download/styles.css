@@ -281,11 +281,16 @@ svg {
 }
 .hero-background {
   position: absolute;
-  inset: 64px 0 auto;
-  height: 560px;
+  inset: 64px 0 0;
   overflow: hidden;
   z-index: -1;
   pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(0, 44, 112, 0.2) 42%, transparent 65%),
+    radial-gradient(ellipse 22% 20% at 50% 28%, #7550ff, transparent 80%),
+    radial-gradient(ellipse 26% 30% at 20% 46%, #10a3f5, transparent 75%),
+    radial-gradient(ellipse 26% 28% at 80% 44%, #1655ef, transparent 76%),
+    linear-gradient(180deg, #0867d1, #1582ec 35%, #68d6f8 64%, #e4f8ff 85%, #fff);
 }
 #aster-canvas {
   position: absolute;
@@ -293,6 +298,8 @@ svg {
   width: 100%;
   height: 100%;
   pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.6;
 }
 .hero-copy {
   text-align: center;
@@ -303,7 +310,7 @@ svg {
   font-weight: 500;
   line-height: 1.1;
   letter-spacing: -3px;
-  color: var(--title);
+  color: #fff;
   margin: 0;
 }
 .hero-copy > p {
@@ -311,7 +318,7 @@ svg {
   line-height: 26px;
   margin: 12px auto 0;
   max-width: 650px;
-  color: var(--muted);
+  color: #fff;
 }
 .hero-download {
   margin-top: 30px;
@@ -369,7 +376,7 @@ svg {
   display: inline-block;
 }
 .hero-screen .screenshot-button {
-  box-shadow: 0 8px 22px rgba(20, 40, 80, 0.04);
+  box-shadow: 0 24px 64px rgba(6, 58, 125, 0.16);
 }
 .section {
   max-width: 1268px;
@@ -475,10 +482,28 @@ svg {
 }
 .feature-screen {
   margin: 0;
+  padding: 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #38bef4, #2572e8 65%, #7562e7);
+}
+#feature-panel-office .feature-screen {
+  background: linear-gradient(135deg, #42d5cd, #17a5b5 60%, #218bc1);
+}
+#feature-panel-review .feature-screen {
+  background: linear-gradient(135deg, #ffd18c, #fa9b80 60%, #ee7992);
+}
+#feature-panel-lineage .feature-screen {
+  background: linear-gradient(135deg, #ba9af3, #8b78e6 55%, #5b9ae7);
 }
 .feature-screen figcaption {
   font-size: 11px;
-  margin-top: 9px;
+  margin-top: 12px;
+  display: block;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--body);
 }
 .feature-screen .screenshot-button {
   border-radius: 10px;
@@ -637,8 +662,16 @@ svg {
   align-items: center;
   margin-top: 128px;
   padding: 70px 24px;
-  background: #fafafa;
+  background:
+    radial-gradient(ellipse at 15% 100%, rgba(23, 198, 226, 0.7), transparent 55%),
+    radial-gradient(ellipse at 85% 0%, rgba(134, 92, 246, 0.7), transparent 55%),
+    linear-gradient(120deg, #0867cf, #3157c7 55%, #5141bc);
   border-block: 1px solid var(--hairline);
+}
+.bottom-cta > img {
+  padding: 8px;
+  border-radius: 14px;
+  background: #fff;
 }
 .bottom-cta h2 {
   font-size: 28px;
@@ -647,10 +680,11 @@ svg {
   text-align: center;
   margin: 25px 0 12px;
   line-height: 1.5;
+  color: #fff;
 }
 .bottom-cta p {
   font-size: 15px;
-  color: var(--muted);
+  color: #fff;
   margin: 0 0 30px;
 }
 .site-footer {
@@ -972,9 +1006,6 @@ dialog > .inline-link {
   .hero-download {
     margin-top: 26px;
   }
-  .hero-background {
-    height: 510px;
-  }
   .hero-screen {
     width: calc(100% - 40px);
     margin-top: 38px;
@@ -1051,6 +1082,9 @@ dialog > .inline-link {
   }
   .feature-screen figcaption {
     font-size: 10px;
+  }
+  .feature-screen {
+    padding: 12px;
   }
   .platform-grid {
     grid-template-columns: 1fr;
