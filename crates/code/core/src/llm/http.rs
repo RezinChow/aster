@@ -75,10 +75,11 @@ impl HttpClientError {
 /// True when the failure is a hard connectivity problem (reset, refused, DNS),
 /// not a transient mid-stream blip or request timeout.
 /// `Display` plus each `source`, capped so a cyclic chain cannot grow forever.
-fn render_error_chain(error: &dyn std::error::Error) -> String {
+fn render_error_chain(error: &(dyn std::error::Error + 'static)) -> String {
     let mut rendered = error.to_string();
     let mut source = error.source();
     let mut depth = 0_u8;
+    let mut io_failure = hard_io_failure_label(error);
     while let Some(cause) = source {
         if depth >= 8 {
             break;
@@ -86,9 +87,29 @@ fn render_error_chain(error: &dyn std::error::Error) -> String {
         depth = depth.saturating_add(1);
         rendered.push_str(": ");
         rendered.push_str(&cause.to_string());
+        io_failure = io_failure.or_else(|| hard_io_failure_label(cause));
         source = cause.source();
     }
+    // Windows formats OS errors in the user's language. Preserve the typed IO
+    // reason before flattening the source chain into our public String API;
+    // otherwise a localized reset misses the existing hard-failure policy and
+    // spends the entire provider retry budget as a synthetic 503.
+    if let Some(label) = io_failure {
+        rendered.push_str(": ");
+        rendered.push_str(label);
+    }
     rendered
+}
+
+fn hard_io_failure_label(error: &(dyn std::error::Error + 'static)) -> Option<&'static str> {
+    use std::io::ErrorKind;
+    match error.downcast_ref::<std::io::Error>()?.kind() {
+        ErrorKind::ConnectionReset => Some("connection reset"),
+        ErrorKind::ConnectionRefused => Some("connection refused"),
+        ErrorKind::NetworkUnreachable => Some("network is unreachable"),
+        ErrorKind::HostUnreachable => Some("no route to host"),
+        _ => None,
+    }
 }
 
 pub(crate) fn is_hard_connect_failure(message: &str) -> bool {
@@ -830,6 +851,9 @@ pub(crate) fn join_chat_completions_url(base_url: &str, chat_path: &str) -> Stri
 
 #[cfg(test)]
 mod duplex_tests;
+
+#[cfg(test)]
+mod transport_error_tests;
 
 #[cfg(test)]
 mod tests {
