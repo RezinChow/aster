@@ -16,7 +16,7 @@ Acceptance: `docs/evidence/desktop/2026-10-21-default-aster/OUTCOME.md`. No stag
 
 - [x] T011 Verify one stable task card per execution turn, failed/empty-update handling, completed folding and actual native pointer/keyboard presentation.
 
-- [ ] T012 对照原本地版本，恢复 Aster 构建的本地导航/功能边界；用相同构建环境变量切换界面和原生能力，验证通友构建保持托管流程。
+- [ ] T012 按 specs/007 的对齐合同（2026-10-22 指令修订）验证 Aster 构建的导航/功能边界：两租户共享同一 icon-rail 壳，差异仅限名字、logo、默认主题色与清单内账户绑定门禁（aster 隐藏 消息/团队/平台/邮件/日程，显示 插件）；用相同构建环境变量切换界面和原生能力，验证通友构建保持托管流程。
 
 - [x] T013 本地无账号：登录 UI 与成员/组织查询均裁剪，原生入口拒绝；组织构建保留正向认证回归。
 - [ ] T014 迁移 Office/共享资源，清理旧应用 workspace/构建/fixture/CI 依赖，移除 `apps/work` 并验证两产品构建及脱离源码的内置技能交付。
