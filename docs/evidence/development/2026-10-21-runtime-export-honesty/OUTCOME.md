@@ -246,3 +246,15 @@ init/init init/init.c"`), `cargo check -p libkrun` on the instrumented
 fork main finishes clean — the compile caveat on 02e1414 is fully
 closed at the real-artifact tier. The binary is a local build product,
 removed after the check and never committed.
+
+krun premise revision (2026-10-21, from the a3s checkout's own
+evidence): the local fn02-style stack ran GA-2 vertical chains
+successfully as recently as 2026-10-01 — WI4C2 gateway-ACL, live-feed,
+and trigger-tree sessions all retained with e2e_exit=0 — so krun/HVF
+boots VMs fine on this host. The 8443 node-control cert gap recorded on
+09-28 was closed 10-01 (server.pem/key present). The T0.4.2 "boot
+chain" failure is therefore scoped to that stack's guest-toolchain
+configuration (the a3s-box 3.3.0 install-linkage context), not a
+general engine defect — the fork instrumentation will name the exact
+stage when the T0.4.2 rerun happens, and the v3 Linux-leg plan remains
+the correct skip either way.
