@@ -61,7 +61,10 @@ US-6 证据修正）
       方案：新增 `.github/actions/checkout-os-backend`（镜像 checkout-studio：
       fail-closed token、gitlink pin、不持久化凭据）；hermetic 矩阵带
       `submodule`/`test_args`、按真值门控检出；campaigns 三命令
-      `--manifest-path` 作用域；rust-cache 补 `workspaces`。本地证明：YAML
+      `--manifest-path` 作用域；rust-cache 补 `workspaces`。**2026-10-22 修正**：
+      a3s-api 移出 hermetic 矩阵——其 tobot/git_store PG 证明对不可达服务
+      panic 而非跳过（实证见 research.md），hermetic 无服务容器首跑必红；
+      api 覆盖只在 campaigns 活栈串行腿。本地证明：YAML
       解析、五包在各自 manifest 下可解析、gitlink 可定位；真实 CI 执行未
       声明（token 范围不足时 fail-closed 即设计行为）✅
 - [x] T010 [US1] 工作区 fmt 门：**HEAD 提交态已绿**（早间 8 红中 7 个仅
@@ -206,7 +209,9 @@ CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SD
       `.github/workflows/os-retained-run.yml`，仅 `workflow_dispatch`、
       `runs-on: [self-hosted, aster-os]`、机器 deploy-key 检出
       （gitlink 160000 → pinned sha → 命名失败不跳过）、复刻 backend.yml
-      验证集（1.97.1/fmt/--all-targets/五包矩阵/依赖守卫）+ 90 天产物保留；
+      验证集（1.97.1/fmt/--all-targets/服务无关四包集/依赖守卫——2026-10-22
+      与 backend.yml 同步移除 a3s-api：该管道无任何服务，tobot/git_store
+      PG 证明必 panic；见 research.md）+ 90 天产物保留；
       本地证明 = YAML 解析 + gitlink 逻辑对 HEAD 实跑（api `aa0e7ae`/
       cloud `4f65537` 均可解析）。已知边界：cloud pin 是上游排队提交，
       runner 首次 dispatch 将在 cloud checkout 处命名失败直至上游推进——

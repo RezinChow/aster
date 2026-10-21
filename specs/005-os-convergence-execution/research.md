@@ -304,3 +304,31 @@ fork，而非从上游拉补丁。
   vendored 演化不改其内容；**仅 macOS/Linux 重 vendor 应保持 tar 冻结**，
   若需再生 tar 须先在 SOURCE-PROVENANCE 记录排除配方与生成 git。
   全部已写入 SOURCE-PROVENANCE.md「Ownership transition」。
+
+## hermetic 矩阵服务依赖修正（2026-10-22，T009/T018 后续）
+
+背景：全量 api 套件（CI 原话 `cargo test --locked --manifest-path
+apps/api/Cargo.toml -p a3s-api -- --test-threads=1`，活 PG/RustFS）
+818+17+3 全绿、0 失败——排队三提交（58410bb/f14f605/079e746）整栈无
+回归。并行跑出现 1 例假红：tobot_memory 两 PG 测试共用可丢弃库
+`a3s_tobot_memory_proof`，其注释自书「必须 `--test-threads=1`」，而
+backend.yml campaigns 正是串行调用——调用方式错误，非缺陷。
+
+由此暴露 hermetic 矩阵（无服务容器）的存量地雷：api 三处 PG 证明对
+不可达服务是 panic 不是跳过——tobot `postgres_tests.rs:67`（双测实证：
+死端点 → "could not reset disposable database … error connecting to
+server"）、git_store `postgres_catalog_tests.rs:44`
+（`.expect("live PostgreSQL")`，同实证）；cloud control-plane 同病
+（`panic!("A3S_CLOUD_TEST_POSTGRES_URL is required")` 门 + 后续连接失
+败）。对照 mail `postgres_tests.rs:64` 是响亮跳过（"not a pass"）。
+workflow 顶层 `env:` 使变量在 hermetic 在而 PG 死 → 首次真实执行必红。
+node-agent/sdk/contracts 零 PG 引用，干净。
+
+修正（aster 仓）：backend.yml hermetic 矩阵移除 a3s-api（
+a3s-cloud-control-plane 本就不在其列），os-retained-run.yml 同步移除
+`run_tests api`（该管道无任何服务，步骤更名「service-free set」）。
+api 的测试覆盖只在 campaigns 活栈串行腿。本地证明：双 YAML 解析、
+hermetic 13 包清单断言、campaigns 三串行命令原样、run 块 `bash -n`。
+边界：自托管 retained 管道现不含任何服务背书套件——runner 侧若要补，
+需 campaigns 形态（真 PG/S3 + 串行，tobot 另有单线程约束），属 T012
+runner 键。

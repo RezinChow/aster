@@ -59,9 +59,11 @@ jobs:
         include:
           # Submodule workspaces: the package lives in apps/api or apps/cloud,
           # which keep their own Cargo workspaces and lockfiles.
-          - package: a3s-api
-            submodule: apps/api
-            test_args: --manifest-path apps/api/Cargo.toml -p a3s-api
+          # a3s-api is deliberately absent: its suite carries live PostgreSQL
+          # proofs (tobot_memory, git_store) that panic when the service is
+          # unreachable, so it runs only in the campaigns job with real
+          # PostgreSQL/S3 under --test-threads=1. a3s-cloud-control-plane is
+          # absent for the same reason.
           - package: a3s-cloud-contracts
             submodule: apps/cloud
             test_args: --manifest-path apps/cloud/Cargo.toml -p a3s-cloud-contracts

@@ -57,7 +57,7 @@ jobs:
           mkdir -p .retained-logs
           cargo check --locked --workspace --all-targets 2>&1 | tee .retained-logs/workspace-check.log
 
-      - name: Hermetic package tests (the five-package set)
+      - name: Hermetic package tests (the service-free set)
         run: |
           set -euo pipefail
           run_tests() {
@@ -65,7 +65,11 @@ jobs:
             echo "== $label"
             cargo test --locked "$@" 2>&1 | tee ".retained-logs/tests-$label.log"
           }
-          run_tests api --manifest-path apps/api/Cargo.toml -p a3s-api
+          # a3s-api and a3s-cloud-control-plane are deliberately absent: their
+          # suites carry live PostgreSQL proofs that panic when the service is
+          # unreachable (and the api tobot pair additionally requires
+          # --test-threads=1). They need the campaigns shape (real
+          # PostgreSQL/S3, serial) which this pipeline does not provide.
           run_tests cloud-contracts --manifest-path apps/cloud/Cargo.toml -p a3s-cloud-contracts
           run_tests cloud-node-agent --manifest-path apps/cloud/Cargo.toml -p a3s-cloud-node-agent
           run_tests cloud-sdk --manifest-path apps/cloud/Cargo.toml -p a3s-cloud-sdk
