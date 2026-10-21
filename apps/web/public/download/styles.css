@@ -282,33 +282,10 @@ svg {
 .hero-background {
   position: absolute;
   inset: 64px 0 auto;
-  height: 740px;
+  height: 560px;
   overflow: hidden;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 35% 44% at 18% 65%, rgba(39, 137, 237, 0.2), transparent 74%),
-    radial-gradient(ellipse 38% 46% at 82% 63%, rgba(0, 90, 187, 0.14), transparent 72%),
-    radial-gradient(ellipse 60% 58% at 50% 83%, rgba(39, 137, 237, 0.13), transparent 78%);
-}
-.hero-emblem {
-  position: absolute;
-  width: clamp(84px, 9vw, 128px);
-  height: auto;
-  top: 112px;
-  left: max(24px, calc(50% - 500px));
-  transform: rotate(-16deg);
-  opacity: 0.75;
-}
-.hero-spark {
-  position: absolute;
-  width: 54px;
-  height: 54px;
-  top: 176px;
-  right: max(48px, calc(50% - 464px));
-  fill: #2789ed;
-  transform: rotate(14deg);
-  opacity: 0.55;
 }
 #aster-canvas {
   position: absolute;
@@ -398,30 +375,6 @@ svg {
   max-width: 1268px;
   padding: 0 24px;
   margin: 128px auto 0;
-}
-.star-divider {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin: 0 auto 26px;
-  pointer-events: none;
-}
-.star-divider::before,
-.star-divider::after {
-  content: "";
-  width: 76px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(127, 150, 178, 0.45));
-}
-.star-divider::after {
-  transform: rotate(180deg);
-}
-.star-divider svg {
-  width: 16px;
-  height: 16px;
-  fill: #005abb;
-  opacity: 0.6;
 }
 .section-title {
   font-size: 24px;
@@ -679,9 +632,6 @@ svg {
   text-underline-offset: 3px;
 }
 .bottom-cta {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -689,39 +639,6 @@ svg {
   padding: 70px 24px;
   background: #fafafa;
   border-block: 1px solid var(--hairline);
-}
-.cta-orbits {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(ellipse at 50% 110%, rgba(39, 137, 237, 0.08), transparent 65%);
-}
-.cta-orbits::before,
-.cta-orbits::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 840px;
-  height: 220px;
-  border: 1px solid rgba(127, 150, 178, 0.18);
-  border-radius: 50%;
-  transform: translate(-50%, -50%) rotate(-16deg);
-}
-.cta-orbits::after {
-  width: 660px;
-  height: 290px;
-  transform: translate(-50%, -50%) rotate(12deg);
-}
-.cta-orbits svg {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  top: 64px;
-  right: max(28px, calc(50% - 420px));
-  fill: #005abb;
-  opacity: 0.4;
 }
 .bottom-cta h2 {
   font-size: 28px;
@@ -1057,18 +974,6 @@ dialog > .inline-link {
   }
   .hero-background {
     height: 510px;
-  }
-  .hero-emblem {
-    width: 64px;
-    top: 44px;
-    left: 20px;
-    opacity: 0.55;
-  }
-  .hero-spark {
-    width: 24px;
-    height: 24px;
-    top: 78px;
-    right: 28px;
   }
   .hero-screen {
     width: calc(100% - 40px);
