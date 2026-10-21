@@ -1,12 +1,20 @@
 # Follow-up: actual client conversation stalls
 
-## Result
+## Closure update — 2026-10-21
+
+用户已确认结案：coding agent 生成的 Bash 命令被防火墙误判为系统命令注入
+攻击，正常模型会话因此被拦截。完整结论、证据边界和后续工程教训见
+[结案与教训](../2026-10-21-second-turn-analysis/OUTCOME.md#closure-and-lessons)。
+以下为结案前的诊断记录；原始测试结果不作追溯修改。
+
+## Result at the time of diagnosis
 
 The user first reported that macOS became apparently stable after disabling
 the VPN, while retaining `http://117.162.0.179:8080/v1`. Subsequently another
 user with no VPN also encountered a connection reset. The earlier stability
 report therefore does not establish VPN as the unique cause or a complete
-repair. The public HTTP path is **not repaired**. Ordinary tool-enabled
+repair. At that stage the public HTTP path had **not been repaired**. Ordinary
+tool-enabled
 ACP requests reproduce a connection reset through that endpoint, including
 after selecting the Windows physical network interface. The same current ACP
 executable completed both turns through an SSH local forward to the same

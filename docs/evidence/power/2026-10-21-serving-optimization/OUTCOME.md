@@ -1,9 +1,12 @@
 # Power serving optimization — execution record
 
-Follow-up: [actual ordinary-client stall investigation](../2026-10-21-client-stall/OUTCOME.md)
-reproduced resets on the original public HTTP endpoint with full tool schemas.
-The bounded qualification below does not establish that this client issue is
-fixed; an SSH workaround passed while public-path repair remains outstanding.
+Follow-up closed by the user on 2026-10-21: the
+[ordinary-client stall investigation](../2026-10-21-client-stall/OUTCOME.md)
+was ultimately attributed to the firewall classifying coding-agent Bash commands
+as a system command-injection attack. See the
+[closure and lessons](../2026-10-21-second-turn-analysis/OUTCOME.md#closure-and-lessons).
+The bounded qualification below remains historical; no earlier failed test is
+relabeled as post-remediation acceptance.
 
 ## Result
 
