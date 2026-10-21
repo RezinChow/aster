@@ -105,9 +105,14 @@ US-6 证据修正）
       日期喂「两季度无 retained 证据即降级」的治理钟，猜值即腐蚀月度评审决
       策（宪法 fail-closed 禁）。通道侧照旧：日期由 owner/上游史供给后，
       本地编辑 + 排队 PR + 指针提升（与 T017 同队列）
-- [ ] T017 [US5] lane payload 三副本命名对账（上游双 PR → 根副本 +
-      gitlink-only 指针提升提交；同套保真回归测试；drift ratchet 保持绿）
-      ——**阻塞上游 PR**
+- [x] T017 [US5] lane payload 三副本对账——**已落三仓 main（2026-10-22）**：
+      修复 = `Command` 增默认 `payload()`（空对象，不破坏既有实现者）+
+      `JsonCommand` 覆写真值 + `enqueue` 在 move 进 wrapper 前捕获并落盘
+      （替换 `json!({})`）；保真测试 = CapturingStorage 回环，断言落盘
+      字节与提交 payload 相等；三副本（根/`apps/api`/`apps/cloud`）同一
+      diff，各 402+6 全绿、fmt 干净；drift 集保持 15 不生长、`a3s-lane`
+      零漂移。落地顺序照草稿：api `7091f80` → cloud `2ff9eed` → aster
+      根副本 + 双 gitlink 同一提交 `8a8f99881`，均已推送 ✅
 
 ## Phase C+: krun fork 修复轨（2026-10-21 新增，替代 T014 的外发路径）
 

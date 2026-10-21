@@ -70,6 +70,10 @@ pin 即是修复动作的一部分。
 >
 > 落地顺序：kense-labs/api PR → kense-labs/cloud PR → aster 根副本 +
 > 两个子模块指针提升（同一提交，gitlink-only）。
+>
+> **已落地（2026-10-22，通道改直推）**：api `7091f80` → cloud
+> `2ff9eed` → aster `8a8f99881`；修复含 trait 默认 `payload()` 方案
+> （原草稿未定法）；三副本各 402+6 绿，drift 保持 15 不生长。
 
 ## STUDIO_READ_TOKEN 最小权限配置清单（远端 CI 单点解阻，2026-10-21 实证）
 
