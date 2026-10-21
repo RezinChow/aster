@@ -91,7 +91,7 @@ US-6 证据修正）
       digest。**步骤 1 已执行并证明**（建链 201→解析 200→负控 404，
       human principal + HTTPS issuer 两条 runbook 修订；前置 1 环境半边
       跑通，含 run_cloud.sh 三处 dev 工具缺口）。**修订文本已落 runbook**
-      （2026-10-21 晚：cloud `cda0231` 排队上游，Status 行改为步骤 1–3 已证
+      （2026-10-21 晚：cloud `cda0231` 修订落库，Status 行改为步骤 1–3 已证
       /4–6 阻 D-A，10-19 recon 结论标记被取代）。**剩余唯一阻塞 = D-A**
       （步骤 4–6 的私有 CA 准入决策）。证据：
       `docs/evidence/development/2026-10-21-krun-t042-rerun-forensics/`、
@@ -128,7 +128,8 @@ US-6 证据修正）
       `absorb/t021-vendor-evolution`@`3b1a018`（90 文件逐字 + lib.rs 三向
       合并唯一冲突解为并留；`NET=1 BLK=1 make` exit 0；`diff -rq` 零缺失，
       差异仅 3 个 fork 超集项）。**D-1 已落**（2026-10-21 晚：吸收分支
-      --no-ff 合入 fork main `2fe72be`，main 成唯一超集血统）。归档机械
+      --no-ff 合入 fork main `2fe72be`，main 成唯一超集血统；2026-10-22
+      fork main 已推 `aster-ai-lab/libkrun`（`02e1414..2fe72be`））。归档机械
       已测量并写入 SOURCE-PROVENANCE（tar 为 f7c69184 的 16 条目过滤
       pax，配方不在库；tar 兼任 Windows corresponding-source，仅 macOS/
       Linux 重 vendor 时应保持冻结）。**剩余 owner 单决定 D-2**：产品
@@ -146,11 +147,12 @@ US-6 证据修正）
       实挂载在 `/v1/api/admin/app-releases`（API_PREFIX），在拦截器前缀门
       之内；真实洞 = 前缀门只查令牌形状，控制器层零会话验证（任意
       `a3s_us_` 形状令牌可写）。发现、勘误与上游 PR 材料入 research.md ✅
-- [ ] T024 [US4] AppRelease 上游 PR（kense-labs/api）——**加固已在本地
-      实现并证明**（2026-10-21 晚：api `58410bb` 排队上游——写面全
-      `operator()` 验证 + SQLSTATE 23505 命名 409（连带修复重复上传 500
-      的存量缺陷）+ 双层准入与全链 e2e 2/2 绿于活栈；读面公开化未代决）
-      ——**仅阻塞推送权**（PR 已从草稿变为 ready-to-open）
+- [x] T024 [US4] AppRelease 上游 PR（kense-labs/api）——**加固已落上游 main**
+      （2026-10-22：本地实现+证明后经 owner 指令直推——api
+      `aa0e7ae..079e746`；写面全 `operator()` 验证 + SQLSTATE 23505 命名
+      409（连带修复重复上传 500 存量缺陷）+ 双层准入与全链 e2e 2/2 绿于活
+      栈；整栈随全量套件 818+17+3 绿验证；读面公开化未代决——仍是 owner
+      独立决策）✅
 
 ## Phase F: a3s-api 缺口收敛（2026-10-21 完成度核查后分类）
 
@@ -168,15 +170,14 @@ Redis 启动依赖[Phase 2 T2.5]、AppRelease 治理[T024]）；**本仓可执�
       生命周期记录、摄取端契约核对 api usage 上下文），再实现+契约测试
       （200 仅真实 records 的既有契约保持）
 
-- [ ] T030 [US4] api 测试留白补齐（notes/oem/config_center 三 context 结构
-      全、库内零测）——**测试已本地实现并全绿**（2026-10-22：api `f14f605`
-      排队上游——notes 5（model_service 模式脚本仓）+ oem 14（域不变式 +
+- [x] T030 [US4] api 测试留白补齐（notes/oem/config_center 三 context 结构
+      全、库内零测）——**已落上游 main**（2026-10-22：`f14f605` 随
+      `aa0e7ae..079e746` 直推）——notes 5（model_service 模式脚本仓）+ oem 14（域不变式 +
       new/bind 准入与生命周期脚本目录）+ config_center 3（wire e2e：进程内
       脚本化 a3s-config 服务 + 真 HttpConfigClient + 真控制器；死服务目录
       200+命名错误、remote 404→404/409→409 映射、删幂等）；合计 22，全
-      进程内零外部依赖；原记 pre-existing fmt 债两文件已清偿——api
-      `079e746` 纯格式化，crate fmt 门全绿，随队 PR）
-      ——**仅阻塞推送权**（与 T024 同队列）
+      进程内零外部依赖；fmt 债随队清偿（api `079e746`，crate fmt 门全绿）；
+      整栈经全量套件（CI 原话串行调用）818+17+3 绿/0 败 ✅
 
 - [ ] T031 [US4] studio 接线 ToBot 记忆适配器（755 行适配器的
       recall_note/retain_exchange 挂进回合循环；后端 10 端点已交付）——
@@ -213,9 +214,9 @@ CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SD
       与 backend.yml 同步移除 a3s-api：该管道无任何服务，tobot/git_store
       PG 证明必 panic；见 research.md）+ 90 天产物保留；
       本地证明 = YAML 解析 + gitlink 逻辑对 HEAD 实跑（api `aa0e7ae`/
-      cloud `4f65537` 均可解析）。已知边界：cloud pin 是上游排队提交，
-      runner 首次 dispatch 将在 cloud checkout 处命名失败直至上游推进——
-      设计行为，非缺陷。**仍阻塞 T012**（runner 机器到位才有真实执行；不
+      cloud `4f65537` 均可解析）。原边界（cloud pin 上游不可达则首跑命名
+      失败）已消解：2026-10-22 cloud main 直推 `c5deb07..cda0231`、api
+      main 直推 `aa0e7ae..079e746`，两枚 pin 均公开可解析。**仍阻塞 T012**（runner 机器到位才有真实执行；不
       代声明绿）
 - [ ] T019 [US8] GA-2 各环上游落地后的指针提升 + 证据托管（不代上游声明
       Verified）
