@@ -73,7 +73,10 @@ US-6 证据修正）
 - [ ] T011 [US3] D-A ADR 落 kense-labs/cloud `docs/decisions/`（材料已
       备于 research.md）——**阻塞 owner**
 - [ ] T012 [US3] D-B token/runner 决策与配置——**阻塞 owner**
-- [ ] T013 [US3] D-D postgres digest 方案——**阻塞 owner**
+- [x] T013 [US3] D-D postgres digest 方案——**由 box 路径取代**（2026-10-21
+      实证：compose 引导消费的正是 pinned digest `742f…2193`，Docker
+      fallback 对 T0.4.2 失去必要性；镜像镜像问题独立存在但不再占执行
+      位）✅
 - [x] T014 [US3] D-F krun issue 外发——**由 Phase C+ fork 轨替代**
       （T020 已落：fork + 插桩 + main 合入 + 编译验证）；D-F 草稿文本留
       research.md 备 owner 后续外发，不再占执行位 ✅
@@ -101,12 +104,17 @@ US-6 证据修正）
       `KRUN_BOOT_STAGE` 标记（含原两处静默退出）；纯插桩、控制流不变、
       rustfmt 干净；编译验证边界已在提交信息声明（cargo 需 make 先产
       init 产物）✅
-- [ ] T021 [US4] 重 vendor：fork main 现含插桩（`02e1414`）+ sysroot
-      交叉构建修复（`ad556a3`，macOS `make` 冷启动自证）。2026-10-21 矩阵
-      证明本次引导失败与 libkrun 无关，故重 vendor 触发条件改为「fork
-      出现需进 vendor 的实质修复或 owner 决策」；`vendor/libkrun` 以确
-      定性 `git archive` 再生成 + `LIBKRUN_SOURCE_ARCHIVE_SHA256` 与
-      SOURCE-PROVENANCE 同步（转移注记已落）
+- [ ] T021 [US4] 重 vendor——**前置锐化（2026-10-21 血统核查）**：vendored
+      树源自工具链提交 `f7c69184`，携带产品级补丁（TSI 反向代理流 #13、
+      host 转发端口发夹 #14、未发布 TSI 监听 -EPERM #12/Box#370、
+      allowlist-only host bind、macOS VirtioFS 目录快照、FUSE resume
+      cookie 稳定化等）；fork main 是 A3S-Lab 主线血统 + 插桩 + sysroot
+      修复（`02e1414`+`ad556a3`），与 vendored 树 96 处差异且非超集——
+      **直接重 vendor 会丢失产品网络补丁**。真实前置 = fork 先吸收
+      f7c69184 补丁集（rebase/merge/cherry-pick + macOS 编译验证），此为
+      owner 可见的实质工程项，非本轮可自行推进。吸收完成后再以确定性
+      `git archive` 再生成 vendor + 同步 `LIBKRUN_SOURCE_ARCHIVE_SHA256`
+      与 SOURCE-PROVENANCE
 - [x] T022 [US4] Box 保留日志策略：启动失败时先把 `box_dir/logs` 拷至
       `<home>/diag/failed-boots/<box_id>/`（按 box_id 单份、重试整体替换、
       best-effort 不影响失败路径），拆毁语义不变；`vm::boot_diag` 三用例

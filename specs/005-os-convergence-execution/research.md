@@ -224,3 +224,18 @@ development/2026-10-21-t042-step1-subject-link/OUTCOME.md）
 附带：run_cloud.sh 的 box 路径三处 dev 工具缺口（S3 凭据未导出、
 `host.orb.internal` 端点 host-run 不解析、node-control 端口无避让）已
 在证据中记录，随 lane/AppRelease PR 同队列上报。
+
+## T021 前置锐化 — fork 与 vendor 血统分叉（2026-10-21 核查）
+
+`vendor/libkrun`（归档 SHA `b92b7d…`，源工具链提交 `f7c69184`）与
+aster-ai-lab/libkrun main（`02e1414`+`ad556a3`）**不是同支血统**：
+96 处树差异，vendor 独有 SNAPSHOT_PHASE_B.md / VSOCK_RESTORE_DIAGNOSIS.md
+及产品补丁集（TSI 反向代理 #13、端口发夹 #14、-EPERM #12、allowlist
+host bind、VirtioFS 快照、FUSE resume cookie……，SOURCE-PROVENANCE 详载）；
+fork 是 A3S-Lab 主线 + 插桩 + sysroot 修复。直接重 vendor = 回归产品网络
+行为（build.rs 的 TSI 警告即此因）。
+
+**结论**：T021 真实前置 = fork 先吸收 f7c69184 补丁集（约 3 个 PR 量级，
+cherry-pick 或 rebase 到 fork main + macOS 冷编验证），这是 owner 可见的
+实质工程项。sysroot 修复（`ad556a3`）不足以触发重 vendor——它只是让
+fork 可在本机从源构建。
