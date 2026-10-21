@@ -21,8 +21,7 @@ test in the same task. A task without that test is not done.
 ## Path Conventions
 
 - Aster CLI and harness: `apps/aster/`, `crates/code/`
-- AsterDream: `apps/work/`
-- AsterDream: `apps/desktop/`
+- Aster desktop: `apps/studio/`
 - Libraries: `crates/<name>/`
 - Evidence: `docs/evidence/<domain>/<date-slug>/OUTCOME.md`
 

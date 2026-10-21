@@ -1,6 +1,6 @@
 # Aster
 
-Aster is one Rust workspace for the terminal coding tool, harness, and shared AsterDream desktop host.
+Aster is one Rust workspace for the terminal coding tool, harness, and shared Aster desktop host.
 
 - Build from the repository root with the pinned Rust toolchain.
 - `apps/aster` is the `aster` terminal binary. `crates/code/acp` is its
@@ -8,7 +8,7 @@ Aster is one Rust workspace for the terminal coding tool, harness, and shared As
 - `crates/code/core` is the embeddable Rust SDK and harness. Do not add
   Node, Python, or Go bindings, SDKs, or package publishing jobs.
 - `apps/studio` is the shared desktop host; `just build-studio` builds it with
-  ACP and Office. Its default `aster` tenant is AsterDream. Keep tenant
+  ACP and Office. Its default `aster` tenant is Aster. Keep tenant
   identities and data isolated. It is a private submodule from
   `git@github.com:kense-labs/studio.git`, tracked on `main`; never add its
   source files to the parent repository. Initialize it before Cargo commands.

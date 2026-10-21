@@ -61,10 +61,10 @@ build-desktop $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
 build-desktop-release $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
     just build-studio-release {{slug}}
 
-# Start the current AsterDream Studio host with renderer hot reload.
+# Start the current Aster Studio host with renderer hot reload.
 dev: studio
 
-# Compatibility entry point for AsterDream; Studio owns this tenant's launch lifecycle.
+# Compatibility entry point for Aster; Studio owns this tenant's launch lifecycle.
 work: studio
 
 # Middleware plus the host processes that exist in this tree.

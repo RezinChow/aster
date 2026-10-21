@@ -1,22 +1,23 @@
-# Feature Specification: Default AsterDream desktop product
+# Feature Specification: Default Aster desktop product
 
 **Created**: 2026-10-21
 **Status**: Implementation and acceptance in progress
 **Input**: 将 AsterDream 功能和品牌合并到 `apps/studio`，默认保留 AsterDream；原组织产品使用 `toyou` 租户。
 **Clarification**: 仅合并功能和品牌。旧 AsterDream 数据、会话、凭据和偏好保持原样，不执行导入。
+**Brand amendment (2026-10-21)**: 当前默认显示名改为 Aster；原始输入和旧产品数据说明保留。`aster` 租户、Bundle / App ID 和数据隔离合同不变。
 
 ## 产品合同
 
 | 构建租户 | 产品标识 | 原生程序 | Bundle / App ID | 数据归属 |
 | --- | --- | --- | --- | --- |
-| `aster` | `AsterDream` | `Studio` | `dev.a3s.studio.aster` | 新的本地产品配置；不读取旧 Work 数据 |
+| `aster` | `Aster` | `Studio` | `dev.a3s.studio.aster` | 新的本地产品配置；不读取旧 Work 数据 |
 | `toyou` | `ToWork` | `Studio` | `dev.a3s.studio` | 保留组织产品的现有配置和实例兼容 |
 
 共享宿主版本为 2.1.3。旧 AsterDream 0.1.x 不自动转换为新宿主。安装身份必须与显式启动租户一致；错误、空值或不支持的身份必须拒绝。技术标识是构建和运行合同，不随文档用语清理而重命名。
 
 ## 需求
 
-- **FR-001**: `just studio`、`just dev`、`just work` 默认启动 AsterDream；`just studio toyou` 启动组织产品。不终止旧应用进程。
+- **FR-001**: `just studio`、`just dev`、`just work` 默认启动 Aster；`just studio toyou` 启动组织产品。不终止旧应用进程。
 - **FR-002**: 启动、首页、登录、消息头像、关于页、窗口和安装包使用选定品牌。Aster 保留蓝银主题与星轨 logo；用户自定义主题继续生效。组织产品保持原有外观。
 - **FR-003**: 共享宿主保留规划、目标、进度、审批、模型持久化、输入法和工作区等既有修复。产品能力由明确构建选择决定，不能从展示名称推断。
 - **FR-004**: Aster 使用独立的 store、WebView、锁与 runtime 命名空间。合成哨兵证明旧 Work 数据和另一租户数据不被读取或覆盖；开发不检查用户配置。
@@ -36,7 +37,7 @@
 
 ## 成功条件
 
-1. 两种环境变量构建都使用正确品牌、能力和独立数据；默认 AsterDream。
+1. 两种环境变量构建都使用正确品牌、能力和独立数据；默认 Aster。
 2. 新行为的拥有者测试通过，相关既有回归保留。
 3. 真实原生窗口验证两个品牌、模型对话、本地规划、审批和进度展示；目标协议另有真实 ACP 验证。
 4. 证据记录准确源代码和包代际、执行命令及平台限制。未获授权的提交、推送或发布不包含在内。

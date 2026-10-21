@@ -1,4 +1,4 @@
-# Tasks: Default AsterDream tenant
+# Tasks: Default Aster tenant
 
 - [x] T001 Record explicit user scope, identity matrix, old-data exclusion, caller ownership and constitution analysis.
 - [x] T002 Brand: actual RED/green for aster default/invalid tenants, canonical assets, boot/home/login/about/avatar, blue/silver light/dark and custom theme retention; preserve `toyou` and existing fixture capabilities.

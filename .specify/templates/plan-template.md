@@ -47,8 +47,7 @@ specs/[###-feature-name]/
 | Layer | Path | New files |
 | --- | --- | --- |
 | CLI | `apps/aster/` or `crates/code/` | [files] |
-| AsterDream | `apps/work/` | [files] |
-| AsterDream | `apps/desktop/` | [files] |
+| Aster desktop | `apps/studio/` | [files] |
 | Library | `crates/<name>/` | [files] |
 | UI package | `packages/<name>/` | [files] |
 

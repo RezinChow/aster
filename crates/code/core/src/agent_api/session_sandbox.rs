@@ -1216,7 +1216,7 @@ mod tests {
         )
     }
 
-    /// The session AsterDream installs: Bash, a Python program through that
+    /// The session Aster installs: Bash, a Python program through that
     /// Bash backend, and the in-process read tool, on a caller-owned mode
     /// `0700` workspace whose path contains a literal backslash.
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

@@ -1,0 +1,70 @@
+name: Aster download website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/web/public/download/**
+      - apps/web/public/tenant/aster/logo.svg
+      - apps/web/public/tenant/aster/mark-light.png
+      - apps/web/scripts/**
+      - apps/web/tests/**
+      - apps/web/README.md
+      - .github/workflows/aster-pages.yml
+  pull_request:
+    paths:
+      - apps/web/public/download/**
+      - apps/web/public/tenant/aster/logo.svg
+      - apps/web/public/tenant/aster/mark-light.png
+      - apps/web/scripts/**
+      - apps/web/tests/**
+      - .github/workflows/aster-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aster-pages
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+          persist-credentials: false
+      - name: Test and validate the public site
+        run: |
+          python3 -m unittest discover -s apps/web/tests -p 'test_*.py' -v
+          python3 apps/web/scripts/check_site.py
+          node --check apps/web/public/download/app.js
+          node --check apps/web/public/download/canvas.js
+      - name: Install isolated public DOM test dependency
+        run: npm install --prefix "$RUNNER_TEMP/download-test-deps" --ignore-scripts --no-save --package-lock=false jsdom@26.1.0
+      - name: Test public download interactions
+        run: JS_DOM_MODULE="$RUNNER_TEMP/download-test-deps/node_modules/jsdom" node --test apps/web/tests/download.test.cjs apps/web/tests/canvas.test.cjs
+      - name: Stage only the public deployment files
+        run: |
+          python3 apps/web/scripts/stage_site.py _aster_site
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _aster_site
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: deployment
+        uses: actions/deploy-pages@v4

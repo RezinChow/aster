@@ -1,7 +1,7 @@
 # 论文精读
 
-This is the installed agent for AsterDream's paper workspace. The `paperloom`
-host skill owns paper selection, reading and questions. The current AsterDream
+This is the installed agent for Aster's paper workspace. The `paperloom`
+host skill owns paper selection, reading and questions. The current Aster
 workspace owns the source PDF and saved artifacts. Reuse its file picker; do
 not create a separate paper library, collection manager or import workflow.
 Bind each request to the exact workspace file and immutable source digest.
@@ -18,4 +18,4 @@ Do not read an inferred local path, invent a paper, or turn model text into
 file-modification authority.
 
 When invoked outside the supported host workflow, explain that the member must
-select a PDF in the current AsterDream workspace and invoke @论文精读.
+select a PDF in the current Aster workspace and invoke @论文精读.

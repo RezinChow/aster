@@ -1,0 +1,83 @@
+suite "aster-download-browser" {
+    version = 1
+
+    scenario "desktop-workspace-and-download" {
+        name = "Desktop workspace, review, native download dialog and feature navigation"
+        surface = "web"
+        timeout_ms = 60000
+
+        viewport "desktop" { width = 1440 height = 900 scale = 1 }
+        navigate "download-page" { url = "http://127.0.0.1:4188/download/" }
+        expect "office-initially-visible" { visible = css("#workspace-panel-office .office-paper") }
+        click "open-review" { target = css(".workspace-conversation [data-tour='review']") }
+        expect "review-visible" { visible = css("#proof-review") }
+        click "accept-example-fix" { target = css("#proof-review [data-review-action='accepted']") }
+        expect "example-disposition" {
+            target = css("#review-disposition-status")
+            rendered_text = "示例发现已验收；这不会修改任何真实任务。"
+        }
+        click "header-download" { target = css(".site-header [data-download]") }
+        wait "download-dialog-open" { visible = css("#download-dialog") }
+        press "dismiss-download-with-escape" { key = "Escape" }
+        wait "download-dialog-closed" { hidden = css("#download-dialog") }
+        expect "download-focus-restored" { focused = css(".site-header [data-download]") }
+        click "feature-workspace" { target = css("#feature-workspace") }
+        expect "workspace-feature-visible" { visible = css("#feature-panel-workspace .feature-copy") }
+        click "feature-office" { target = css("#feature-office") }
+        expect "office-feature-copy" { visible = text("可用操作随文件类型而变。") }
+        click "feature-review" { target = css("#feature-review") }
+        expect "review-feature-copy" { visible = text("未解决的发现留待你处理。") }
+        click "feature-lineage" { target = css("#feature-lineage") }
+        expect "lineage-feature-copy" { visible = text("核对内容摘要，让眼前的成果有据可查。") }
+        wait "back-to-top-shown" { visible = css(".back-to-top") }
+        click "back-to-top" { target = css(".back-to-top") }
+        wait "back-to-top-hidden" { hidden = css(".back-to-top") }
+        expect "home-focus-restored" { focused = css(".site-header .brand") }
+        screenshot "desktop-final" { path = "screenshots/desktop-workspace.png" }
+        page_errors "desktop-errors" { path = "evidence/desktop-errors.json" clear = false }
+    }
+
+    scenario "mobile-expanded-demo" {
+        name = "Mobile navigation, expanded Office workspace and offline task options"
+        surface = "web"
+        timeout_ms = 60000
+
+        viewport "mobile" { width = 390 height = 844 scale = 1 }
+        navigate "fresh-download-page" { url = "http://127.0.0.1:4188/download/" }
+        click "mobile-menu" { target = css(".menu-toggle") }
+        expect "mobile-navigation-visible" { visible = css("#mobile-nav") }
+        press "dismiss-menu-with-escape" { key = "Escape" }
+        expect "mobile-navigation-hidden" { hidden = css("#mobile-nav") }
+        expect "menu-focus-restored" { focused = css(".menu-toggle") }
+        click "expand-preview" { target = css(".expand-preview") }
+        expect "preview-expanded" { expanded = css(".expand-preview") }
+        click "workspace-files" { target = css("#workspace-tab-files") }
+        expect "files-visible" { visible = css("#workspace-panel-files") }
+        click "open-office-file" { target = css("#workspace-panel-files [data-tour='office']") }
+        expect "office-visible" { visible = css("#workspace-panel-office .office-paper") }
+        expect "office-tab-focused" { focused = css("#workspace-tab-office") }
+        click "new-task" { target = css(".preview-topbar > button[data-demo-reset]") }
+        expect "composer-visible" { visible = css("#preview-home #demo-form") }
+        fill "task-prompt" { target = css("#demo-prompt") value = "整理示例数据，先展示计划，再核对结果。" }
+        click "task-options" { target = css(".demo-options-trigger") }
+        expect "review-default-off" { unchecked = css("[data-demo-option='review']") }
+        click "enable-review" { target = css("[data-demo-option='review']") }
+        expect "review-enabled" { checked = css("[data-demo-option='review']") }
+        click "enable-lineage" { target = css("[data-demo-option='trace']") }
+        expect "lineage-enabled" { checked = css("[data-demo-option='trace']") }
+        press "close-task-options" { key = "Escape" }
+        expect "task-options-hidden" { hidden = css("#demo-options") }
+        click "generate-plan" { target = css("#demo-form .send-button") }
+        expect "plan-visible" { visible = css("#demo-result .demo-plan") }
+        click "confirm-example-plan" { target = css("#demo-confirm") }
+        expect "offline-result-disclosed" {
+            target = css("#demo-note")
+            rendered_text = "示例流程已展示。已选择自动审查。已选择产物追溯。没有读取文件、调用模型或执行命令；真实检查需要在应用中运行。"
+        }
+        click "open-preview-faq" { target = css(".faq-list details:nth-child(4) > summary") }
+        expect "preview-faq-expanded" { expanded = css(".faq-list details:nth-child(4)") }
+        expect "preview-faq-answer" { visible = css(".faq-list details:nth-child(4) > p") }
+        screenshot "mobile-final" { path = "screenshots/mobile-faq.png" }
+        page_errors "mobile-errors" { path = "evidence/mobile-errors.json" clear = false }
+    }
+}

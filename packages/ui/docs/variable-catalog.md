@@ -1,6 +1,6 @@
 <a id="cherry-desktop-variable-catalog"></a>
 
-# AsterDream Variable Catalog
+# Aster Variable Catalog
 
 This is the operational companion to [design-token-system.md](./design-token-system.md). It tells humans and AI
 which public variable to choose, which CSS property it belongs to, and which historical names are tooling-only.
@@ -13,7 +13,7 @@ the contract checker fails.
 Choose a variable in this order:
 
 1. Use an official Shadcn role when it expresses the intent.
-2. Use a `stable` AsterDream product role only when Shadcn has no equivalent product concept.
+2. Use a `stable` Aster product role only when Shadcn has no equivalent product concept.
 3. If neither fits, keep the value local until a repeated semantic role is proven and reviewed.
 
 For Tailwind components, prefer the semantic utility generated from the variable. For authored CSS, reference the
@@ -112,7 +112,7 @@ inputs to the semantic contract.
 
 <a id="5-stable-cherry-desktop-product-variables"></a>
 
-## 5. Stable AsterDream product variables
+## 5. Stable Aster product variables
 
 Stable product variables are allowed in new code when no official Shadcn role expresses the product concept.
 

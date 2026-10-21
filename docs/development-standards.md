@@ -30,7 +30,7 @@ The spec-kit phase mapping lives in
 Paths: `apps/aster`, `apps/studio`, `crates/code`,
 `crates/terminal`.
 
-New behavior has a small hermetic test. AsterDream desktop tenants use
+New behavior has a small hermetic test. Aster desktop tenants use
 Tauri commands and stay in the root Cargo workspace. Members keep
 `publish = false`.
 
@@ -56,7 +56,7 @@ their own workspaces and lockfiles, and they are not root members.
 - `crates/code/core` is the embeddable Rust SDK and harness. Do not
   add Node, Python, or Go bindings, SDKs, or package publishing jobs.
 - `apps/studio` is the shared desktop host. Build it with
-  `just build-studio`. Its default `aster` tenant is AsterDream.
+  `just build-studio`. Its default `aster` tenant is Aster.
   Keep tenant identities and data isolated. See `specs/004-desktop-default-aster`.
 - Office uses the root `packages/office` and `crates/office` sources. The
   retired app is removed after migration. Do not copy
@@ -111,7 +111,7 @@ data crosses the public Rust API of the owning crate. Preserve those
 public APIs and the upstream package names unless a task explicitly
 requires a rename.
 
-On a product path, AsterDream desktop tenants stay in the root workspace.
+On a product path, Aster desktop tenants stay in the root workspace.
 On a control-plane path, each module is a bounded context with
 `domain/`, `application/`, `infrastructure/`, `presentation/`, and
 `published/`. Domain code does not import presentation or
@@ -155,7 +155,7 @@ repository-wide unwrap census in this tree. A new production
 - Crate and package identifiers that already start with `a3s-` stay,
   including `a3s-acl` and `a3s-code-acp`. Do not rename them in
   passing.
-- User-visible product names are Aster and AsterDream (desktop tenant branding remains explicit). Do
+- The default user-visible product name is Aster (desktop tenant branding remains explicit). Do
   not describe this product as A3S OS or as a Grok release.
 - Files are snake_case. Rust modules are snake_case. Types are
   CamelCase. ACL attributes are snake_case.
@@ -180,7 +180,7 @@ repository-wide unwrap census in this tree. A new production
 
 ## 7. Commands and controllers
 
-On a product path, AsterDream desktop tenants expose behavior through
+On a product path, Aster desktop tenants expose behavior through
 Tauri commands.
 
 - A new command is registered on the host and allowed by a
@@ -310,7 +310,7 @@ React is not available. The contract is `DESIGN.md` §6 "Picker
 
 **Enforcement.** Constitution principle XVI.
 `apps/studio/src/renderer/__tests__/noNativeSelect.test.ts` fails on
-a native dropdown in AsterDream's renderer and holds the Radix `Select`
+a native dropdown in Aster's renderer and holds the Radix `Select`
 list shrink-only. Component tests open the trigger and choose a
 `role="option"` row.
 

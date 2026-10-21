@@ -93,7 +93,7 @@ class StudioLauncherTest(unittest.TestCase):
                 root, env, _ = self.fixture(directory)
                 self.product_fixture(root, tenant)
                 info = root / "apps/web/public/tenant" / tenant / "INFO.md"
-                info.write_text(info.read_text().replace('product: "AsterDream"', 'product: "Wrong"').replace('product: "ToWork"', 'product: "Wrong"'))
+                info.write_text(info.read_text().replace('product: "Aster"', 'product: "Wrong"').replace('product: "ToWork"', 'product: "Wrong"'))
                 result = subprocess.run(["just", "build-studio", tenant], cwd=root, env=env,
                                         capture_output=True, text=True, timeout=10)
                 self.assertNotEqual(result.returncode, 0)
@@ -107,7 +107,7 @@ class StudioLauncherTest(unittest.TestCase):
         brand.mkdir(parents=True)
         for name in ("icon.icns", "icon.png", "icon.ico", "logo-light.png", "mark-light.png"):
             (brand / name).write_bytes(b"fixture icon")
-        product = "AsterDream" if tenant == "aster" else "ToWork"
+        product = "Aster" if tenant == "aster" else "ToWork"
         (brand / "INFO.md").write_text(f'---\nname:\n  en: "{product}"\nproduct: "{product}"\nlogos:\n  light_surface: logo-light.png\n---\n')
 
     def test_invalid_tenant_refuses_before_launch(self):
