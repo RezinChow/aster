@@ -65,6 +65,24 @@ pin 即是修复动作的一部分。
 > 落地顺序：kense-labs/api PR → kense-labs/cloud PR → aster 根副本 +
 > 两个子模块指针提升（同一提交，gitlink-only）。
 
+## STUDIO_READ_TOKEN 最小权限配置清单（远端 CI 单点解阻，2026-10-21 实证）
+
+远端 backend/Rust 工作流全部停在 `checkout-studio` 的 fail-closed 守卫
+（run 39540474980 等，见 OUTCOME.md 远端判定段）。一个 secret 同时服务
+studio 与方案 a 的 api/cloud 检出。最小配置：
+
+| 项 | 值 |
+| --- | --- |
+| 类型 | GitHub fine-grained PAT（或同 scope 的 org bot token） |
+| 仓库访问 | 仅 `kense-labs/studio`、`kense-labs/api`、`kense-labs/cloud`（Contents: **Read-only**；Metadata 随附） |
+| 明确不授 | Workflows、Secrets、Admin、写入任何仓库 |
+| 存放 | aster-ai-lab/aster → Settings → Secrets and variables → Actions → `STUDIO_READ_TOKEN` |
+| 验证 | push 任意提交或 `gh workflow run`，观察 fmt/check 过 checkout 段 |
+| 轮换 | 建议 90 天；到期症状即本次（基线 10-20 通过、10-21 拒绝） |
+
+若组织策略不允许 PAT 读私仓：备选是 GitHub App + 安装 token 的 checkout
+action 变体，成本更高，需另立 ADR。
+
 ## 决策期限（specs/005 US-3）
 
 D-A/D-B：2026-11-07；D-D：2026-11-15。到期未决 → 依赖故事 fail closed
