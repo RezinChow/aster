@@ -6,11 +6,23 @@ PAGE_FILES = (
     "download/app.js",
     "download/canvas.js",
 )
+SCREENSHOT_FILES = (
+    "download/screenshots/workspace.png",
+    "download/screenshots/office.png",
+    "download/screenshots/review.png",
+    "download/screenshots/lineage.png",
+)
+FONT_FILES = (
+    "download/fonts/ubuntu-latin-400-normal.woff2",
+    "download/fonts/ubuntu-latin-500-normal.woff2",
+    "download/fonts/ubuntu-latin-700-normal.woff2",
+    "download/fonts/Ubuntu-LICENSE.txt",
+)
 BRAND_FILES = (
     "tenant/aster/logo.svg",
     "tenant/aster/mark-light.png",
 )
-SITE_FILES = PAGE_FILES + BRAND_FILES
+SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES
 
 REPOSITORY_URL = "https://github.com/aster-ai-lab/aster"
 PAGES_URL = "https://aster-ai-lab.github.io/aster/"

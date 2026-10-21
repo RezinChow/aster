@@ -27,10 +27,10 @@
       context.save();
       context.rotate(tilt);
       const silver = context.createLinearGradient(-radius, 0, radius, 0);
-      silver.addColorStop(0, 'rgba(220,232,246,0)');
-      silver.addColorStop(.25, 'rgba(230,240,252,.20)');
-      silver.addColorStop(.65, 'rgba(190,219,248,.10)');
-      silver.addColorStop(1, 'rgba(220,232,246,0)');
+      silver.addColorStop(0, 'rgba(123,134,150,0)');
+      silver.addColorStop(.25, 'rgba(123,134,150,.30)');
+      silver.addColorStop(.65, 'rgba(123,134,150,.18)');
+      silver.addColorStop(1, 'rgba(123,134,150,0)');
       context.strokeStyle = silver;
       context.lineWidth = 1;
       context.beginPath();
@@ -40,10 +40,10 @@
     }
     context.restore();
     stars.forEach(([x, y, size], index) => {
-      const shimmer = .48 + Math.sin(time * .65 + index * 1.7) * .16;
+      const shimmer = .45 + Math.sin(time * .65 + index * 1.7) * .15;
       const px = width * x + pointerX * (index % 2 ? .6 : 1);
       const py = height * y + pointerY * .6 + Math.sin(time * .2 + index) * 2;
-      context.fillStyle = index % 3 ? `rgba(224,241,255,${shimmer})` : `rgba(116,190,255,${shimmer})`;
+      context.fillStyle = index % 3 ? `rgba(123,134,150,${shimmer})` : `rgba(0,90,187,${shimmer})`;
       context.beginPath();
       if (size > 2) {
         context.moveTo(px, py - size * 2);

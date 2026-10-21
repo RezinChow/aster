@@ -4,10 +4,12 @@ from pathlib import Path
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import shutil
+import struct
 import sys
 import tempfile
 import threading
 import unittest
+import zlib
 from urllib.error import HTTPError
 from urllib.parse import urljoin
 from urllib.request import urlopen
@@ -17,6 +19,18 @@ sys.path.insert(0, str(WEB_ROOT / "scripts"))
 from check_site import check_site
 from site_contract import BRAND_FILES, DOWNLOAD_MANIFEST, SITE_FILES
 from stage_site import stage_site
+
+SCREENSHOTS = tuple(f"download/screenshots/{name}.png" for name in ("workspace", "office", "review", "lineage"))
+FONTS = tuple(f"download/fonts/ubuntu-latin-{weight}-normal.woff2" for weight in (400, 500, 700))
+FONT_LICENSE = "download/fonts/Ubuntu-LICENSE.txt"
+
+
+def png_fixture(width=1, height=1):
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(b"\x00\x00\x5a\xbb\xff")) + chunk(b"IEND", b"")
 
 
 class SiteTest(unittest.TestCase):
@@ -46,9 +60,73 @@ class SiteTest(unittest.TestCase):
         self.javascript = self.public / "download/app.js"
         self.javascript.write_text('document.documentElement.dataset.ready = "true";', encoding="utf-8")
         (self.page.parent / 'canvas.js').write_text('document.documentElement.dataset.canvas = "true";', encoding='utf-8')
+        self.add_screenshots_and_fonts()
 
     def rewrite(self, old, new):
         self.page.write_text(self.html.replace(old, new), encoding="utf-8")
+
+    def add_screenshots_and_fonts(self):
+        for name in SCREENSHOTS:
+            path = self.public / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(png_fixture())
+        for name in (*FONTS, FONT_LICENSE):
+            path = self.public / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"offline font fixture" if name in FONTS else b"font license fixture")
+        images = ''.join(f'<img src="{name.removeprefix("download/")}" alt="Aster screenshot">' for name in SCREENSHOTS)
+        self.html = self.html.replace('</body>', images + '<a href="fonts/Ubuntu-LICENSE.txt">Ubuntu license</a></body>')
+        self.page.write_text(self.html, encoding="utf-8")
+        self.css.write_text('body { color: #005abb; }\n' + '\n'.join(
+            f'@font-face {{ font-family: Ubuntu; font-weight: {weight}; src: url("fonts/ubuntu-latin-{weight}-normal.woff2"); }}'
+            for weight in (400, 500, 700)), encoding="utf-8")
+
+    def test_four_png_screenshots_and_three_local_fonts_with_license_are_public(self):
+        self.assertEqual(check_site(self.public)["files"], 14)
+        destination = self.root / 'with-real-ui'
+        receipt = stage_site(self.public, destination)
+        self.assertEqual(len(receipt['files']), 15)
+        for name in (*SCREENSHOTS, *FONTS, FONT_LICENSE):
+            self.assertEqual((destination / name).read_bytes(), (self.public / name).read_bytes())
+
+    def test_missing_invalid_or_oversize_png_screenshot_refuses(self):
+        image = self.public / SCREENSHOTS[0]
+        image.unlink()
+        with self.assertRaises(OSError):
+            check_site(self.public)
+        for data in (b'not a PNG', png_fixture(height=0), png_fixture()[:29] + b'\x00\x00\x00\x00',
+                     png_fixture() + b'\x00' * (2 * 1024 * 1024)):
+            with self.subTest(bytes=len(data)):
+                image.write_bytes(data)
+                with self.assertRaisesRegex(ValueError, 'PNG|oversize'):
+                    check_site(self.public)
+
+    def test_each_screenshot_is_an_explicit_html_image_and_font_assets_are_referenced(self):
+        original = '<img src="screenshots/workspace.png" alt="Aster screenshot">'
+        for replacement in ('', '<a href="screenshots/workspace.png">Screenshot</a>'):
+            with self.subTest(replacement=replacement):
+                self.rewrite(original, replacement)
+                with self.assertRaisesRegex(ValueError, 'four PNG'):
+                    check_site(self.public)
+        self.page.write_text(self.html, encoding='utf-8')
+        self.css.write_text(self.css.read_text().replace('src: url("fonts/ubuntu-latin-500-normal.woff2");', ''))
+        with self.assertRaisesRegex(ValueError, 'all approved public assets'):
+            check_site(self.public)
+
+    def test_extra_screenshot_and_symlink_font_are_not_staged(self):
+        font = self.public / FONTS[0]
+        original = font.read_bytes()
+        font.unlink()
+        font.symlink_to(self.root / 'private-font.woff2')
+        with self.assertRaisesRegex(ValueError, 'symlink'):
+            stage_site(self.public, self.root / 'refuse-symlink')
+        self.assertFalse((self.root / 'refuse-symlink').exists())
+        font.unlink()
+        font.write_bytes(original)
+        (self.public / 'download/screenshots/private-preview.png').write_bytes(png_fixture())
+        with self.assertRaisesRegex(ValueError, 'unexpected'):
+            stage_site(self.public, self.root / 'refuse-extra')
+        self.assertFalse((self.root / 'refuse-extra').exists())
 
     def test_valid_page_has_named_controls_and_all_six_exact_release_links(self):
         result = check_site(self.public)
@@ -180,10 +258,10 @@ class SiteTest(unittest.TestCase):
         worker.start()
         try:
             origin = f'http://127.0.0.1:{server.server_port}/aster/'
-            for relative in ('./styles.css', './app.js', './canvas.js', '../tenant/aster/logo.svg', '../tenant/aster/mark-light.png'):
-                with self.subTest(relative=relative), urlopen(urljoin(origin + 'download/', relative), timeout=2) as response:
+            for relative in SITE_FILES:
+                with self.subTest(relative=relative), urlopen(urljoin(origin, relative), timeout=2) as response:
                     self.assertEqual(response.status, 200)
-                    self.assertTrue(response.read())
+                    self.assertEqual(response.read(), (self.public / relative).read_bytes())
             with urlopen(origin, timeout=2) as response:
                 self.assertIn(b'url=./download/', response.read())
             for relative in ('tenant/toyou/INFO.md', 'src/private.js'):

@@ -8,10 +8,12 @@ import json
 from pathlib import Path
 import re
 import stat
+import struct
 import sys
 from urllib.parse import unquote, urlsplit
+import zlib
 
-from site_contract import DOWNLOAD_MANIFEST, PAGE_FILES, PAGES_URL, REPOSITORY_URL, SITE_FILES
+from site_contract import DOWNLOAD_MANIFEST, FONT_FILES, PAGE_FILES, PAGES_URL, REPOSITORY_URL, SCREENSHOT_FILES, SITE_FILES
 
 PUBLIC_ROOT = Path(__file__).resolve().parents[1] / "public"
 DOWNLOAD_URLS = frozenset(item[4] for item in DOWNLOAD_MANIFEST)
@@ -92,12 +94,23 @@ def external_link(url):
     return url in DOWNLOAD_URLS
 
 
+def png_header(path):
+    data = path.read_bytes()[:33]
+    if (len(data) != 33 or data[:8] != b"\x89PNG\r\n\x1a\n"
+            or data[8:16] != b"\x00\x00\x00\rIHDR"
+            or not all(struct.unpack(">II", data[16:24]))
+            or zlib.crc32(data[12:29]) != struct.unpack(">I", data[29:33])[0]):
+        raise ValueError(f"invalid PNG screenshot header: {path.name}")
+
+
 def check_site(public_root=PUBLIC_ROOT):
     root = Path(public_root).absolute()
     for name in SITE_FILES:
         regular(root, name)
+    for name in SCREENSHOT_FILES:
+        png_header(root / name)
     actual_page_files = {path.relative_to(root).as_posix() for path in (root / "download").rglob("*") if path.is_file() or path.is_symlink()}
-    if actual_page_files != set(PAGE_FILES):
+    if actual_page_files != set(PAGE_FILES + SCREENSHOT_FILES + FONT_FILES):
         raise ValueError("unexpected or missing download-page file")
     source = {name: (root / name).read_text(encoding="utf-8") for name in PAGE_FILES}
     if any(brand in text.casefold() for text in source.values() for brand in ("minimax", "asterdream")):
@@ -113,7 +126,7 @@ def check_site(public_root=PUBLIC_ROOT):
             ids[identifier] = node
     if not any(node.tag == "h1" and "Aster" in node.text() for node in nodes):
         raise ValueError("missing Aster page heading")
-    seen_assets, seen_downloads = set(), set()
+    seen_assets, seen_downloads, seen_images = set(), set(), set()
 
     def local_url(value, origin):
         parsed = urlsplit(value)
@@ -134,6 +147,7 @@ def check_site(public_root=PUBLIC_ROOT):
         if parsed.fragment and (name != "download/index.html" or unquote(parsed.fragment) not in ids):
             raise ValueError(f"missing local fragment: {value}")
         seen_assets.add(name)
+        return name
 
     for node in nodes:
         if node.tag in {"select", "datalist", "base", "style", "iframe", "object", "embed"}:
@@ -166,7 +180,9 @@ def check_site(public_root=PUBLIC_ROOT):
                 raise ValueError("inline script in public page")
         for attr in ("src", "poster"):
             if attr in node.attrs:
-                local_url(node.attrs[attr], "download/index.html")
+                name = local_url(node.attrs[attr], "download/index.html")
+                if node.tag == "img" and attr == "src":
+                    seen_images.add(name)
         for attr in ("href", "xlink:href"):
             if attr in node.attrs and node.tag not in {"a", "link"}:
                 local_url(node.attrs[attr], "download/index.html")
@@ -178,13 +194,15 @@ def check_site(public_root=PUBLIC_ROOT):
                 local_url(node.attrs["href"], "download/index.html")
     if seen_downloads != DOWNLOAD_URLS:
         raise ValueError("page does not expose all six verified desktop/CLI download links")
-    if not set(SITE_FILES[1:]).issubset(seen_assets):
-        raise ValueError("page does not reference the external stylesheet/script and both Aster marks")
+    if not set(SCREENSHOT_FILES).issubset(seen_images):
+        raise ValueError("page does not reference all four PNG screenshots")
     css = re.sub(r"/\*.*?\*/", "", source["download/styles.css"], flags=re.S)
     if re.search(r"@import\b", css, flags=re.I):
         raise ValueError("CSS imports are not part of the standalone site")
     for match in re.finditer(r"url\(\s*(['\"]?)(.*?)\1\s*\)", css, flags=re.I):
         local_url(match.group(2), "download/styles.css")
+    if not (set(SITE_FILES) - {"download/index.html"}).issubset(seen_assets):
+        raise ValueError("page/CSS does not reference all approved public assets")
     for filename in ("download/app.js", "download/canvas.js"):
         javascript = source[filename]
         if re.search(r"\b(?:import|require)\b", javascript):

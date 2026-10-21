@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage only the checked download page and its two public Aster marks."""
+"""Stage only the checked public files in the explicit site allowlist."""
 
 import argparse
 import hashlib

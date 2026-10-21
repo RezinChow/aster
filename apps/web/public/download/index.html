@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#005ABB" />
+    <meta name="theme-color" content="#ffffff" />
     <meta
       name="description"
-      content="下载 Aster。连接你的模型、本地文件和工具，从任务规划到执行验证，把想法变成可检查的成果。"
+      content="下载 Aster。在一个工作区中完成对话、文件与 Office 协作，按需开启自动审查和产物追溯。"
     />
     <meta property="og:title" content="Aster — 让想法落地" />
     <meta
       property="og:description"
-      content="你的任务，你的文件，你的 Aster。桌面与终端，使用同一个智能体执行内核。"
+      content="你的任务，你的文件，你的 Aster。查看真实界面，下载桌面版或 CLI。"
     />
     <meta property="og:type" content="website" />
     <title>下载 Aster — 让想法落地</title>
@@ -33,13 +33,6 @@
         <symbol id="i-folder" viewBox="0 0 24 24">
           <path d="M3 7V5h6l3 3h9v12H3V7Zm0 3h18" />
         </symbol>
-        <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></symbol>
-        <symbol id="i-grid" viewBox="0 0 24 24">
-          <rect x="3" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="3" width="7" height="7" rx="1" />
-          <rect x="3" y="14" width="7" height="7" rx="1" />
-          <rect x="14" y="14" width="7" height="7" rx="1" />
-        </symbol>
         <symbol id="i-code" viewBox="0 0 24 24">
           <path d="m7 6-5 6 5 6m10-12 5 6-5 6M14 3l-4 18" />
         </symbol>
@@ -59,26 +52,25 @@
         <symbol id="i-laptop" viewBox="0 0 24 24">
           <path d="M5 4h14v12H5V4ZM2 20l3-4h14l3 4H2Z" />
         </symbol>
-        <symbol id="i-clock" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 6v6l4 2" />
+        <symbol id="i-expand" viewBox="0 0 24 24">
+          <path d="M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5" />
         </symbol>
       </defs>
     </svg>
     <a class="skip-link" href="#main">跳到主要内容</a>
-    <header class="site-header" id="site-header">
+    <header class="site-header">
       <a class="brand" href="#top" aria-label="Aster 首页"
         ><img src="../tenant/aster/logo.svg" alt="" width="30" height="30" /><span>Aster</span></a
       >
       <nav class="desktop-nav" aria-label="主导航">
-        <a href="#product">产品</a><a href="#features">功能</a><a href="#platforms">下载</a>
-        <a
+        <a href="#product">产品</a><a href="#features">功能</a><a href="#platforms">下载</a
+        ><a
           href="https://github.com/aster-ai-lab/aster#开始使用"
           target="_blank"
           rel="noopener noreferrer"
           >文档</a
-        ><a href="#cli">CLI</a>
-        <a
+        ><a href="#cli">CLI</a
+        ><a
           href="https://github.com/aster-ai-lab/aster/releases"
           target="_blank"
           rel="noopener noreferrer"
@@ -87,9 +79,9 @@
       </nav>
       <div class="header-actions">
         <a
-          class="header-download"
-          data-download
+          class="quiet-button header-download"
           href="https://github.com/aster-ai-lab/aster/releases"
+          data-download
           >下载 Aster</a
         ><button
           class="menu-toggle icon-button"
@@ -110,638 +102,57 @@
     <main id="main">
       <section class="hero" id="product" aria-labelledby="hero-title">
         <div class="hero-background" aria-hidden="true">
-          <canvas id="aster-canvas" aria-hidden="true"></canvas
-          ><img src="../tenant/aster/logo.svg" alt="" />
+          <canvas id="aster-canvas" aria-hidden="true"></canvas>
         </div>
         <div class="hero-copy">
           <h1 id="hero-title">Aster</h1>
           <p>
-            从编程到办公，Aster 连接你的本地文件、模型和工具，帮你<br
-              class="desktop-break"
-            />在工作区中规划、协作与验证，让每份产物有迹可循。
+            从编程到办公，连接你的本地文件、模型和工具。<br />在一个工作区里规划、执行、审查，让每份产物有迹可循。
           </p>
           <a
-            class="download-pill"
-            data-download
+            class="quiet-button hero-download"
             href="https://github.com/aster-ai-lab/aster/releases"
-            ><svg class="icon"><use href="#i-download" /></svg><span>下载 Aster</span
-            ><span class="pill-chevron"
-              ><svg class="icon"><use href="#i-chevron" /></svg></span
+            data-download
+            ><svg class="icon"><use href="#i-download" /></svg>下载 Aster<span
+              class="button-divider"
+            ></span
+            ><svg class="icon small-icon"><use href="#i-chevron" /></svg
           ></a>
         </div>
-        <div class="preview-outer">
-          <div class="app-preview" aria-label="Aster 工作台界面演示">
-            <div class="activity-rail">
-              <img src="../tenant/aster/logo.svg" alt="Aster" width="34" height="34" /><button
-                type="button"
-                data-demo-reset
-                aria-label="打开任务对话"
-              >
-                <svg class="icon"><use href="#i-laptop" /></svg>
-              </button>
-            </div>
-            <aside class="app-sidebar">
-              <div class="window-controls" aria-hidden="true">
-                <i></i><i></i><i></i><span>◫</span>
-              </div>
-              <div class="preview-nav">
-                <button class="active" type="button" data-demo-reset>
-                  <svg class="icon"><use href="#i-plus" /></svg>新建任务</button
-                ><button type="button" data-tour="files">
-                  <svg class="icon"><use href="#i-folder" /></svg>任务工作区
-                </button>
-              </div>
-              <div class="local-badge">
-                <svg class="icon"><use href="#i-laptop" /></svg> 本地
-              </div>
-              <span class="sidebar-label">项目</span>
-              <div class="project-name">
-                <svg class="icon"><use href="#i-folder" /></svg>Aster
-              </div>
-              <div class="sample-tasks">
-                <button type="button" data-prompt="修复项目中的配置解析错误，并运行相关测试。">
-                  修复配置解析错误</button
-                ><button type="button" data-prompt="整理本地表格，核对数据并生成分析报告。">
-                  整理数据与分析报告</button
-                ><button type="button" data-prompt="阅读项目文件，先提出计划，确认后再执行。">
-                  为项目制定执行计划</button
-                ><button type="button" data-prompt="为这个页面实现响应式布局，验证移动端效果。">
-                  实现响应式页面
-                </button>
-              </div>
-              <div class="sidebar-footer">
-                <img src="../tenant/aster/logo.svg" alt="" width="19" height="19" />Aster
-                <span>本地工作台</span>
-              </div>
-            </aside>
-            <div class="preview-main workspace-mode">
-              <div class="preview-topbar">
-                <span>季度经营分析</span><span class="preview-example">界面演示 · 示例数据</span
-                ><button type="button" data-demo-reset>新建任务</button>
-              </div>
-              <div class="preview-home" id="preview-home" hidden>
-                <img
-                  class="preview-logo"
-                  src="../tenant/aster/logo.svg"
-                  alt=""
-                  width="64"
-                  height="64"
-                />
-                <h2>Aster，让想法落地。</h2>
-                <form class="demo-composer" id="demo-form">
-                  <label class="sr-only" for="demo-prompt">体验任务规划</label
-                  ><textarea
-                    id="demo-prompt"
-                    placeholder="输入任务…（这是交互演示，不会读取你的文件）"
-                    rows="2"
-                    maxlength="1000"
-                  ></textarea>
-                  <div class="composer-controls">
-                    <span class="composer-hint"
-                      ><button
-                        class="demo-options-trigger icon-button"
-                        type="button"
-                        aria-label="任务选项"
-                        aria-expanded="false"
-                        aria-controls="demo-options"
-                      >
-                        <svg class="icon"><use href="#i-plus" /></svg></button
-                      ><svg class="icon"><use href="#i-shield" /></svg>逐次确认</span
-                    ><button class="plan-toggle" type="button" role="switch" aria-checked="true">
-                      <span class="switch-track"></span>规划模式</button
-                    ><button
-                      class="send-button icon-button"
-                      type="submit"
-                      aria-label="生成示例计划"
-                      disabled
-                    >
-                      <svg class="icon"><use href="#i-arrow" /></svg>
-                    </button>
-                  </div>
-                  <div
-                    class="demo-options"
-                    id="demo-options"
-                    role="group"
-                    aria-label="任务选项 · 网页演示"
-                    hidden
-                  >
-                    <span>任务选项 · 网页演示</span
-                    ><button type="button" disabled title="请在应用中选择真实附件">
-                      上传附件（应用中使用）</button
-                    ><button
-                      type="button"
-                      role="switch"
-                      aria-checked="false"
-                      data-demo-option="review"
-                    >
-                      自动审查<span class="switch-track"></span></button
-                    ><button
-                      type="button"
-                      role="switch"
-                      aria-checked="false"
-                      data-demo-option="trace"
-                    >
-                      产物追溯<span class="switch-track"></span>
-                    </button>
-                  </div>
-                  <div class="composer-files">
-                    <svg class="icon"><use href="#i-folder" /></svg>示例项目<span
-                      ><svg class="icon"><use href="#i-laptop" /></svg>本地</span
-                    >
-                  </div>
-                </form>
-                <div class="quick-tasks" aria-label="示例任务">
-                  <button type="button" data-prompt="修复项目中的配置解析错误，并运行相关测试。">
-                    <svg class="icon"><use href="#i-code" /></svg>编程开发</button
-                  ><button type="button" data-prompt="整理本地表格，核对数据并生成分析报告。">
-                    <svg class="icon"><use href="#i-grid" /></svg>数据分析</button
-                  ><button type="button" data-prompt="阅读项目文件，先提出计划，确认后再执行。">
-                    <svg class="icon"><use href="#i-check" /></svg>任务规划</button
-                  ><button type="button" data-prompt="整理文档，检查引用，并输出一份清晰的说明。">
-                    <svg class="icon"><use href="#i-file" /></svg>文档整理
-                  </button>
-                </div>
-              </div>
-              <section class="workspace-showcase" aria-label="工作区与 Office 演示">
-                <div class="workspace-conversation">
-                  <p class="sample-request">
-                    整理季度数据，生成报告。开启自动审查，并保留产物追溯。
-                  </p>
-                  <div class="sample-assistant">
-                    <img src="../tenant/aster/logo.svg" alt="" width="22" height="22" /><strong
-                      >Aster</strong
-                    >
-                  </div>
-                  <p>报告已整理为可继续编辑的文档。可以在右侧工作区查看文件与版本来源。</p>
-                  <div class="compact-plan">
-                    <svg class="icon"><use href="#i-check" /></svg>任务计划<span>3 / 3 已完成</span>
-                  </div>
-                  <div class="artifact-card">
-                    <svg class="icon"><use href="#i-file" /></svg>
-                    <div><strong>季度经营分析.docx</strong><small>文档 · 示例版本 2</small></div>
-                    <button type="button" data-tour="office">打开</button>
-                  </div>
-                  <div class="auto-review-card">
-                    <div>
-                      <svg class="icon"><use href="#i-shield" /></svg><strong>自动审查</strong
-                      ><small>待验收</small>
-                    </div>
-                    <p>“同比增长 12%”缺少对比期间。</p>
-                    <span class="review-warning">警告</span><span>已补充口径说明，等待你验收。</span
-                    ><button type="button" data-tour="review">查看审查</button>
-                  </div>
-                  <p class="workspace-demo-note">这是示例流程，未调用模型或访问文件。</p>
-                  <div class="sample-input">
-                    <span>描述任务，输入 / 使用指令或技能</span>
-                    <div>
-                      <span>＋</span><span>逐次确认</span><span class="sample-plan">规划模式</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="workspace-right">
-                  <div class="workspace-tabs" role="tablist" aria-label="任务工作区">
-                    <button
-                      id="workspace-tab-files"
-                      role="tab"
-                      type="button"
-                      aria-selected="false"
-                      aria-controls="workspace-panel-files"
-                      tabindex="-1"
-                    >
-                      文件</button
-                    ><button
-                      id="workspace-tab-office"
-                      role="tab"
-                      type="button"
-                      aria-selected="true"
-                      aria-controls="workspace-panel-office"
-                    >
-                      季度经营分析.docx</button
-                    ><button
-                      id="workspace-tab-lineage"
-                      role="tab"
-                      type="button"
-                      aria-selected="false"
-                      aria-controls="workspace-panel-lineage"
-                      tabindex="-1"
-                    >
-                      产物追溯
-                    </button>
-                  </div>
-                  <div
-                    class="workspace-pane workspace-file-list"
-                    id="workspace-panel-files"
-                    role="tabpanel"
-                    aria-labelledby="workspace-tab-files"
-                    tabindex="0"
-                    hidden
-                  >
-                    <div class="workspace-toolbar">文件 <span>项目 / 季度分析</span></div>
-                    <div class="file-list-heading"><span>名称</span><span>类型</span></div>
-                    <button type="button" data-tour="office">
-                      <svg class="icon"><use href="#i-file" /></svg>季度经营分析.docx
-                      <small>文档</small>
-                    </button>
-                    <div class="file-list-row">
-                      <svg class="icon"><use href="#i-grid" /></svg>季度数据.xlsx
-                      <small>表格</small>
-                    </div>
-                    <div class="file-list-row">
-                      <svg class="icon"><use href="#i-file" /></svg>调研笔记.md<small
-                        >Markdown</small
-                      >
-                    </div>
-                    <p>
-                      文件、浏览器、终端与变更在同一工作区切换；打开文件后，可以保留多个编辑标签。
-                    </p>
-                  </div>
-                  <div
-                    class="workspace-pane office-pane"
-                    id="workspace-panel-office"
-                    role="tabpanel"
-                    aria-labelledby="workspace-tab-office"
-                    tabindex="0"
-                  >
-                    <div class="office-menubar">
-                      <strong>Office</strong><span>文档</span><span>表格</span><span>演示文稿</span>
-                    </div>
-                    <div class="office-toolbar">
-                      <span>正文</span><span>12</span><b>B</b><i>I</i><u>U</u><span>≡</span
-                      ><span>↶</span><span class="office-saved">文档示例</span>
-                    </div>
-                    <div class="office-paper">
-                      <span class="paper-label">季度报告</span>
-                      <h3>看见数据背后的进展。</h3>
-                      <p>经营分析与下一步行动</p>
-                      <div class="report-divider"></div>
-                      <h4>本期概览</h4>
-                      <p>本期收入稳步增长。以下结果来自示例数据；环比与同比使用一致的统计口径。</p>
-                      <div class="report-metrics">
-                        <div><small>本期收入</small><strong>210.0</strong></div>
-                        <div><small>环比增长</small><strong>11.9%</strong></div>
-                      </div>
-                      <h4>重点观察</h4>
-                      <p class="review-highlight">同比增长 12% <span>已补充对比期间</span></p>
-                      <div class="report-bars" aria-hidden="true">
-                        <i></i><i></i><i></i><i></i><i></i><i></i>
-                      </div>
-                    </div>
-                    <div class="office-status">
-                      <span>第 1 页</span><span>文档 · 示例内容</span
-                      ><button type="button" data-tour="lineage">查看产物来源</button>
-                    </div>
-                  </div>
-                  <div
-                    class="workspace-pane lineage-pane"
-                    id="workspace-panel-lineage"
-                    role="tabpanel"
-                    aria-labelledby="workspace-tab-lineage"
-                    tabindex="0"
-                    hidden
-                  >
-                    <div class="lineage-heading">
-                      <svg class="icon"><use href="#i-file" /></svg
-                      ><strong>季度经营分析.docx</strong><span>版本 2 · 示例</span>
-                    </div>
-                    <div class="lineage-subtabs" role="tablist" aria-label="追溯内容">
-                      <button
-                        id="proof-tab-artifact"
-                        type="button"
-                        role="tab"
-                        aria-selected="true"
-                        aria-controls="proof-artifact"
-                      >
-                        产物</button
-                      ><button
-                        id="proof-tab-evidence"
-                        type="button"
-                        role="tab"
-                        aria-selected="false"
-                        aria-controls="proof-evidence"
-                        tabindex="-1"
-                      >
-                        证据</button
-                      ><button
-                        id="proof-tab-review"
-                        type="button"
-                        role="tab"
-                        aria-selected="false"
-                        aria-controls="proof-review"
-                        tabindex="-1"
-                      >
-                        审查
-                      </button>
-                    </div>
-                    <div
-                      id="proof-artifact"
-                      role="tabpanel"
-                      aria-labelledby="proof-tab-artifact"
-                      tabindex="0"
-                    >
-                      <h4>版本快照</h4>
-                      <p>从当前产物回看原始任务、生成工具和执行记录。</p>
-                      <dl>
-                        <dt>原始请求</dt>
-                        <dd>整理季度数据，生成报告</dd>
-                        <dt>来源文件</dt>
-                        <dd>季度数据.xlsx</dd>
-                        <dt>版本</dt>
-                        <dd>2 / 2 · 网页示例</dd>
-                        <dt>内容校验</dt>
-                        <dd>真实应用校验 SHA-256 与字节数；此处为示意，不生成验证回执。</dd>
-                      </dl>
-                    </div>
-                    <div
-                      id="proof-evidence"
-                      role="tabpanel"
-                      aria-labelledby="proof-tab-evidence"
-                      tabindex="0"
-                      hidden
-                    >
-                      <h4>执行与证据</h4>
-                      <ol class="evidence-list">
-                        <li>读取原始表格与统计口径</li>
-                        <li>生成报告，保留工具输入与结果</li>
-                        <li>记录产物版本及内容摘要</li>
-                      </ol>
-                      <p>真实追溯还可查看对话、执行、代码与环境。缺失证据会显示“追溯不完整”。</p>
-                    </div>
-                    <div
-                      id="proof-review"
-                      role="tabpanel"
-                      aria-labelledby="proof-tab-review"
-                      tabindex="0"
-                      hidden
-                    >
-                      <h4>自动审查 <span class="review-warning">待验收</span></h4>
-                      <p>独立检查交付内容，定位对应的引文与证据。</p>
-                      <blockquote>“同比增长 12%”</blockquote>
-                      <p>补充对比期间与计算口径。</p>
-                      <div class="review-disposition">
-                        <button type="button" data-review-action="accepted">验收示例修复</button
-                        ><button type="button" data-review-action="waived">忽略示例发现</button>
-                      </div>
-                      <p id="review-disposition-status" role="status">
-                        网页示例；实际审查结果需要人工判断。
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-              <section class="demo-result" id="demo-result" aria-labelledby="demo-title" hidden>
-                <span class="demo-label">交互演示</span>
-                <h2 id="demo-title">先规划，再行动。</h2>
-                <p id="demo-request"></p>
-                <div class="demo-plan">
-                  <div><strong>任务计划</strong><span id="demo-progress">等待确认</span></div>
-                  <ol>
-                    <li><span class="step-dot"></span>阅读相关文件，明确目标与边界</li>
-                    <li><span class="step-dot"></span>执行修改，保留不相关的内容</li>
-                    <li><span class="step-dot"></span>运行检查，汇报结果与限制</li>
-                  </ol>
-                </div>
-                <p class="demo-note" id="demo-note">
-                  计划确认后才开始执行。这是网页演示，不会访问本地文件或调用模型。
-                </p>
-                <div class="demo-actions">
-                  <button class="primary-button" type="button" id="demo-confirm">
-                    确认示例计划</button
-                  ><button class="text-button" type="button" data-demo-reset>重新体验</button>
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
-        <button class="expand-preview" type="button" aria-expanded="false">展开交互演示</button>
-      </section>
-
-      <section class="section scenarios" id="scenarios" aria-labelledby="scenarios-title">
-        <h2 class="section-title" id="scenarios-title">多场景任务，高质量交付</h2>
-        <div class="scenario-layout" data-tabs>
-          <div
-            class="scenario-tabs"
-            role="tablist"
-            aria-label="任务场景"
-            aria-orientation="vertical"
+        <figure class="hero-screen screenshot-figure">
+          <a
+            class="screenshot-button"
+            data-screenshot="workspace"
+            aria-label="放大 Aster 工作区真实界面"
+            href="./screenshots/workspace.png"
+            aria-haspopup="dialog"
           >
-            <button
-              id="tab-code"
-              role="tab"
-              aria-selected="true"
-              aria-controls="panel-code"
-              type="button"
+            <img
+              src="./screenshots/workspace.png"
+              alt="Aster 真实工作台：任务对话、项目文件和任务工作区"
+              width="1440"
+              height="900"
+              fetchpriority="high"
+            />
+          </a>
+          <figcaption>
+            <span><span class="capture-dot"></span>真实 Aster 界面 · 演示数据</span
+            ><a
+              class="text-button"
+              data-enlarge="workspace"
+              href="./screenshots/workspace.png"
+              aria-haspopup="dialog"
             >
-              <span>从问题到可用代码</span
-              ><small>理解项目上下文，修改代码并运行测试。每一步都有记录，完成情况可以检查。</small>
-            </button>
-            <button
-              id="tab-data"
-              role="tab"
-              aria-selected="false"
-              aria-controls="panel-data"
-              tabindex="-1"
-              type="button"
-            >
-              <span>让数据变成答案</span
-              ><small>处理本地表格，核对数据和计算结果，把零散信息整理成清晰的分析报告。</small>
-            </button>
-            <button
-              id="tab-docs"
-              role="tab"
-              aria-selected="false"
-              aria-controls="panel-docs"
-              tabindex="-1"
-              type="button"
-            >
-              <span>在 Office 中交付成果</span
-              ><small
-                >在工作区打开文档、表格和演示文稿，编辑并导出成果；PDF 与 Markdown
-                也有对应的阅读和编辑界面。</small
-              >
-            </button>
-            <button
-              id="tab-plan"
-              role="tab"
-              aria-selected="false"
-              aria-controls="panel-plan"
-              tabindex="-1"
-              type="button"
-            >
-              <span>复杂任务，逐步推进</span
-              ><small>先审阅计划，再确认执行。让任务状态与验证结果始终清楚可见。</small>
-            </button>
-          </div>
-          <div class="scenario-panels">
-            <div
-              class="scenario-panel code-panel"
-              role="tabpanel"
-              id="panel-code"
-              aria-labelledby="tab-code"
-              tabindex="0"
-            >
-              <div class="art-label">
-                <svg class="icon"><use href="#i-code" /></svg>代码与验证
-              </div>
-              <div class="code-window">
-                <div class="art-titlebar">
-                  <span class="traffic-lights">● ● ●</span><span>parser.rs</span><span>+8 −2</span>
-                </div>
-                <div class="code-lines">
-                  <p>
-                    <b>01</b><span class="purple">pub fn</span> parse(input: &amp;str) -&gt;
-                    Result&lt;Config&gt; {
-                  </p>
-                  <p><b>02</b> <span class="purple">let</span> value = input.trim();</p>
-                  <p class="added"><b>03</b>+ <span class="purple">if</span> value.is_empty() {</p>
-                  <p class="added">
-                    <b>04</b>+ <span class="purple">return</span> Err(ConfigError::Empty);
-                  </p>
-                  <p class="added"><b>05</b>+ }</p>
-                  <p><b>06</b> parse_config(value)</p>
-                  <p><b>07</b>}</p>
-                </div>
-                <div class="test-output">
-                  <span>› cargo test config</span>
-                  <p><i>✓</i> rejects_empty_input</p>
-                  <p><i>✓</i> accepts_valid_config</p>
-                  <p><i>✓</i> preserves_unknown_field_error</p>
-                  <strong>test result: ok. 3 passed; 0 failed</strong>
-                </div>
-              </div>
-              <div class="floating-note">
-                <svg class="icon"><use href="#i-check" /></svg>修改已验证，结果可检查
-              </div>
-            </div>
-            <div
-              class="scenario-panel data-panel"
-              role="tabpanel"
-              id="panel-data"
-              aria-labelledby="tab-data"
-              tabindex="0"
-              hidden
-            >
-              <div class="art-label">
-                <svg class="icon"><use href="#i-grid" /></svg>数据分析
-              </div>
-              <div class="sheet-window">
-                <div class="art-titlebar">
-                  <span class="traffic-lights">● ● ●</span>季度分析.csv
-                </div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>项目</th>
-                      <th>上期</th>
-                      <th>本期</th>
-                      <th>变化</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>华东</td>
-                      <td>45.2</td>
-                      <td>52.1</td>
-                      <td>+15.3%</td>
-                    </tr>
-                    <tr>
-                      <td>华南</td>
-                      <td>38.1</td>
-                      <td>41.4</td>
-                      <td>+8.7%</td>
-                    </tr>
-                    <tr>
-                      <td>华北</td>
-                      <td>62.8</td>
-                      <td>71.2</td>
-                      <td>+13.4%</td>
-                    </tr>
-                    <tr>
-                      <td>西部</td>
-                      <td>41.5</td>
-                      <td>45.3</td>
-                      <td>+9.2%</td>
-                    </tr>
-                    <tr>
-                      <th>合计</th>
-                      <th>187.6</th>
-                      <th>210.0</th>
-                      <th>+11.9%</th>
-                    </tr>
-                  </tbody>
-                </table>
-                <div class="bar-chart" aria-label="示例柱状图">
-                  <i></i><i></i><i></i><i></i><i></i><i></i>
-                </div>
-              </div>
-              <div class="floating-note">
-                <svg class="icon"><use href="#i-check" /></svg>从原始文件到分析报告
-              </div>
-            </div>
-            <div
-              class="scenario-panel docs-panel"
-              role="tabpanel"
-              id="panel-docs"
-              aria-labelledby="tab-docs"
-              tabindex="0"
-              hidden
-            >
-              <div class="art-label">
-                <svg class="icon"><use href="#i-file" /></svg>Office 文档
-              </div>
-              <div class="document-window">
-                <div class="doc-kicker">项目说明</div>
-                <h3>让每份资料，各就其位。</h3>
-                <p>从目标、背景到行动，整理一份可以直接使用的文档。</p>
-                <div class="doc-rule"></div>
-                <h4>项目概览</h4>
-                <p>统一需求与验收条件，保留关键来源，为下一步行动提供清晰的依据。</p>
-                <div class="doc-rule short"></div>
-                <div class="doc-rule"></div>
-                <div class="doc-rule short"></div>
-                <div class="doc-callout">清楚的结构，可追溯的引用。</div>
-              </div>
-              <div class="floating-note">
-                <svg class="icon"><use href="#i-file" /></svg>成果保存在你的项目中
-              </div>
-            </div>
-            <div
-              class="scenario-panel plan-panel"
-              role="tabpanel"
-              id="panel-plan"
-              aria-labelledby="tab-plan"
-              tabindex="0"
-              hidden
-            >
-              <div class="art-label">
-                <svg class="icon"><use href="#i-check" /></svg>任务规划
-              </div>
-              <div class="plan-window">
-                <img src="../tenant/aster/logo.svg" alt="" width="42" height="42" />
-                <h3>把目标拆成清楚的步骤</h3>
-                <div class="plan-art-row done">
-                  <svg class="icon"><use href="#i-check" /></svg><span>理解需求与当前项目</span
-                  ><small>已完成</small>
-                </div>
-                <div class="plan-art-row current">
-                  <span class="progress-ring"></span><span>实现约定的修改</span
-                  ><small>进行中</small>
-                </div>
-                <div class="plan-art-row">
-                  <span class="step-dot"></span><span>检查结果，交付成果</span><small>待处理</small>
-                </div>
-                <div class="plan-art-footer">任务计划<span>1 / 3 已完成</span></div>
-              </div>
-              <div class="floating-note">
-                <svg class="icon"><use href="#i-shield" /></svg>关键操作，由你确认
-              </div>
-            </div>
-          </div>
-        </div>
+              <svg class="icon small-icon"><use href="#i-expand" /></svg>放大查看
+            </a>
+          </figcaption>
+        </figure>
       </section>
 
       <section class="section features" id="features" aria-labelledby="features-title">
-        <h2 class="section-title" id="features-title">从任务到成果，都在眼前</h2>
-        <div class="feature-chips" role="tablist" aria-label="Aster 功能">
+        <h2 class="section-title" id="features-title">一个工作区，串起任务与成果</h2>
+        <p class="section-description">从打开文件，到审阅结果。每个界面都来自实际运行的 Aster。</p>
+        <div class="feature-tabs" role="tablist" aria-label="Aster 功能">
           <button
             id="feature-workspace"
             type="button"
@@ -749,9 +160,8 @@
             aria-selected="true"
             aria-controls="feature-panel-workspace"
           >
-            工作区
-          </button>
-          <button
+            工作区</button
+          ><button
             id="feature-office"
             type="button"
             role="tab"
@@ -759,9 +169,8 @@
             aria-controls="feature-panel-office"
             tabindex="-1"
           >
-            Office
-          </button>
-          <button
+            Office</button
+          ><button
             id="feature-review"
             type="button"
             role="tab"
@@ -769,9 +178,8 @@
             aria-controls="feature-panel-review"
             tabindex="-1"
           >
-            自动审查
-          </button>
-          <button
+            自动审查</button
+          ><button
             id="feature-lineage"
             type="button"
             role="tab"
@@ -782,178 +190,190 @@
             产物追溯
           </button>
         </div>
-
         <div
-          class="feature-board"
+          class="feature-panel"
           role="tabpanel"
           id="feature-panel-workspace"
           aria-labelledby="feature-workspace"
           tabindex="0"
         >
           <div class="feature-copy">
+            <svg class="feature-icon icon"><use href="#i-folder" /></svg>
             <h3>对话之外，<br />还有完整的工作现场。</h3>
             <p>
-              在同一工作区切换文件、浏览器、终端和变更。多个文件标签并排保留，查看资料、检查修改、继续任务，不必来回寻找。
+              文件、浏览器、终端和变更，在同一工作区切换。多个文件标签保留在手边，查看资料、核对修改，再继续任务。
             </p>
-            <a class="inline-link" href="#product">看看工作区 <span aria-hidden="true">›</span></a>
+            <ul>
+              <li>对话与任务工作区并排查看</li>
+              <li>项目文件和编辑标签保持关联</li>
+              <li>按需打开浏览器、终端与变更</li>
+            </ul>
+            <a
+              class="quiet-button"
+              data-enlarge="workspace"
+              href="./screenshots/workspace.png"
+              aria-haspopup="dialog"
+            >
+              查看真实界面<svg class="icon small-icon"><use href="#i-expand" /></svg>
+            </a>
           </div>
-          <div class="feature-art feature-workspace-art" aria-hidden="true">
-            <div class="workspace-right">
-              <div class="workspace-tabs feature-visual-tabs">
-                <span class="is-active">文件</span><span>浏览器</span><span>终端</span
-                ><span>变更</span>
-              </div>
-              <div class="workspace-toolbar">项目文件 <span>季度分析</span></div>
-              <div class="workspace-file-list">
-                <div class="file-list-row"><span>季度报告.docx</span><small>文档</small></div>
-                <div class="file-list-row"><span>经营数据.xlsx</span><small>表格</small></div>
-                <div class="file-list-row"><span>调研笔记.md</span><small>Markdown</small></div>
-              </div>
-              <div class="feature-editor-peek">
-                <div class="workspace-tabs feature-visual-tabs">
-                  <span class="is-active">调研笔记.md</span><span>经营数据.xlsx</span>
-                </div>
-                <p>本期发现与下一步行动</p>
-                <span class="feature-text-line"></span><span class="feature-text-line short"></span>
-              </div>
-              <div class="feature-terminal-peek">
-                <span>终端</span><code>项目命令与运行结果</code>
-              </div>
-            </div>
-          </div>
+          <figure class="feature-screen screenshot-figure">
+            <a
+              class="screenshot-button"
+              data-screenshot="workspace"
+              aria-label="放大 Aster 工作区界面"
+              href="./screenshots/workspace.png"
+              aria-haspopup="dialog"
+            >
+              <img
+                src="./screenshots/workspace.png"
+                alt="真实 Aster 工作区：项目文件、对话和多标签工作区"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+            </a>
+            <figcaption>工作区 · 真实界面，演示数据</figcaption>
+          </figure>
         </div>
-
         <div
-          class="feature-board"
+          class="feature-panel"
           role="tabpanel"
           id="feature-panel-office"
           aria-labelledby="feature-office"
           tabindex="0"
-          hidden
         >
           <div class="feature-copy">
+            <svg class="feature-icon icon"><use href="#i-file" /></svg>
             <h3>打开项目文件，<br />继续打磨你的成果。</h3>
             <p>
-              从文件列表打开 DOCX、XLSX、PPTX、Markdown 和
-              PDF。编辑文档、表格与演示文稿，或预览资料；可用操作随文件类型而变。
+              从工作区文件进入 Office，编辑文档、表格和演示文稿，阅读 Markdown 与
+              PDF。可用操作随文件类型而变。
             </p>
-            <a class="inline-link" href="#product"
-              >查看 Office 工作区 <span aria-hidden="true">›</span></a
+            <ul>
+              <li>DOCX、XLSX、PPTX 对应编辑界面</li>
+              <li>Markdown 与 PDF 对应阅读和处理能力</li>
+              <li>文件始终留在项目的工作流程中</li>
+            </ul>
+            <a
+              class="quiet-button"
+              data-enlarge="office"
+              href="./screenshots/office.png"
+              aria-haspopup="dialog"
             >
+              查看 Office 界面<svg class="icon small-icon"><use href="#i-expand" /></svg>
+            </a>
           </div>
-          <div class="feature-art feature-office-art" aria-hidden="true">
-            <div class="workspace-right office-pane">
-              <div class="workspace-tabs feature-visual-tabs">
-                <span class="is-active">季度报告.docx</span><span>经营数据.xlsx</span
-                ><span>附件.pdf</span>
-              </div>
-              <div class="office-menubar">
-                <strong>Office</strong><span>文档</span><span>表格</span><span>演示文稿</span>
-              </div>
-              <div class="office-toolbar">
-                <span>正文</span><span>12</span><b>B</b><i>I</i><u>U</u
-                ><span class="office-saved">编辑视图</span>
-              </div>
-              <div class="office-paper">
-                <span class="paper-label">季度报告</span>
-                <h3>看见数据背后的进展。</h3>
-                <p>经营分析与下一步行动</p>
-                <div class="report-divider"></div>
-                <h4>本期概览</h4>
-                <p>整理关键信息，核对统计口径，为下一步决策保留清楚的依据。</p>
-                <div class="feature-text-line"></div>
-                <div class="feature-text-line short"></div>
-              </div>
-              <div class="office-status">
-                <span>DOCX · 编辑</span><span>PDF · 预览与页面工具</span><span>界面示意</span>
-              </div>
-            </div>
-          </div>
+          <figure class="feature-screen screenshot-figure">
+            <a
+              class="screenshot-button"
+              data-screenshot="office"
+              aria-label="放大 Aster Office 真实界面"
+              href="./screenshots/office.png"
+              aria-haspopup="dialog"
+            >
+              <img
+                src="./screenshots/office.png"
+                alt="在真实 Aster 任务工作区中打开的 Office 编辑器"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+            </a>
+            <figcaption>Office · 真实界面，演示文档</figcaption>
+          </figure>
         </div>
-
         <div
-          class="feature-board"
+          class="feature-panel"
           role="tabpanel"
           id="feature-panel-review"
           aria-labelledby="feature-review"
           tabindex="0"
-          hidden
         >
           <div class="feature-copy">
+            <svg class="feature-icon icon"><use href="#i-shield" /></svg>
             <h3>完成之后，<br />再认真检查一遍。</h3>
             <p>
               按需开启自动审查，让模型另起一次独立检查，核对回复、工具结果和产物。发现问题后尝试修复，未解决的发现留待你处理。
             </p>
-            <a class="inline-link" href="#product"
-              >了解审查流程 <span aria-hidden="true">›</span></a
+            <ul>
+              <li>从任务选项中主动开启</li>
+              <li>关联发现、引文与对应证据</li>
+              <li>修复后仍可由你验收或忽略</li>
+            </ul>
+            <a
+              class="quiet-button"
+              data-enlarge="review"
+              href="./screenshots/review.png"
+              aria-haspopup="dialog"
             >
+              查看审查界面<svg class="icon small-icon"><use href="#i-expand" /></svg>
+            </a>
           </div>
-          <div class="feature-art feature-review-art" aria-hidden="true">
-            <div class="feature-review-stack">
-              <div class="feature-review-setting">
-                <span>任务选项</span><strong>自动审查</strong
-                ><span class="feature-switch is-on"></span>
-              </div>
-              <div class="auto-review-card">
-                <div><strong>自动审查</strong><small>待验收</small></div>
-                <p>“同比增长 12%”缺少对比期间。</p>
-                <span class="review-warning">警告</span><span>已补充口径说明，等待你验收。</span
-                ><span class="feature-review-link">查看对应证据</span>
-              </div>
-              <div class="feature-review-queue">
-                <span class="feature-review-stage">独立检查</span
-                ><span class="feature-review-stage">尝试修复</span
-                ><span class="feature-review-stage is-current">人工验收</span>
-              </div>
-              <p class="feature-art-note">示例发现；审查结果仍需你判断。</p>
-            </div>
-          </div>
+          <figure class="feature-screen screenshot-figure">
+            <a
+              class="screenshot-button"
+              data-screenshot="review"
+              aria-label="放大 Aster 自动审查真实界面"
+              href="./screenshots/review.png"
+              aria-haspopup="dialog"
+            >
+              <img
+                src="./screenshots/review.png"
+                alt="真实 Aster 自动审查界面中的发现、引文和处理状态"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+            </a>
+            <figcaption>自动审查 · 真实界面，演示记录</figcaption>
+          </figure>
         </div>
-
         <div
-          class="feature-board"
+          class="feature-panel"
           role="tabpanel"
           id="feature-panel-lineage"
           aria-labelledby="feature-lineage"
           tabindex="0"
-          hidden
         >
           <div class="feature-copy">
+            <svg class="feature-icon icon"><use href="#i-file" /></svg>
             <h3>交付一个文件，<br />也留下它的来路。</h3>
             <p>
               开启产物追溯，保留任务回合中的文件快照。查看来源、工具与执行记录，核对内容摘要，让眼前的成果有据可查。
             </p>
-            <a class="inline-link" href="#product"
-              >查看产物追溯 <span aria-hidden="true">›</span></a
+            <ul>
+              <li>从产物回看任务与版本来源</li>
+              <li>查看对话、执行、代码及环境</li>
+              <li>通过快照摘要和字节数核对内容</li>
+            </ul>
+            <a
+              class="quiet-button"
+              data-enlarge="lineage"
+              href="./screenshots/lineage.png"
+              aria-haspopup="dialog"
             >
+              查看追溯界面<svg class="icon small-icon"><use href="#i-expand" /></svg>
+            </a>
           </div>
-          <div class="feature-art feature-lineage-art" aria-hidden="true">
-            <div class="workspace-right lineage-pane">
-              <div class="lineage-heading">
-                <strong>季度报告.docx</strong><span>版本快照 · 示例</span>
-              </div>
-              <div class="lineage-subtabs feature-visual-tabs">
-                <span class="is-active">产物</span><span>证据</span><span>审查</span>
-              </div>
-              <div class="feature-lineage-detail">
-                <h4>从成果回看执行</h4>
-                <dl>
-                  <dt>来源</dt>
-                  <dd>季度分析任务 · 生成工具</dd>
-                  <dt>执行记录</dt>
-                  <dd>输入、工具结果与运行环境</dd>
-                  <dt>内容校验</dt>
-                  <dd>SHA-256 · 字节数</dd>
-                </dl>
-                <ol class="evidence-list">
-                  <li>任务与对话</li>
-                  <li>工具与执行</li>
-                  <li>文件快照与摘要</li>
-                </ol>
-              </div>
-              <p class="feature-art-note">界面示意，不生成实际校验记录。</p>
-            </div>
-          </div>
+          <figure class="feature-screen screenshot-figure">
+            <a
+              class="screenshot-button"
+              data-screenshot="lineage"
+              aria-label="放大 Aster 产物追溯真实界面"
+              href="./screenshots/lineage.png"
+              aria-haspopup="dialog"
+            >
+              <img
+                src="./screenshots/lineage.png"
+                alt="真实 Aster 产物追溯面板中的版本、证据和执行来源"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+            </a>
+            <figcaption>产物追溯 · 真实界面，演示快照</figcaption>
+          </figure>
         </div>
       </section>
 
@@ -962,49 +382,63 @@
         <div class="platform-grid">
           <article class="platform-card">
             <svg class="platform-icon icon"><use href="#i-laptop" /></svg>
-            <h3>桌面版</h3>
-            <p>清晰的对话界面，文件、计划和任务进度，一处查看。</p>
+            <h3>Aster 桌面版</h3>
+            <p>对话、文件、Office 与任务进度，一处查看。</p>
             <a
-              class="small-button"
-              data-download
+              class="quiet-button"
               href="https://github.com/aster-ai-lab/aster/releases"
-              >下载 Aster <svg class="icon"><use href="#i-download" /></svg
+              data-download
+              >选择安装包<svg class="icon small-icon"><use href="#i-download" /></svg
             ></a>
-            <div class="mini-desktop" aria-hidden="true">
-              <div></div>
-              <div><img src="../tenant/aster/logo.svg" alt="" /><span></span><i></i></div>
-            </div>
+            <ul>
+              <li>本地项目与文件</li>
+              <li>任务规划与工作区</li>
+              <li>按需审查与产物追溯</li>
+            </ul>
           </article>
           <article class="platform-card" id="cli">
             <svg class="platform-icon icon"><use href="#i-terminal" /></svg>
-            <h3>终端版</h3>
-            <p>进入项目目录，与模型和工具协作，保持原来的开发节奏。</p>
-            <a class="small-button" href="#cli-downloads"
-              >下载 CLI <svg class="icon"><use href="#i-download" /></svg
-            ></a>
-            <div class="mini-terminal" aria-label="CLI 启动命令">
-              <span>aster</span>
-              <p>❯ 修复解析错误并运行测试</p>
-              <p class="terminal-muted">✓ 已读取项目文件</p>
-              <p class="terminal-muted">✓ 相关测试通过</p>
-              <span class="terminal-cursor">▍</span>
+            <h3>Aster CLI</h3>
+            <p>进入项目目录，在熟悉的终端中完成编程任务。</p>
+            <div class="cli-links">
+              <a
+                class="quiet-button"
+                href="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-macos.tar.gz"
+                >macOS</a
+              ><a
+                class="quiet-button"
+                href="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-linux.tar.gz"
+                >Linux</a
+              ><a
+                class="quiet-button"
+                href="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-windows.zip"
+                >Windows</a
+              >
             </div>
+            <ul>
+              <li>CLI v0.1.1 公开归档，未签名</li>
+              <li>解压后将两个程序保留在同一目录</li>
+              <li>
+                <a href="https://github.com/aster-ai-lab/aster#开始使用">查看安装与模型配置说明</a>
+              </li>
+            </ul>
           </article>
           <article class="platform-card">
             <svg class="platform-icon icon"><use href="#i-code" /></svg>
             <h3>Rust SDK</h3>
-            <p>把智能体执行内核嵌入 Rust 应用，组合工具、权限和上下文。</p>
+            <p>把智能体执行内核嵌入应用，组合工具、权限和上下文。</p>
             <a
-              class="small-button"
+              class="quiet-button"
               href="https://github.com/aster-ai-lab/aster#运行机制"
               target="_blank"
               rel="noopener noreferrer"
-              >查看文档 <svg class="icon"><use href="#i-arrow" /></svg
+              >查看文档<svg class="icon small-icon"><use href="#i-arrow" /></svg
             ></a>
-            <div class="sdk-art" aria-hidden="true">
-              <img src="../tenant/aster/logo.svg" alt="" /><span>你的应用</span><i></i
-              ><strong>Aster</strong><small>模型 · 工具 · 执行 · 验证</small>
-            </div>
+            <ul>
+              <li>共享 Rust 执行内核</li>
+              <li>权限与完成条件</li>
+              <li>可检查的过程记录</li>
+            </ul>
           </article>
         </div>
       </section>
@@ -1019,9 +453,7 @@
             <thead>
               <tr>
                 <th>能力</th>
-                <th>
-                  <img src="../tenant/aster/logo.svg" alt="" width="26" height="26" />Aster 桌面版
-                </th>
+                <th>Aster 桌面版</th>
                 <th>Aster CLI</th>
               </tr>
             </thead>
@@ -1060,74 +492,6 @@
         </div>
       </section>
 
-      <section class="section get-started" id="cli-downloads" aria-labelledby="start-title">
-        <h2 class="section-title" id="start-title">选择你的开始方式</h2>
-        <p class="section-description">模型由你选择，任务在你的项目中展开。</p>
-        <div class="start-grid">
-          <article class="start-card">
-            <svg class="icon"><use href="#i-laptop" /></svg>
-            <h3>Aster 桌面版</h3>
-            <p>打开应用，从一个任务开始。</p>
-            <strong>直观的本地工作台</strong
-            ><a
-              class="primary-button"
-              data-download
-              href="https://github.com/aster-ai-lab/aster/releases"
-              >选择安装包</a
-            >
-            <ul>
-              <li>对话与本地项目</li>
-              <li>任务规划与进度</li>
-              <li>技能与工具协作</li>
-            </ul>
-          </article>
-          <article class="start-card featured">
-            <span class="card-tag">开发者</span><svg class="icon"><use href="#i-terminal" /></svg>
-            <h3>Aster CLI</h3>
-            <p>在熟悉的终端中完成任务。</p>
-            <strong>与项目一起运行</strong>
-            <div class="cli-links">
-              <a
-                href="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-macos.tar.gz"
-                >macOS</a
-              ><a
-                href="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-linux.tar.gz"
-                >Linux</a
-              ><a
-                href="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-windows.zip"
-                >Windows</a
-              >
-            </div>
-            <ul>
-              <li>CLI v0.1.1 公开归档，未签名</li>
-              <li>解压后保留两个程序在同一目录</li>
-              <li>配置模型后启动项目</li>
-            </ul>
-            <a class="inline-link" href="https://github.com/aster-ai-lab/aster#开始使用"
-              >安装与配置说明 <svg class="icon"><use href="#i-arrow" /></svg
-            ></a>
-          </article>
-          <article class="start-card">
-            <svg class="icon"><use href="#i-code" /></svg>
-            <h3>从源码开始</h3>
-            <p>理解执行内核，参与改进。</p>
-            <strong>面向 Rust 开发者</strong
-            ><a
-              class="primary-button outline-button"
-              href="https://github.com/aster-ai-lab/aster"
-              target="_blank"
-              rel="noopener noreferrer"
-              >查看代码</a
-            >
-            <ul>
-              <li>阅读运行机制与示例</li>
-              <li>本地构建终端工具</li>
-              <li>提交问题与改进建议</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
       <section class="section faq" aria-labelledby="faq-title">
         <h2 class="section-title" id="faq-title">常见问题</h2>
         <div class="faq-list">
@@ -1161,37 +525,37 @@
           </details>
           <details>
             <summary>
-              网页里的任务预览会访问本地文件吗？<svg class="icon"><use href="#i-plus" /></svg>
+              网站里的应用画面是真实界面吗？<svg class="icon"><use href="#i-plus" /></svg>
             </summary>
             <p>
-              不会。这里是交互演示，不会读取本地文件、调用模型或执行命令。安装应用、选择项目并配置模型后，才能运行真实任务。使用远程模型服务时，请了解服务商的数据处理规则。
+              是。截图由实际 Aster
+              界面运行后采集，使用独立的演示项目、文档与记录。网页只展示截图，不会运行
+              Office、调用模型或访问你的文件；截图中的数据与审查状态不代表你的真实任务结果。
             </p>
           </details>
           <details>
             <summary>
-              如何配置模型和更新 Aster？<svg class="icon"><use href="#i-plus" /></svg>
+              下载后的界面会和截图完全相同吗？<svg class="icon"><use href="#i-plus" /></svg>
             </summary>
             <p>
-              按照<a href="https://github.com/aster-ai-lab/aster#开始使用">开始使用文档</a
-              >配置模型与接口。桌面版请查看对应发行说明；CLI
-              更新时同时替换归档中的两个程序。当前公开安装包可能早于本页展示的界面，具体变化以<a
+              截图展示当前开发版本的界面。下载弹层标明当前公开稳定安装包的版本与架构，可能早于截图。请查看<a
                 href="https://github.com/aster-ai-lab/aster/releases"
-                >更新日志</a
-              >为准。
+                >发行说明</a
+              >确认具体变化，并按<a href="https://github.com/aster-ai-lab/aster#开始使用"
+                >开始使用文档</a
+              >配置模型。
             </p>
           </details>
         </div>
       </section>
 
       <section class="bottom-cta" aria-labelledby="cta-title">
-        <div class="cta-orbit" aria-hidden="true"></div>
-        <img src="../tenant/aster/logo.svg" alt="" width="72" height="72" />
+        <img src="../tenant/aster/logo.svg" alt="" width="64" height="64" />
         <h2 id="cta-title">让下一个想法，从 Aster 开始。</h2>
         <p>你的任务，你的文件，你的 Aster。</p>
-        <a class="download-pill" data-download href="https://github.com/aster-ai-lab/aster/releases"
-          ><svg class="icon"><use href="#i-download" /></svg>下载 Aster<span class="pill-chevron"
-            ><svg class="icon"><use href="#i-chevron" /></svg></span
-        ></a>
+        <a class="quiet-button" href="https://github.com/aster-ai-lab/aster/releases" data-download
+          ><svg class="icon"><use href="#i-download" /></svg>下载 Aster</a
+        >
       </section>
     </main>
     <footer class="site-footer">
@@ -1217,7 +581,9 @@
           ><a href="https://github.com/aster-ai-lab/aster#参与开发">贡献指南</a>
         </div>
       </div>
-      <div class="footer-bottom"><span>© 2026 Aster</span><span>让想法落地。</span></div>
+      <div class="footer-bottom">
+        <span>© 2026 Aster</span><a href="./fonts/Ubuntu-LICENSE.txt">Ubuntu 字体许可</a>
+      </div>
     </footer>
     <button
       class="back-to-top icon-button"
@@ -1234,10 +600,10 @@
       aria-describedby="download-description"
     >
       <div class="dialog-heading">
-        <img src="../tenant/aster/logo.svg" alt="" width="38" height="38" /><button
+        <img src="../tenant/aster/logo.svg" alt="" width="32" height="32" /><button
           class="icon-button"
-          id="close-download"
           type="button"
+          data-close-dialog
           aria-label="关闭下载选择"
         >
           <svg class="icon"><use href="#i-close" /></svg>
@@ -1253,7 +619,7 @@
           ><svg class="icon"><use href="#i-download" /></svg></a
         ><a
           href="https://github.com/aster-ai-lab/aster/releases/download/v0.1.1/aster_0.1.1_x64-setup.exe"
-          ><svg class="icon"><use href="#i-grid" /></svg
+          ><svg class="icon"><use href="#i-menu" /></svg
           ><span><strong>Windows</strong><small>x64 · v0.1.1 · EXE</small></span
           ><svg class="icon"><use href="#i-download" /></svg></a
         ><a
@@ -1271,12 +637,32 @@
         href="https://github.com/aster-ai-lab/aster/releases"
         target="_blank"
         rel="noopener noreferrer"
-        >查看全部发行与校验文件 <svg class="icon"><use href="#i-arrow" /></svg
+        >查看全部发行与校验文件<svg class="icon small-icon"><use href="#i-arrow" /></svg
       ></a>
+    </dialog>
+    <dialog id="screenshot-dialog" aria-labelledby="screenshot-title">
+      <div class="screenshot-dialog-heading">
+        <h2 id="screenshot-title">Aster 真实界面</h2>
+        <button class="icon-button" type="button" data-close-dialog aria-label="关闭界面截图">
+          <svg class="icon"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <img id="screenshot-full" alt="" />
+      <div class="screenshot-dialog-footer">
+        <p>实际 Aster 界面 · 独立演示数据</p>
+        <a
+          class="quiet-button"
+          id="screenshot-original"
+          href="./screenshots/workspace.png"
+          target="_blank"
+          rel="noopener noreferrer"
+          >打开原图</a
+        >
+      </div>
     </dialog>
     <noscript
       ><div class="noscript-note">
-        交互预览需要 JavaScript。<a href="https://github.com/aster-ai-lab/aster/releases"
+        界面截图与下载链接无需 JavaScript。<a href="https://github.com/aster-ai-lab/aster/releases"
           >直接前往 Aster 发行页下载</a
         >。
       </div></noscript
