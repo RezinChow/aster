@@ -74,7 +74,9 @@ US-6 证据修正）
       备于 research.md）——**阻塞 owner**
 - [ ] T012 [US3] D-B token/runner 决策与配置——**阻塞 owner**
 - [ ] T013 [US3] D-D postgres digest 方案——**阻塞 owner**
-- [ ] T014 [US3] D-F krun issue 外发（草稿已备）——可立即执行
+- [x] T014 [US3] D-F krun issue 外发——**由 Phase C+ fork 轨替代**
+      （T020 已落：fork + 插桩 + main 合入 + 编译验证）；D-F 草稿文本留
+      research.md 备 owner 后续外发，不再占执行位 ✅
 - [ ] T015 [US4] T0.4.2 runbook 首执行 + OUTCOME 证据——**阻塞
       T011/T013/T014 与 Box 修复**
 - [ ] T016 [P] [US4] G0/P0/WEB0 aging 日期回填（上游 PR + 指针提升）
@@ -141,9 +143,10 @@ CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SD
 - [ ] T025 [US1] 自托管 runner + 保留管道：backend.yml 增 self-hosted
       label 变体（机器侧 deploy key 检出私有子模块，摆脱 STUDIO_READ_TOKEN）
       ——**阻塞：一台 runner 机器**（与 T0.4.2 Linux 腿同一台即可）
-- [ ] T026 [US8] 月度评审提案：修订 FN0 residual 的「production-shaped
+- [x] T026 [US8] 月度评审提案：修订 FN0 residual 的「production-shaped
       GHA retain」为「self-hosted retained run 等价可接受」——自认证闭环
-      （草稿随 research.md 补）
+      （草稿已落 research.md §T026：等价判据三条 + 红线不变项 + 回退态；
+      裁定权在 2026-11 月度评审，上游文本修订随 T016/T017 队列）✅
 - [ ] T027 [US1] Box 构建日志契约 issue 外发（G0/CD0.8-logs 的上游前置，
       与 krun/lane PR 同队列；阻塞外发授权）
 - [ ] T028 [US1] CD0.8 webhook/event 触发集成 + P0 收尾（上游 cloud 工

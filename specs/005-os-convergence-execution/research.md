@@ -146,3 +146,40 @@ D-A/D-B：2026-11-07；D-D：2026-11-15。到期未决 → 依赖故事 fail clo
 runtime 增 NATS 出站 publisher（尽力、断线不阻塞请求路径，宪法 I 降级语
 义）→ api 侧 `usage-ingest` worker（若上游未备则该半环归上游）→ 契约测
 试保持「200/发布仅真实 records」。体量：中（一天级切片）。
+
+## T026 月度评审提案 — FN0 保留 run 等价修订（2026-10-21）
+
+背景：FN0 residual「Still required for Verified」首行把 production-shaped
+FN0.2 Fleet retain 钉死在 GitHub Actions `ubuntu-24.04` workflow
+（`fn0-fleet-hosted-task-live.yml`），唯一解阻钥匙是 org secret
+`A3S_LABS_READ_TOKEN`（kense-labs 三私仓只读），至今未批。同时 Phase E
+自托管 runner（specs/005 T025）以机器侧 deploy key 检出私有子模块，同机
+可跑同一 CI 入口 `run_fn02_fleet_live_ci.sh` 并由保留管道（T018）留存。
+
+提案（供 2026-11 月度评审裁定；裁定前不改上游文本）：
+
+> 修订 `apps/cloud/docs/fn0-verified-residual.md`「Still required for
+> Verified」首行：接受「self-hosted retained run 等价可接受」——
+> production-shaped retain 的判据从「GitHub Actions `ubuntu-24.04`
+> workflow 保留」放宽为「GHA 或自托管 Linux runner 保留」，自托管路径
+> 须同时满足：
+> 1. 干净 Linux 主机（非 Orb/开发 VM），os-pinned gitlink 检出私有子
+>    模块，fail-fast 守卫与现 workflow 同标准（token 缺失即命名失败，
+>    禁止跳过检出）；
+> 2. 同一 CI 入口（`run_fn02_fleet_live_ci.sh`）与同一保留产物
+>    （OUTCOME + run 记录 + 摘要 digest）；
+> 3. 保留 run 经月度评审记录采纳（自认证闭环：机器自持，独立性由检出
+>    pin + 评审记录补偿）。载体二选一：kense-labs/cloud workflow 的
+>    self-hosted 变体（上游 PR），或 aster backend.yml self-hosted 腿
+>    驱动同一入口。
+> 不变项：Verified 晋升仍需完整真实供应商 failure/recovery/cleanup/
+> release 证据；Darwin probe 与未 prepare 的 Orb 依旧禁止入账（原文
+> 红线全保留）。
+
+依赖与顺序：T025（runner 机器，与 T0.4.2 Linux 腿同机）→ 首个自托管保
+留 run（T018 管道）→ 本提案经 2026-11 评审记录采纳 → 上游 residual 文
+本随下次 kense-labs/cloud PR 一并修订（与 T016/T017 同队列）。
+
+自评（fail-closed 视角）：等价性主张的实质是「production-shaped = 主机
+形态 + 保留能力」，非「GitHub 品牌」。若评审不采纳，回退态 = 等
+`A3S_LABS_READ_TOKEN`，FN0 维持现状，不产生新增债。
