@@ -111,11 +111,11 @@ build-desktop $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
 build-desktop-release $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
     just build-studio-release {{slug}}
 
-# Start the current Aster Studio host with renderer hot reload.
-dev: studio
+# Start Aster Studio with renderer hot reload. `just dev:toyou` selects that tenant.
+dev $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'): (studio slug)
 
-# Compatibility entry point for Aster; Studio owns this tenant's launch lifecycle.
-work: studio
+# Start Aster Studio for this tenant. `just work:toyou` selects that tenant.
+work $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'): (studio slug)
 
 # Middleware plus the host processes that exist in this tree.
 # Default tenant is a3s. `just up toyou` selects another public tenant.

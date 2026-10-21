@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -53,8 +54,6 @@ class WorkspaceDependenciesTest(unittest.TestCase):
         for path in [
             "packages/office/src/core.ts",
             "apps/studio/src-tauri/src/lib.rs",
-            "apps/work/data/product-aliases.json",
-            "apps/work/logo.png",
             "packages/office/generated/office-kernel.wasm",
             "packages/ce/dist/js/basecoat.js",
         ]:
@@ -133,6 +132,25 @@ class WorkspaceDependenciesTest(unittest.TestCase):
             subprocess.run([str(executable)], env=env, check=True, capture_output=True)
             for name in ["a3s-code-acp.exe", "a3s-office.exe"]:
                 self.assertEqual((manifest / "resources/agent" / name).read_bytes(), name.encode())
+            if sys.platform == "darwin":
+                locked = manifest / "resources/agent" / "a3s-code-acp.exe"
+                locked.write_bytes(b"stale")
+                subprocess.run(["chflags", "uchg", str(locked)], check=True)
+                try:
+                    (output.parents[2] / "a3s-code-acp.exe").write_bytes(b"replaced")
+                    subprocess.run([str(executable)], env=env, check=True, capture_output=True)
+                    self.assertEqual(locked.read_bytes(), b"replaced")
+                finally:
+                    subprocess.run(["chflags", "nouchg", str(locked)], check=False)
+                binary = output.parents[2] / "Studio.exe"
+                binary.write_bytes(b"studio")
+                subprocess.run(["chflags", "uchg", str(binary)], check=True)
+                try:
+                    subprocess.run([str(executable)], env=env, check=True, capture_output=True)
+                    flags = subprocess.check_output(["stat", "-f", "%Sf", str(binary)], text=True).strip()
+                    self.assertNotIn("uchg", flags)
+                finally:
+                    subprocess.run(["chflags", "nouchg", str(binary)], check=False)
 
     def test_internal_dependencies_are_local_and_unpublishable(self):
         output = subprocess.check_output([

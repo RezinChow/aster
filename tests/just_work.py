@@ -217,6 +217,20 @@ class StudioLauncherTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(opened.read_text().strip(), "toyou 1")
 
+    def test_dev_and_work_forward_the_tenant_to_studio(self):
+        for recipe in ("dev", "work"):
+            with self.subTest(recipe=recipe), tempfile.TemporaryDirectory(prefix="aster-studio-tenant-") as directory:
+                root, env, opened = self.fixture(directory)
+                env["A3S_TENANT_SLUG"] = "aster"
+                result = subprocess.run(["just", recipe, "toyou"], cwd=root, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(opened.read_text().strip(), "toyou 1")
+                opened.unlink()
+                env["A3S_TENANT_SLUG"] = "kense"
+                result = subprocess.run(["just", recipe], cwd=root, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(opened.read_text().strip(), "kense 1")
+
     def test_product_build_selects_exactly_one_feature_without_default_product(self):
         for tenant in ("aster", "toyou"):
             with self.subTest(tenant=tenant), tempfile.TemporaryDirectory(prefix="aster-studio-build-") as directory:
