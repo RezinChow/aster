@@ -124,6 +124,10 @@ Redis 启动依赖[Phase 2 T2.5]、AppRelease 治理[T024]）；**本仓可执�
       生命周期记录、摄取端契约核对 api usage 上下文），再实现+契约测试
       （200 仅真实 records 的既有契约保持）
 
+- [ ] T030 [US4] api 测试留白补齐（notes/oem/config_center 三 context 结构
+      全、库内零测——notes 有导入往返实证、另两者靠 boot campaign 兜底）
+      ——**上游排队**（kense-labs/api，与 lane/AppRelease PR 同队列）
+
 ## Phase E: CI/CD 自替代冲刺（2026-10-21 CD0 评估修正后新增）
 
 CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SDK/真 E2E）；
