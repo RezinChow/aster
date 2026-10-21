@@ -1,13 +1,57 @@
 # Public gateway resets and apparent second-turn stalls
 
-## Result
+<a id="closure-and-lessons"></a>
+
+## 结案与教训（2026-10-21，用户确认）
+
+**状态：已结案。** 用户现场确认：coding agent 生成的 Bash 命令被防火墙
+识别为“系统命令注入攻击”，导致正常模型会话流量遭到拦截。这是本次故障的
+最终原因说明，取代此前仅能定位到公网中间链路、尚未确认具体拦截原因的结论。
+此前关闭 VPN 后短暂稳定的反馈不足以解释该误报。
+
+结案依据是用户的现场确认及此前提供的防火墙/WAF 拒绝记录。我们未直接操作
+该设备，未取得精确规则 ID、命中命令、检测方向、JSON 字段或最终策略改动，
+也未独立执行策略调整后的 macOS 公网验收。原始测试结果和抓包保持原样；
+这些限制不影响记录用户已确认结案，也不把历史失败重新标记为通过。
+
+应当保留的工程教训：
+
+1. **Coding agent 的正常模型流量会携带可执行代码文本。** 生成内容、工具调用
+   参数、工具结果及后续轮次历史都可能包含 Bash 命令。安全设备需要理解该接口
+   承载代码的用途。合法讨论或生成命令，不等于攻击者正在注入服务器执行入口；
+   实际命令执行仍由产品既有的权限、信任边界与沙箱控制。
+2. **连续对话故障要检查内容变化。** 后续轮次可能把已生成的命令带回历史，
+   因而出现“首轮正常、第二轮卡住”。本次确认了命令注入误报这个原因类别，
+   并未证明恰好第二轮或某个具体字段必然触发。
+3. **先把传输故障与推理故障分开验证。** 对同一请求比较公网与内网，检查请求
+   正文是否完整到达，再对齐源地址、时间、会话和 WAF 原始告警。客户端的
+   `Connection reset by peer`、流提前结束，以及网关的正文读取失败，可能是
+   边界设备拦截后的不同表现；应尽早取得网络管理员的规则命中证据。
+4. **验收要覆盖真实的 agent 流量。** 使用普通工具配置，覆盖代码生成、Bash
+   工具调用、工具结果回传及同一会话多轮交互，验证完整上传和流结束事件。
+   单轮短提示、无工具请求、纯空白填充的大请求和吞吐压测各有用途，不能单独
+   代表这类内容已经通过 WAF。
+5. **修正应落在误报规则与业务接口的匹配关系上。** 由网络管理员确认命中规则，
+   对已认证的模型 API、指定目标和具体误报类别制定最小范围策略，并核查关联
+   的临时封禁。保留认证、访问控制、限流、审计及其他适用防护。接口内容策略
+   与 agent 的命令执行授权分别维护。
+6. **加密与客户端容错各有边界。** SSH 成功曾帮助定位明文公网路径差异；HTTPS
+   可保护传输，但终止 TLS 的 WAF 仍可检查命令文本，仍需正确配置内容规则。
+   本次中文 Windows 错误分类修正改善了误重试导致的等待，不承担消除防火墙
+   误报的作用。
+
+以下保留结案前的诊断、修正和验收建议，作为可追溯的历史记录。
+
+## Diagnostic result before closure
 
 Two separate mechanisms are now reproduced. The public HTTP path resets some
 ordinary tool-enabled uploads before Gateway can finish reading the request.
 The same second-turn body succeeds through the internal address. Independently,
 the current Windows ACP treats a localized connection-reset error as retryable
 and backs off without completing the turn within a 40-second observation.
-Neither finding is a GPU generation deadlock. The public route remains broken.
+Neither finding established a GPU generation deadlock. The public route was
+still unresolved at that diagnostic stage; the user-confirmed closure above
+provides the subsequently established cause.
 
 The user also reports a failure from another caller without a VPN. Disabling a
 VPN is therefore not an established complete repair. Selecting the Windows
@@ -42,8 +86,9 @@ synthetic control on the same public endpoint completes HTTP 200 and `[DONE]`
 in 1.609 s. Earlier valid JSON whitespace controls of up to 131,204 bytes also
 passed. Size alone, TCP reuse and the second-turn number are not sufficient
 explanations: these probes open fresh TCP connections, and the first ordinary
-tool upload can fail too. No specific JSON field or phrase is established as
-the trigger.
+tool upload can fail too. Those controls did not identify a specific JSON field
+or phrase as the trigger. The later user confirmation establishes the firewall's
+command-injection classification, without identifying an exact signature.
 
 ## Reset direction and packet evidence
 
@@ -126,10 +171,11 @@ No new Mac Work package or production inference binary is deployed by this
 source correction. The before-fix ACP fixtures remain evidence of the old
 binary; they are not relabeled as after-fix acceptance.
 
-## Required repair and acceptance
+## Repair and acceptance guidance recorded before closure
 
-The remaining public-path repair needs the owner of the actual forwarding and
-security policy. Investigate the 117.162.0.179:8080 mapping, upload inspection,
+At that stage, the public-path repair required the owner of the actual forwarding
+and security policy. The recorded investigation guidance was to inspect the
+117.162.0.179:8080 mapping, upload inspection,
 IPS/WAF and TCP reset logs; compare the same synthetic full tool request at
 the public ingress and GPU egress. The packet fingerprints above narrow that
 investigation without naming an unverified device. Keeping the exact HTTP URL
@@ -149,10 +195,11 @@ curl requests and the earlier throughput campaign do not substitute for this.
 
 ## Explicitly not claimed
 
-- A repaired public 8080 path, successful PPT generation, or access to the
-  affected user's macOS UI.
-- The identity or location of a unique reset injector, a universal size limit,
-  or a proved payload-inspection signature.
+- Independent post-remediation public acceptance, successful PPT generation, or
+  access to the affected user's macOS UI. Closure is user-confirmed.
+- The exact device identity, rule ID, policy change, matched payload signature,
+  or a universal size limit. The command-injection false-positive category is
+  confirmed by the user.
 - An unbounded deadlock, or an explanation unique to second-turn state.
 - A deployed macOS client correction or all workspace CI being green.
 
