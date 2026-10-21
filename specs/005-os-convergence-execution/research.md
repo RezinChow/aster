@@ -132,8 +132,9 @@ upload/publish/withdraw/delete 控制器层零鉴权（对比 model_hub 的
    迁移库 + 脚本会话）：双层准入拒绝（前缀门：无头/成员令牌；服务层：
    `a3s_us_` 形状未知令牌）+ 上传→发布→current→流式文件字节回环 +
    重复三元组命名 409 + 撤回后 denied≡missing + 全量删除清理。
-   2/2 绿（本地活栈实测）。已知边界：`plugin/packaging/` 两文件 HEAD
-   既有 fmt 债（`55a64b3` 引入），未捎带，记上游队列。
+   2/2 绿（本地活栈实测）。已知边界（已清偿 2026-10-22）：`plugin/
+   packaging/` 两文件的 HEAD 既有 fmt 债（`55a64b3` 引入）——api `079e746`
+   纯格式化清偿，crate fmt 门全绿，随队 PR。
 
 **剩余**：仅推送权（PR 内容已从草稿变为 ready-to-open 的实现 + 证明）。
 

@@ -171,7 +171,8 @@ Redis 启动依赖[Phase 2 T2.5]、AppRelease 治理[T024]）；**本仓可执�
       new/bind 准入与生命周期脚本目录）+ config_center 3（wire e2e：进程内
       脚本化 a3s-config 服务 + 真 HttpConfigClient + 真控制器；死服务目录
       200+命名错误、remote 404→404/409→409 映射、删幂等）；合计 22，全
-      进程内零外部依赖；仅余 pre-existing fmt 债两文件未捎带）
+      进程内零外部依赖；原记 pre-existing fmt 债两文件已清偿——api
+      `079e746` 纯格式化，crate fmt 门全绿，随队 PR）
       ——**仅阻塞推送权**（与 T024 同队列）
 
 - [ ] T031 [US4] studio 接线 ToBot 记忆适配器（755 行适配器的
