@@ -2,7 +2,10 @@
 
 ## Result
 
-The original public HTTP endpoint is **not repaired**. Ordinary tool-enabled
+The latest user report is that macOS becomes apparently stable after disabling
+the VPN, while retaining `http://117.162.0.179:8080/v1`. This supports VPN-path
+involvement; it is user-reported stability, not a sustained macOS acceptance run.
+The failing VPN-on public HTTP path is **not repaired**. Ordinary tool-enabled
 ACP requests reproduce a connection reset through that endpoint, including
 after selecting the Windows physical network interface. The same current ACP
 executable completed both turns through an SSH local forward to the same
@@ -12,11 +15,11 @@ configuration was changed in this follow-up.
 The user identified macOS and the prompt “帮我做一个10页的PPT”, sent at approximately
 13:56 China Standard Time on 2026-10-21. The user subsequently reported that an
 SSH local forward restored the conversation. Their next error still explicitly
-named `http://117.162.0.179:8080/v1/chat/completions`; that failing call therefore
-does not establish failure of a client configured with the proposed loopback
-base URL. Effective client configuration and restart/new-session confirmation
-remain pending. The macOS report is user testimony, not a remotely operated UI
-test.
+named `http://117.162.0.179:8080/v1/chat/completions`. The user clarified that the
+public URL and port8080 must be retained, then reported stable operation with
+the VPN disabled. The suggested loopback endpoint is therefore only historical
+diagnostic evidence, not the requested final configuration. The macOS reports
+are user testimony, not remotely operated UI tests.
 
 ## Executed evidence
 
@@ -59,6 +62,21 @@ attempts timed out during connect. Consequently request size alone does not
 explain the ordinary tool-request reset, and bypassing the default VPN is not a
 complete repair.
 
+Selecting a physical outgoing interface does not disable every VPN interception
+or filtering component. Therefore the physical-route failure above does not
+contradict the user's later observation with the VPN actually disabled.
+
+A further header-only experiment configured `Transfer-Encoding: chunked` for
+ordinary ACP and still exceeded40s. Observed server headers retained
+Content-Length and no Transfer-Encoding, so this does not qualify a successful
+on-wire chunked test and is not a recommended configuration change.
+
+The [40-second flags-only capture](client-stall-flags1-safe.json) contains23
+packets and reports zero kernel capture drops. Fourteen captured resets enter
+the server; no captured reset leaves it. This is partial header metadata with
+hashed addresses, not an application-payload capture or a unique attribution
+to the original macOS caller, VPN product, forwarding device or reset injector.
+
 The [earlier pilot](body-upload-diagnostic1.json) used an unsupported top-level
 `user` field. All six requests returned400; follow-up synthetic inspection
 identified `unsupported_request_fields`. These pilot responses are retained
@@ -74,7 +92,9 @@ A temporary Windows ActiveStore route for only117.162.0.179/32 was applied after
 the default reproduction, tested, and explicitly removed. The original LetsTAP
 route was selected again after cleanup. [The receipt](gateway-direct-route-receipt.json)
 records the historical apply; it is **not** a claim that this route remains
-active. The Windows diagnostic SSH connection and relay are no longer running.
+active. The same exact temporary route was applied once more for the header
+experiment and removed again using the ownership checks. The Windows diagnostic
+SSH connections, packet capture and relay are no longer running.
 The user's independently launched macOS SSH session was not touched.
 
 Read-only host inspection found the Gateway itself listening8080, ordinary
@@ -84,7 +104,7 @@ a valid `jxtoyou.com` certificate, but `/v1/models` under that hostname returns4
 it is not a qualified model endpoint and was not repointed. No TLS private key
 or credential was read for this inspection.
 
-## Commands and usable workaround
+## Commands and current user configuration
 
 Commands executed from the repository root with the working Python3.12 runtime:
 
@@ -98,13 +118,19 @@ python -X utf8 -B docs/evidence/power/2026-10-21-client-stall/acp-public-relay.p
 powershell -File docs/evidence/power/2026-10-21-client-stall/gateway-direct-route.ps1 -Action Remove
 ```
 
-macOS workaround already reported working by the user:
+The user now retains the original public endpoint and disables the VPN. A
+future VPN-on solution can use that VPN client's destination-specific DIRECT
+rule for117.162.0.179, but its exact syntax and effectiveness have not been
+verified because the VPN product is unknown. No macOS route, VPN configuration
+or application file was remotely changed.
+
+Historical macOS SSH workaround already reported working by the user:
 
 ```sh
 ssh -N -L 127.0.0.1:18080:127.0.0.1:8080 user@172.18.101.2
 ```
 
-Keep this SSH connection running and set the **actual selected provider** to
+For that optional workaround only, keep SSH running and set the selected provider to
 `base_url = "http://127.0.0.1:18080/v1"`, retaining the existing key and model.
 Fully quit/reopen the client and create a fresh conversation. An error naming
 the old public URL means this endpoint change has not reached that request.
@@ -112,7 +138,7 @@ ACP reads launch configuration and retains a core agent; editing an ACL file
 does not rewrite already constructed clients. Work's host-generated provider
 configuration can also differ from the terminal's trusted ACL.
 
-An enduring public solution needs a qualified encrypted public入口 or a repair
+An enduring VPN-on solution may need a VPN policy correction, a qualified encrypted public endpoint or a repair
 to the actual forwarding path. The current HTTPS website is not such an
 endpoint. This record does not approve repointing an unrelated website.
 
@@ -122,6 +148,7 @@ endpoint. This record does not approve repointing an unrelated website.
 - A general failure of all large requests, all public inference, or the GPU.
 - A repaired public8080 route, successful PPT generation, or direct operation
   of the user's macOS UI.
-- Current macOS configuration effectiveness after the latest old-URL failure.
+- A unique root cause established solely by the later VPN-off stability report,
+  or a verified DIRECT rule for an unidentified VPN product.
 - New product behavior, a production rollout, or rerun of the previous pressure
   campaign. This follow-up adds diagnostic scripts and evidence only.
