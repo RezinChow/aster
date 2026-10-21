@@ -21,7 +21,7 @@ function eventTarget() {
 }
 
 function setup(options = {}) {
-  const state = { draws: 0, dimensionWrites: 0, transforms: [], translations: [], frames: new Map(), nextId: 1 };
+  const state = { draws: 0, dimensionWrites: 0, transforms: [], translations: [], gradients: 0, frames: new Map(), nextId: 1 };
   const bounds = { width: 1200, height: 900, top: 0, left: 0, ...options.bounds };
   const hero = { ...eventTarget(), getBoundingClientRect: () => ({ ...bounds }) };
   const context = Object.fromEntries(['save', 'restore', 'rotate', 'beginPath', 'ellipse', 'stroke', 'moveTo', 'lineTo', 'closePath', 'arc', 'fill'].map(name => [name, () => {}]));
@@ -29,7 +29,8 @@ function setup(options = {}) {
     clearRect() { state.draws++; },
     setTransform(...args) { state.transforms.push(args); },
     translate(...args) { state.translations.push(args); },
-    createLinearGradient() { return { addColorStop() {} }; }
+    createLinearGradient() { return { addColorStop() {} }; },
+    createRadialGradient() { state.gradients++; return { addColorStop() {} }; }
   });
   const canvas = {
     closest: selector => selector === '.hero' ? hero : null,
@@ -99,6 +100,7 @@ test('reduced motion draws a static frame and never starts an animation loop', (
   const env = setup({ reduced: true });
   env.intersect(true);
   assert.equal(env.state.draws, 1);
+  assert.ok(env.state.gradients >= 1);
   assert.equal(env.state.frames.size, 0);
   env.state.resize();
   env.hero.dispatch('pointermove', { clientX: 1200, clientY: 900, pointerType: 'mouse' });
