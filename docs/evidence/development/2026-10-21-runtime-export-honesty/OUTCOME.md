@@ -209,3 +209,14 @@ semantics are unchanged. `vm::boot_diag` carries three hermetic tests
 claimed: a real failed-boot run against the krun stack (awaits the
 token + T0.4.2 rerun with the fork's boot-diagnostics branch, whose
 KRUN_BOOT_ABORT lines are exactly what these retained logs will carry).
+
+## Full-suite mirrors (2026-10-21, closing)
+
+After the retained-diagnostics change, the full a3s-box-runtime lib suite
+passes: 2116 passed / 0 failed / 10 ignored (28.64s) — the retained-diag
+module's three focused tests plus the whole package the CI hermetic gate
+would run. Together with the earlier mirrors (a3s-gateway 2039 passed,
+a3s-gateway-runtime 5 passed, a3s-use lib 320 passed after the runtime
+path fix), every package this session touched now has a green local
+full-suite run; the remote gates remain behind the missing
+STUDIO_READ_TOKEN.
