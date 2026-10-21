@@ -258,3 +258,10 @@ configuration (the a3s-box 3.3.0 install-linkage context), not a
 general engine defect — the fork instrumentation will name the exact
 stage when the T0.4.2 rerun happens, and the v3 Linux-leg plan remains
 the correct skip either way.
+
+AppRelease verification tier: the /app-releases unit tests pass on the
+api bin target (4 passed / 0 failed: strict semver, platform-by-channel
+closed sets, lowercase sha256 digest), raising the "upload/publish/
+download functionally complete" verdict from code review to a test run.
+The unauthenticated-write finding and the upstream hardening PR draft
+(T024) stand unchanged.
