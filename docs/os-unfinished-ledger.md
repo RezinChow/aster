@@ -51,3 +51,17 @@ K0/AUT0/S0；FROZEN P2 = EV0/AR0/I0-TrackB+/PW0.tee/CELL0。逐 lane 门表见
 CI 工程债（fmt 供给、use fixture+43 路径、gateway 目标修复）、
 backend.yml 方案 a、runtime 导出诚实化、T022 保留日志、krun 转自有。
 全量凭证：证据文件终验戳（HEAD 全库 exit 0 + 五包全量绿镜）。
+
+## 六、减法候选预登记（2026-11 首次季度减法评审用，R1 并行轨）
+
+按收敛程序 §7「空减法评审即失败」，预登记三项候选（均为已裁定路径的
+执行尾巴，非新决策）：
+
+1. **成员面 identity 第二写面物理删除**——T0.4.2 e2e 过线后执行（写
+   路径冻结围栏已在；删除即销账，C2 收官）。
+2. **iggy 镜像轨道降级**——DP-2 已裁 NATS 主线；Phase 2 T2.5 把 iggy
+   降为兼容适配器时，成员面直连 iggy 轨道（IM、config fan-out 除外
+   项已明示）随之收缩。
+3. **`lane` redis job 后端实现删除**——test-only 围栏
+   （`redisstore_consumer_surface_is_frozen`，15 文件）已绿；Phase 2
+   删实现时连带围栏转纯回归。
