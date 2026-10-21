@@ -56,8 +56,13 @@ US-6 证据修正）
       `git diff --cached --name-only` 核对；本切片文件清单见 OUTCOME.md）
 - [ ] T008 [US1] 全库 `cargo check --locked --workspace --all-targets`
       转绿后，把保留绿 run 判据写入 OUTCOME.md（运行中）
-- [ ] T009 [US1] backend.yml `hermetic`/`campaigns` 死配置修复——
-      **阻塞**：等 owner 在 与收缩矩阵）间选择（OUTCOME.md §Phase B.3）
+- [x] T009 [US1] backend.yml `hermetic`/`campaigns` 死配置修复——owner 选
+      方案：新增 `.github/actions/checkout-os-backend`（镜像 checkout-studio：
+      fail-closed token、gitlink pin、不持久化凭据）；hermetic 矩阵带
+      `submodule`/`test_args`、按真值门控检出；campaigns 三命令
+      `--manifest-path` 作用域；rust-cache 补 `workspaces`。本地证明：YAML
+      解析、五包在各自 manifest 下可解析、gitlink 可定位；真实 CI 执行未
+      声明（token 范围不足时 fail-closed 即设计行为）✅
 - [ ] T010 [US1] 工作区 fmt 门清零（8 个红文件全部归属并发会话在途树；
       该会话落库时一并解决，或经其同意后由本切片 `cargo fmt` 收敛）
 

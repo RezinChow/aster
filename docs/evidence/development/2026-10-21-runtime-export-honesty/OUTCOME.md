@@ -87,20 +87,29 @@ The only textual references are a historical merge-evidence patch document
    tests still read the same bytes. Zero `(\.\./)+crates/` references
    remain (grep residual count 0). `cargo fmt -p a3s-use -- --check` clean.
    Compile verification recorded below.
-3. **backend.yml structural finding (verified, NOT fixed — coverage-semantics
-   decision pending)**: `cargo metadata --no-deps` at the root resolves
+3. **backend.yml structural finding — verified, then fixed by owner decision
+   (a)**: `cargo metadata --no-deps` at the root resolves
    `a3s-gateway-runtime`, `a3s-runner`, `a3s-use-core`, `a3s-box-runtime`,
    `a3s-form-core`, `a3s-sms` but NOT `a3s-api`, `a3s-cloud-contracts`,
    `a3s-cloud-node-agent`, `a3s-cloud-sdk`, `a3s-cloud-control-plane` —
    those live in the `apps/api` / `apps/cloud` submodule workspaces, and
-   the `hermetic`/`campaigns` jobs do not check submodules out
-   (`actions/checkout@v4` without `submodules: recursive`). Once `check`
-   goes green, `hermetic` fails on `a3s-api` and `campaigns` fails on every
-   command. Options for the owner: (a) add `submodules: recursive` and scope
-   those invocations with `--manifest-path apps/{api,cloud}/Cargo.toml`
-   (keeps coverage, adds CI cost and checkout-token needs), or (b) shrink
-   the matrix to root members (weakens the workflow's stated coverage).
-   Not changed in this slice.
+   the `hermetic`/`campaigns` jobs did not check submodules out. The owner
+   chose option (a) (keep coverage). The fix: a new
+   `.github/actions/checkout-os-backend` composite action mirroring
+   `checkout-studio` (fail-closed token requirement, gitlink pin resolution
+   via `git rev-parse HEAD:<path>`, token checkout of
+   `kense-labs/{api,cloud}` with `persist-credentials: false`); the
+   `hermetic` matrix now carries `submodule` + explicit `test_args` per
+   entry, with the backend checkout gated on `matrix.submodule` truthiness
+   (missing key is null — `!= ''` would mis-fire); `campaigns` checks out
+   both submodules and scopes its three serial commands with
+   `--manifest-path apps/{cloud,api}/Cargo.toml`. `rust-cache` gains the
+   matching `workspaces` entries. Local proofs: YAML parses; all five
+   submodule packages resolve under their own manifests
+   (`cargo metadata --manifest-path`); gitlink pins resolve. Not claimed:
+   a real CI execution — if `STUDIO_READ_TOKEN` lacks read scope on
+   kense-labs/api and kense-labs/cloud, the checkout fails closed with the
+   named token error, which is the intended refusal, not a bypass.
 4. **Two committed `a3s-gateway` target breakages found by the first full
    recheck and fixed in this slice** (tree clean, so committed debt, not
    concurrent-session in-flight edits): `benches/routing.rs` was missing
