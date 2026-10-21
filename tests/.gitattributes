@@ -1,0 +1,2 @@
+# Serving fixtures participate in the retained source-hash contracts.
+power_serving_*.py -text

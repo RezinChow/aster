@@ -1,0 +1,2 @@
+# The qualification runner is pinned by its original byte hash.
+power_serving_qualification.py -text
