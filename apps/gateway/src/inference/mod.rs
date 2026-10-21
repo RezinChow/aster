@@ -14,6 +14,8 @@ mod native_wire;
 mod observed_tokens;
 mod openai_request;
 mod platform_models;
+mod prefix_affinity;
+mod prefix_feedback;
 mod principal;
 mod routing;
 mod scheduling;
@@ -56,6 +58,8 @@ pub(crate) use observed_tokens::{LifecycleTokenBreakdown, ObservedTokenUsage};
 pub(crate) use platform_models::{
     serve_platform_alias_model, serve_platform_model, warm_platform_engines, ServedPlatformModel,
 };
+pub(crate) use prefix_affinity::{target_signature, PrefixHint, PrefixLease, PrefixTarget};
+pub(crate) use prefix_feedback::track_prefix_body;
 pub(crate) use principal::PrincipalSubject;
 pub(crate) use routing::{
     build_decision_request, decision_inputs, effective_targets, evaluate_routing,
