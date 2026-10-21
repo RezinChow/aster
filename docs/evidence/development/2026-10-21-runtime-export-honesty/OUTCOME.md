@@ -230,3 +230,9 @@ Closing stamp: the full workspace check against the session's final
 HEAD (40884f7fc) finishes with exit 0 and zero errors (4m 29s) — every
 package this session touched is compile- and suite-verified at the exact
 tree state pushed to main.
+
+Fork compile verification: `cargo check -p libkrun` on the instrumented
+fork main (02e1414) finishes clean (devices + libkrun, exit 0) with a
+placeholder init/init artifact — the real static init needs the Linux
+cross toolchain from the A3S build container; the placeholder was
+removed after the check and nothing was committed or shipped from it.
