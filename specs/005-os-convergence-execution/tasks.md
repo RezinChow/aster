@@ -162,6 +162,8 @@ CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SD
 
 - [ ] T025 [US1] 自托管 runner + 保留管道：backend.yml 增 self-hosted
       label 变体（机器侧 deploy key 检出私有子模块，摆脱 STUDIO_READ_TOKEN）
+      ——**工作流预置件已置库**（2026-10-21：`os-retained-run.yml` 独立
+      workflow 承载 label 变体，见 T018 注；runner 注册前零自动影响）
       ——**阻塞：一台 runner 机器**（与 T0.4.2 Linux 腿同一台即可）
 - [x] T026 [US8] 月度评审提案：修订 FN0 residual 的「production-shaped
       GHA retain」为「self-hosted retained run 等价可接受」——自认证闭环
@@ -175,7 +177,16 @@ CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SD
 ## Phase D: GA-2 aster 侧支撑（阻塞 D-B + 上游进展）
 
 - [ ] T018 [US8] 保留绿 run 管道（backend.yml 或独立 workflow；私有子
-      模块不可读时命名失败，禁止跳过检出）——**阻塞 T012**
+      模块不可读时命名失败，禁止跳过检出）——**管道已置库**（2026-10-21：
+      `.github/workflows/os-retained-run.yml`，仅 `workflow_dispatch`、
+      `runs-on: [self-hosted, aster-os]`、机器 deploy-key 检出
+      （gitlink 160000 → pinned sha → 命名失败不跳过）、复刻 backend.yml
+      验证集（1.97.1/fmt/--all-targets/五包矩阵/依赖守卫）+ 90 天产物保留；
+      本地证明 = YAML 解析 + gitlink 逻辑对 HEAD 实跑（api `aa0e7ae`/
+      cloud `4f65537` 均可解析）。已知边界：cloud pin 是上游排队提交，
+      runner 首次 dispatch 将在 cloud checkout 处命名失败直至上游推进——
+      设计行为，非缺陷。**仍阻塞 T012**（runner 机器到位才有真实执行；不
+      代声明绿）
 - [ ] T019 [US8] GA-2 各环上游落地后的指针提升 + 证据托管（不代上游声明
       Verified）
 
