@@ -4,6 +4,65 @@ use super::{A3sCodeAgent, SessionSetup};
 use a3s_code_core::{sandbox::SandboxNetworkMode, CodeConfig};
 use agent_client_protocol::{self as acp, Agent as _};
 
+#[test]
+fn empty_launch_model_is_omitted_and_named() {
+    let empty = A3sCodeAgent::core_session_options("session", "  ", None);
+    assert!(empty.model.is_none());
+    let set = A3sCodeAgent::core_session_options("session", "mock/gpt", None);
+    assert_eq!(set.model.as_deref(), Some("mock/gpt"));
+    assert_eq!(
+        super::configured_model_id("").unwrap_err(),
+        "no model is configured; open /config and save ~/.a3s/config.acl, then start aster again"
+    );
+    assert_eq!(
+        super::configured_model_id(" mock/gpt ").unwrap(),
+        "mock/gpt"
+    );
+}
+
+#[tokio::test]
+async fn blank_launch_model_session_and_prompt_use_the_no_model_sentence() {
+    let root = tempfile::tempdir().unwrap();
+    let mut launch = super::tests::test_launch(Some(root.path().join("sessions")));
+    launch.workspace = root.path().to_path_buf();
+    launch.model_id.clear();
+    let agent = A3sCodeAgent::new(launch);
+    let created = agent
+        .new_session(acp::NewSessionRequest::new(root.path()))
+        .await
+        .expect_err("a blank launch model refuses session creation");
+    assert_eq!(
+        created.data,
+        Some(serde_json::json!(super::NO_MODEL_CONFIGURED))
+    );
+    assert!(
+        !format!("{created:?}").contains("must use 'provider/model' format"),
+        "{created:?}"
+    );
+
+    *agent.model_id.lock().await = "anthropic/claude-sonnet-4-20250514".to_string();
+    let opened = agent
+        .new_session(acp::NewSessionRequest::new(root.path()))
+        .await
+        .expect("a provider/model id opens a session");
+    *agent.model_id.lock().await = "  ".to_string();
+    let prompted = agent
+        .prompt(acp::PromptRequest::new(
+            opened.session_id,
+            vec![acp::ContentBlock::Text(acp::TextContent::new("hello"))],
+        ))
+        .await
+        .expect_err("a blank model refuses the prompt");
+    assert_eq!(
+        prompted.data,
+        Some(serde_json::json!(super::NO_MODEL_CONFIGURED))
+    );
+    assert!(
+        !format!("{prompted:?}").contains("must use 'provider/model' format"),
+        "{prompted:?}"
+    );
+}
+
 #[tokio::test]
 async fn initialize_refuses_invalid_prompt_metadata_instead_of_silently_ignoring_it() {
     for (key, value) in [

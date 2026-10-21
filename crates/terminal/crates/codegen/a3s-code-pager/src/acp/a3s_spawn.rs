@@ -88,11 +88,10 @@ pub async fn spawn_a3s_acp(
             let local = tokio::task::LocalSet::new();
             local.block_on(&rt, async move {
                 let mut command = Command::new(&bin);
-                command.args(arguments)
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::inherit())
-                    .kill_on_drop(true);
+                command.args(arguments);
+                // The welcome screen owns the console. ACP diagnostics stay in
+                // the daily log instead of painting over that screen.
+                apply_interactive_acp_stdio(&mut command);
                 let mut child = command
                     .spawn()
                     .with_context(|| format!("failed to spawn a3s ACP agent at {}", bin.display()))?;
@@ -104,11 +103,33 @@ pub async fn spawn_a3s_acp(
                     .stdout
                     .take()
                     .ok_or_else(|| anyhow!("a3s ACP agent stdout missing"))?;
+                let child_stderr = child
+                    .stderr
+                    .take()
+                    .ok_or_else(|| anyhow!("a3s ACP agent stderr missing"))?;
 
                 let (incoming_read, mut incoming_write) = tokio::io::simplex(MAX_BUF);
                 let (outgoing_read, outgoing_write) = tokio::io::simplex(MAX_BUF);
 
                 // Child stdout → ClientSideConnection incoming
+                let cancel_e = bridge_cancel.clone();
+                let stderr_task = tokio::task::spawn_local(async move {
+                    let mut reader = BufReader::new(child_stderr);
+                    let mut line = String::new();
+                    loop {
+                        line.clear();
+                        tokio::select! {
+                            biased;
+                            _ = cancel_e.cancelled() => break,
+                            result = reader.read_line(&mut line) => {
+                                if !matches!(result, Ok(n) if n > 0) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                });
+
                 let cancel_r = bridge_cancel.clone();
                 let reader_task = tokio::task::spawn_local(async move {
                     let mut reader = BufReader::new(child_stdout);
@@ -187,6 +208,7 @@ pub async fn spawn_a3s_acp(
                 };
                 reader_task.abort();
                 writer_task.abort();
+                stderr_task.abort();
                 io_task.abort();
                 gateway_task.abort();
                 let _ = child.kill().await;
@@ -221,6 +243,16 @@ pub async fn spawn_required_sidecar(
         return Err(missing_agent_backend());
     }
     spawn_a3s_acp(agent_config, cancel, cwd, model).await
+}
+
+/// Interactive ACP stdio. Stdout carries the protocol. Stderr is captured so
+/// a warn line cannot land on the pager's console.
+pub(crate) fn apply_interactive_acp_stdio(command: &mut Command) {
+    command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
 }
 
 fn sidecar_arguments(
@@ -485,6 +517,35 @@ mod tests {
             }
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn interactive_acp_stdio_captures_stderr() {
+        let mut command = if cfg!(windows) {
+            let mut command = tokio::process::Command::new("cmd");
+            command.args(["/C", "echo ACP_STDERR_PROBE 1>&2"]);
+            command
+        } else {
+            let mut command = tokio::process::Command::new("sh");
+            command.args(["-c", "echo ACP_STDERR_PROBE >&2"]);
+            command
+        };
+        super::apply_interactive_acp_stdio(&mut command);
+        let mut child = command.spawn().expect("spawn stderr probe");
+        let mut stderr = child.stderr.take().expect("stderr is captured");
+        let mut stdout = child.stdout.take().expect("stdout is captured");
+        let mut err = Vec::new();
+        let mut out = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut stderr, &mut err)
+            .await
+            .unwrap();
+        tokio::io::AsyncReadExt::read_to_end(&mut stdout, &mut out)
+            .await
+            .unwrap();
+        let status = child.wait().await.unwrap();
+        assert!(status.success(), "{status}");
+        let text = String::from_utf8_lossy(&err);
+        assert!(text.contains("ACP_STDERR_PROBE"), "{text}");
     }
 }
 

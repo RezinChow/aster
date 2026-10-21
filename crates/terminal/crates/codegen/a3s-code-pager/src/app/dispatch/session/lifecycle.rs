@@ -1677,6 +1677,11 @@ fn restore_dashboard_attach_after_orphan_remove(
 }
 /// Put queued prompts and the leftover composer draft back on Welcome
 /// before an orphan create placeholder is removed.
+///
+/// Moving the draft onto the agent clears the welcome composer, so a later
+/// `set_text` would keep the caret at byte 0. The next keystroke then leaves
+/// home again and inserts at the front. Restore the agent caret, and append
+/// queued prompts after the caret is at the end of the text already restored.
 fn restore_orphan_create_draft_to_welcome(app: &mut AppView, agent_id: AgentId) {
     if app.home_session_agent == Some(agent_id) {
         app.home_session_agent = None;
@@ -1691,23 +1696,32 @@ fn restore_orphan_create_draft_to_welcome(app: &mut AppView, agent_id: AgentId) 
         return;
     };
     let draft_text = agent.prompt.text().to_string();
+    let draft_cursor = agent.prompt.cursor();
     let draft_images = agent.prompt.drain_images();
     let mut queued = agent.session.pending_prompts.drain(..);
     let Some(first) = queued.next() else {
         if !draft_text.trim().is_empty() {
             app.welcome_prompt.set_text(&draft_text);
+            app.welcome_prompt.set_cursor(draft_cursor);
         }
         if !draft_images.is_empty() {
             app.welcome_prompt.set_images(draft_images);
         }
+        // The agent menu died with the placeholder. Reopen it from the restored draft
+        // so `/` does not flash and then vanish.
+        app.welcome_prompt.refresh_slash(&app.models);
         return;
     };
     app.welcome_prompt.set_text(&first.text);
     app.welcome_prompt
         .restore_chip_elements(&first.chip_elements);
     app.welcome_prompt.set_images(first.images);
+    app.welcome_prompt
+        .set_cursor(app.welcome_prompt.text().len());
     for rest in queued {
         if !rest.text.trim().is_empty() {
+            app.welcome_prompt
+                .set_cursor(app.welcome_prompt.text().len());
             let _ = app.welcome_prompt.handle_paste(&format!("\n{}", rest.text));
         }
         for image in rest.images {
@@ -1715,11 +1729,22 @@ fn restore_orphan_create_draft_to_welcome(app: &mut AppView, agent_id: AgentId) 
         }
     }
     if !draft_text.trim().is_empty() {
+        app.welcome_prompt
+            .set_cursor(app.welcome_prompt.text().len());
         let _ = app.welcome_prompt.handle_paste(&format!("\n{draft_text}"));
+        let cursor = {
+            let text = app.welcome_prompt.text();
+            text.ends_with(draft_text.as_str())
+                .then(|| text.len() - draft_text.len() + draft_cursor.min(draft_text.len()))
+        };
+        if let Some(cursor) = cursor {
+            app.welcome_prompt.set_cursor(cursor);
+        }
     }
     for image in draft_images {
         let _ = app.welcome_prompt.insert_image(image);
     }
+    app.welcome_prompt.refresh_slash(&app.models);
 }
 /// Emits the create-failure event and returns the stalled phase's user-facing copy, if any.
 fn report_session_create_failed(
@@ -1753,6 +1778,78 @@ fn report_session_create_failed(
 }
 /// Failed plain `CreateSession`: drop orphan placeholders, clear the starting-session spinner, and report the error.
 /// The report is a toast when an agent remains; on the welcome screen, which has no toast, it is a startup warning.
+/// Slash popups (`/config`, `/settings`, `/help`, …) live on the agent that the command just created.
+fn agent_holds_local_popup(agent: &AgentView) -> bool {
+    agent.active_modal.is_some()
+        || agent.extensions_modal.is_some()
+        || agent.feedback_modal.is_some()
+}
+
+/// Keep the placeholder, and the popup mounted on it, until the popup closes.
+fn park_failed_create_behind_popup(app: &mut AppView, agent_id: AgentId, msg: String) {
+    let Some(agent) = app.agents.get_mut(&agent_id) else {
+        return;
+    };
+    agent.session_create_abandoned = Some(msg);
+    agent.pending_extensions_fetch = false;
+    agent.session.prompt_history_loading = false;
+    agent.session_starting_since = None;
+    agent.mcp_init_progress = None;
+    agent.session_new_phase = None;
+    agent.pending_session_id = None;
+}
+
+/// Drop a create that already failed. Same landing as an immediate orphan failure:
+/// welcome (or another live agent) plus the failure warning.
+fn remove_failed_orphan(app: &mut AppView, agent_id: AgentId, msg: &str) {
+    if let Some(agent) = app.agents.get_mut(&agent_id) {
+        agent.session_create_abandoned = None;
+    }
+    restore_orphan_create_draft_to_welcome(app, agent_id);
+    let failed_was_active = matches!(app.active_view, ActiveView::Agent(id) if id == agent_id);
+    let fallback = app.agents.keys().copied().find(|id| *id != agent_id);
+    remove_agent_and_cleanup(app, agent_id);
+    if let Some(target) = fallback {
+        if failed_was_active {
+            switch_to_agent(app, target, SwitchCause::Picker);
+        }
+        restore_dashboard_attach_after_orphan_remove(app, agent_id, Some(target));
+        if matches!(app.active_view, ActiveView::Welcome) {
+            push_session_create_failure_warning(app, msg);
+        } else {
+            app.show_toast(msg);
+        }
+    } else if matches!(app.active_view, ActiveView::AgentDashboard) {
+        restore_dashboard_attach_after_orphan_remove(app, agent_id, None);
+        app.show_toast(msg);
+    } else if matches!(app.active_view, ActiveView::Welcome) {
+        push_session_create_failure_warning(app, msg);
+    } else {
+        show_welcome(app);
+        app.welcome_prompt_focused = true;
+        restore_dashboard_attach_after_orphan_remove(app, agent_id, None);
+        push_session_create_failure_warning(app, msg);
+    }
+}
+
+/// After a parked create failure, return home once the popup that held the placeholder is gone.
+pub(crate) fn release_abandoned_sessions_after_popup(app: &mut AppView) {
+    let ready: Vec<(AgentId, String)> = app
+        .agents
+        .iter()
+        .filter_map(|(id, agent)| {
+            let message = agent.session_create_abandoned.clone()?;
+            (agent.session.session_id.is_none()
+                && agent.session.forked_from.is_none()
+                && !agent_holds_local_popup(agent))
+            .then_some((*id, message))
+        })
+        .collect();
+    for (id, msg) in ready {
+        remove_failed_orphan(app, id, &msg);
+    }
+}
+
 pub(in crate::app::dispatch) fn handle_session_failed(
     app: &mut AppView,
     agent_id: AgentId,
@@ -1770,31 +1867,17 @@ pub(in crate::app::dispatch) fn handle_session_failed(
         .get(&agent_id)
         .is_some_and(|a| a.session.session_id.is_none() && a.session.forked_from.is_none());
     if is_orphan {
-        restore_orphan_create_draft_to_welcome(app, agent_id);
-        let failed_was_active = matches!(app.active_view, ActiveView::Agent(id) if id == agent_id);
-        let fallback = app.agents.keys().copied().find(|id| *id != agent_id);
-        remove_agent_and_cleanup(app, agent_id);
-        if let Some(target) = fallback {
-            if failed_was_active {
-                switch_to_agent(app, target, SwitchCause::Picker);
-            }
-            restore_dashboard_attach_after_orphan_remove(app, agent_id, Some(target));
-            if matches!(app.active_view, ActiveView::Welcome) {
-                push_session_create_failure_warning(app, &msg);
-            } else {
-                app.show_toast(&msg);
-            }
-        } else if matches!(app.active_view, ActiveView::AgentDashboard) {
-            restore_dashboard_attach_after_orphan_remove(app, agent_id, None);
-            app.show_toast(&msg);
-        } else if matches!(app.active_view, ActiveView::Welcome) {
-            push_session_create_failure_warning(app, &msg);
-        } else {
-            show_welcome(app);
-            app.welcome_prompt_focused = true;
-            restore_dashboard_attach_after_orphan_remove(app, agent_id, None);
-            push_session_create_failure_warning(app, &msg);
+        if app
+            .agents
+            .get(&agent_id)
+            .is_some_and(agent_holds_local_popup)
+        {
+            // `/config` and the other local popups mount on this placeholder. Dropping it
+            // here is what made the dialog flash and disappear.
+            park_failed_create_behind_popup(app, agent_id, msg);
+            return vec![];
         }
+        remove_failed_orphan(app, agent_id, &msg);
     } else if let Some(agent) = app.agents.get_mut(&agent_id) {
         agent.pending_extensions_fetch = false;
         agent.session.prompt_history_loading = false;

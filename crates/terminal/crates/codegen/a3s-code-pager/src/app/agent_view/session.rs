@@ -50,6 +50,7 @@ impl AgentView {
         self.session_starting_since = None;
         self.session_new_phase = None;
         self.pending_session_id = None;
+        self.session_create_abandoned = None;
     }
     /// The top-bar MCP chip shows real server counts only; a `0/0` report renders nothing
     pub(crate) fn mcp_chip_visible(&self) -> bool {
@@ -372,6 +373,7 @@ impl AgentView {
             overlay_can_cycle: false,
             mcp_init_progress: None,
             session_starting_since: None,
+            session_create_abandoned: None,
             session_new_phase: None,
             pending_session_id: None,
             acp_synced_generation: 0,

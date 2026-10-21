@@ -26,18 +26,162 @@ class CodeLauncherTest(unittest.TestCase):
             target = root / "custom target"
             executable = target / "debug/aster"
             executable.parent.mkdir(parents=True)
-            executable.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$ASTER_OPEN_LOG"\n')
+            executable.write_text(
+                '#!/bin/sh\nprintf "%s\\n" "$@" > "$ASTER_OPEN_LOG"\n'
+                'printf "%s" "${A3S_CONFIG-}" > "$ASTER_CONFIG_LOG"\n'
+            )
             executable.chmod(0o755)
             log = root / "arguments.txt"
+            config_log = root / "config.txt"
             env = dict(os.environ, PATH=f"{tools}:{os.environ['PATH']}",
-                       ASTER_TEST_TARGET=str(target), ASTER_OPEN_LOG=str(log))
+                       ASTER_TEST_TARGET=str(target), ASTER_OPEN_LOG=str(log),
+                       ASTER_CONFIG_LOG=str(config_log))
+            env.pop("A3S_CONFIG", None)
             result = subprocess.run(["just", "code", "--cwd", "/tmp/aster project"],
                                     cwd=root, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(log.read_text().splitlines(), ["--cwd", "/tmp/aster project"])
+            self.assertEqual(config_log.read_text(), "")
+            acl = root / ".a3s" / "config.acl"
+            acl.parent.mkdir()
+            acl.write_text('default_model = "fixture/local"\n')
+            result = subprocess.run(["just", "code"], cwd=root, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(Path(config_log.read_text()), acl.resolve())
+            env["A3S_CONFIG"] = "/tmp/kept-by-user.acl"
+            result = subprocess.run(["just", "code"], cwd=root, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(config_log.read_text(), "/tmp/kept-by-user.acl")
+            env.pop("A3S_CONFIG", None)
             log.unlink()
             env["ASTER_TEST_FAIL"] = "1"
             result = subprocess.run(["just", "code"], cwd=root, env=env, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(log.exists(), "failed builds must not launch a stale executable")
+
+
+@unittest.skipUnless(os.name == "nt", "Windows launcher uses powershell.exe")
+class WindowsCodeLauncherTest(unittest.TestCase):
+    def compile_probe(self, executable: Path) -> None:
+        source = r"""
+using System;
+using System.IO;
+public class AsterProbe {
+    public static int Main(string[] args) {
+        File.WriteAllLines(Environment.GetEnvironmentVariable("ASTER_OPEN_LOG"), args);
+        var config = Environment.GetEnvironmentVariable("A3S_CONFIG") ?? "";
+        File.WriteAllText(Environment.GetEnvironmentVariable("ASTER_CONFIG_LOG"), config, new System.Text.UTF8Encoding(false));
+        return 0;
+    }
+}
+"""
+        script = (
+            "$source = @'\n"
+            + source.strip()
+            + "\n'@\n"
+            + f"Add-Type -TypeDefinition $source -OutputAssembly '{executable}' -OutputType ConsoleApplication\n"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoLogo", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(executable.is_file(), result.stderr)
+
+    def test_code_runs_the_built_binary_and_preserves_arguments(self):
+        with tempfile.TemporaryDirectory(prefix="aster-code-win-") as directory:
+            root = Path(directory)
+            shutil.copy2(Path(__file__).resolve().parents[1] / "justfile", root / "justfile")
+            tools = root / "bin"
+            tools.mkdir()
+            target = root / "custom target"
+            executable = target / "debug" / "aster.exe"
+            executable.parent.mkdir(parents=True)
+            self.compile_probe(executable)
+            target_arg = target.as_posix()
+            (tools / "cargo.cmd").write_text(
+                "@echo off\r\n"
+                "if \"%~1\"==\"metadata\" (\r\n"
+                "  echo {\"target_directory\":\"%ASTER_TEST_TARGET%\"}\r\n"
+                "  exit /b 0\r\n"
+                ")\r\n"
+                "if \"%~1\"==\"build\" (\r\n"
+                "  >\"%ASTER_PROTOC_LOG%\" echo %PROTOC%\r\n"
+                "  exit /b %ASTER_TEST_FAIL%\r\n"
+                ")\r\n"
+                "echo unexpected Cargo command 1>&2\r\n"
+                "exit /b 1\r\n",
+                encoding="ascii",
+            )
+            log = root / "arguments.txt"
+            config_log = root / "config.txt"
+            protoc_log = root / "protoc.txt"
+            project = root / "aster project"
+            local_app = root / "localapp"
+            known_protoc = local_app / "protoc" / "bin" / "protoc.exe"
+            known_protoc.parent.mkdir(parents=True)
+            known_protoc.write_bytes(b"")
+            path_entries = [
+                entry
+                for entry in os.environ["PATH"].split(os.pathsep)
+                if "protoc" not in entry.lower()
+            ]
+            env = dict(
+                os.environ,
+                PATH=f"{tools}{os.pathsep}{os.pathsep.join(path_entries)}",
+                LOCALAPPDATA=str(local_app),
+                ASTER_TEST_TARGET=target_arg,
+                ASTER_OPEN_LOG=str(log),
+                ASTER_CONFIG_LOG=str(config_log),
+                ASTER_PROTOC_LOG=str(protoc_log),
+                ASTER_TEST_FAIL="0",
+            )
+            env.pop("PROTOC", None)
+            env.pop("A3S_CONFIG", None)
+            result = subprocess.run(
+                ["just", "code", "--cwd", str(project)],
+                cwd=root,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(log.read_text().splitlines(), ["--cwd", str(project)])
+            self.assertEqual(config_log.read_text(), "")
+            self.assertEqual(protoc_log.read_text().strip(), str(known_protoc))
+            acl = root / ".a3s" / "config.acl"
+            acl.parent.mkdir()
+            acl.write_text('default_model = "fixture/local"\n', encoding="ascii")
+            result = subprocess.run(
+                ["just", "code"],
+                cwd=root,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(Path(config_log.read_text().strip()), acl.resolve())
+            env["A3S_CONFIG"] = str(root / "kept-by-user.acl")
+            result = subprocess.run(
+                ["just", "code"],
+                cwd=root,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(config_log.read_text().strip(), env["A3S_CONFIG"])
+            env.pop("A3S_CONFIG", None)
+            log.unlink()
+            env["ASTER_TEST_FAIL"] = "1"
+            result = subprocess.run(
+                ["just", "code"],
+                cwd=root,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse(log.exists(), "failed builds must not launch a stale executable")
 

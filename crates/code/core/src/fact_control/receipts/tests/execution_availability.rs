@@ -324,6 +324,31 @@ async fn assert_unavailable_sandbox_does_not_open_debt(initialization_failure: b
 }
 
 #[tokio::test]
+async fn permission_denial_keeps_a_pre_spawn_refusal() {
+    let root = tempfile::tempdir().unwrap();
+    let (base, executions) = executor_tools(root.path());
+    base.executor
+        .register_dynamic_tool(Arc::new(AvailabilityProbe(Arc::clone(&executions))));
+    let mut tools = base.as_ref().clone();
+    tools.permission = PermissionPolicy::new().deny("receipt_probe");
+    let tools = Arc::new(tools);
+
+    let refused = prepare_tools(
+        Arc::clone(&tools),
+        request("denied-unavailable", json!({"unavailable": true})),
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let refused = execute_prepared(tools, refused).await;
+    let output = refused.output.as_str().unwrap();
+    assert_eq!(refused.outcome, ToolExecutionOutcome::Denied);
+    assert!(output.contains("backend is unavailable"), "{output}");
+    assert!(!output.contains("unapproved"), "{output}");
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn unconfirmed_ask_keeps_a_pre_spawn_refusal() {
     let root = tempfile::tempdir().unwrap();
     let (base, executions) = executor_tools(root.path());

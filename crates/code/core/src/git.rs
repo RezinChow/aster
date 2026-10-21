@@ -58,53 +58,167 @@ fn git_operation_cancelled() -> bool {
 ///
 /// Empty/relative PATH entries and symlinks into the repository are resolved
 /// before selection, so repository content cannot supply the Git executable.
+/// On Windows, a miss then checks the fixed Git install directories. PATH
+/// still wins. Reparse points are rejected, and nothing is downloaded.
 pub(crate) fn trusted_git_executable(workspace: &Path) -> Result<PathBuf> {
     let workspace = workspace
         .canonicalize()
         .map_err(|error| anyhow!("Failed to resolve Git workspace: {error}"))?;
     let current_directory = std::env::current_dir()
         .map_err(|error| anyhow!("Failed to resolve the current directory: {error}"))?;
+    #[cfg(windows)]
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    #[cfg(not(windows))]
     let path = std::env::var_os("PATH").ok_or_else(|| anyhow!("PATH is not configured"))?;
-    trusted_git_executable_from_path(&workspace, &current_directory, &path)
+    trusted_git_executable_from(
+        &workspace,
+        &current_directory,
+        &path,
+        &fixed_git_install_directories(),
+        &git_candidate_is_selectable,
+    )
 }
 
-fn trusted_git_executable_from_path(
+fn trusted_git_executable_from(
     workspace: &Path,
     current_directory: &Path,
     path: &std::ffi::OsStr,
+    install_directories: &[PathBuf],
+    selectable: &dyn Fn(&Path) -> bool,
 ) -> Result<PathBuf> {
     let workspace = workspace
         .canonicalize()
         .map_err(|error| anyhow!("Failed to resolve Git workspace: {error}"))?;
-    for directory in std::env::split_paths(path) {
-        let directory = if directory.as_os_str().is_empty() {
+    let path_directories = std::env::split_paths(path).map(|directory| {
+        if directory.as_os_str().is_empty() {
             current_directory.to_path_buf()
         } else if directory.is_absolute() {
             directory
         } else {
             current_directory.join(directory)
-        };
-        let Ok(directory) = directory.canonicalize() else {
-            continue;
-        };
-        if directory.starts_with(&workspace) {
+        }
+    });
+    for directory in path_directories {
+        if let Some(executable) = trusted_git_in_directory(&directory, &workspace, selectable) {
+            return Ok(executable);
+        }
+    }
+    for directory in install_directories {
+        if !directory.is_absolute() {
             continue;
         }
-        for candidate in git_executable_candidates(&directory) {
-            let Ok(candidate) = candidate.canonicalize() else {
-                continue;
-            };
-            if candidate.starts_with(&workspace) || !is_executable_file(&candidate) {
-                continue;
-            }
-            return Ok(candidate);
+        if let Some(executable) = trusted_git_in_directory(directory, &workspace, selectable) {
+            return Ok(executable);
         }
     }
 
-    Err(anyhow!(
-        "Git was not found on a trusted absolute PATH entry outside {}",
-        workspace.display()
-    ))
+    if install_directories.is_empty() {
+        Err(anyhow!(
+            "Git was not found on a trusted absolute PATH entry outside {}",
+            workspace.display()
+        ))
+    } else {
+        Err(anyhow!(
+            "Git was not found on a trusted absolute PATH entry or a fixed Git install directory outside {}",
+            workspace.display()
+        ))
+    }
+}
+
+fn trusted_git_in_directory(
+    directory: &Path,
+    workspace: &Path,
+    selectable: &dyn Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    if !directory.is_absolute() {
+        return None;
+    }
+    let canonical_directory = directory.canonicalize().ok()?;
+    if canonical_directory.starts_with(workspace) {
+        return None;
+    }
+    for candidate in git_executable_candidates(directory) {
+        if !selectable(&candidate) {
+            continue;
+        }
+        let Ok(resolved) = candidate.canonicalize() else {
+            continue;
+        };
+        if resolved.starts_with(workspace) || !is_executable_file(&resolved) {
+            continue;
+        }
+        return Some(resolved);
+    }
+    None
+}
+
+/// `Program Files\Git\cmd`, `Program Files (x86)\Git\cmd`, and
+/// `%LOCALAPPDATA%\Programs\Git\cmd`. Relative roots are ignored.
+#[cfg(windows)]
+fn fixed_git_install_directories() -> Vec<PathBuf> {
+    git_install_directories_from(
+        std::env::var_os("ProgramFiles")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .as_deref(),
+        std::env::var_os("ProgramFiles(x86)")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .as_deref(),
+        std::env::var_os("LOCALAPPDATA")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .as_deref(),
+    )
+}
+
+#[cfg(not(windows))]
+fn fixed_git_install_directories() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+#[cfg(windows)]
+fn git_install_directories_from(
+    program_files: Option<&Path>,
+    program_files_x86: Option<&Path>,
+    local_app_data: Option<&Path>,
+) -> Vec<PathBuf> {
+    let mut directories = Vec::new();
+    for root in [program_files, program_files_x86].into_iter().flatten() {
+        if root.is_absolute() {
+            directories.push(root.join("Git").join("cmd"));
+        }
+    }
+    if let Some(root) = local_app_data.filter(|root| root.is_absolute()) {
+        directories.push(root.join("Programs").join("Git").join("cmd"));
+    }
+    directories
+}
+
+fn git_candidate_is_selectable(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        is_regular_git_file(path)
+    }
+    #[cfg(not(windows))]
+    {
+        is_executable_file(path)
+    }
+}
+
+/// Same reparse rejection as the host PowerShell selector: WindowsApps aliases
+/// and other reparse points are not Git.
+#[cfg(windows)]
+fn is_regular_git_file(path: &Path) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return false;
+    }
+    metadata.is_file()
 }
 
 fn git_executable_candidates(directory: &Path) -> Vec<PathBuf> {
@@ -1181,18 +1295,143 @@ mod tests {
         ])
         .unwrap();
 
-        let selected =
-            trusted_git_executable_from_path(&workspace, root.path(), path.as_os_str()).unwrap();
+        let selected = trusted_git_executable_from(
+            &workspace,
+            root.path(),
+            path.as_os_str(),
+            &[],
+            &git_candidate_is_selectable,
+        )
+        .unwrap();
 
         assert_eq!(selected, outside_git.canonicalize().unwrap());
         let untrusted_only =
             std::env::join_paths([workspace.join("bin"), linked_directory]).unwrap();
-        assert!(trusted_git_executable_from_path(
+        assert!(trusted_git_executable_from(
             &workspace,
             root.path(),
-            untrusted_only.as_os_str()
+            untrusted_only.as_os_str(),
+            &[],
+            &git_candidate_is_selectable,
         )
         .is_err());
+    }
+
+    #[cfg(windows)]
+    fn write_git_exe(directory: &Path) -> PathBuf {
+        std::fs::create_dir_all(directory).unwrap();
+        let executable = directory.join("git.exe");
+        std::fs::write(&executable, b"").unwrap();
+        executable
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn git_install_directories_use_fixed_absolute_suffixes() {
+        let directories = git_install_directories_from(
+            Some(Path::new(r"C:\Program Files")),
+            Some(Path::new(r"C:\Program Files (x86)")),
+            Some(Path::new(r"C:\Users\ada\AppData\Local")),
+        );
+        assert_eq!(
+            directories,
+            vec![
+                PathBuf::from(r"C:\Program Files\Git\cmd"),
+                PathBuf::from(r"C:\Program Files (x86)\Git\cmd"),
+                PathBuf::from(r"C:\Users\ada\AppData\Local\Programs\Git\cmd"),
+            ]
+        );
+        assert!(git_install_directories_from(Some(Path::new("relative")), None, None).is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn empty_path_uses_a_fixed_git_install_and_path_wins() {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = root.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let path_dir = root.path().join("path-bin");
+        let path_git = write_git_exe(&path_dir);
+        let install_dir = root.path().join("install").join("Git").join("cmd");
+        let install_git = write_git_exe(&install_dir);
+        let path = std::env::join_paths([&path_dir]).unwrap();
+
+        let from_path = trusted_git_executable_from(
+            &workspace,
+            root.path(),
+            path.as_os_str(),
+            &[install_dir.clone()],
+            &git_candidate_is_selectable,
+        )
+        .unwrap();
+        assert_eq!(from_path, path_git.canonicalize().unwrap());
+
+        let from_install = trusted_git_executable_from(
+            &workspace,
+            root.path(),
+            std::ffi::OsStr::new(""),
+            &[install_dir],
+            &git_candidate_is_selectable,
+        )
+        .unwrap();
+        assert_eq!(from_install, install_git.canonicalize().unwrap());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn fixed_git_install_rejects_reparse_points_and_workspace_copies() {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = root.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let reparse_dir = root.path().join("reparse").join("Git").join("cmd");
+        let reparse_git = write_git_exe(&reparse_dir);
+        let workspace_git_dir = workspace.join("Git").join("cmd");
+        let _workspace_git = write_git_exe(&workspace_git_dir);
+
+        let rejected = trusted_git_executable_from(
+            &workspace,
+            root.path(),
+            std::ffi::OsStr::new(""),
+            &[reparse_dir.clone(), workspace_git_dir],
+            &|path| path != reparse_git && git_candidate_is_selectable(path),
+        );
+        assert!(rejected.is_err());
+
+        let accepted_dir = root.path().join("accepted").join("Git").join("cmd");
+        let accepted_git = write_git_exe(&accepted_dir);
+        let selected = trusted_git_executable_from(
+            &workspace,
+            root.path(),
+            std::ffi::OsStr::new(""),
+            &[reparse_dir, accepted_dir],
+            &|path| path != reparse_git && git_candidate_is_selectable(path),
+        )
+        .unwrap();
+        assert_eq!(selected, accepted_git.canonicalize().unwrap());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn fixed_git_install_skips_a_real_reparse_point() {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = root.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let install = root.path().join("Git").join("cmd");
+        std::fs::create_dir_all(&install).unwrap();
+        let target = install.join("real.exe");
+        std::fs::write(&target, b"").unwrap();
+        let link = install.join("git.exe");
+        std::os::windows::fs::symlink_file(&target, &link).expect("create a file symlink");
+
+        assert!(!is_regular_git_file(&link));
+        let error = trusted_git_executable_from(
+            &workspace,
+            root.path(),
+            std::ffi::OsStr::new(""),
+            std::slice::from_ref(&install),
+            &git_candidate_is_selectable,
+        );
+        assert!(error.is_err(), "{error:?}");
     }
 
     #[test]

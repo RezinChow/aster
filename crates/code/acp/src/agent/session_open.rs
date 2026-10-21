@@ -38,8 +38,11 @@ impl A3sCodeAgent {
     ) -> SessionOptions {
         let mut options = SessionOptions::new()
             .with_assistant_final_response(true)
-            .with_session_id(session_id.to_string())
-            .with_model(model_id.to_string())
+            .with_session_id(session_id.to_string());
+        if let Ok(model_id) = super::configured_model_id(model_id) {
+            options = options.with_model(model_id.to_string());
+        }
+        options = options
             .with_max_tool_rounds(0)
             .with_auto_compact(true)
             .with_auto_compact_threshold(a3s_code_core::store::DEFAULT_AUTO_COMPACT_THRESHOLD);
@@ -160,14 +163,7 @@ impl A3sCodeAgent {
     ) -> acp::Result<SessionOptions> {
         let (embedding, unavailable) = match self.launch.config.workspace_retrieval {
             Some(retrieval) if retrieval.enabled && retrieval.local_cpu => {
-                match super::local_embedding::local_embedding_provider(
-                    tokio_util::sync::CancellationToken::new(),
-                )
-                .await
-                {
-                    Ok(provider) => (Some(provider), None),
-                    Err(error) => (None, Some(error.to_string())),
-                }
+                local_cpu_embedding().await
             }
             Some(retrieval) if retrieval.enabled => (
                 None,
@@ -235,6 +231,9 @@ impl A3sCodeAgent {
         setup: SessionSetup<'_>,
         restore: bool,
     ) -> acp::Result<LiveSession> {
+        if let Err(message) = super::configured_model_id(setup.model_id) {
+            return Err(acp::Error::invalid_params().data(message));
+        }
         self.ensure_core_agent().await?;
         let store_dir =
             Self::interactive_session_store_dir(self.launch.config.sessions_dir.as_deref());
@@ -693,4 +692,67 @@ pub(super) fn acp_mcp_to_config(
         acp::McpServer::Sse(sse) => hosted(&sse.name, &sse.url, &sse.headers, true),
         _ => None,
     }
+}
+
+/// The ONNX embedding runtime is linked only into `local-bge` builds.
+async fn local_cpu_embedding() -> (
+    Option<Arc<dyn a3s_code_core::EmbeddingProvider>>,
+    Option<String>,
+) {
+    #[cfg(feature = "local-bge")]
+    {
+        match super::local_embedding::local_embedding_provider(
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+        {
+            Ok(provider) => (Some(provider), None),
+            Err(error) => (None, Some(error.to_string())),
+        }
+    }
+    #[cfg(not(feature = "local-bge"))]
+    {
+        (
+            None,
+            Some(
+                "local_cpu workspace retrieval requires building a3s-code-acp with the local-bge feature"
+                    .to_owned(),
+            ),
+        )
+    }
+}
+
+#[cfg(all(test, not(feature = "local-bge")))]
+#[tokio::test]
+async fn local_cpu_without_local_bge_reports_retrieval_unavailable() {
+    let root = tempfile::tempdir().expect("workspace");
+    let mut launch = super::test_launch(Some(root.path().join("sessions")));
+    launch.workspace = root.path().to_owned();
+    launch.config.workspace_retrieval = Some(a3s_code_core::config::WorkspaceRetrievalConfig {
+        enabled: true,
+        local_cpu: true,
+    });
+    let agent = A3sCodeAgent::new(launch);
+    let setup = SessionSetup {
+        workspace: root.path().to_owned(),
+        model_id: "anthropic/claude-sonnet-4-20250514",
+        effort: None,
+        host: Default::default(),
+        components: &[],
+        mcp_servers: Vec::new(),
+    };
+    let options = agent
+        .session_options_for("session-1", &setup, &root.path().join("store"))
+        .await
+        .expect("session options");
+    assert!(options.workspace_retrieval.is_none());
+    let extra = options
+        .prompt_slots
+        .as_ref()
+        .and_then(|slots| slots.extra.as_deref())
+        .unwrap_or("");
+    assert!(
+        extra.contains("local-bge") && extra.contains("grep, glob and bm25"),
+        "{extra}"
+    );
 }

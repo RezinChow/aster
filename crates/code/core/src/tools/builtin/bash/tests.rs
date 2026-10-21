@@ -2803,3 +2803,64 @@ fn windows_shell_guidance_names_the_real_shell_and_its_chaining_rules() {
 
     assert!(windows_shell::windows_shell_guidance(None).contains("cannot run commands"));
 }
+
+#[test]
+fn host_powershell_env_fills_missing_pathext_and_python_defaults() {
+    let policy = HashMap::from([("PATH".to_string(), r"C:\Windows".to_string())]);
+    let completed = windows_shell::complete_host_powershell_env(&policy, &HashMap::new());
+    assert_eq!(
+        completed.get("PATH").map(String::as_str),
+        Some(r"C:\Windows")
+    );
+    assert_eq!(
+        completed.get("PATHEXT").map(String::as_str),
+        Some(".COM;.EXE;.BAT;.CMD")
+    );
+    assert_eq!(completed.get("PYTHONUTF8").map(String::as_str), Some("1"));
+    assert_eq!(
+        completed.get("PYTHONIOENCODING").map(String::as_str),
+        Some("utf-8:surrogateescape")
+    );
+}
+
+#[test]
+fn host_powershell_env_keeps_explicit_pathext_and_python_values() {
+    let policy = HashMap::from([
+        ("Pathext".to_string(), ".EXE".to_string()),
+        ("PYTHONUTF8".to_string(), "0".to_string()),
+        ("pythonioencoding".to_string(), "mbcs".to_string()),
+    ]);
+    let completed = windows_shell::complete_host_powershell_env(&policy, &HashMap::new());
+    assert_eq!(completed.get("Pathext").map(String::as_str), Some(".EXE"));
+    assert_eq!(completed.get("PYTHONUTF8").map(String::as_str), Some("0"));
+    assert_eq!(
+        completed.get("pythonioencoding").map(String::as_str),
+        Some("mbcs")
+    );
+    assert_eq!(
+        completed
+            .keys()
+            .filter(|key| key.eq_ignore_ascii_case("PATHEXT"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn host_powershell_env_leaves_inherited_values_in_place() {
+    let inherited = HashMap::from([
+        ("pathext".to_string(), ".COM".to_string()),
+        ("PYTHONUTF8".to_string(), "0".to_string()),
+    ]);
+    let completed = windows_shell::complete_host_powershell_env(&HashMap::new(), &inherited);
+    assert!(!completed
+        .keys()
+        .any(|key| key.eq_ignore_ascii_case("PATHEXT")));
+    assert!(!completed
+        .keys()
+        .any(|key| key.eq_ignore_ascii_case("PYTHONUTF8")));
+    assert_eq!(
+        completed.get("PYTHONIOENCODING").map(String::as_str),
+        Some("utf-8:surrogateescape")
+    );
+}

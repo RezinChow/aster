@@ -324,9 +324,25 @@ fn prepare_windows_command(
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .creation_flags(CREATE_NO_WINDOW);
-    if let Some(env) = command_env {
-        command.envs(env);
-    }
+    let policy = command_env.cloned().unwrap_or_default();
+    command.envs(windows_shell::complete_host_powershell_env(
+        &policy,
+        &inherited_host_powershell_env(),
+    ));
+}
+
+/// Non-empty process keys for the host PowerShell defaults. An empty
+/// variable counts as unset. The returned values are not copied onto the
+/// child; key presence stops the defaults from overriding inheritance.
+#[cfg(windows)]
+fn inherited_host_powershell_env() -> HashMap<String, String> {
+    ["PATHEXT", "PYTHONUTF8", "PYTHONIOENCODING"]
+        .into_iter()
+        .filter_map(|key| {
+            let value = std::env::var_os(key).filter(|value| !value.is_empty())?;
+            Some((key.to_string(), value.to_string_lossy().into_owned()))
+        })
+        .collect()
 }
 
 /// Windows `CreateProcess` rejects command lines longer than 32767 characters.

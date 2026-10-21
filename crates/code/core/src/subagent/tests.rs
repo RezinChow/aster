@@ -723,6 +723,70 @@ fn test_load_agents_from_nonexistent_dir() {
     assert!(agents.is_empty());
 }
 
+struct SharedLog(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for SharedLog {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn captured_load(dir: &std::path::Path) -> (Vec<AgentDefinition>, String) {
+    let buffer = std::sync::Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+    let writer = buffer.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(move || SharedLog(writer.clone()))
+        .finish();
+    let agents = tracing::subscriber::with_default(subscriber, || load_agents_from_dir(dir));
+    let text = String::from_utf8(buffer.lock().unwrap().clone()).unwrap();
+    (agents, text)
+}
+
+#[test]
+fn missing_agent_directory_does_not_warn() {
+    let missing = std::env::temp_dir().join(format!(
+        "a3s-missing-agents-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let _ = std::fs::remove_dir_all(&missing);
+    let (agents, text) = captured_load(&missing);
+    assert!(agents.is_empty());
+    assert!(
+        !text.contains("Failed to resolve agent directory"),
+        "{text}"
+    );
+}
+
+#[test]
+fn agent_directory_that_is_a_file_still_warns() {
+    let root = std::env::temp_dir().join(format!(
+        "a3s-file-agents-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let file = root.join("not-a-directory");
+    std::fs::write(&file, b"agent").unwrap();
+    let (agents, text) = captured_load(&file);
+    assert!(agents.is_empty());
+    assert!(text.contains("Failed to read agent directory"), "{text}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 #[test]
 fn worker_yaml_disallowed_tools_only_uses_kind_default_permissions() {
     let yaml = r#"

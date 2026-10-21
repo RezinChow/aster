@@ -900,6 +900,8 @@ pub struct AppView {
     pub(super) last_cache_evict_at: Option<Instant>,
     /// Hit-test rect for welcome prompt input (populated during render).
     pub welcome_prompt_rect: Option<ratatui::layout::Rect>,
+    /// Slash menu painted above the welcome composer. Clicks here must not hit the menu underneath.
+    pub welcome_slash_panel_rect: Option<ratatui::layout::Rect>,
     /// Hit-test rect for the auth URL (click-to-open during Authenticating).
     pub welcome_auth_url_rect: Option<ratatui::layout::Rect>,
     /// Whether the mouse pointer was last over the auth URL (for OSC 22 cursor shape).
@@ -1584,6 +1586,7 @@ impl AppView {
             last_scroll_pos: None,
             last_cache_evict_at: None,
             welcome_prompt_rect: None,
+            welcome_slash_panel_rect: None,
             welcome_auth_url_rect: None,
             welcome_on_auth_url: false,
             welcome_on_changelog_cta: false,
@@ -2652,7 +2655,9 @@ impl AppView {
                     mid_session_login: self.auth_return_view.is_some(),
                     auth_code_input: &mut self.auth_code_input,
                     prompt: &mut self.welcome_prompt,
+                    models: &self.models,
                     prompt_focused: &mut self.welcome_prompt_focused,
+                    slash_panel_rect: self.welcome_slash_panel_rect,
                     new_worktree_dialog: &mut self.new_worktree_dialog,
                     menu_index: &mut self.welcome_menu_index,
                     menu_rects: &self.welcome_menu_rects,
@@ -3309,7 +3314,11 @@ struct WelcomeInputCtx<'a> {
     mid_session_login: bool,
     auth_code_input: &'a mut LineEditor,
     prompt: &'a mut PromptWidget,
+    /// Model list for slash refresh and completion on the welcome composer.
+    models: &'a crate::acp::model_state::ModelState,
     prompt_focused: &'a mut bool,
+    /// Painted slash panel from the last welcome frame.
+    slash_panel_rect: Option<ratatui::layout::Rect>,
     new_worktree_dialog: &'a mut Option<NewWorktreeDialogState>,
     menu_index: &'a mut Option<usize>,
     menu_rects: &'a [ratatui::layout::Rect],
@@ -3387,6 +3396,76 @@ struct WelcomeInputCtx<'a> {
     deferred_startup: &'a mut crate::app::session_startup::DeferredStartupActions,
     #[cfg(feature = "local-workspace")]
     session_picker_open: bool,
+}
+/// Keys for a slash menu that is already open on the welcome composer.
+/// Printable keys stay here. Leaving home on each of them retries session create, and a
+/// failure tears the menu down. `None` falls through (Enter still sends).
+fn welcome_slash_menu_key(
+    key: &crossterm::event::KeyEvent,
+    ctx: &mut WelcomeInputCtx<'_>,
+) -> Option<InputOutcome> {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    match key.code {
+        KeyCode::Up => {
+            ctx.prompt.slash_move_selection(-1);
+            ctx.prompt.slash_preview_current_selection();
+            Some(InputOutcome::Changed)
+        }
+        KeyCode::Down => {
+            ctx.prompt.slash_move_selection(1);
+            ctx.prompt.slash_preview_current_selection();
+            Some(InputOutcome::Changed)
+        }
+        KeyCode::Char('p') if key.modifiers == KeyModifiers::CONTROL => {
+            ctx.prompt.slash_move_selection(-1);
+            ctx.prompt.slash_preview_current_selection();
+            Some(InputOutcome::Changed)
+        }
+        KeyCode::Char('n') if key.modifiers == KeyModifiers::CONTROL => {
+            ctx.prompt.slash_move_selection(1);
+            ctx.prompt.slash_preview_current_selection();
+            Some(InputOutcome::Changed)
+        }
+        KeyCode::Tab => {
+            ctx.prompt.slash_commit_preview();
+            ctx.prompt.accept_slash_completion(ctx.models);
+            Some(InputOutcome::Changed)
+        }
+        KeyCode::Esc if key.modifiers.is_empty() => {
+            ctx.prompt.slash_cancel_preview();
+            ctx.prompt.slash_close();
+            Some(InputOutcome::Changed)
+        }
+        KeyCode::Enter if key.modifiers.is_empty() => {
+            let snap = ctx.prompt.slash_snapshot();
+            let exact = crate::slash::is_typed_slash_selected(
+                &snap,
+                ctx.prompt.text(),
+                ctx.prompt.slash_controller.registry(),
+            );
+            if !exact {
+                let chains = snap
+                    .selection()
+                    .is_some_and(|row| row.insert_text.ends_with(' '));
+                ctx.prompt.slash_commit_preview();
+                ctx.prompt.accept_slash_completion(ctx.models);
+                if chains {
+                    return Some(InputOutcome::Changed);
+                }
+            } else {
+                ctx.prompt.slash_commit_preview();
+            }
+            ctx.prompt.slash_close();
+            None
+        }
+        _ if crate::input::key::is_text_input_key(key) => {
+            *ctx.menu_index = None;
+            let _ = ctx.prompt.handle_key(key);
+            ctx.prompt.refresh_slash(ctx.models);
+            Some(InputOutcome::Changed)
+        }
+        _ => None,
+    }
 }
 /// Welcome view input: overlays first, then composer, then the menu.
 fn handle_welcome_input(ev: &Event, ctx: &mut WelcomeInputCtx<'_>) -> InputOutcome {
@@ -3887,6 +3966,12 @@ fn handle_welcome_input(ev: &Event, ctx: &mut WelcomeInputCtx<'_>) -> InputOutco
                 dispatch_access_gate_menu_action,
             );
         }
+        if *ctx.prompt_focused
+            && ctx.prompt.slash_open()
+            && let Some(outcome) = welcome_slash_menu_key(key, ctx)
+        {
+            return outcome;
+        }
         if (crate::input::key::is_paste_key(key) || crate::input::key::is_inline_paste_key(key))
             && matches!(ctx.auth_state, AuthState::Done)
         {
@@ -3949,6 +4034,7 @@ fn handle_welcome_input(ev: &Event, ctx: &mut WelcomeInputCtx<'_>) -> InputOutco
             let had_highlight = ctx.prompt.textarea.selection_range().is_some();
             match ctx.prompt.handle_key(key) {
                 crate::views::prompt_widget::PromptEvent::Edited => {
+                    ctx.prompt.refresh_slash(ctx.models);
                     return InputOutcome::Changed;
                 }
                 crate::views::prompt_widget::PromptEvent::Ignored => {
@@ -4085,6 +4171,11 @@ fn handle_welcome_input(ev: &Event, ctx: &mut WelcomeInputCtx<'_>) -> InputOutco
         use crossterm::event::{MouseButton, MouseEventKind};
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(panel) = ctx.slash_panel_rect
+                    && panel.contains(ratatui::layout::Position::new(mouse.column, mouse.row))
+                {
+                    return InputOutcome::Changed;
+                }
                 for (i, rect) in ctx.menu_rects.iter().enumerate() {
                     if mouse.column >= rect.x
                         && mouse.column < rect.x + rect.width
@@ -4790,6 +4881,7 @@ impl AppView {
                                 workspace_mode_ack_pending: self
                                     .welcome_local_workspace_ack_pending,
                             };
+                            self.welcome_slash_panel_rect = None;
                             let result = crate::views::welcome::render_welcome(
                                 view_area,
                                 f.buffer_mut(),
@@ -4797,6 +4889,19 @@ impl AppView {
                                 &mut self.welcome_prompt,
                                 &mut self.session_picker_state,
                             );
+                            if let Some(prompt_rect) = result.prompt_rect {
+                                let theme = crate::theme::Theme::current();
+                                self.welcome_slash_panel_rect =
+                                    crate::app::agent_view::paint_slash_dropdown_above_prompt(
+                                        f.buffer_mut(),
+                                        view_area,
+                                        prompt_rect,
+                                        &self.welcome_prompt,
+                                        &theme,
+                                        &self.appearance.scrollback.layout,
+                                        compact,
+                                    );
+                            }
                             self.welcome_menu_rects = result.menu_rects;
                             self.welcome_show_changelog_action = result.changelog_action_present;
                             self.welcome_prompt_rect = result.prompt_rect;

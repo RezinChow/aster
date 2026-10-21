@@ -85,5 +85,10 @@ fn main() {
     {
         println!("cargo:rustc-link-arg=/DELAYLOAD:ProjectedFSLib.dll");
         println!("cargo:rustc-link-arg=delayimp.lib");
+        // Clap's derived command tree, and the interactive startup future that
+        // lives in `main`, exhaust the MSVC linker's 1 MiB default main-thread
+        // stack in unoptimized builds. Match the conventional 8 MiB Unix
+        // reserve. This reserves address space only; pages commit on demand.
+        println!("cargo:rustc-link-arg-bin=aster=/STACK:8388608");
     }
 }

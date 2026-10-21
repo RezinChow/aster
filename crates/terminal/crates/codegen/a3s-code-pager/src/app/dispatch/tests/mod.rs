@@ -233,6 +233,7 @@ fn test_app() -> AppView {
         last_scroll_pos: None,
         last_cache_evict_at: None,
         welcome_prompt_rect: None,
+        welcome_slash_panel_rect: None,
         welcome_auth_url_rect: None,
         welcome_on_auth_url: false,
         welcome_on_changelog_cta: false,

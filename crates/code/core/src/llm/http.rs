@@ -61,9 +61,11 @@ impl HttpClientError {
 
     pub fn is_retryable(&self) -> bool {
         match self {
-            // Immediate connect/DNS failures rarely recover after a 30s sleep;
-            // treating them as retryable 503s burns ~3 minutes of silent
-            // Working… before the user sees the real transport error.
+            // Immediate connect/DNS failures rarely recover after a 30s sleep.
+            // A Windows connect timeout is rendered as "timed out" plus
+            // "tcp connect error"; treating that as a retryable 503 burns
+            // several minutes before the user sees the transport error.
+            // A timeout after the connection exists stays retryable.
             Self::Transport { message, .. } => !is_hard_connect_failure(message),
             Self::Cancelled { .. } | Self::InvalidRequest { .. } => false,
         }
@@ -93,6 +95,8 @@ pub(crate) fn is_hard_connect_failure(message: &str) -> bool {
     let lower = message.to_ascii_lowercase();
     lower.contains("connection reset")
         || lower.contains("connection refused")
+        || lower.contains("tcp connect error")
+        || lower.contains("(connect)")
         || lower.contains("network is unreachable")
         || lower.contains("no route to host")
         || lower.contains("name or service not known")
@@ -873,8 +877,9 @@ mod tests {
             Err(error) => error,
         };
         let message = error.to_string();
+        let lower = message.to_ascii_lowercase();
         assert!(
-            message.to_ascii_lowercase().contains("connection refused"),
+            lower.contains("connection refused") || lower.contains("tcp connect error"),
             "{message}"
         );
         assert!(
@@ -905,6 +910,26 @@ mod tests {
             "timed out: operation timed out",
         ));
         assert!(is_retryable_http_failure(&timeout));
+
+        let closed = anyhow::Error::new(HttpClientError::transport(
+            "HTTP streaming request",
+            "connection closed before message completed",
+        ));
+        assert!(is_retryable_http_failure(&closed));
+    }
+
+    #[test]
+    fn windows_connect_timeout_is_not_retried_as_unavailable() {
+        let message = "timed out: error sending request for url (http://gateway.example/v1/chat/completions): client error (Connect): tcp connect error: 由于连接方在一段时间后没有正确答复或连接的主机没有反应，连接尝试失败。 (os error 10060)";
+        let error = anyhow::Error::new(HttpClientError::transport(
+            "HTTP streaming request",
+            message,
+        ));
+        assert!(is_hard_connect_failure(message));
+        assert!(
+            !is_retryable_http_failure(&error),
+            "a connect timeout must fail on the first attempt: {message}"
+        );
     }
 
     fn proxy_env_lock() -> &'static Mutex<()> {

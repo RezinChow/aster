@@ -1310,6 +1310,9 @@ pub struct AgentView {
     /// Set when a session create or fork is dispatched. Cleared when the id binds or the create fails.
     /// Renders "Starting session…" in the turn-status row.
     pub(crate) session_starting_since: Option<Instant>,
+    /// Create failed while a local popup (`/config`, `/settings`, …) was open.
+    /// The placeholder stays so the popup does not vanish with it. Cleared when the popup closes and the welcome failure path runs.
+    pub(crate) session_create_abandoned: Option<String>,
     /// Latest `session/new` setup step from `x.ai/session/setup`; names the stuck step on a timeout. Cleared on bind/fail.
     pub(crate) session_new_phase: Option<a3s_code_shell::agent::SessionSetupPhase>,
     /// The create's `_meta.sessionId`, held until `SessionCreated` binds it, so setup phases route here. Cleared on bind/fail.
@@ -1688,6 +1691,52 @@ fn overlay_action_to_outcome(action: crate::views::overlay::OverlayAction) -> In
         OverlayAction::FocusScrollback => InputOutcome::Action(Action::FocusScrollback),
         OverlayAction::FocusPrompt => InputOutcome::Action(Action::FocusPrompt),
     }
+}
+/// Paint the open slash menu above `prompt_rect`. Returns the panel rect for hit-testing.
+/// The welcome screen has no agent dropdown host; a failed session create returns there with the
+/// draft, and without this paint the menu that `/` just opened vanishes on the next frame.
+pub(crate) fn paint_slash_dropdown_above_prompt(
+    buf: &mut Buffer,
+    area: Rect,
+    prompt_rect: Rect,
+    prompt: &PromptWidget,
+    theme: &Theme,
+    layout_cfg: &crate::appearance::LayoutConfig,
+    compact: bool,
+) -> Option<Rect> {
+    if prompt.file_search_visible() || !prompt.slash_open() {
+        return None;
+    }
+    use crate::views::slash_dropdown::{desired_item_rows, render_dropdown as render_slash};
+    let snap = prompt.slash_snapshot();
+    let items_width = dropdown_items_width(prompt_rect);
+    let item_rows = desired_item_rows(&snap.matches, items_width);
+    let (provider_tabs, provider_tab) = prompt.slash_model_provider_tabs();
+    let tab_row = u16::from(provider_tabs.len() > 1);
+    if item_rows == 0 {
+        return None;
+    }
+    let chrome = render_dropdown_chrome(
+        buf,
+        snap.matches.len(),
+        item_rows.saturating_add(tab_row),
+        None,
+        prompt_rect,
+        area,
+        layout_cfg,
+        compact,
+        false,
+        theme,
+    )?;
+    let (_tab_rects, items) = crate::views::slash_dropdown::split_provider_tab_row(
+        buf,
+        chrome.items,
+        &provider_tabs,
+        provider_tab,
+        theme,
+    );
+    let _hit = render_slash(buf, items, &snap, prompt.slash_hovered(), theme);
+    Some(chrome.panel)
 }
 /// Render dropdown chrome (borders, count hint) anchored to the prompt and return the inner items area. Returns `None` when geometry doesn't fit.
 /// `below = false` anchors the panel *above* the prompt (full-TUI default); `below = true` anchors it *below* the prompt (minimal mode, common CLI style, to reduce layout shift).

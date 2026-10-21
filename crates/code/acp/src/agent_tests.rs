@@ -2188,6 +2188,70 @@ fn configured_skill_directory_that_is_missing_is_named() {
 }
 
 #[test]
+fn skill_home_from_prefers_nonempty_home_then_userprofile() {
+    let home = std::ffi::OsStr::new(r"C:\Users\home");
+    let profile = std::ffi::OsStr::new(r"C:\Users\profile");
+    let empty = std::ffi::OsStr::new("");
+    assert_eq!(
+        skill_home_from(None, Some(profile)).as_deref(),
+        Some(std::path::Path::new(r"C:\Users\profile"))
+    );
+    assert_eq!(
+        skill_home_from(Some(empty), Some(profile)).as_deref(),
+        Some(std::path::Path::new(r"C:\Users\profile"))
+    );
+    assert_eq!(
+        skill_home_from(Some(home), Some(profile)).as_deref(),
+        Some(std::path::Path::new(r"C:\Users\home"))
+    );
+    assert_eq!(skill_home_from(Some(empty), Some(empty)), None);
+    assert_eq!(skill_home_from(None, None), None);
+}
+
+#[test]
+fn interactive_skill_dirs_load_an_explicit_profile_without_reading_home() {
+    let root = std::env::temp_dir().join(format!("a3s-acp-skill-home-{}", uuid::Uuid::new_v4()));
+    let profile = root.join("profile");
+    let workspace = root.join("workspace");
+    std::fs::create_dir_all(profile.join(".codex").join("skills")).unwrap();
+    std::fs::create_dir_all(profile.join(".grok").join("skills")).unwrap();
+    std::fs::create_dir_all(&workspace).unwrap();
+
+    let (dirs, absent) = interactive_skill_dirs_under(&workspace, &[], Some(profile.as_path()));
+    assert!(
+        dirs.iter()
+            .any(|dir| dir == &profile.join(".codex").join("skills")),
+        "{dirs:?}"
+    );
+    assert!(
+        dirs.iter()
+            .all(|dir| !dir.components().any(|part| part.as_os_str() == ".grok")),
+        "{dirs:?}"
+    );
+    assert!(absent.is_empty());
+
+    let (without_home, _) = interactive_skill_dirs_under(&workspace, &[], None);
+    assert!(
+        without_home.iter().all(|dir| !dir.starts_with(&profile)),
+        "{without_home:?}"
+    );
+
+    let watched = watched_skill_dirs_under(&workspace, Some(profile.as_path()));
+    for root_name in [".a3s", ".agents", ".claude", ".codex"] {
+        let personal = profile.join(root_name).join("skills");
+        assert!(
+            watched.iter().any(|dir| dir == &personal),
+            "watch list missing {}",
+            personal.display()
+        );
+    }
+    assert!(watched
+        .iter()
+        .all(|dir| !dir.components().any(|part| part.as_os_str() == ".grok")));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn watched_skill_dirs_include_home_agent_roots_before_they_exist() {
     let workspace = std::path::Path::new("/tmp/a3s-watch-skills-workspace");
     let dirs = watched_skill_dirs(workspace);

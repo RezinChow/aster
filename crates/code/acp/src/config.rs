@@ -343,23 +343,54 @@ providers \"deepseek\" {
 }
 ";
 
+/// Host home for `~/.a3s`. A non-empty `HOME` wins. Windows leaves `HOME`
+/// unset and puts the profile in `USERPROFILE`.
+fn user_home() -> Option<PathBuf> {
+    for key in ["HOME", "USERPROFILE"] {
+        if let Some(value) = std::env::var_os(key).filter(|value| !value.is_empty()) {
+            return Some(PathBuf::from(value));
+        }
+    }
+    None
+}
+
+/// A zero-byte file is not a configuration. `ensure_user_acl` may replace it.
+fn user_acl_is_configured(path: &Path) -> bool {
+    std::fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.len() > 0)
+}
+
 /// Create `~/.a3s/config.acl` when the user has none.
 ///
-/// Returns whether this call wrote the file. An existing file is left unchanged.
+/// Returns whether this call wrote the file. An existing non-empty file is
+/// left unchanged. An empty file is replaced with the first-run template.
 /// The models are the current GLM and DeepSeek ids; the key is a placeholder.
 pub fn ensure_user_acl() -> Result<bool> {
-    let Some(home) = std::env::var_os("HOME").filter(|value| !value.is_empty()) else {
+    let Some(home) = user_home() else {
         return Ok(false);
     };
-    let path = PathBuf::from(home).join(".a3s").join("config.acl");
-    if path.is_file() {
-        return Ok(false);
+    let path = home.join(".a3s").join("config.acl");
+    match std::fs::metadata(&path) {
+        Ok(meta) if meta.is_file() && meta.len() > 0 => return Ok(false),
+        Ok(meta) if meta.is_file() => {}
+        Ok(_) => {
+            anyhow::bail!("{} exists and is not a regular file", path.display());
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(error).with_context(|| format!("read {}", path.display()));
+        }
     }
+    let replacing_empty = path.is_file();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     }
     let mut options = std::fs::OpenOptions::new();
-    options.write(true).create_new(true);
+    options.write(true);
+    if replacing_empty {
+        options.truncate(true);
+    } else {
+        options.create_new(true);
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -403,11 +434,11 @@ fn layer_sources(workspace: &Path, explicit: Option<&Path>) -> Result<Vec<LayerS
         return Ok(vec![LayerSource::read(LayerKind::Explicit, path)?]);
     }
     let mut layers = Vec::new();
-    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let home = user_home();
     let user = home
         .as_ref()
         .map(|h| h.join(".a3s/config.acl"))
-        .filter(|path| path.is_file());
+        .filter(|path| user_acl_is_configured(path));
     if let Some(path) = user.as_deref() {
         layers.push(LayerSource::read(LayerKind::User, path)?);
     }
@@ -666,8 +697,10 @@ mod tests {
         let _cursor_tests = crate::cursor_account::test_env_lock();
         let _guard = LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
         let home = std::env::var_os("HOME");
+        let user_profile = std::env::var_os("USERPROFILE");
         let model = std::env::var_os("A3S_DEFAULT_MODEL");
         let cursor_disable = std::env::var_os("A3S_DISABLE_CURSOR_ACCOUNT");
+        std::env::remove_var("USERPROFILE");
         std::env::set_var("A3S_DISABLE_CC_SWITCH", "1");
         std::env::set_var("A3S_DISABLE_GROK_ACCOUNT", "1");
         std::env::set_var("A3S_DISABLE_CURSOR_ACCOUNT", "1");
@@ -675,6 +708,10 @@ mod tests {
         match home {
             Some(value) => std::env::set_var("HOME", value),
             None => std::env::remove_var("HOME"),
+        }
+        match user_profile {
+            Some(value) => std::env::set_var("USERPROFILE", value),
+            None => std::env::remove_var("USERPROFILE"),
         }
         match model {
             Some(value) => std::env::set_var("A3S_DEFAULT_MODEL", value),
@@ -687,6 +724,25 @@ mod tests {
             None => std::env::remove_var("A3S_DISABLE_CURSOR_ACCOUNT"),
         }
         outcome.unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+    }
+
+    /// Workspace temp dirs must not sit under the developer profile.
+    /// `workspace_config_path` walks ancestors, and on this machine
+    /// `tempfile::tempdir()` is under `%LOCALAPPDATA%\Temp`, so a real
+    /// `%USERPROFILE%\.a3s\config.acl` is loaded as an untrusted workspace layer.
+    fn hermetic_workspace() -> tempfile::TempDir {
+        #[cfg(windows)]
+        {
+            let root = std::env::var_os("SystemRoot")
+                .map(std::path::PathBuf::from)
+                .filter(|path| !path.as_os_str().is_empty())
+                .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
+            let parent = root.join("Temp");
+            if let Ok(dir) = tempfile::tempdir_in(&parent) {
+                return dir;
+            }
+        }
+        tempfile::tempdir().expect("hermetic workspace")
     }
 
     #[test]
@@ -762,7 +818,7 @@ providers "mock" {
     fn first_run_acl_is_created_once_and_can_open_a_session_model() {
         env_locked(|| {
             let home = tempfile::tempdir().unwrap();
-            let workspace = tempfile::tempdir().unwrap();
+            let workspace = hermetic_workspace();
             std::env::set_var("HOME", home.path());
             std::env::remove_var("A3S_DEFAULT_MODEL");
             assert!(ensure_user_acl().unwrap());
@@ -807,10 +863,46 @@ providers "mock" {
     }
 
     #[test]
+    fn userprofile_supplies_home_when_home_is_unset() {
+        env_locked(|| {
+            std::env::remove_var("HOME");
+            let home = tempfile::tempdir().unwrap();
+            let workspace = hermetic_workspace();
+            std::env::set_var("USERPROFILE", home.path());
+            assert!(ensure_user_acl().unwrap());
+            let launch = load_launch_config(workspace.path().to_path_buf(), None).unwrap();
+            assert_eq!(launch.model_id, "deepseek/deepseek-flash");
+        });
+    }
+
+    #[test]
+    fn empty_user_acl_is_replaced_and_then_left_alone() {
+        env_locked(|| {
+            let home = tempfile::tempdir().unwrap();
+            let workspace = hermetic_workspace();
+            std::env::set_var("HOME", home.path());
+            std::env::remove_var("A3S_DEFAULT_MODEL");
+            let path = home.path().join(".a3s/config.acl");
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, "").unwrap();
+            let launch = load_launch_config(workspace.path().to_path_buf(), None).unwrap();
+            assert!(
+                launch.model_id.is_empty(),
+                "a zero-byte user file is not a model configuration"
+            );
+            assert!(ensure_user_acl().unwrap());
+            let written = std::fs::read_to_string(&path).unwrap();
+            assert!(written.contains("deepseek/deepseek-flash"));
+            assert!(!ensure_user_acl().unwrap());
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), written);
+        });
+    }
+
+    #[test]
     fn no_config_anywhere_starts_without_writing_a_file() {
         env_locked(|| {
             let user = tempfile::tempdir().unwrap();
-            let workspace = tempfile::tempdir().unwrap();
+            let workspace = hermetic_workspace();
             std::env::set_var("HOME", user.path());
             let launch = load_launch_config(workspace.path().to_path_buf(), None)
                 .expect("a missing ACL file still starts");
@@ -1257,7 +1349,7 @@ default_model = "mock/m1"
             let root = tempfile::tempdir().unwrap();
             let _cursor = cursor_fixture(root.path());
             let home = tempfile::tempdir().unwrap();
-            let workspace = tempfile::tempdir().unwrap();
+            let workspace = hermetic_workspace();
             std::env::set_var("HOME", home.path());
             let launch = load_launch_config(workspace.path().to_path_buf(), None)
                 .expect("no ACL still starts");

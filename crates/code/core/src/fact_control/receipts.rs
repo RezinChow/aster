@@ -91,9 +91,12 @@ pub(super) async fn prepare_tools(
     }
     // A host backend may be unavailable before execution starts. Freeze that
     // refusal before a hook or workspace observer can create uncertainty; do
-    // not infer non-execution from a later error message.
+    // not infer non-execution from a later error message. A permission or
+    // skill denial already recorded above must not hide this sentence: the
+    // call cannot start, and the frozen-policy rewrite below would replace
+    // both with "unapproved".
     let mut execution_unavailable = false;
-    if denial.is_none() && argument_error.is_none() && !cancel.is_cancelled() {
+    if argument_error.is_none() && !cancel.is_cancelled() {
         if let Some(tool) = tools.executor.registry().get(&request.call.name) {
             if let Err(error) =
                 tool.validate_execution_available(&request.call.args, &tools.context)

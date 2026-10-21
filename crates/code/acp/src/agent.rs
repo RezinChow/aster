@@ -20,6 +20,7 @@ mod emit;
 mod extensions;
 mod goal_ext;
 mod host_methods;
+#[cfg(feature = "local-bge")]
 mod local_embedding;
 mod models;
 mod permission_ask;
@@ -69,6 +70,20 @@ use tool_render::{
 use turn::{agent_failure_error, worker_join_failure};
 #[cfg(test)]
 use turn::{should_emit_end_text, turn_outcome_payload};
+
+const NO_MODEL_CONFIGURED: &str =
+    "no model is configured; open /config and save ~/.a3s/config.acl, then start aster again";
+
+/// Empty launch ids are not model names. Callers surface [`NO_MODEL_CONFIGURED`]
+/// instead of asking the provider parser to split a blank string.
+fn configured_model_id(model_id: &str) -> Result<&str, &'static str> {
+    let model_id = model_id.trim();
+    if model_id.is_empty() {
+        Err(NO_MODEL_CONFIGURED)
+    } else {
+        Ok(model_id)
+    }
+}
 
 /// Prompts that may wait behind the active turn before the newest one is
 /// rejected. Half the run-control inbox cap (64): each queued entry is a
@@ -362,22 +377,54 @@ fn interactive_skill_dirs(workspace: &std::path::Path, configured: &[PathBuf]) -
     dirs
 }
 
+/// Non-empty `HOME`, otherwise non-empty `USERPROFILE`. Windows leaves
+/// `HOME` unset, and an empty `HOME` must not hide the profile skills.
+fn skill_home_from(
+    home: Option<&std::ffi::OsStr>,
+    user_profile: Option<&std::ffi::OsStr>,
+) -> Option<PathBuf> {
+    [home, user_profile]
+        .into_iter()
+        .flatten()
+        .find(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+fn process_skill_home() -> Option<PathBuf> {
+    skill_home_from(
+        std::env::var_os("HOME").as_deref(),
+        std::env::var_os("USERPROFILE").as_deref(),
+    )
+}
+
+/// Profile skill roots. `.grok` is intentionally absent.
+fn profile_skill_dirs(home: &std::path::Path) -> Vec<PathBuf> {
+    let mut dirs = vec![home.join(".a3s").join("skills")];
+    for root in [".agents", ".claude", ".codex"] {
+        dirs.push(home.join(root).join("skills"));
+    }
+    dirs
+}
+
 /// Directories a session should WATCH for later installs even though they do
 /// not exist yet. The project skills root, `~/.a3s/skills`, and the Agent
 /// Skills homes (`~/.agents/skills`, `~/.claude/skills`, `~/.codex/skills`)
 /// are included. The first install creates one of these; the next catalog
 /// refresh or Skill lookup then loads the package.
 fn watched_skill_dirs(workspace: &std::path::Path) -> Vec<PathBuf> {
+    watched_skill_dirs_under(workspace, process_skill_home().as_deref())
+}
+
+fn watched_skill_dirs_under(
+    workspace: &std::path::Path,
+    home: Option<&std::path::Path>,
+) -> Vec<PathBuf> {
     let mut dirs = vec![
         workspace.join("skills"),
         workspace.join(".a3s").join("skills"),
     ];
-    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
-        let home = std::path::PathBuf::from(home);
-        dirs.push(home.join(".a3s").join("skills"));
-        for root in [".agents", ".claude", ".codex"] {
-            dirs.push(home.join(root).join("skills"));
-        }
+    if let Some(home) = home {
+        dirs.extend(profile_skill_dirs(home));
     }
     dirs
 }
@@ -385,6 +432,14 @@ fn watched_skill_dirs(workspace: &std::path::Path) -> Vec<PathBuf> {
 fn interactive_skill_dirs_from(
     workspace: &std::path::Path,
     configured: &[PathBuf],
+) -> (Vec<PathBuf>, Vec<PathBuf>) {
+    interactive_skill_dirs_under(workspace, configured, process_skill_home().as_deref())
+}
+
+fn interactive_skill_dirs_under(
+    workspace: &std::path::Path,
+    configured: &[PathBuf],
+    home: Option<&std::path::Path>,
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let mut dirs = Vec::new();
     let mut missing = Vec::new();
@@ -404,14 +459,8 @@ fn interactive_skill_dirs_from(
             missing.push(path);
         }
     }
-    if let Some(home) = std::env::var_os("HOME").filter(|value| !value.is_empty()) {
-        let home = PathBuf::from(home);
-        let user = home.join(".a3s").join("skills");
-        if user.is_dir() {
-            dirs.push(user);
-        }
-        for root in [".agents", ".claude", ".codex"] {
-            let personal = home.join(root).join("skills");
+    if let Some(home) = home {
+        for personal in profile_skill_dirs(home) {
             if personal.is_dir() {
                 dirs.push(personal);
             }
@@ -1274,10 +1323,8 @@ impl acp::Agent for A3sCodeAgent {
         if prompt.trim().is_empty() {
             return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
         }
-        if self.model_id.lock().await.trim().is_empty() {
-            return Err(acp::Error::invalid_params().data(
-                "no model is configured; open /config and save ~/.a3s/config.acl, then start aster again",
-            ));
+        if let Err(message) = configured_model_id(&self.model_id.lock().await) {
+            return Err(acp::Error::invalid_params().data(message));
         }
         // Queue behind an active turn instead of failing: the pager's
         // send-now / queue-reissue expect the agent to accept and serialize.

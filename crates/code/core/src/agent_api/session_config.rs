@@ -749,6 +749,18 @@ mod tests {
         );
     }
 
+    #[test]
+    fn non_blank_model_without_a_slash_keeps_the_provider_model_format_error() {
+        let config = CodeConfig::default();
+        let opts = SessionOptions::new().with_model("noslash");
+        let error = match resolve_session_llm_client(&config, &opts, None) {
+            Err(error) => error,
+            Ok(_) => panic!("a non-blank id still uses the format checker"),
+        };
+        let text = error.to_string();
+        assert!(text.contains("must use 'provider/model' format"), "{text}");
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn session_memory_resolver_always_returns_memory() {
         let workspace = tempfile::tempdir().unwrap();

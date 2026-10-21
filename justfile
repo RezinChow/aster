@@ -1,8 +1,27 @@
 # Build the TUI and its ACP companion into the same target directory.
+[unix]
 build:
     cargo build --locked
 
+# Windows has no sh on PATH. powershell -File keeps the cargo exit code.
+# An already-open terminal does not see a User PATH change, so point PROTOC
+# at the installed compiler when `protoc` is not already resolvable.
+[windows]
+build:
+    #!powershell.exe -File
+    $knownProtoc = Join-Path $env:LOCALAPPDATA "protoc\bin\protoc.exe"
+    $resolved = Get-Command protoc -ErrorAction SilentlyContinue
+    if ($resolved) {
+        $env:PROTOC = $resolved.Source
+    } elseif (Test-Path -LiteralPath $knownProtoc) {
+        $env:PROTOC = $knownProtoc
+        $env:PATH = "$(Split-Path -Parent $knownProtoc);$env:PATH"
+    }
+    cargo build --locked
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 # Start the terminal, forwarding arguments without losing shell quoting.
+[unix]
 [positional-arguments]
 code *args: build
     #!/usr/bin/env python3
@@ -11,9 +30,40 @@ code *args: build
     from pathlib import Path
     import subprocess
     import sys
+    # A workspace .a3s/config.acl is untrusted unless the host names it.
+    # Opt into that local file when the user has not already set A3S_CONFIG.
+    if not os.environ.get("A3S_CONFIG"):
+        acl = Path(r"{{justfile_directory()}}") / ".a3s" / "config.acl"
+        if acl.is_file():
+            os.environ["A3S_CONFIG"] = str(acl.resolve())
     metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--offline", "--no-deps", "--format-version", "1"]))
     executable = Path(metadata["target_directory"]) / "debug" / ("aster.exe" if os.name == "nt" else "aster")
     os.execv(str(executable), [str(executable), *sys.argv[1:]])
+
+# powershell.exe -File is one shebang argument, so spaced arguments stay intact.
+[windows]
+[positional-arguments]
+code *args: build
+    #!powershell.exe -File
+    $ErrorActionPreference = 'Stop'
+    $metadataJson = & cargo metadata --locked --offline --no-deps --format-version 1 | Out-String
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $metadata = $metadataJson | ConvertFrom-Json
+    $executable = Join-Path $metadata.target_directory 'debug\aster.exe'
+    if (-not (Test-Path -LiteralPath $executable)) {
+        [Console]::Error.WriteLine("Build did not produce $executable")
+        exit 1
+    }
+    # A workspace .a3s/config.acl is untrusted unless the host names it.
+    # Opt into that local file when the user has not already set A3S_CONFIG.
+    if ([string]::IsNullOrWhiteSpace($env:A3S_CONFIG)) {
+        $workspaceAcl = Join-Path "{{justfile_directory()}}" ".a3s\config.acl"
+        if (Test-Path -LiteralPath $workspaceAcl -PathType Leaf) {
+            $env:A3S_CONFIG = (Resolve-Path -LiteralPath $workspaceAcl).Path
+        }
+    }
+    & $executable @args
+    if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }
 
 # Build the two companion executables shared by Studio from this workspace.
 build-companions:

@@ -1594,9 +1594,172 @@ fn create_fail_restores_all_queued_prompts_and_draft() {
 
     let _ = handle_session_failed(&mut app, id, "disk full".into(), false);
     assert!(matches!(app.active_view, ActiveView::Welcome));
-    let restored = app.welcome_prompt.text();
+    assert_eq!(app.welcome_prompt.text(), "first\nsecond\nthird");
+}
+
+/// A failed create used to put the draft back with the caret at byte 0.
+/// The next keystroke retried leave-home and inserted at the front, so
+/// `你好123456` came back as `654321好你`.
+#[test]
+fn failed_session_create_keeps_composer_caret_for_the_next_key() {
+    let mut app = test_app();
+    maybe_create_home_session(&mut app);
+    let home = app.home_session_agent.expect("home session");
+    let _ = handle_session_failed(&mut app, home, "bad model".into(), false);
+    assert!(matches!(app.active_view, ActiveView::Welcome));
+    assert!(app.welcome_prompt.text().is_empty());
+
+    let mut typed = String::new();
+    for ch in ['你', '好', '1'] {
+        let _ = leave_home_with(&mut app, &key_event(KeyCode::Char(ch), KeyModifiers::NONE));
+        let ActiveView::Agent(id) = app.active_view else {
+            panic!(
+                "keystroke must retry the session, got {:?}",
+                app.active_view
+            );
+        };
+        typed.push(ch);
+        assert_eq!(
+            app.agents
+                .get(&id)
+                .map(|agent| agent.prompt.text().to_string()),
+            Some(typed.clone()),
+            "the key must append on the retried composer"
+        );
+        let _ = handle_session_failed(&mut app, id, "bad model".into(), false);
+        assert!(matches!(app.active_view, ActiveView::Welcome));
+        assert_eq!(app.welcome_prompt.text(), typed);
+        assert_eq!(
+            app.welcome_prompt.cursor(),
+            typed.len(),
+            "the restored caret must stay after the draft"
+        );
+    }
+}
+
+/// `/` opens the slash menu on the revealed session. When create fails, that
+/// session is removed and the menu used to vanish with it.
+#[test]
+fn failed_create_keeps_the_slash_menu_on_welcome() {
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+
+    let mut app = test_app();
+    maybe_create_home_session(&mut app);
+    let home = app.home_session_agent.expect("home session");
+    let _ = handle_session_failed(&mut app, home, "bad model".into(), false);
+
+    let _ = leave_home_with(&mut app, &key_event(KeyCode::Char('/'), KeyModifiers::NONE));
+    let ActiveView::Agent(id) = app.active_view else {
+        panic!("slash must reveal a session, got {:?}", app.active_view);
+    };
+    let _ = handle_session_failed(&mut app, id, "bad model".into(), false);
+    assert!(matches!(app.active_view, ActiveView::Welcome));
+    assert!(app.welcome_prompt_focused);
+    assert_eq!(app.welcome_prompt.text(), "/");
     assert!(
-        restored.contains("first") && restored.contains("second") && restored.contains("third"),
-        "every queued prompt and the leftover draft must return, got {restored:?}"
+        app.welcome_prompt.slash_open(),
+        "the menu opened by / must still be open after create fails"
     );
+
+    let outcome = app.handle_input(&key_event(KeyCode::Char('h'), KeyModifiers::NONE));
+    assert!(
+        matches!(outcome, InputOutcome::Changed),
+        "typing into the open menu must stay on welcome, got {outcome:?}"
+    );
+    assert!(matches!(app.active_view, ActiveView::Welcome));
+    assert_eq!(app.welcome_prompt.text(), "/h");
+    assert!(app.welcome_prompt.slash_open());
+
+    let area = Rect::new(0, 0, 80, 30);
+    let prompt_rect = Rect::new(2, 24, 76, 3);
+    let mut buf = Buffer::empty(area);
+    let panel = crate::app::agent_view::paint_slash_dropdown_above_prompt(
+        &mut buf,
+        area,
+        prompt_rect,
+        &app.welcome_prompt,
+        &crate::theme::Theme::default(),
+        &crate::appearance::LayoutConfig::default(),
+        false,
+    );
+    assert!(
+        panel.is_some(),
+        "the welcome screen must paint the slash menu"
+    );
+    let label = app
+        .welcome_prompt
+        .slash_snapshot()
+        .matches
+        .first()
+        .map(|row| row.display.clone())
+        .expect("the open slash menu has a row");
+    let mut painted = String::new();
+    for y in 0..area.height {
+        for x in 0..area.width {
+            painted.push_str(buf[(x, y)].symbol());
+        }
+    }
+    assert!(
+        painted.contains(&label),
+        "slash menu rows must be visible, missing {label}, got {painted:?}"
+    );
+}
+
+/// `/config` mounts its dialog on the placeholder session. A failed create used to
+/// delete that placeholder and take the dialog with it.
+#[test]
+fn failed_create_keeps_config_modal_until_it_closes() {
+    let mut app = test_app();
+    maybe_create_home_session(&mut app);
+    let home = app.home_session_agent.expect("home session");
+    let _ = dispatch(
+        Action::OpenModelConfig(Box::new(
+            crate::views::model_config::ModelConfigState::load_default(),
+        )),
+        &mut app,
+    );
+    assert!(
+        matches!(app.active_view, ActiveView::Agent(id) if id == home),
+        "config opens on the home placeholder, got {:?}",
+        app.active_view
+    );
+    assert!(
+        matches!(
+            app.agents
+                .get(&home)
+                .and_then(|agent| agent.active_modal.as_ref()),
+            Some(crate::views::modal::ActiveModal::ModelConfig { .. })
+        ),
+        "config dialog must be open"
+    );
+
+    let _ = handle_session_failed(&mut app, home, "bad model".into(), false);
+    assert!(
+        matches!(app.active_view, ActiveView::Agent(id) if id == home),
+        "the dialog must survive the failed create"
+    );
+    assert!(
+        matches!(
+            app.agents
+                .get(&home)
+                .and_then(|agent| agent.active_modal.as_ref()),
+            Some(crate::views::modal::ActiveModal::ModelConfig { .. })
+        ),
+        "the dialog must still be mounted"
+    );
+    crate::app::dispatch::release_abandoned_sessions_after_popup(&mut app);
+    assert!(
+        matches!(app.active_view, ActiveView::Agent(id) if id == home),
+        "closing has not happened yet"
+    );
+
+    app.agents.get_mut(&home).unwrap().active_modal = None;
+    crate::app::dispatch::release_abandoned_sessions_after_popup(&mut app);
+    assert!(
+        matches!(app.active_view, ActiveView::Welcome),
+        "closing the dialog returns to welcome, got {:?}",
+        app.active_view
+    );
+    assert!(app.agents.get(&home).is_none());
 }

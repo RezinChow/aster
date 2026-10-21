@@ -111,11 +111,28 @@ impl ConfigDraft {
     }
 }
 
+/// Non-empty `HOME`, otherwise non-empty `USERPROFILE`. Windows terminals
+/// commonly set only the latter.
+pub(crate) fn user_home_from(
+    home: Option<&std::ffi::OsStr>,
+    user_profile: Option<&std::ffi::OsStr>,
+) -> Option<std::ffi::OsString> {
+    [home, user_profile]
+        .into_iter()
+        .flatten()
+        .find(|value| !value.is_empty())
+        .map(std::ffi::OsStr::to_os_string)
+}
+
 pub(crate) fn default_config_path() -> PathBuf {
+    let user_home = user_home_from(
+        std::env::var_os("HOME").as_deref(),
+        std::env::var_os("USERPROFILE").as_deref(),
+    );
     config_path_from(
         std::env::var_os("A3S_CONFIG").as_deref(),
         std::env::var_os("A3S_HOME").as_deref(),
-        std::env::var_os("HOME").as_deref(),
+        user_home.as_deref(),
         &|path| path.is_file(),
     )
 }
@@ -1075,5 +1092,25 @@ providers "openai" {
             &|_| true,
         );
         assert_eq!(path, PathBuf::from("/tmp/custom.acl"));
+    }
+
+    #[test]
+    fn user_home_uses_userprofile_when_home_is_empty() {
+        let home = user_home_from(None, Some(std::ffi::OsStr::new(r"C:\Users\ada")));
+        let path = config_path_from(None, None, home.as_deref(), &|_| false);
+        assert_eq!(path, PathBuf::from(r"C:\Users\ada\.a3s\config.acl"));
+        let empty_home = user_home_from(
+            Some(std::ffi::OsStr::new("")),
+            Some(std::ffi::OsStr::new(r"C:\Users\ada")),
+        );
+        assert_eq!(
+            empty_home.as_deref(),
+            Some(std::ffi::OsStr::new(r"C:\Users\ada"))
+        );
+        let explicit = user_home_from(
+            Some(std::ffi::OsStr::new("/home/ada")),
+            Some(std::ffi::OsStr::new(r"C:\Users\ada")),
+        );
+        assert_eq!(explicit.as_deref(), Some(std::ffi::OsStr::new("/home/ada")));
     }
 }

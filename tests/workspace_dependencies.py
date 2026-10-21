@@ -53,7 +53,8 @@ class WorkspaceDependenciesTest(unittest.TestCase):
         for path in [
             "packages/office/src/core.ts",
             "apps/studio/src-tauri/src/lib.rs",
-            "apps/web/public/tenant/toyou/INFO.md",
+            "apps/work/data/product-aliases.json",
+            "apps/work/logo.png",
             "packages/office/generated/office-kernel.wasm",
             "packages/ce/dist/js/basecoat.js",
         ]:

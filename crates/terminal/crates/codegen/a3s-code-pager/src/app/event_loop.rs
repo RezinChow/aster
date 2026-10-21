@@ -631,6 +631,7 @@ impl Presenter {
                         agent.forget_transmitted_inline_media();
                     }
                 }
+                crate::app::dispatch::release_abandoned_sessions_after_popup(app);
                 app.draw(terminal);
             },
             || sync.queued(),
@@ -3438,6 +3439,7 @@ async fn drain_and_process(
             }
             InputOutcome::Unchanged => {}
         }
+        crate::app::dispatch::release_abandoned_sessions_after_popup(app);
         suspend_armed_after_event.set(tty_suspend_armed(app));
         false
     };
@@ -3999,9 +4001,11 @@ pub(crate) fn dispatch_then_forward(
         match event {
             Event::Key(key) => {
                 let _ = app.welcome_prompt.handle_key(key);
+                app.welcome_prompt.refresh_slash(&app.models);
             }
             Event::Paste(text) => {
                 let _ = app.welcome_prompt.handle_paste(text);
+                app.welcome_prompt.refresh_slash(&app.models);
             }
             _ => {}
         }

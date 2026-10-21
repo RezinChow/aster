@@ -1,5 +1,33 @@
 //! Windows host-shell choice and the note that tells the model which shell runs.
 
+use std::collections::HashMap;
+
+const HOST_POWERSHELL_ENV_DEFAULTS: &[(&str, &str)] = &[
+    ("PATHEXT", ".COM;.EXE;.BAT;.CMD"),
+    ("PYTHONUTF8", "1"),
+    ("PYTHONIOENCODING", "utf-8:surrogateescape"),
+];
+
+/// Fill host PowerShell defaults missing from both the policy map and the
+/// inherited process environment. A key already present in either map keeps
+/// its value, including an explicit empty string.
+pub(crate) fn complete_host_powershell_env(
+    policy: &HashMap<String, String>,
+    inherited: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    let mut env = policy.clone();
+    for &(key, value) in HOST_POWERSHELL_ENV_DEFAULTS {
+        let present = env
+            .keys()
+            .chain(inherited.keys())
+            .any(|existing| existing.eq_ignore_ascii_case(key));
+        if !present {
+            env.insert(key.to_string(), value.to_string());
+        }
+    }
+    env
+}
+
 /// Host shells in preference order: PowerShell 7, then the Windows PowerShell 5.1
 /// that ships with every Windows 10 and 11 install.
 pub(crate) fn host_powershell_candidates(
