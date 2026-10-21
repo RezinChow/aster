@@ -121,6 +121,27 @@ The only textual references are a historical merge-evidence patch document
    with zero errors; `cargo fmt -p a3s-gateway -- --check` clean. The
    final full-workspace verdict is recorded below.
 
+## Final verdict (2026-10-21, closing the slice)
+
+- `cargo check --locked --workspace --all-targets` → **exit 0, zero
+  errors** ("Finished `dev` profile ... in 29m 15s"). The committed-HEAD
+  exit-101 from the morning is resolved by this slice's a3s-use fixture
+  restore and the two a3s-gateway target fixes.
+- Workspace fmt gate at **HEAD is green**: the only remaining
+  `cargo fmt --all -- --check` diff is
+  `crates/effect/src/coding/revalidation_tests.rs:59`, which is uncommitted
+  in-flight work of the concurrent session (invisible to CI). The four
+  studio `agent_plane` files flagged in the morning scan carried that
+  session's since-absorbed working-tree bytes; `plugin_selection.rs` was
+  last committed 2026-10-11 and its HEAD bytes are fmt-clean — no studio
+  submodule commit was needed.
+- `python3.13 tests/workspace_dependencies.py` → 6 tests OK (no new
+  remote `a3s-*` dependency from this slice).
+- Landed on main as commits `81b306892`, `737255abd`, `215cdf8a8`,
+  `3c2638fa8`, and the option-(a) backend checkout fix `10a7f21ab`, pushed
+  to `origin/main` (fast-forward; the concurrent session's in-flight edits
+  were staged around, never included).
+
 ## Explicitly not claimed
 
 - No real lifecycle export or analytics aggregation was wired; the endpoints

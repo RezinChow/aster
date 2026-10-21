@@ -52,10 +52,11 @@ US-6 证据修正）
 
 ## Phase B: Wiring / 落库（部分阻塞）
 
-- [ ] T007 [US1] 与并发会话协调后在途修复逐文件落库（不捎带：先
-      `git diff --cached --name-only` 核对；本切片文件清单见 OUTCOME.md）
-- [ ] T008 [US1] 全库 `cargo check --locked --workspace --all-targets`
-      转绿后，把保留绿 run 判据写入 OUTCOME.md（运行中）
+- [x] T007 [US1] 本切片改动已逐文件落库并推送（5 笔提交，工作树仅余并
+      发会话在途编辑，未捎带；其落库由该会话自行完成）✅
+- [x] T008 [US1] 全库 `cargo check --locked --workspace --all-targets`
+      → **exit 0 / 0 错误**（29m15s）；fmt 门 HEAD 绿（唯一残余 diff 属并
+      发会话未提交文件）；依赖守卫 6/6 OK——终值已写入 OUTCOME.md ✅
 - [x] T009 [US1] backend.yml `hermetic`/`campaigns` 死配置修复——owner 选
       方案：新增 `.github/actions/checkout-os-backend`（镜像 checkout-studio：
       fail-closed token、gitlink pin、不持久化凭据）；hermetic 矩阵带
@@ -63,8 +64,9 @@ US-6 证据修正）
       `--manifest-path` 作用域；rust-cache 补 `workspaces`。本地证明：YAML
       解析、五包在各自 manifest 下可解析、gitlink 可定位；真实 CI 执行未
       声明（token 范围不足时 fail-closed 即设计行为）✅
-- [ ] T010 [US1] 工作区 fmt 门清零（8 个红文件全部归属并发会话在途树；
-      该会话落库时一并解决，或经其同意后由本切片 `cargo fmt` 收敛）
+- [x] T010 [US1] 工作区 fmt 门：**HEAD 提交态已绿**（早间 8 红中 7 个仅
+      红在并发会话未提交树；studio `plugin_selection.rs` 的红亦属其当时
+      脏字节，HEAD 本身干净——详见 OUTCOME.md 终值段）✅
 
 ## Phase C: Phase 0 收口（阻塞：owner 决策 + 上游 PR）
 
@@ -98,4 +100,4 @@ US-6 证据修正）
       `tests/workspace_dependencies.py` 不受影响）
 - [x] 未新增原生 `<select>`（无 UI 改动）
 - [x] 未新增产品配置（无配置面；D-A 产物将来必须 ACL——spec FR-012）
-- [ ] 全库 `--all-targets` 检查转绿（T008，运行中）
+- [x] 全库 `--all-targets` 检查转绿（T008 ✅ exit 0 / 0 错误）
