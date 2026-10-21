@@ -181,7 +181,14 @@ pub fn pin_personal_compile(root: &Path, pending: &[String]) -> io::Result<()> {
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(dest, bytes)?;
+        fs::write(&dest, bytes)?;
+        if is_note(relative) {
+            let modified = fs::metadata(bundle_path(root, relative))?.modified()?;
+            fs::File::options()
+                .write(true)
+                .open(&dest)?
+                .set_modified(modified)?;
+        }
     }
     Ok(())
 }
@@ -189,6 +196,8 @@ pub fn pin_personal_compile(root: &Path, pending: &[String]) -> io::Result<()> {
 /// Restore pinned notes and concept pages, then delete the pin.
 ///
 /// Missing pin is a no-op. Concept pages for the pending notes are not in the pin.
+/// A note whose modification time is later than the pinned copy is left as the user
+/// wrote it. Concept pages outside the plan are still restored.
 pub fn release_personal_compile(root: &Path) -> io::Result<()> {
     require_vault(root)?;
     let pin = pin_dir(root)?;
@@ -346,6 +355,19 @@ fn pin_dir(root: &Path) -> io::Result<PathBuf> {
     Ok(std::env::temp_dir().join("a3s-okf-pin").join(digest))
 }
 
+fn note_written_after_pin(vault: &Path, relative: &str, pinned: &fs::Metadata) -> io::Result<bool> {
+    let Ok(pinned_modified) = pinned.modified() else {
+        return Ok(false);
+    };
+    let Ok(live) = fs::metadata(bundle_path(vault, relative)) else {
+        return Ok(false);
+    };
+    let Ok(live_modified) = live.modified() else {
+        return Ok(false);
+    };
+    Ok(live_modified > pinned_modified)
+}
+
 fn restore_tree(vault: &Path, pin_root: &Path, directory: &Path) -> io::Result<()> {
     for entry in fs::read_dir(directory)? {
         let entry = entry?;
@@ -366,6 +388,9 @@ fn restore_tree(vault: &Path, pin_root: &Path, directory: &Path) -> io::Result<(
         };
         let relative = relative.to_string_lossy().replace('\\', "/");
         if !safe_relative(&relative) {
+            continue;
+        }
+        if is_note(&relative) && note_written_after_pin(vault, &relative, &metadata)? {
             continue;
         }
         let bytes = fs::read(&path)?;
@@ -503,6 +528,7 @@ fn project_accept(files: &BTreeMap<String, Vec<u8>>) -> AcceptedIndex {
             skipped: skipped.len(),
             failed: failed.len(),
             outcomes,
+            failure_reasons: failed,
         },
     }
 }
@@ -725,6 +751,7 @@ fn plan_notes(
             skipped: skipped.len(),
             failed: failed.len(),
             outcomes,
+            failure_reasons: failed,
         },
     })
 }
@@ -1537,6 +1564,11 @@ mod tests {
         assert!(index.contains("](/concepts/甲.md)"));
         assert!(index.contains("`空.md` — empty"));
         assert!(index.contains("`缺.md` — missing concept"));
+        assert!(!index.contains("](/concepts/缺.md)"));
+        assert!(report
+            .failure_reasons
+            .iter()
+            .any(|(path, reason)| { path == "缺.md" && reason == "missing concept" }));
         assert!(index.contains("\n## Skipped\n"));
         assert!(index.contains("\n## Failed\n"));
         println!("concept bytes unchanged");
@@ -1644,6 +1676,38 @@ mod tests {
     }
 
     #[test]
+    fn release_keeps_a_note_written_after_the_pin() {
+        let scratch = Scratch::new();
+        let root = personal_vault(&scratch);
+        let note = "见句子。\n";
+        let concept = "---\ntype: Document\ntitle: \"乙\"\n---\n\n乙的概念。\n";
+        fs::write(root.join("甲.md"), note).unwrap();
+        fs::create_dir_all(root.join("concepts")).unwrap();
+        fs::write(root.join("concepts").join("乙.md"), concept).unwrap();
+        let earlier = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        let later = earlier + std::time::Duration::from_secs(30);
+        set_mtime(&root.join("甲.md"), earlier);
+        set_mtime(&root.join("concepts").join("乙.md"), earlier);
+        pin_personal_compile(&root, &["甲.md".to_string()]).unwrap();
+        let written = "用户刚写的句子。\n";
+        fs::write(root.join("甲.md"), written).unwrap();
+        set_mtime(&root.join("甲.md"), later);
+        fs::write(
+            root.join("concepts").join("乙.md"),
+            "---\ntype: Document\n---\n\n被改的概念。\n",
+        )
+        .unwrap();
+        set_mtime(&root.join("concepts").join("乙.md"), later);
+
+        release_personal_compile(&root).unwrap();
+        assert_eq!(fs::read(root.join("甲.md")).unwrap(), written.as_bytes());
+        assert_eq!(
+            fs::read(root.join("concepts").join("乙.md")).unwrap(),
+            concept.as_bytes()
+        );
+    }
+
+    #[test]
     fn release_restores_notes_and_concepts_outside_the_plan() {
         let scratch = Scratch::new();
         let root = personal_vault(&scratch);
@@ -1656,14 +1720,19 @@ mod tests {
         fs::create_dir_all(root.join("concepts")).unwrap();
         fs::write(root.join("concepts").join("甲.md"), concept).unwrap();
         fs::write(root.join("concepts").join("乙.md"), other_concept).unwrap();
+        let same = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        set_mtime(&root.join("甲.md"), same);
+        set_mtime(&root.join("乙.md"), same);
         pin_personal_compile(&root, &["甲.md".to_string()]).unwrap();
         fs::write(root.join("甲.md"), "被改的笔记。\n").unwrap();
+        set_mtime(&root.join("甲.md"), same);
+        fs::write(root.join("乙.md"), "被改的乙。\n").unwrap();
+        set_mtime(&root.join("乙.md"), same);
         fs::write(
             root.join("concepts").join("甲.md"),
             "---\ntype: Document\n---\n\n新概念。\n",
         )
         .unwrap();
-        fs::write(root.join("乙.md"), "被改的乙。\n").unwrap();
         fs::write(
             root.join("concepts").join("乙.md"),
             "---\ntype: Document\n---\n\n被改的概念。\n",

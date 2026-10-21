@@ -95,6 +95,8 @@ pub struct WorkspaceReport {
     pub skipped: usize,
     pub failed: usize,
     pub outcomes: Vec<(String, CompileOutcome)>,
+    /// Path and reason for `CompileOutcome::Failed`. Empty when the failure has no closed reason.
+    pub failure_reasons: Vec<(String, String)>,
 }
 
 /// Compile one concept. Empty prose yields nothing. Truncation is written into the body.
@@ -295,6 +297,7 @@ pub fn compile_workspace_with(
         skipped: skipped.len(),
         failed: failed.len(),
         outcomes,
+        failure_reasons: failed,
     })
 }
 
