@@ -189,6 +189,35 @@ agent_dirs = ["{home}"]
             outside.path().to_path_buf(),
         ]
     );
+
+    std::fs::create_dir_all(root.path().join(".a3s/skills/inside")).unwrap();
+    std::fs::write(
+        root.path().join(".a3s/skills/inside/SKILL.md"),
+        "---\nname: inside-skill\ndescription: Stays\nkind: instruction\n---\nINSIDE_TOKEN\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(outside.path().join("secret")).unwrap();
+    std::fs::write(
+        outside.path().join("secret/SKILL.md"),
+        "---\nname: outside-skill\ndescription: Dropped\nkind: instruction\n---\nOUTSIDE_TOKEN\n",
+    )
+    .unwrap();
+    let registry = crate::skills::SkillRegistry::new();
+    for dir in &config.skill_dirs {
+        let path = if dir.is_absolute() {
+            dir.clone()
+        } else {
+            root.path().join(dir)
+        };
+        if path.is_dir() {
+            registry.load_from_dir(&path).unwrap();
+        }
+    }
+    assert!(registry.get("inside-skill").is_some());
+    assert!(
+        registry.get("outside-skill").is_none(),
+        "an untrusted skill directory outside the repository stays unloaded"
+    );
 }
 
 #[test]

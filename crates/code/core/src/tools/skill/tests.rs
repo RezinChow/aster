@@ -1010,6 +1010,76 @@ async fn skill_child_llm_call_stops_on_parent_cancellation() {
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
+fn write_skill(dir: &std::path::Path, package: &str, name: &str, body: &str) {
+    let package = dir.join(package);
+    std::fs::create_dir_all(&package).unwrap();
+    std::fs::write(
+        package.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: Fixture skill\nkind: instruction\n---\n{body}\n"),
+    )
+    .unwrap();
+}
+
+fn skill_tool(registry: Arc<SkillRegistry>, workspace: &std::path::Path) -> SkillTool {
+    SkillTool::new(
+        registry,
+        Arc::new(MockLlmClient::new(Vec::new())),
+        Arc::new(ToolExecutor::new(workspace.display().to_string())),
+        AgentConfig::default(),
+    )
+}
+
+#[tokio::test]
+async fn skill_tool_returns_workspace_and_home_package_bodies() {
+    let hermetic_root = crate::test_support::hermetic_workspace();
+    let workspace = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    write_skill(
+        &workspace.path().join(".claude/skills"),
+        "desk",
+        "desk-skill",
+        "DESK_BODY_TOKEN",
+    );
+    write_skill(
+        &workspace.path().join("skills"),
+        "bench",
+        "bench-skill",
+        "BENCH_BODY_TOKEN",
+    );
+    write_skill(
+        &home.path().join(".agents/skills"),
+        "house",
+        "house-skill",
+        "HOUSE_BODY_TOKEN",
+    );
+    let registry = Arc::new(SkillRegistry::new());
+    for dir in crate::skills::agent_skill_roots(workspace.path())
+        .into_iter()
+        .chain(crate::skills::agent_skill_roots(home.path()))
+    {
+        if dir.is_dir() {
+            registry.load_from_dir(&dir).unwrap();
+        }
+    }
+    let tool = skill_tool(registry, &hermetic_root);
+    let ctx = ToolContext::new(hermetic_root);
+    for (name, token) in [
+        ("desk-skill", "DESK_BODY_TOKEN"),
+        ("bench-skill", "BENCH_BODY_TOKEN"),
+        ("house-skill", "HOUSE_BODY_TOKEN"),
+    ] {
+        let output = tool
+            .execute(&serde_json::json!({"skill_name": name}), &ctx)
+            .await
+            .unwrap();
+        assert!(
+            output.content.contains(token),
+            "{name} body missing {token}: {}",
+            output.content
+        );
+    }
+}
+
 #[tokio::test]
 async fn test_skill_tool_execute_errors_for_unknown_skill() {
     let hermetic_root = crate::test_support::hermetic_workspace();

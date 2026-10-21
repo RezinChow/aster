@@ -236,3 +236,48 @@ fork main (02e1414) finishes clean (devices + libkrun, exit 0) with a
 placeholder init/init artifact — the real static init needs the Linux
 cross toolchain from the A3S build container; the placeholder was
 removed after the check and nothing was committed or shipped from it.
+
+Fork verification upgrade: with a real static init binary (Debian
+bookworm container, aarch64 musl→glibc note: alpine/musl lacks
+linux/vm_sockets.h, Debian libc6-dev provides it; 780KB static ELF,
+rebuild: `docker run --rm -v $PWD:/w -w /w debian:bookworm sh -c "apt-get
+update -qq && apt-get install -y -qq gcc libc6-dev && cc -O2 -static -o
+init/init init/init.c"`), `cargo check -p libkrun` on the instrumented
+fork main finishes clean — the compile caveat on 02e1414 is fully
+closed at the real-artifact tier. The binary is a local build product,
+removed after the check and never committed.
+
+krun premise revision (2026-10-21, from the a3s checkout's own
+evidence): the local fn02-style stack ran GA-2 vertical chains
+successfully as recently as 2026-10-01 — WI4C2 gateway-ACL, live-feed,
+and trigger-tree sessions all retained with e2e_exit=0 — so krun/HVF
+boots VMs fine on this host. The 8443 node-control cert gap recorded on
+09-28 was closed 10-01 (server.pem/key present). The T0.4.2 "boot
+chain" failure is therefore scoped to that stack's guest-toolchain
+configuration (the a3s-box 3.3.0 install-linkage context), not a
+general engine defect — the fork instrumentation will name the exact
+stage when the T0.4.2 rerun happens, and the v3 Linux-leg plan remains
+the correct skip either way.
+
+AppRelease verification tier: the /app-releases unit tests pass on the
+api bin target (4 passed / 0 failed: strict semver, platform-by-channel
+closed sets, lowercase sha256 digest), raising the "upload/publish/
+download functionally complete" verdict from code review to a test run.
+The unauthenticated-write finding and the upstream hardening PR draft
+(T024) stand unchanged.
+
+## T029 metering producer (2026-10-21, closing)
+
+The gateway runtime now publishes usage onto the event spine through the
+platform's own abstraction: `a3s-event` (NATS feature) with
+`events.runtime.usage` subjects and the `a3s.gateway.usage-batch.v1`
+payload. Wiring is env-gated (`A3S_RUNTIME_NATS_URL`; unset keeps the
+exporter refused closed), per-record publishing is fire-and-forget (a
+spine outage logs and never touches the request path), and the batch
+endpoint carries a three-state contract — 501 usage_export.not_wired
+when unconfigured, 200 with the real published record count when wired,
+503 usage_export.publish_failed naming the transport error. Contract
+tests use an in-memory transport double (no live service): five new
+cases plus both legacy router tests pass 7/7. The lockfile gains only
+the a3s-event edge for a3s-gateway-runtime. Not claimed: a live NATS
+round-trip or the api-side usage-ingest worker (upstream half).

@@ -455,6 +455,8 @@ fn code_symbols_model_definition_has_no_top_level_union() {
     assert!(params.get("enum").is_none());
     assert!(params.get("const").is_none());
     assert!(params.get("not").is_none());
+    assert!(definition.description.contains("outline"));
+    assert!(definition.description.contains("search"));
     assert!(definition.description.contains("one declaration line"));
     assert!(definition.description.contains("not the function body"));
 }

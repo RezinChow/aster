@@ -967,17 +967,20 @@ fn step(mut state: SchedulerState, fact: &Fact, config: &HarnessConfig) -> Sched
             Ok(payload) => {
                 // Arrivals that belonged to the previous turn land before the
                 // new human line, which is where the next model call reads them.
+                // A new human request starts a new duplicate window. The repeat
+                // limit still covers later identical calls inside this request.
                 let state = flush_background(state);
+                let mut messages = state.messages.clone();
+                messages.push(format!("user\n{}", payload.text));
+                let duplicate_start = messages.len();
                 after_input(
                     SchedulerState {
                         turn: state.turn + 1,
                         cycle: 0,
-                        messages: {
-                            let mut messages = state.messages.clone();
-                            messages.push(format!("user\n{}", payload.text));
-                            messages
-                        },
+                        messages,
                         tool_runs: 0,
+                        duplicate_start,
+                        duplicate_reset_pending: false,
                         ..state
                     },
                     config,

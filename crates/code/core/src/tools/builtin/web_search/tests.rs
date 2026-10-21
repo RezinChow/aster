@@ -1329,6 +1329,34 @@ fn configured_doubao_engine_bridges_to_a_provider() {
 }
 
 #[test]
+fn doubao_without_a_configured_key_does_not_read_the_process_environment() {
+    let config = search_config(HashMap::from([(
+        "doubao".to_string(),
+        SearchEngineConfig {
+            enabled: true,
+            weight: 1.0,
+            timeout: None,
+            api_key: None,
+            project: None,
+            endpoint: None,
+            authoritative_only: None,
+            query_rewrite: None,
+        },
+    )]));
+
+    let (bridged, failures) = bridge_search_config(&config);
+    assert!(failures.is_empty(), "doubao must bridge: {failures:?}");
+    let entry = bridged.provider_entry("doubao").expect("doubao provider");
+    let engine = entry.create_engine().expect("doubao engine");
+    assert!(matches!(
+        engine.readiness(),
+        a3s_search::providers::ProviderReadiness::MissingCredential {
+            environment_variable: None,
+        }
+    ));
+}
+
+#[test]
 fn configured_api_endpoint_accepts_loopback_http() {
     let config = search_config(HashMap::from([(
         "tavily".to_string(),

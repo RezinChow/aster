@@ -43,6 +43,42 @@ fn progress_requires_comparable_byte_or_object_identity() {
 }
 
 #[test]
+fn a_new_user_message_starts_a_fresh_duplicate_window() {
+    let config = HarnessConfig::new(16, usize::MAX, 8, 1, vec![], vec![]).unwrap();
+    let mut state = SchedulerState::new();
+    state.messages = vec!["assistant\ntool read\n{\"file_path\":\"recovery.txt\"}".into()];
+    state.duplicate_start = 0;
+    state.duplicate_reset_pending = true;
+    let fact = Fact {
+        seq: 1,
+        kind: "user.message".into(),
+        key: "again".into(),
+        cause: None,
+        payload: json!({"text":"read recovery.txt again"}),
+    };
+    let state = step(state, &fact, &config);
+    assert_eq!(state.duplicate_start, state.messages.len());
+    assert!(!state.duplicate_reset_pending);
+    assert!(state
+        .messages
+        .last()
+        .is_some_and(|line| line == "user\nread recovery.txt again"));
+    assert!(duplicate_nudge(
+        &state.messages[state.duplicate_start..],
+        &ToolCall {
+            id: "read-again".into(),
+            name: "read".into(),
+            args: json!({"file_path":"recovery.txt"}),
+            needs_confirmation: false,
+            text: None,
+            reasoning: None,
+        },
+        Some(3),
+    )
+    .is_none());
+}
+
+#[test]
 fn compaction_translates_only_a_known_retained_suffix() {
     let config = HarnessConfig::new(16, usize::MAX, 8, 1, vec![], vec![]).unwrap();
     for (kept, expected) in [(vec!["c", "d"], 1), (vec!["unrelated"], 0), (vec![], 0)] {

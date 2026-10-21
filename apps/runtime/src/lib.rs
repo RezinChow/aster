@@ -9,6 +9,7 @@ pub mod input_contract;
 pub mod providers;
 pub mod routes;
 pub mod usage;
+pub mod usage_export;
 pub mod vault;
 
 use std::sync::Arc;
@@ -26,6 +27,7 @@ pub struct AppState {
     pub usage: Arc<RwLock<UsageStore>>,
     pub events: Arc<RwLock<EventRing>>,
     pub http: reqwest::Client,
+    pub usage_export: crate::usage_export::UsageExporter,
 }
 
 impl AppState {
@@ -41,7 +43,14 @@ impl AppState {
                 .user_agent("a3s-runtime/0.1")
                 .build()
                 .expect("reqwest client"),
+            usage_export: crate::usage_export::UsageExporter::disabled(),
         }
+    }
+
+    /// Attach the event-spine exporter (main wires NATS from the env).
+    pub fn with_usage_export(mut self, exporter: crate::usage_export::UsageExporter) -> Self {
+        self.usage_export = exporter;
+        self
     }
 }
 

@@ -242,19 +242,47 @@ async fn usage(State(state): State<AppState>, headers: HeaderMap) -> Response {
     )
 }
 
-async fn usage_batch(State(_state): State<AppState>, headers: HeaderMap) -> Response {
+async fn usage_batch(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let request_id = request_id_from(&headers);
     if let Err(res) = require_auth(&headers, &request_id) {
         return res;
     }
-    // Lifecycle export is not wired in this runtime; a named refusal beats
-    // an empty batch that reads as "nothing to export".
-    json_err(err_envelope(
-        &request_id,
-        501,
-        "lifecycle export is not wired in this runtime",
-        "usage_export.not_wired",
-    ))
+    if !state.usage_export.enabled() {
+        // No event-spine origin is configured; a named refusal beats an
+        // empty batch that reads as "nothing to export".
+        return json_err(err_envelope(
+            &request_id,
+            501,
+            "usage export is not configured in this runtime",
+            "usage_export.not_wired",
+        ));
+    }
+    let records = state.usage.read().await.list(1000);
+    let batch = crate::usage_export::UsageBatch {
+        gateway_id: "a3s-runtime".to_string(),
+        records,
+    };
+    match state.usage_export.publish_now(batch).await {
+        Ok(published) => json_ok(
+            StatusCode::OK,
+            ok_envelope(
+                json!({
+                    "schema": crate::usage_export::USAGE_BATCH_SCHEMA,
+                    "gateway_id": "a3s-runtime",
+                    "published": true,
+                    "records": published,
+                }),
+                &request_id,
+            ),
+            &request_id,
+        ),
+        Err(error) => json_err(err_envelope(
+            &request_id,
+            503,
+            format!("usage export publish failed: {error}"),
+            "usage_export.publish_failed",
+        )),
+    }
 }
 
 async fn analytics(State(_state): State<AppState>, headers: HeaderMap) -> Response {
@@ -872,6 +900,14 @@ async fn record_denied(
         duration_ms,
     });
     drop(usage);
+    // Best-effort metering onto the event spine; a spine outage never
+    // touches the request path.
+    state
+        .usage_export
+        .spawn_publish(crate::usage_export::UsageBatch {
+            gateway_id: "a3s-runtime".to_string(),
+            records: vec![row.clone()],
+        });
     push_event(
         state,
         "invoke.failed",
@@ -891,7 +927,7 @@ async fn record_ok_once(
     duration_ms: Option<u64>,
 ) -> crate::usage::UsageRecord {
     let mut usage = state.usage.write().await;
-    usage.record_once(UsageInput {
+    let row = usage.record_once(UsageInput {
         request_id: request_id.to_string(),
         sku: sku.to_string(),
         listing_kind: listing_kind.to_string(),
@@ -905,7 +941,16 @@ async fn record_ok_once(
         project_id: SCOPE_PROJECT.into(),
         env_id: SCOPE_ENV.into(),
         duration_ms,
-    })
+    });
+    // Best-effort metering onto the event spine; a spine outage never
+    // touches the request path.
+    state
+        .usage_export
+        .spawn_publish(crate::usage_export::UsageBatch {
+            gateway_id: "a3s-runtime".to_string(),
+            records: vec![row.clone()],
+        });
+    row
 }
 
 async fn push_event(state: &AppState, kind: &str, payload: Value) {

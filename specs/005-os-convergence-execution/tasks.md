@@ -98,6 +98,57 @@ US-6 证据修正）
       best-effort 不影响失败路径），拆毁语义不变；`vm::boot_diag` 三用例
       hermetic 绿（拷贝/替换/no-op），`vm_backend.rs` 冷启动失败分支接线 ✅
 
+## Phase C++: AppRelease 加固轨（2026-10-21 发现）
+
+- [x] T023 [US4] `/app-releases` 鉴权核查：不属任何受守卫前缀、控制器
+      零鉴权（对比 model_hub 显式 authorization 模式）→ 高置信「未鉴权
+      写面」；`/current/file` 直供下载站 → 投毒面。发现与上游 PR 草稿
+      入 research.md ✅
+- [ ] T024 [US4] AppRelease 上游 PR（kense-labs/api）：admin 会话守卫 +
+      (channel,platform,version) 唯一约束 + 全链 e2e ——**阻塞上游 PR 权**
+      （草稿已备 research.md）
+
+## Phase F: a3s-api 缺口收敛（2026-10-21 完成度核查后分类）
+
+8 缺口 → 3 类：**设计关闭**（SMS 本地适配器不建——成员面按 D4/P3 只读投影
+走 Cloud SMS 联邦；About 占位文案待 owner 提供联系方式后一并换）；**上游
+排队**（发现 P4.1、PG 队列 flow/repeat[共享副本三份对账]、继承测试债、
+Redis 启动依赖[Phase 2 T2.5]、AppRelease 治理[T024]）；**本仓可执行**：
+
+- [x] T029 [US7] 计量环生产者侧：`apps/runtime` 经 a3s-event/NATS 发布
+      `events.runtime.usage`（尽力语义、断线降级、`A3S_RUNTIME_NATS_URL`
+      未设即拒绝闭合）；批端点三态契约（501 not_wired / 200 真实条数 /
+      503 publish_failed）；六契约用例 + 存量 2 全绿（7/7）✅ 原
+      `a3s.gateway.usage-batch.v1` 批次（usage store 记录→批→POST api 摄取
+      端），替换今日的 501 拒绝为真实导出；先设计步（事件源=UsageStore
+      生命周期记录、摄取端契约核对 api usage 上下文），再实现+契约测试
+      （200 仅真实 records 的既有契约保持）
+
+- [ ] T030 [US4] api 测试留白补齐（notes/oem/config_center 三 context 结构
+      全、库内零测——notes 有导入往返实证、另两者靠 boot campaign 兜底）
+      ——**上游排队**（kense-labs/api，与 lane/AppRelease PR 同队列）
+
+- [ ] T031 [US4] studio 接线 ToBot 记忆适配器（755 行适配器的
+      recall_note/retain_exchange 挂进回合循环；后端 10 端点已交付）——
+      **上游排队**（kense-labs/studio，与 api PR 同队列）
+
+## Phase E: CI/CD 自替代冲刺（2026-10-21 CD0 评估修正后新增）
+
+CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SDK/真 E2E）；
+「替代 GHA」收束为四缺口，且互相成环——自托管 runner 同时解 CI token、
+保留管道与 FN0 的 GHA-retain 依赖。
+
+- [ ] T025 [US1] 自托管 runner + 保留管道：backend.yml 增 self-hosted
+      label 变体（机器侧 deploy key 检出私有子模块，摆脱 STUDIO_READ_TOKEN）
+      ——**阻塞：一台 runner 机器**（与 T0.4.2 Linux 腿同一台即可）
+- [ ] T026 [US8] 月度评审提案：修订 FN0 residual 的「production-shaped
+      GHA retain」为「self-hosted retained run 等价可接受」——自认证闭环
+      （草稿随 research.md 补）
+- [ ] T027 [US1] Box 构建日志契约 issue 外发（G0/CD0.8-logs 的上游前置，
+      与 krun/lane PR 同队列；阻塞外发授权）
+- [ ] T028 [US1] CD0.8 webhook/event 触发集成 + P0 收尾（上游 cloud 工
+      作，排 Phase 2 T2.1.1 之前置化评估）
+
 ## Phase D: GA-2 aster 侧支撑（阻塞 D-B + 上游进展）
 
 - [ ] T018 [US8] 保留绿 run 管道（backend.yml 或独立 workflow；私有子

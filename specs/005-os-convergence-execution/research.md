@@ -105,3 +105,44 @@ D-A/D-B：2026-11-07；D-D：2026-11-15。到期未决 → 依赖故事 fail clo
 > a3s-libkrun-sys tree; the parent tracks source provenance, never a
 > parallel Aster checkout of libkrun source inside this repository's
 > crates.
+
+## AppRelease 加固 — 上游 PR 草稿（kense-labs/api；2026-10-21 发现）
+
+> 标题：fix(app-release): gate the release lifecycle and pin version
+> uniqueness
+>
+> 证据：`/v1/api/app-releases` 的 upload/publish/withdraw/delete 不在
+> 任何受守卫前缀（admin `a3s_us_` / org `a3s_ms_`，见 main.rs OpenAPI
+> 自述与 exclude_global_prefix），控制器层零鉴权（对比 model_hub 的
+> `#[header("authorization")]` 模式）；`/current/file` 直供下载站。
+> 任一公网部署实例存在发布渠道投毒面（fail-closed 宪法视角）。
+>
+> 修复内容：
+> 1. 管理面守卫：写操作（upload/publish/withdraw/delete）纳入 admin
+>    会话（`a3s_us_`，与 `/v1/api/admin` 同门）；读操作（list/current/
+>    file）保持公开（下载站需要）。
+> 2. 唯一性：`(channel, platform, version)` 唯一约束 + 冲突命名错误；
+>    迁移先行去重。
+> 3. e2e：上传→发布→current 解析→下载字节 sha256 相等；未鉴权写操作
+>    401/403 命名拒绝；撤回后 current 拒绝（denied 与 missing 不可分）。
+
+## T029 计量环生产者 — 设计笔记（2026-10-21）
+
+消费者侧实况（今日核验）：
+- Cloud I0.2c 用量账本摄取**已存在**（control-plane `modules/inference/
+  application/usage_batch_campaign.rs` + `usage_ledger.rs`，campaign 已测）。
+- Kense 原始 runtime 设计是**事件式**：尽力发布 `events.runtime.*`，api
+  队列 worker 消费 `usage-ingest`，durable 投影（ui merge-evidence L439）。
+  Rust 重写丢了队列腿（runtime `vault_apply` 的「NATS not wired」同证）。
+
+两案：
+- **A（HTTP 批）**：runtime POST `a3s.gateway.usage-batch.v1` 到 Cloud I0.2c
+  摄取面。小改（runtime 已有 http client + 能力钥），但绕开事件主干。
+- **B（事件式，DP-2 对齐）**：runtime 接 NATS 发布 `events.runtime.usage`
+  （DP-2 已裁 NATS 主线；api worker 消费模式为原始设计）。大改：runtime
+  增队列依赖与 at-least-once 语义。
+
+建议：**B 为目标态、A 不做**（避免建成又拆的临时 HTTP 腿）；实现切片 =
+runtime 增 NATS 出站 publisher（尽力、断线不阻塞请求路径，宪法 I 降级语
+义）→ api 侧 `usage-ingest` worker（若上游未备则该半环归上游）→ 契约测
+试保持「200/发布仅真实 records」。体量：中（一天级切片）。

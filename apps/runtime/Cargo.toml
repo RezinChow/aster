@@ -14,6 +14,7 @@ name = "a3s_gateway_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+a3s-event = { path = "../../crates/event", default-features = false, features = ["nats"] }
 async-trait = "0.1"
 axum = "0.8"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }

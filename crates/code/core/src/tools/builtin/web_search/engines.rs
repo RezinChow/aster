@@ -173,8 +173,12 @@ fn provider_settings(
             FirecrawlConfig::with_api_key,
         ))),
         BuiltinProvider::Doubao => {
-            let mut provider_config =
-                with_api_key(DoubaoConfig::new()?, api_key, DoubaoConfig::with_api_key);
+            // An omitted key stays absent. DoubaoConfig::new() would otherwise
+            // read DOUBAO_SEARCH_API_KEY from the process environment.
+            let mut provider_config = DoubaoConfig::new()?.with_api_key(match api_key {
+                Some(api_key) => CredentialSource::value(api_key),
+                None => CredentialSource::none(),
+            });
             if let Some(authoritative_only) = engine.authoritative_only {
                 provider_config = provider_config.with_authoritative_only(authoritative_only);
             }

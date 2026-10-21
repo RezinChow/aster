@@ -176,6 +176,60 @@ fn authoritative_after_state_supersedes_stale_bytes_and_survives_cache_round_tri
     assert_eq!(restored.digest(), digest);
 }
 
+fn missing_identity() -> ToolFileIdentityV1 {
+    ToolFileIdentityV1 {
+        kind: ToolFileKind::Missing,
+        content_digest: None,
+        mode: None,
+    }
+}
+
+#[test]
+fn a_file_created_and_removed_in_one_run_is_not_a_remaining_mutation() {
+    let created = file_identity(b"probe", 0o644);
+    let mut write = receipt("write", "dump_xlsx.py", created.clone());
+    write.effects.changes[0].before = Some(missing_identity());
+    let mut removed = receipt("rm", "dump_xlsx.py", missing_identity());
+    removed.effects.changes[0].before = Some(created);
+
+    let mut live = MutationLedger::default();
+    live.observe_tool("write", 0, Some(&json!({"file_path": "dump_xlsx.py"})));
+    assert!(!live.is_empty());
+    live.observe_tool_receipt("write", &write);
+    let CompletionGate::Incomplete { message } = decide_completion(&live, &[], &[], false) else {
+        panic!("a created file still needs verification");
+    };
+    assert!(message.contains("Next step"), "{message}");
+    assert!(message.contains("dump_xlsx.py"), "{message}");
+    live.observe_tool_receipt("bash", &removed);
+    assert!(live.is_empty(), "net absence is not a mutation");
+    assert!(live.started_absent.is_empty());
+    assert!(matches!(
+        decide_completion(&live, &[], &[], false),
+        CompletionGate::Allow(CompletionTerminal::Narrative)
+    ));
+
+    let mut replay = MutationLedger::default();
+    replay.observe_tool_receipt("write", &write);
+    replay.observe_tool_receipt("bash", &removed);
+    assert!(replay.is_empty());
+}
+
+#[test]
+fn deleting_a_file_that_already_existed_stays_on_the_gate() {
+    let mut ledger = MutationLedger::default();
+    let mut deletion = receipt("rm", "keep.txt", missing_identity());
+    deletion.effects.changes[0].before = Some(file_identity(b"user", 0o644));
+    ledger.observe_tool_receipt("bash", &deletion);
+    assert_eq!(ledger.records.len(), 1);
+    assert!(ledger.started_absent.is_empty());
+    let CompletionGate::Incomplete { message } = decide_completion(&ledger, &[], &[], false) else {
+        panic!("a real deletion stays gated");
+    };
+    assert!(message.contains("keep.txt"), "{message}");
+    assert!(!message.contains("Next step"), "{message}");
+}
+
 #[test]
 fn observer_provenance_and_receipt_replay_order_do_not_change_workspace_identity() {
     let after = file_identity(b"one after-state", 0o644);

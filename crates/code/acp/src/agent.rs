@@ -367,7 +367,8 @@ fn initialize_rules_from_meta(meta: Option<&acp::Meta>) -> acp::Result<Option<St
 }
 
 fn interactive_skill_dirs(workspace: &std::path::Path, configured: &[PathBuf]) -> Vec<PathBuf> {
-    let (dirs, missing) = interactive_skill_dirs_from(workspace, configured);
+    let home = process_skill_home();
+    let (dirs, missing) = interactive_skill_dirs_from(workspace, configured, home.as_deref());
     for path in missing {
         tracing::error!(
             path = %path.display(),
@@ -397,20 +398,11 @@ fn process_skill_home() -> Option<PathBuf> {
     )
 }
 
-/// Profile skill roots. `.grok` is intentionally absent.
-fn profile_skill_dirs(home: &std::path::Path) -> Vec<PathBuf> {
-    let mut dirs = vec![home.join(".a3s").join("skills")];
-    for root in [".agents", ".claude", ".codex"] {
-        dirs.push(home.join(root).join("skills"));
-    }
-    dirs
-}
-
 /// Directories a session should WATCH for later installs even though they do
-/// not exist yet. The project skills root, `~/.a3s/skills`, and the Agent
-/// Skills homes (`~/.agents/skills`, `~/.claude/skills`, `~/.codex/skills`)
-/// are included. The first install creates one of these; the next catalog
-/// refresh or Skill lookup then loads the package.
+/// not exist yet. Workspace and home use the same roots (`skills`,
+/// `.a3s/skills`, `.agents/skills`, `.claude/skills`, `.codex/skills`).
+/// The first install creates one of these; the next catalog refresh or Skill
+/// lookup then loads the package.
 fn watched_skill_dirs(workspace: &std::path::Path) -> Vec<PathBuf> {
     watched_skill_dirs_under(workspace, process_skill_home().as_deref())
 }
@@ -419,12 +411,9 @@ fn watched_skill_dirs_under(
     workspace: &std::path::Path,
     home: Option<&std::path::Path>,
 ) -> Vec<PathBuf> {
-    let mut dirs = vec![
-        workspace.join("skills"),
-        workspace.join(".a3s").join("skills"),
-    ];
+    let mut dirs = a3s_code_core::skills::agent_skill_roots(workspace);
     if let Some(home) = home {
-        dirs.extend(profile_skill_dirs(home));
+        dirs.extend(a3s_code_core::skills::agent_skill_roots(home));
     }
     dirs
 }
@@ -432,8 +421,9 @@ fn watched_skill_dirs_under(
 fn interactive_skill_dirs_from(
     workspace: &std::path::Path,
     configured: &[PathBuf],
+    home: Option<&std::path::Path>,
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
-    interactive_skill_dirs_under(workspace, configured, process_skill_home().as_deref())
+    interactive_skill_dirs_under(workspace, configured, home)
 }
 
 fn interactive_skill_dirs_under(
@@ -443,9 +433,10 @@ fn interactive_skill_dirs_under(
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let mut dirs = Vec::new();
     let mut missing = Vec::new();
-    let project = workspace.join(".a3s").join("skills");
-    if project.is_dir() {
-        dirs.push(project);
+    for project in a3s_code_core::skills::agent_skill_roots(workspace) {
+        if project.is_dir() {
+            dirs.push(project);
+        }
     }
     for dir in configured {
         let path = if dir.is_absolute() {
@@ -460,7 +451,7 @@ fn interactive_skill_dirs_under(
         }
     }
     if let Some(home) = home {
-        for personal in profile_skill_dirs(home) {
+        for personal in a3s_code_core::skills::agent_skill_roots(home) {
             if personal.is_dir() {
                 dirs.push(personal);
             }

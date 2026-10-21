@@ -20,7 +20,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: SocketAddr = format!("{host}:{port}").parse()?;
 
     let data_dir = a3s_gateway_runtime::usage::data_dir();
-    let state = a3s_gateway_runtime::AppState::new(data_dir);
+    let mut state = a3s_gateway_runtime::AppState::new(data_dir);
+    // Wire the metering event spine from the env; a missing origin keeps
+    // the exporter refused closed and a dead server degrades to disabled
+    // with a named error rather than taking the data plane down.
+    match a3s_gateway_runtime::usage_export::NatsUsageExport::connect_from_env().await {
+        Some(Ok(export)) => {
+            state = state.with_usage_export(
+                a3s_gateway_runtime::usage_export::UsageExporter::with(std::sync::Arc::new(export)),
+            );
+            tracing::info!("usage event spine wired (events.runtime.usage)");
+        }
+        Some(Err(error)) => {
+            tracing::error!(%error, "usage event spine connection failed; export stays refused closed");
+        }
+        None => {}
+    }
     let app = a3s_gateway_runtime::http::router(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

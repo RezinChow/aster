@@ -8,3 +8,7 @@
 	path = apps/studio
 	url = git@github.com:kense-labs/studio.git
 	branch = main
+[submodule "crates/power"]
+	path = crates/power
+	url = git@github.com:A3S-Lab/Power.git
+	branch = main
