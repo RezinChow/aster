@@ -265,3 +265,19 @@ closed sets, lowercase sha256 digest), raising the "upload/publish/
 download functionally complete" verdict from code review to a test run.
 The unauthenticated-write finding and the upstream hardening PR draft
 (T024) stand unchanged.
+
+## T029 metering producer (2026-10-21, closing)
+
+The gateway runtime now publishes usage onto the event spine through the
+platform's own abstraction: `a3s-event` (NATS feature) with
+`events.runtime.usage` subjects and the `a3s.gateway.usage-batch.v1`
+payload. Wiring is env-gated (`A3S_RUNTIME_NATS_URL`; unset keeps the
+exporter refused closed), per-record publishing is fire-and-forget (a
+spine outage logs and never touches the request path), and the batch
+endpoint carries a three-state contract — 501 usage_export.not_wired
+when unconfigured, 200 with the real published record count when wired,
+503 usage_export.publish_failed naming the transport error. Contract
+tests use an in-memory transport double (no live service): five new
+cases plus both legacy router tests pass 7/7. The lockfile gains only
+the a3s-event edge for a3s-gateway-runtime. Not claimed: a live NATS
+round-trip or the api-side usage-ingest worker (upstream half).
