@@ -248,7 +248,7 @@ mod tests {
 
     fn native_transition() -> (PlannedPackageTransition, PluginPlanningBundle) {
         let mut record = PluginCatalogRecord::from_json(include_bytes!(
-            "../../crates/core/fixtures/plugins/catalog-record-v3.json"
+            "../../core//fixtures/plugins/catalog-record-v3.json"
         ))
         .unwrap();
         record.surfaces.retain(|surface| {
@@ -322,7 +322,7 @@ mod tests {
 
     fn planning_release_task() -> ExecutablePlanningSurface {
         let descriptor = a3s_use_core::ToolReleaseDescriptor::from_json(include_bytes!(
-            "../../crates/core/fixtures/releases/tool-task-release-v1.json"
+            "../../core//fixtures/releases/tool-task-release-v1.json"
         ))
         .unwrap();
         ExecutablePlanningSurface::ToolTask {

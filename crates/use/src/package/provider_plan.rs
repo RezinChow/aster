@@ -1128,7 +1128,7 @@ mod tests {
 
     fn provider_package_lock() -> PluginPackageLock {
         let record = PluginCatalogRecord::from_json(include_bytes!(
-            "../../crates/core/fixtures/plugins/catalog-record-v3.json"
+            "../../core//fixtures/plugins/catalog-record-v3.json"
         ))
         .unwrap();
         let provenance = VerifiedCatalogProvenance {

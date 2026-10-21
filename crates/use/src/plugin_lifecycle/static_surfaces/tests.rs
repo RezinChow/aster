@@ -10,11 +10,10 @@ use crate::plugin_lifecycle::{
 
 use super::*;
 
-const MANIFEST: &str = include_str!(
-    "../../../crates/extension/fixtures/packages/plugin-v3/package/a3s-use-extension.acl"
-);
+const MANIFEST: &str =
+    include_str!("../../../extension//fixtures/packages/plugin-v3/package/a3s-use-extension.acl");
 const PACKAGE_DIGEST: &str =
-    include_str!("../../../crates/extension/fixtures/packages/plugin-v3/package.sha256");
+    include_str!("../../../extension//fixtures/packages/plugin-v3/package.sha256");
 
 #[tokio::test]
 async fn prepares_real_skill_and_ui_files_and_keeps_deletion_package_owned() {

@@ -8,8 +8,7 @@ use a3s_use_core::{
 
 use super::download_attempt::{PackageDownloadAttemptStore, PendingPackageDownloadAttempt};
 
-const CATALOG: &[u8] =
-    include_bytes!("../../crates/core/fixtures/plugins/catalog-record-okf-v3.json");
+const CATALOG: &[u8] = include_bytes!("../../core//fixtures/plugins/catalog-record-okf-v3.json");
 
 fn digest(seed: char) -> String {
     format!("sha256:{}", seed.to_string().repeat(64))

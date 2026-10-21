@@ -36,8 +36,7 @@ use async_trait::async_trait;
 const POLICY_DIGEST: &str =
     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const MANAGED_SCOPE_ID: &str = "workspace:research";
-const PERMISSIONS: &[u8] =
-    include_bytes!("../../crates/core/fixtures/plugins/permission-ceiling-v1.json");
+const PERMISSIONS: &[u8] = include_bytes!("../../core/fixtures/plugins/permission-ceiling-v1.json");
 
 #[derive(Debug)]
 struct ConfirmAllPlans {

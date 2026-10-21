@@ -23,10 +23,10 @@ use crate::plugin_lifecycle::{
 use super::*;
 
 const MANIFEST: &str = include_str!(
-    "../../../crates/extension/fixtures/packages/plugin-v3-okf/package/a3s-use-extension.acl"
+    "../../../extension//fixtures/packages/plugin-v3-okf/package/a3s-use-extension.acl"
 );
 const PACKAGE_DIGEST: &str =
-    include_str!("../../../crates/extension/fixtures/packages/plugin-v3-okf/package.sha256");
+    include_str!("../../../extension//fixtures/packages/plugin-v3-okf/package.sha256");
 
 #[derive(Default)]
 struct FakeKnowledgeAdapter {

@@ -154,7 +154,7 @@ fn runtime_v4_policy_changes_invalidate_plan_identity_and_reject_mismatched_shut
 #[test]
 fn runtime_v4_refuses_incompatible_release_metadata_before_runtime_selection() {
     let legacy = ToolReleaseDescriptor::from_json(include_bytes!(
-        "../../crates/core/fixtures/releases/tool-service-release-v1.json"
+        "../../core//fixtures/releases/tool-service-release-v1.json"
     ))
     .unwrap();
     let error = plan_tool_service_release(

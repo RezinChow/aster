@@ -11,9 +11,8 @@ use a3s_use_core::{
 };
 
 const INSTALL_PLAN: &[u8] =
-    include_bytes!("../../crates/core/fixtures/plugins/operation-plan-install-v4.json");
-const CATALOG_RECORD: &[u8] =
-    include_bytes!("../../crates/core/fixtures/plugins/catalog-record-v3.json");
+    include_bytes!("../../core//fixtures/plugins/operation-plan-install-v4.json");
+const CATALOG_RECORD: &[u8] = include_bytes!("../../core//fixtures/plugins/catalog-record-v3.json");
 
 #[derive(Debug)]
 struct ConfirmAll;

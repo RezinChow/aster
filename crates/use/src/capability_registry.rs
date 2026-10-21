@@ -1568,10 +1568,10 @@ extension "acme/workflow" {
     #[tokio::test]
     async fn promoted_sqlite_knowledge_enters_the_scope_aware_capability_projection() {
         const MANIFEST: &str = include_str!(
-            "../crates/extension/fixtures/packages/plugin-v3-okf/package/a3s-use-extension.acl"
+            "../extension//fixtures/packages/plugin-v3-okf/package/a3s-use-extension.acl"
         );
         const PACKAGE_DIGEST: &str =
-            include_str!("../crates/extension/fixtures/packages/plugin-v3-okf/package.sha256");
+            include_str!("../extension//fixtures/packages/plugin-v3-okf/package.sha256");
         let temporary = tempfile::tempdir().unwrap();
         let package_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("crates/extension/fixtures/packages/plugin-v3-okf/package");
@@ -2099,7 +2099,7 @@ extension "acme/spa" {
     #[tokio::test]
     async fn schema_three_with_unobserved_runtime_surfaces_stays_unpublished() {
         let manifest = a3s_use_extension::ExtensionManifest::parse_acl(include_str!(
-            "../crates/extension/fixtures/manifests/plugin-v3.acl"
+            "../extension//fixtures/manifests/plugin-v3.acl"
         ))
         .unwrap();
         let temp = tempfile::tempdir().unwrap();

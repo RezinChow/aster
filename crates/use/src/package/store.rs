@@ -655,9 +655,8 @@ mod tests {
     use a3s_use_extension::ExtensionManifest;
 
     const CATALOG: &[u8] =
-        include_bytes!("../../crates/core/fixtures/plugins/catalog-record-okf-v3.json");
-    const MANIFEST: &str =
-        include_str!("../../crates/extension/fixtures/manifests/plugin-v3-okf.acl");
+        include_bytes!("../../core//fixtures/plugins/catalog-record-okf-v3.json");
+    const MANIFEST: &str = include_str!("../../extension//fixtures/manifests/plugin-v3-okf.acl");
 
     fn digest(seed: char) -> String {
         format!("sha256:{}", seed.to_string().repeat(64))

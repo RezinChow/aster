@@ -7,11 +7,10 @@ use a3s_use_core::{
 };
 
 const NAMED_SURFACE_MANIFEST: &str =
-    include_str!("../../crates/extension/fixtures/manifests/plugin-v3.acl");
-const OKF_MANIFEST: &str =
-    include_str!("../../crates/extension/fixtures/manifests/plugin-v3-okf.acl");
+    include_str!("../../extension//fixtures/manifests/plugin-v3.acl");
+const OKF_MANIFEST: &str = include_str!("../../extension//fixtures/manifests/plugin-v3-okf.acl");
 const PACKAGE_MANIFEST: &str = include_str!(
-    "../../crates/extension/fixtures/packages/plugin-v3-package/package/a3s-use-extension.acl"
+    "../../extension//fixtures/packages/plugin-v3-package/package/a3s-use-extension.acl"
 );
 
 fn manifest() -> ExtensionManifest {

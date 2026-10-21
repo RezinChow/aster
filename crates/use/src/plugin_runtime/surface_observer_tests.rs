@@ -188,7 +188,7 @@ async fn unbound_surfaces_remain_pending_without_a_default_provider() {
     let store = RuntimeBindingStore::new(temporary.path());
     let providers = RuntimeClientRegistry::new();
     let manifest = ExtensionManifest::parse_acl(include_str!(
-        "../../crates/extension/fixtures/manifests/plugin-v3.acl"
+        "../../extension//fixtures/manifests/plugin-v3.acl"
     ))
     .unwrap();
 
@@ -364,7 +364,7 @@ fn observed_state(
 }
 
 fn release_task_manifest() -> ExtensionManifest {
-    let manifest = include_str!("../../crates/extension/fixtures/manifests/plugin-v3.acl").replace(
+    let manifest = include_str!("../../extension//fixtures/manifests/plugin-v3.acl").replace(
         "executable  = \"tools/convert/bin/convert\"",
         "release     = \"releases/convert-tool-v1.json\"",
     );

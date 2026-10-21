@@ -743,7 +743,7 @@ mod tests {
     #[test]
     fn runtime_services_fail_before_lifecycle_composition_without_an_injected_provider() {
         let manifest = ExtensionManifest::parse_acl(include_str!(
-            "../../crates/extension/fixtures/manifests/plugin-v3.acl"
+            "../../extension//fixtures/manifests/plugin-v3.acl"
         ))
         .unwrap();
         let error = validate_available_hosts(&manifest, None).unwrap_err();
@@ -753,7 +753,7 @@ mod tests {
     #[test]
     fn standalone_accepts_okf_surfaces_with_the_local_knowledge_backend() {
         let manifest = ExtensionManifest::parse_acl(include_str!(
-            "../../crates/extension/fixtures/manifests/plugin-v3-okf.acl"
+            "../../extension//fixtures/manifests/plugin-v3-okf.acl"
         ))
         .unwrap();
         validate_available_hosts(&manifest, None).unwrap();
@@ -762,7 +762,7 @@ mod tests {
     #[test]
     fn managed_factory_requires_an_exact_selection_for_each_runtime_surface() {
         let manifest = ExtensionManifest::parse_acl(include_str!(
-            "../../crates/extension/fixtures/manifests/plugin-v3.acl"
+            "../../extension//fixtures/manifests/plugin-v3.acl"
         ))
         .unwrap();
         let factory = ManagedPackageLifecycleFactory::new(
@@ -779,7 +779,7 @@ mod tests {
     #[test]
     fn managed_factory_retires_runtime_surfaces_without_a_candidate_selection() {
         let manifest = ExtensionManifest::parse_acl(include_str!(
-            "../../crates/extension/fixtures/manifests/plugin-v3.acl"
+            "../../extension//fixtures/manifests/plugin-v3.acl"
         ))
         .unwrap();
         let factory = ManagedPackageLifecycleFactory::new(
@@ -884,7 +884,7 @@ extension "acme/flow" {
         )
         .unwrap();
         let manifest = ExtensionManifest::parse_acl(include_str!(
-            "../../crates/extension/fixtures/manifests/plugin-v3-okf.acl"
+            "../../extension//fixtures/manifests/plugin-v3-okf.acl"
         ))
         .unwrap();
 

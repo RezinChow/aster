@@ -24,10 +24,8 @@ use crate::plugin_lifecycle::{
     PluginUiLifecycleHost,
 };
 
-const CATALOG: &[u8] =
-    include_bytes!("../../../crates/core/fixtures/plugins/catalog-record-okf-v3.json");
-const MANIFEST: &str =
-    include_str!("../../../crates/extension/fixtures/manifests/plugin-v3-okf.acl");
+const CATALOG: &[u8] = include_bytes!("../../../core//fixtures/plugins/catalog-record-okf-v3.json");
+const MANIFEST: &str = include_str!("../../../extension//fixtures/manifests/plugin-v3-okf.acl");
 
 #[derive(Default)]
 struct RecordingHost {

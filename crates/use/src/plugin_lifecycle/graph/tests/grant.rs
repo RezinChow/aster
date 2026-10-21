@@ -15,10 +15,9 @@ use a3s_use_extension::{
 
 use super::*;
 
-const TOOL_MANIFEST: &str =
-    include_str!("../../../../crates/extension/fixtures/manifests/plugin-v3.acl");
+const TOOL_MANIFEST: &str = include_str!("../../../../extension//fixtures/manifests/plugin-v3.acl");
 const PERMISSION_CEILING: &[u8] =
-    include_bytes!("../../../../crates/core/fixtures/plugins/permission-ceiling-v1.json");
+    include_bytes!("../../../../core//fixtures/plugins/permission-ceiling-v1.json");
 pub(super) const SCOPE_ID: &str = "workspace-01";
 pub(super) const TRANSITIONED_AT_MS: u64 = 1_200;
 

@@ -29,8 +29,7 @@ use tuf_test_support::{
     PACKAGE_VERSION,
 };
 
-const OKF_CATALOG_V3: &[u8] =
-    include_bytes!("../crates/core/fixtures/plugins/catalog-record-okf-v3.json");
+const OKF_CATALOG_V3: &[u8] = include_bytes!("../core/fixtures/plugins/catalog-record-okf-v3.json");
 
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_a3s-use")
@@ -640,14 +639,14 @@ fn package_flow_target_version(
     std::fs::write(
         package_root.join("okf/domain/index.md"),
         include_bytes!(
-            "../crates/extension/fixtures/packages/plugin-v3-package/package/okf/domain/index.md"
+            "../extension/fixtures/packages/plugin-v3-package/package/okf/domain/index.md"
         ),
     )
     .unwrap();
     std::fs::write(
         package_root.join("okf/domain/concepts/lifecycle.md"),
         include_bytes!(
-            "../crates/extension/fixtures/packages/plugin-v3-package/package/okf/domain/concepts/lifecycle.md"
+            "../extension/fixtures/packages/plugin-v3-package/package/okf/domain/concepts/lifecycle.md"
         ),
     )
     .unwrap();

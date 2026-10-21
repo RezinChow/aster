@@ -995,7 +995,7 @@ mod tests {
     #[test]
     fn install_plan_omits_an_unselected_independent_optional_surface() {
         let mut record = PluginCatalogRecord::from_json(include_bytes!(
-            "../../crates/core/fixtures/plugins/catalog-record-v3.json"
+            "../../core//fixtures/plugins/catalog-record-v3.json"
         ))
         .unwrap();
         let optional = record
@@ -1101,7 +1101,7 @@ mod tests {
         BTreeMap<String, InstallDisposition>,
     ) {
         let record = PluginCatalogRecord::from_json(include_bytes!(
-            "../../crates/core/fixtures/plugins/catalog-record-v3.json"
+            "../../core//fixtures/plugins/catalog-record-v3.json"
         ))
         .unwrap();
         let provenance = VerifiedCatalogProvenance {
@@ -1122,7 +1122,7 @@ mod tests {
         .unwrap();
         let package_id = lock.root_package_id.clone();
         let manifest = ExtensionManifest::parse_acl(include_str!(
-            "../../crates/extension/fixtures/manifests/plugin-v3.acl"
+            "../../extension//fixtures/manifests/plugin-v3.acl"
         ))
         .unwrap();
         (
