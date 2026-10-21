@@ -1,4 +1,4 @@
-//! Install the Aster CLI pair from this repository's `aster-cli` release.
+//! Install the Aster CLI pair from this repository's `aster-cli` releases.
 //!
 //! The download meter is the ascii.rest `progress-bar` piece
 //! (https://ascii.rest/progress-bar/, `src/pieces/progress-bar.ts`).
@@ -9,10 +9,19 @@
 //! bytes received. The meter stops when the update stops. `--check` and
 //! `--json` do not draw it and do not replace either binary.
 //!
-//! The pinned `aster-cli-v0.1.1` archive contains only the two binaries.
-//! Those binaries reject `--build-id`. `BUILD_ID` and `SHA256SUMS` are
-//! optional; when both are present the pair identity must match or the
-//! previous files stay.
+//! Releases are discovered at run time from the channel manifest each
+//! release publishes as `latest.json`. `aster update` reads the newest
+//! manifest, `aster update --version X.Y.Z` reads that release's manifest.
+//! The manifest supplies the version, the asset name, and its SHA-256
+//! digest; every download URL is built from the constants below, so a
+//! manifest can never point the updater at another host. An unpinned
+//! update installs strictly newer releases only; an explicit `--version`
+//! may pin or roll back. `ASTER_RELEASE_BASE` names a local directory
+//! holding `latest.json` and the assets for hermetic checks.
+//!
+//! The archive contains the two binaries plus `BUILD_ID` and `SHA256SUMS`.
+//! The two-file form without metadata stays installable; the manifest
+//! digest still bounds it.
 
 use anyhow::{Context, Result, bail};
 use sha2::Digest;
@@ -22,9 +31,9 @@ use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-const RELEASE: &str = "aster-cli-v0.1.1";
-const OFFICIAL_BASE: &str =
-    "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1";
+const OFFICIAL_RELEASES: &str = "https://github.com/aster-ai-lab/aster/releases";
+const MANIFEST_NAME: &str = "latest.json";
+const MAX_MANIFEST: u64 = 64 * 1024;
 const PAIR_PREFIX: &str = "aster-cli-pair-v1:";
 const MAX_ARCHIVE: u64 = 512 * 1024 * 1024;
 const READ_CHUNK: usize = 4096;
@@ -43,50 +52,134 @@ pub struct Request {
     pub background: bool,
 }
 
-enum Asset {
-    Official { name: &'static str },
+enum ChannelSource {
+    Official { url: String },
     Local(PathBuf),
 }
 
-pub fn run(request: Request) -> Result<()> {
-    if let Some(version) = request.version.as_deref()
-        && !is_pinned_version(version)
-    {
-        bail!("Aster CLI updates install {RELEASE} only");
+/// The release the updater resolved: where to fetch the archive from and
+/// what its digest must be.
+struct Channel {
+    version: Version,
+    tag: String,
+    asset_name: String,
+    sha256: String,
+    source: ChannelSource,
+}
+
+/// `major.minor.patch`, the only version shape this channel publishes.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+struct Version(u32, u32, u32);
+
+impl Version {
+    fn parse(text: &str) -> Option<Self> {
+        let mut parts = text.split('.');
+        let mut numbers = [0_u32; 3];
+        for slot in &mut numbers {
+            let part = parts.next()?;
+            if part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            *slot = part.parse().ok()?;
+        }
+        if parts.next().is_some() {
+            return None;
+        }
+        Some(Self(numbers[0], numbers[1], numbers[2]))
     }
+
+    fn current() -> Self {
+        Self::parse(env!("CARGO_PKG_VERSION")).expect("package version is a release triple")
+    }
+}
+
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.0, self.1, self.2)
+    }
+}
+
+/// Accepts `0.1.2`, `v0.1.2`, and `aster-cli-v0.1.2` for `--version`.
+fn normalize_requested_version(text: &str) -> Option<Version> {
+    let text = text
+        .strip_prefix("aster-cli-v")
+        .or_else(|| text.strip_prefix('v'))
+        .unwrap_or(text);
+    Version::parse(text)
+}
+
+fn platform_key() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(windows) {
+        "windows"
+    } else {
+        "unsupported"
+    }
+}
+
+fn expected_asset_name(version: Version) -> String {
+    format!(
+        "aster-cli-v{version}-{}.{}",
+        platform_key(),
+        if cfg!(windows) { "zip" } else { "tar.gz" }
+    )
+}
+
+pub fn run(request: Request) -> Result<()> {
     if request.background && !request.check && !request.json {
         bail!("Aster does not apply background updates");
     }
+    let requested = match request.version.as_deref() {
+        None => None,
+        Some(text) => match normalize_requested_version(text) {
+            Some(version) => Some(version),
+            None => bail!("--version wants a release triple such as 0.1.2"),
+        },
+    };
     refuse_foreign_installer_env()?;
-    let asset = resolve_asset()?;
+    let channel = resolve_channel(requested)?;
     if request.check || request.json {
-        return print_status(&asset, request.json);
+        return print_status(&channel, request.json);
     }
-    // `--force-reinstall` still leaves an identical pair byte-for-byte in place.
-    let _ = request.force_reinstall;
-    match install_release(&asset)? {
-        InstallOutcome::Installed { identity, dir } => {
+    // An unpinned update installs strictly newer releases only. An explicit
+    // `--version` (and `--force-reinstall`) may reinstall the same release.
+    if requested.is_none() && !request.force_reinstall && channel.version <= Version::current() {
+        print_current(&channel.version, &channel.tag, None);
+        return Ok(());
+    }
+    match install_release(&channel, request.force_reinstall)? {
+        InstallOutcome::Installed {
+            identity,
+            dir,
+            version,
+        } => {
             let (aster_name, acp_name) = binary_names();
-            println!("installed Aster v0.1.1 into {}", dir.display());
+            println!("installed Aster v{version} into {}", dir.display());
             if let Some(identity) = identity {
                 println!("identity={identity}");
             }
             println!("aster={}", dir.join(aster_name).display());
             println!("a3s-code-acp={}", dir.join(acp_name).display());
         }
-        InstallOutcome::Current { identity } => {
-            println!("Aster CLI pair is current");
-            println!("release={RELEASE}");
-            if let Some(identity) = identity {
-                println!("identity={identity}");
-            }
-        }
+        InstallOutcome::Current {
+            identity,
+            version,
+            tag,
+        } => print_current(&version, &tag, identity),
     }
     Ok(())
 }
 
-fn is_pinned_version(version: &str) -> bool {
-    matches!(version, "0.1.1" | "v0.1.1" | "aster-cli-v0.1.1")
+fn print_current(version: &Version, tag: &str, identity: Option<String>) {
+    println!("Aster CLI pair is current");
+    println!("release={tag}");
+    println!("latest={version}");
+    if let Some(identity) = identity {
+        println!("identity={identity}");
+    }
 }
 
 fn refuse_foreign_installer_env() -> Result<()> {
@@ -98,41 +191,162 @@ fn refuse_foreign_installer_env() -> Result<()> {
     Ok(())
 }
 
-fn resolve_asset() -> Result<Asset> {
-    let name = asset_name();
-    let base = std::env::var("ASTER_RELEASE_BASE").unwrap_or_else(|_| OFFICIAL_BASE.to_string());
-    if base.to_ascii_lowercase().contains("x.ai") {
-        bail!("this updater does not download that binary");
-    }
-    if base == OFFICIAL_BASE {
-        return Ok(Asset::Official { name });
-    }
-    if !base.contains("://") {
-        let dir = PathBuf::from(&base);
-        if dir.is_dir() {
-            return Ok(Asset::Local(dir.join(name)));
+/// Reads the channel manifest: the newest release by default, the named
+/// release for an explicit `--version`, or a local directory override.
+fn resolve_channel(requested: Option<Version>) -> Result<Channel> {
+    if let Ok(base) = std::env::var("ASTER_RELEASE_BASE") {
+        if base.to_ascii_lowercase().contains("x.ai") || base.contains("://") {
+            bail!("this updater does not download that binary");
         }
+        let dir = PathBuf::from(&base);
+        if !dir.is_dir() {
+            bail!("ASTER_RELEASE_BASE is not a local release directory");
+        }
+        let manifest = read_local_manifest(&dir)?;
+        return channel_from_manifest(manifest, requested, |name| {
+            let path = dir.join(name);
+            if !path.is_file() {
+                bail!("local release is missing {name}");
+            }
+            Ok(ChannelSource::Local(path))
+        });
     }
-    bail!("this updater does not download that binary");
+    let (url, tag_hint) = match requested {
+        Some(version) => (
+            format!("{OFFICIAL_RELEASES}/download/aster-cli-v{version}/{MANIFEST_NAME}"),
+            format!("aster-cli-v{version}"),
+        ),
+        None => (
+            format!("{OFFICIAL_RELEASES}/latest/download/{MANIFEST_NAME}"),
+            String::new(),
+        ),
+    };
+    let bytes = fetch_manifest(&url)?;
+    let manifest = parse_manifest(&bytes, &tag_hint)?;
+    let release_tag = manifest.tag.clone();
+    channel_from_manifest(manifest, requested, move |name| {
+        Ok(ChannelSource::Official {
+            url: format!("{OFFICIAL_RELEASES}/download/{release_tag}/{name}"),
+        })
+    })
 }
 
-fn asset_name() -> &'static str {
-    #[cfg(target_os = "macos")]
-    {
-        "aster-cli-v0.1.1-macos.tar.gz"
+fn read_local_manifest(dir: &Path) -> Result<Manifest> {
+    let path = dir.join(MANIFEST_NAME);
+    let bytes = fs::read(&path).with_context(|| format!("cannot read {}", path.display()))?;
+    if bytes.len() as u64 > MAX_MANIFEST {
+        bail!("channel manifest is too large");
     }
-    #[cfg(target_os = "linux")]
+    parse_manifest(&bytes, "")
+}
+
+fn channel_from_manifest(
+    manifest: Manifest,
+    requested: Option<Version>,
+    source: impl Fn(&str) -> Result<ChannelSource>,
+) -> Result<Channel> {
+    if let Some(version) = requested
+        && manifest.version != version
     {
-        "aster-cli-v0.1.1-linux.tar.gz"
+        bail!(
+            "release {} does not match the requested version {version}",
+            manifest.tag
+        );
     }
-    #[cfg(windows)]
-    {
-        "aster-cli-v0.1.1-windows.zip"
+    let asset_name = expected_asset_name(manifest.version);
+    let asset = manifest
+        .assets
+        .into_iter()
+        .find(|asset| asset.name == asset_name)
+        .with_context(|| format!("channel manifest has no {asset_name}"))?;
+    Ok(Channel {
+        version: manifest.version,
+        tag: manifest.tag,
+        asset_name,
+        sha256: asset.sha256,
+        source: source(&asset.name)?,
+    })
+}
+
+struct ManifestAsset {
+    name: String,
+    sha256: String,
+}
+
+struct Manifest {
+    version: Version,
+    tag: String,
+    assets: Vec<ManifestAsset>,
+}
+
+/// Strict parse of the channel manifest. Unknown keys are ignored so a
+/// newer release cannot strand an older updater; every known field must
+/// still be exact, and asset names must be the canonical per-release names
+/// so a manifest cannot smuggle in an arbitrary filename.
+fn parse_manifest(bytes: &[u8], tag_hint: &str) -> Result<Manifest> {
+    let body = serde_json::from_slice::<serde_json::Value>(bytes)
+        .context("channel manifest is not JSON")?;
+    let Some(object) = body.as_object() else {
+        bail!("channel manifest is not an object");
+    };
+    let version = object
+        .get("version")
+        .and_then(|v| v.as_str())
+        .and_then(Version::parse)
+        .context("channel manifest has no release version")?;
+    let tag = object
+        .get("tag")
+        .and_then(|v| v.as_str())
+        .context("channel manifest has no tag")?;
+    if tag != format!("aster-cli-v{version}") {
+        bail!("channel manifest tag does not match its version");
     }
-    #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
-    {
-        "aster-cli-v0.1.1-unsupported.tar.gz"
+    if !tag_hint.is_empty() && tag != tag_hint {
+        bail!("channel manifest tag does not match the requested release");
     }
+    let Some(assets) = object.get("assets").and_then(|v| v.as_object()) else {
+        bail!("channel manifest has no assets");
+    };
+    let mut parsed = Vec::new();
+    for (platform, entry) in assets {
+        let Some(entry) = entry.as_object() else {
+            bail!("channel manifest asset {platform} is not an object");
+        };
+        let name = entry
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let sha256 = entry
+            .get("sha256")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let canonical = format!(
+            "aster-cli-v{version}-{platform}.{}",
+            if platform == "windows" {
+                "zip"
+            } else {
+                "tar.gz"
+            }
+        );
+        if name != canonical || sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            bail!("channel manifest asset {platform} is malformed");
+        }
+        parsed.push(ManifestAsset {
+            name,
+            sha256: sha256.to_ascii_lowercase(),
+        });
+    }
+    if parsed.is_empty() {
+        bail!("channel manifest has no assets");
+    }
+    Ok(Manifest {
+        version,
+        tag: tag.to_string(),
+        assets: parsed,
+    })
 }
 
 fn binary_names() -> (&'static str, &'static str) {
@@ -183,83 +397,58 @@ fn install_dir() -> Result<PathBuf> {
         .map(Path::to_path_buf)
 }
 
-fn print_status(asset: &Asset, json: bool) -> Result<()> {
-    let (available, error) = match asset {
-        Asset::Official { .. } => (false, None),
-        Asset::Local(path) => match compare_local(path) {
-            Ok(Compare::Same) => (false, None),
-            Ok(Compare::Different) => (true, None),
-            Err(error) => (false, Some(error.to_string())),
-        },
-    };
+fn print_status(channel: &Channel, json: bool) -> Result<()> {
+    let available = channel.version > Version::current();
     let status = a3s_code_update::UpdateStatus {
         current_version: env!("VERSION_WITH_COMMIT").to_string(),
-        latest_version: (available || matches!(asset, Asset::Local(_)))
-            .then(|| "0.1.1".to_string()),
+        latest_version: Some(channel.version.to_string()),
         update_available: available,
         installer: Some("aster-cli".to_string()),
         channel: a3s_code_update::channel_name()
             .unwrap_or("unknown")
             .to_string(),
         auto_update: Some(false),
-        error: error.clone(),
+        error: None,
     };
     if json {
         return a3s_code_update::auto_update::print_update_status(&status, true);
     }
-    if let Some(error) = error {
-        println!("error={error}");
-    }
-    println!("release={RELEASE}");
+    println!("release={}", channel.tag);
+    println!("latest={}", channel.version);
     println!("updateAvailable={available}");
     println!("autoUpdate=false");
     Ok(())
-}
-
-enum Compare {
-    Same,
-    Different,
-}
-
-fn compare_local(path: &Path) -> Result<Compare> {
-    let work = WorkDir::new()?;
-    let archive = work.path.join("archive");
-    let mut meter = Progress::disabled();
-    copy_chunks(path, &archive, &mut meter)?;
-    let unpacked = work.path.join("unpack");
-    unpack_archive(&archive, &unpacked)?;
-    let pair = verify_pair(&unpacked)?;
-    let dir = install_dir()?;
-    let (aster_name, acp_name) = binary_names();
-    if files_identical(&pair.aster, &dir.join(aster_name))
-        && files_identical(&pair.acp, &dir.join(acp_name))
-    {
-        Ok(Compare::Same)
-    } else {
-        Ok(Compare::Different)
-    }
 }
 
 enum InstallOutcome {
     Installed {
         identity: Option<String>,
         dir: PathBuf,
+        version: Version,
     },
     Current {
         identity: Option<String>,
+        version: Version,
+        tag: String,
     },
 }
 
-fn install_release(asset: &Asset) -> Result<InstallOutcome> {
+fn install_release(channel: &Channel, force_reinstall: bool) -> Result<InstallOutcome> {
     let work = WorkDir::new()?;
     let archive = work.path.join("archive");
     let mut meter = Progress::for_terminal();
-    let copied = match asset {
-        Asset::Official { name } => download_official(name, &archive, &mut meter),
-        Asset::Local(path) => copy_chunks(path, &archive, &mut meter),
+    let copied = match &channel.source {
+        ChannelSource::Official { url } => {
+            download_official(url, &channel.asset_name, &archive, &mut meter)
+        }
+        ChannelSource::Local(path) => copy_chunks(path, &archive, &mut meter),
     };
     meter.finish();
     copied?;
+    let digest = sha256_hex(&archive).context("cannot digest the release archive")?;
+    if digest != channel.sha256 {
+        bail!("channel checksum mismatch");
+    }
     let unpacked = work.path.join("unpack");
     unpack_archive(&archive, &unpacked).context("release archive is incomplete")?;
     let pair = verify_pair(&unpacked)?;
@@ -267,15 +456,21 @@ fn install_release(asset: &Asset) -> Result<InstallOutcome> {
     let (aster_name, acp_name) = binary_names();
     let dest_aster = dir.join(aster_name);
     let dest_acp = dir.join(acp_name);
-    if files_identical(&pair.aster, &dest_aster) && files_identical(&pair.acp, &dest_acp) {
+    if !force_reinstall
+        && files_identical(&pair.aster, &dest_aster)
+        && files_identical(&pair.acp, &dest_acp)
+    {
         return Ok(InstallOutcome::Current {
             identity: pair.identity,
+            version: channel.version,
+            tag: channel.tag.clone(),
         });
     }
     promote_pair(&dir, &dest_aster, &dest_acp, &pair)?;
     Ok(InstallOutcome::Installed {
         identity: pair.identity,
         dir,
+        version: channel.version,
     })
 }
 
@@ -602,12 +797,8 @@ fn make_executable(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn download_official(name: &str, dest: &Path, meter: &mut Progress) -> Result<()> {
-    let url = format!("{OFFICIAL_BASE}/{name}");
-    if !url_is_official_asset(&url, name) {
-        bail!("this updater does not download that binary");
-    }
-    let client = reqwest::blocking::Client::builder()
+fn https_client(timeout: Duration) -> Result<reqwest::blocking::Client> {
+    reqwest::blocking::Client::builder()
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 {
                 return attempt.error("too many redirects");
@@ -617,12 +808,39 @@ fn download_official(name: &str, dest: &Path, meter: &mut Progress) -> Result<()
             }
             attempt.follow()
         }))
-        .timeout(Duration::from_secs(300))
-        .user_agent(concat!("aster-cli/", "0.1.1"))
+        .timeout(timeout)
+        .user_agent(concat!("aster-cli/", env!("CARGO_PKG_VERSION")))
         .build()
-        .context("cannot prepare the release download")?;
+        .context("cannot prepare the release download")
+}
+
+fn fetch_manifest(url: &str) -> Result<Vec<u8>> {
+    let client = https_client(Duration::from_secs(30))?;
     let mut response = client
-        .get(&url)
+        .get(url)
+        .send()
+        .context("cannot read the channel manifest")?;
+    if !github_asset_host(response.url()) || !response.status().is_success() {
+        bail!("cannot read the channel manifest");
+    }
+    let mut body = Vec::new();
+    response
+        .read_to_end(&mut body)
+        .context("cannot read the channel manifest")?;
+    if body.len() as u64 > MAX_MANIFEST {
+        bail!("channel manifest is too large");
+    }
+    Ok(body)
+}
+
+fn download_official(url: &str, name: &str, dest: &Path, meter: &mut Progress) -> Result<()> {
+    let prefix = format!("{OFFICIAL_RELEASES}/download/aster-cli-v");
+    if !url.starts_with(&prefix) || !url.ends_with(&format!("/{name}")) {
+        bail!("this updater does not download that binary");
+    }
+    let client = https_client(Duration::from_secs(300))?;
+    let mut response = client
+        .get(url)
         .send()
         .context("cannot download the Aster CLI release")?;
     if !github_asset_host(response.url()) || !response.status().is_success() {
@@ -659,10 +877,6 @@ fn download_official(name: &str, dest: &Path, meter: &mut Progress) -> Result<()
         bail!("release download ended early");
     }
     Ok(())
-}
-
-fn url_is_official_asset(url: &str, name: &str) -> bool {
-    url == format!("{OFFICIAL_BASE}/{name}")
 }
 
 fn github_asset_host(url: &reqwest::Url) -> bool {
@@ -827,14 +1041,6 @@ impl Progress {
     fn for_terminal() -> Self {
         Self {
             enabled: std::io::IsTerminal::is_terminal(&std::io::stderr()),
-            open: false,
-            last: None,
-        }
-    }
-
-    fn disabled() -> Self {
-        Self {
-            enabled: false,
             open: false,
             last: None,
         }

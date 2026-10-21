@@ -13,6 +13,11 @@ const OLD_ID: &str = "aster-cli-pair-v1:fixture-old:local";
 const NEW_ID: &str = "aster-cli-pair-v1:fixture-newer:local";
 const OTHER_ID: &str = "aster-cli-pair-v1:fixture-other:local";
 
+/// The fixture channel advertises a version newer than the shipped binary so
+/// the update path runs; the stale manifest uses an older one.
+const FIXTURE_VERSION: &str = "9.9.9";
+const STALE_VERSION: &str = "0.1.0";
+
 fn shipped_aster() -> &'static str {
     env!("CARGO_BIN_EXE_aster")
 }
@@ -21,13 +26,13 @@ fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn asset_name() -> &'static str {
+fn asset_name(version: &str) -> String {
     if cfg!(target_os = "macos") {
-        "aster-cli-v0.1.1-macos.tar.gz"
+        format!("aster-cli-v{version}-macos.tar.gz")
     } else if cfg!(target_os = "linux") {
-        "aster-cli-v0.1.1-linux.tar.gz"
+        format!("aster-cli-v{version}-linux.tar.gz")
     } else {
-        "aster-cli-v0.1.1-windows.zip"
+        format!("aster-cli-v{version}-windows.zip")
     }
 }
 
@@ -96,10 +101,9 @@ fn chmod(path: &Path) {
     }
 }
 
-fn package(bin_dir: &Path, archive: &Path) {
-    if let Some(parent) = archive.parent() {
-        fs::create_dir_all(parent).expect("assets");
-    }
+fn package(bin_dir: &Path, assets: &Path, version: &str) -> PathBuf {
+    fs::create_dir_all(assets).expect("assets");
+    let archive = assets.join(asset_name(version));
     let status = Command::new("bash")
         .arg(repo_root().join("scripts/package-aster-cli.sh"))
         .arg(if cfg!(target_os = "macos") {
@@ -110,16 +114,31 @@ fn package(bin_dir: &Path, archive: &Path) {
             "windows"
         })
         .arg(bin_dir)
-        .arg(archive)
+        .arg(&archive)
         .env("COPYFILE_DISABLE", "1")
         .status()
         .expect("package");
     assert!(status.success(), "package-aster-cli.sh failed");
-    let len = fs::metadata(archive).expect("archive").len();
+    let len = fs::metadata(&archive).expect("archive").len();
     assert!(
         len > 12_288,
         "fixture archive is {len} bytes; progress frames need more than one chunk"
     );
+    write_manifest(assets, &archive, version);
+    archive
+}
+
+/// The compact channel manifest the release workflow publishes, with every
+/// platform digest set to the packaged archive.
+fn write_manifest(assets: &Path, archive: &Path, version: &str) {
+    let digest = sha256_hex(archive);
+    let body = format!(
+        "{{\"version\":\"{version}\",\"tag\":\"aster-cli-v{version}\",\"assets\":{{\
+\"macos\":{{\"name\":\"aster-cli-v{version}-macos.tar.gz\",\"sha256\":\"{digest}\"}},\
+\"linux\":{{\"name\":\"aster-cli-v{version}-linux.tar.gz\",\"sha256\":\"{digest}\"}},\
+\"windows\":{{\"name\":\"aster-cli-v{version}-windows.zip\",\"sha256\":\"{digest}\"}}}}}}\n"
+    );
+    fs::write(assets.join("latest.json"), body).expect("manifest");
 }
 
 fn prepare_home(root: &Path) -> PathBuf {
@@ -347,7 +366,10 @@ fn assert_progress(text: &str) {
     );
     assert!(!plain.to_ascii_lowercase().contains("press any key"));
     assert!(plain.contains(NEW_ID), "{plain}");
-    assert!(plain.contains("installed Aster v0.1.1"), "{plain}");
+    assert!(
+        plain.contains(&format!("installed Aster v{FIXTURE_VERSION}")),
+        "{plain}"
+    );
 }
 
 fn assert_no_frames(text: &str) {
@@ -391,8 +413,7 @@ fn shipped_update_installs_newer_pair_with_progress_bar() {
         let bins = root.join("bins");
         write_pair(&bins, NEW_ID, true, true);
         let assets = root.join("assets");
-        let archive = assets.join(asset_name());
-        package(&bins, &archive);
+        package(&bins, &assets, FIXTURE_VERSION);
         let install = root.join("install");
         write_pair(&install, OLD_ID, true, false);
         let old_aster = fs::read(install.join("aster")).expect("old aster");
@@ -444,7 +465,7 @@ fn shipped_update_check_and_current_leave_bytes() {
     let bins = root.join("bins");
     write_pair(&bins, NEW_ID, true, true);
     let assets = root.join("assets");
-    package(&bins, &assets.join(asset_name()));
+    package(&bins, &assets, FIXTURE_VERSION);
     let install = root.join("install");
     write_pair(&install, OLD_ID, true, false);
     let aster_before = fs::read(install.join("aster")).expect("aster");
@@ -532,8 +553,7 @@ fn shipped_update_failure_leaves_the_previous_pair() {
     let bins = root.join("bins");
     write_pair(&bins, NEW_ID, true, true);
     let assets = root.join("assets");
-    let archive = assets.join(asset_name());
-    package(&bins, &archive);
+    let archive = package(&bins, &assets, FIXTURE_VERSION);
 
     let truncated_assets = root.join("truncated");
     fs::create_dir_all(&truncated_assets).expect("truncated assets");
@@ -542,7 +562,12 @@ fn shipped_update_failure_leaves_the_previous_pair() {
     let Some(prefix) = bytes.get(..end) else {
         panic!("archive prefix");
     };
-    fs::write(truncated_assets.join(asset_name()), prefix).expect("truncate");
+    fs::write(truncated_assets.join(asset_name(FIXTURE_VERSION)), prefix).expect("truncate");
+    fs::copy(
+        assets.join("latest.json"),
+        truncated_assets.join("latest.json"),
+    )
+    .expect("manifest copy");
     let truncated_install = root.join("truncated-install");
     write_pair(&truncated_install, OLD_ID, true, false);
     let truncated_aster = fs::read(truncated_install.join("aster")).expect("aster");
@@ -594,7 +619,7 @@ fn shipped_update_failure_leaves_the_previous_pair() {
         sha256_hex(&unpack.join("a3s-code-acp"))
     );
     fs::write(unpack.join("SHA256SUMS"), sums).expect("sums");
-    let mismatch_archive = mismatch_assets.join(asset_name());
+    let mismatch_archive = mismatch_assets.join(asset_name(FIXTURE_VERSION));
     let packed = Command::new("tar")
         .env("COPYFILE_DISABLE", "1")
         .current_dir(&unpack)
@@ -604,6 +629,7 @@ fn shipped_update_failure_leaves_the_previous_pair() {
         .status()
         .expect("repack");
     assert!(packed.success(), "repack");
+    write_manifest(&mismatch_assets, &mismatch_archive, FIXTURE_VERSION);
     let mismatch_install = root.join("mismatch-install");
     write_pair(&mismatch_install, OLD_ID, true, false);
     let mismatch_aster = fs::read(mismatch_install.join("aster")).expect("aster");
@@ -639,7 +665,7 @@ fn shipped_update_failure_leaves_the_previous_pair() {
     );
 }
 
-/// The pinned aster-cli v0.1.1 archive contains only the two binaries.
+/// The legacy two-file archive contains only the two binaries.
 /// Published aster rejects `--build-id` as an unexpected clap argument.
 /// Published `a3s-code-acp` prints `unknown argument` and exits 1.
 fn published_style_binary(which: &str) -> String {
@@ -700,8 +726,9 @@ fn shipped_update_installs_two_file_release_without_build_id() {
     chmod(&bins.join("aster"));
     chmod(&bins.join("a3s-code-acp"));
     let assets = root.join("assets");
-    let archive = assets.join(asset_name());
+    let archive = assets.join(asset_name(FIXTURE_VERSION));
     package_two_binaries(&bins, &archive);
+    write_manifest(&assets, &archive, FIXTURE_VERSION);
 
     let install = root.join("install");
     write_pair(&install, OLD_ID, true, false);
@@ -710,7 +737,10 @@ fn shipped_update_installs_two_file_release_without_build_id() {
     let (code, stdout, stderr) = capture_pipe(&install.join("aster"), &["update"], &home, &assets);
     println!("CAPTURE two-file\n{stdout}\n{stderr}");
     assert_eq!(code, 0, "{stdout}\n{stderr}");
-    assert!(stdout.contains("installed Aster v0.1.1"), "{stdout}");
+    assert!(
+        stdout.contains(&format!("installed Aster v{FIXTURE_VERSION}")),
+        "{stdout}"
+    );
     assert!(!stdout.contains("identity="), "{stdout}");
     assert!(!stderr.contains("identity mismatch"), "{stderr}");
     assert_no_frames(&stdout);
@@ -765,5 +795,102 @@ fn shipped_update_installs_two_file_release_without_build_id() {
         acp_err.contains("unknown argument: --build-id"),
         "{acp_err}"
     );
+    assert_eq!(snapshot(&home), before_home);
+}
+
+#[test]
+fn shipped_update_reports_current_when_the_manifest_is_not_newer() {
+    let root = temp_root("stale");
+    let home = prepare_home(&root);
+    let before_home = snapshot(&home);
+    let bins = root.join("bins");
+    write_pair(&bins, NEW_ID, true, true);
+    let assets = root.join("assets");
+    let archive = package(&bins, &assets, STALE_VERSION);
+    let install = root.join("install");
+    write_pair(&install, OLD_ID, true, false);
+    let aster_before = fs::read(install.join("aster")).expect("aster");
+    let acp_before = fs::read(install.join("a3s-code-acp")).expect("acp");
+    let archive_before = fs::read(&archive).expect("archive");
+
+    let (check_code, check_stdout, check_stderr) = capture_pipe(
+        &install.join("aster"),
+        &["update", "--check", "--json"],
+        &home,
+        &assets,
+    );
+    println!("CAPTURE stale-check\n{check_stdout}\n{check_stderr}");
+    assert_eq!(check_code, 0, "{check_stdout}\n{check_stderr}");
+    assert!(
+        check_stdout.contains("\"updateAvailable\":false"),
+        "{check_stdout}"
+    );
+    assert_no_frames(&check_stdout);
+    assert_no_frames(&check_stderr);
+
+    let (code, stdout, stderr) = capture_pipe(&install.join("aster"), &["update"], &home, &assets);
+    println!("CAPTURE stale\n{stdout}\n{stderr}");
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    assert!(stdout.contains("Aster CLI pair is current"), "{stdout}");
+    assert!(
+        stdout.contains(&format!("latest={STALE_VERSION}")),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("installed"), "{stdout}");
+    assert!(!stderr.contains("installed"), "{stderr}");
+    assert_no_frames(&stdout);
+    assert_no_frames(&stderr);
+    // A stale channel never downloads: the archive bytes stay untouched.
+    assert_eq!(fs::read(&archive).expect("archive"), archive_before);
+    assert_eq!(
+        fs::read(install.join("aster")).expect("aster"),
+        aster_before
+    );
+    assert_eq!(
+        fs::read(install.join("a3s-code-acp")).expect("acp"),
+        acp_before
+    );
+    assert_eq!(build_id(&install.join("aster")), OLD_ID);
+    assert_eq!(snapshot(&home), before_home);
+}
+
+#[test]
+fn shipped_update_rejects_a_channel_checksum_mismatch() {
+    let root = temp_root("bad-digest");
+    let home = prepare_home(&root);
+    let before_home = snapshot(&home);
+    let bins = root.join("bins");
+    write_pair(&bins, NEW_ID, true, true);
+    let assets = root.join("assets");
+    let archive = package(&bins, &assets, FIXTURE_VERSION);
+    // Corrupt the archive without refreshing the manifest digest.
+    let mut bytes = fs::read(&archive).expect("archive");
+    bytes.extend_from_slice(b"tampered");
+    fs::write(&archive, bytes).expect("corrupt");
+
+    let install = root.join("install");
+    write_pair(&install, OLD_ID, true, false);
+    let aster_before = fs::read(install.join("aster")).expect("aster");
+    let acp_before = fs::read(install.join("a3s-code-acp")).expect("acp");
+    let (code, stdout, stderr) = capture_pipe(&install.join("aster"), &["update"], &home, &assets);
+    println!("CAPTURE bad-digest\n{stdout}\n{stderr}");
+    assert_ne!(code, 0, "{stdout}\n{stderr}");
+    assert!(!stdout.contains("installed"), "{stdout}");
+    assert!(
+        format!("{stdout}\n{stderr}")
+            .to_ascii_lowercase()
+            .contains("channel checksum mismatch"),
+        "{stdout}\n{stderr}"
+    );
+    assert_eq!(
+        fs::read(install.join("aster")).expect("aster"),
+        aster_before
+    );
+    assert_eq!(
+        fs::read(install.join("a3s-code-acp")).expect("acp"),
+        acp_before
+    );
+    assert_eq!(build_id(&install.join("aster")), OLD_ID);
+    assert_eq!(build_id(&install.join("a3s-code-acp")), OLD_ID);
     assert_eq!(snapshot(&home), before_home);
 }

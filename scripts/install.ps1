@@ -1,17 +1,20 @@
-# Install aster-cli v0.1.1 on Windows from this repository's GitHub Release.
+# Install the aster-cli pair on Windows from this repository's GitHub Releases.
 # One command:
 #   irm "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.ps1" -OutFile "$env:TEMP\install.ps1"
 #   powershell -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install.ps1" -Prefix "$env:LOCALAPPDATA\Aster\bin"
-# Downloads aster-cli-v0.1.1-windows.zip, which contains aster.exe and a3s-code-acp.exe.
-# Does not clone this repository and does not compile.
+# The newest release is discovered from the channel manifest:
+#   https://github.com/aster-ai-lab/aster/releases/latest/download/latest.json
+# -Version X.Y.Z installs that exact release. The Windows archive contains
+# aster.exe and a3s-code-acp.exe. Does not clone and does not compile.
 param(
-    [string]$Prefix = ""
+    [string]$Prefix = "",
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
-$OfficialBase = "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1"
-$AssetName = "aster-cli-v0.1.1-windows.zip"
-$OfficialAsset = "$OfficialBase/$AssetName"
+$OfficialReleases = "https://github.com/aster-ai-lab/aster/releases"
+$ManifestName = "latest.json"
+$LatestManifest = "https://github.com/aster-ai-lab/aster/releases/latest/download/latest.json"
 
 function Refuse-Download {
     Write-Error "this installer does not download that binary"
@@ -28,25 +31,84 @@ if ($env:ASTER_INSTALL_URL -or $env:GROK_INSTALL_URL) {
 if ($Prefix -match "://") {
     Refuse-Download
 }
+$directUrl = $null
 foreach ($arg in $args) {
     $text = [string]$arg
     if ($text -notmatch "://") { continue }
-    if ($text -eq $OfficialAsset) { continue }
+    if ($text -match "^https://github\.com/aster-ai-lab/aster/releases/download/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+-(macos|linux|windows)\.(tar\.gz|zip)$") {
+        $directUrl = $text
+        continue
+    }
     Refuse-Download
 }
 
-$base = if ($env:ASTER_RELEASE_BASE) { $env:ASTER_RELEASE_BASE } else { $OfficialBase }
-if ($base -match "x\.ai") {
-    Refuse-Download
+$wantVersion = $null
+if ($Version) {
+    $wantVersion = $Version -replace "^aster-cli-v", "" -replace "^v", ""
+    if ($wantVersion -notmatch "^[0-9]+\.[0-9]+\.[0-9]+$") {
+        Write-Error "--version wants a release triple such as 0.1.2"
+        exit 1
+    }
 }
-$localAsset = $null
-if ($base -eq $OfficialBase) {
-    $assetUrl = "$base/$AssetName"
-} elseif (($base -notmatch "://") -and (Test-Path -LiteralPath $base -PathType Container)) {
-    $assetUrl = Join-Path $base $AssetName
-    $localAsset = $assetUrl
+
+$manifest = $null
+$localBase = $null
+$assetUrl = $null
+$assetName = $null
+$expectedSha = $null
+$releaseVersion = ""
+$releaseTag = ""
+if ($directUrl) {
+    $assetUrl = $directUrl
+    $assetName = Split-Path -Leaf $directUrl
+} elseif ($env:ASTER_RELEASE_BASE) {
+    $base = $env:ASTER_RELEASE_BASE
+    if ($base -match "x\.ai" -or $base -match "://") {
+        Refuse-Download
+    }
+    if (-not (Test-Path -LiteralPath $base -PathType Container)) {
+        Write-Error "ASTER_RELEASE_BASE is not a local release directory"
+        exit 1
+    }
+    $manifestPath = Join-Path $base $ManifestName
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        Write-Error "local release directory has no $ManifestName"
+        exit 1
+    }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $localBase = $base
 } else {
-    Refuse-Download
+    $manifestUrl = if ($wantVersion) {
+        "$OfficialReleases/download/aster-cli-v$wantVersion/$ManifestName"
+    } else {
+        $LatestManifest
+    }
+    $manifest = Invoke-RestMethod -Uri $manifestUrl
+}
+
+if ($manifest) {
+    $releaseVersion = [string]$manifest.version
+    $releaseTag = [string]$manifest.tag
+    if ($releaseVersion -notmatch "^[0-9]+\.[0-9]+\.[0-9]+$" -or $releaseTag -cne "aster-cli-v$releaseVersion") {
+        throw "channel manifest is malformed"
+    }
+    if ($wantVersion -and $releaseVersion -cne $wantVersion) {
+        throw "release $releaseTag does not match the requested version $wantVersion"
+    }
+    $assetName = "aster-cli-v$releaseVersion-windows.zip"
+    $entry = $manifest.assets.windows
+    if (-not $entry -or [string]$entry.name -cne $assetName -or [string]$entry.sha256 -notmatch "^[0-9a-f]{64}$") {
+        throw "channel manifest has no $assetName"
+    }
+    $expectedSha = [string]$entry.sha256
+    if ($localBase) {
+        $assetUrl = Join-Path $localBase $assetName
+        if (-not (Test-Path -LiteralPath $assetUrl -PathType Leaf)) {
+            throw "local release is missing $assetName"
+        }
+    } else {
+        $assetUrl = "$OfficialReleases/download/$releaseTag/$assetName"
+    }
 }
 
 if (-not $Prefix) {
@@ -60,21 +122,27 @@ if (-not $Prefix) {
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("aster-cli-" + [guid]::NewGuid().ToString("n"))
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 try {
-    $archive = Join-Path $work $AssetName
+    $archive = Join-Path $work $assetName
     Write-Output "platform=windows"
-    Write-Output "release=aster-cli-v0.1.1"
+    Write-Output "release=$($releaseTag ? $releaseTag : 'direct')"
     Write-Output "asset=$assetUrl"
-    if ($localAsset) {
-        Copy-Item -LiteralPath $localAsset -Destination $archive -Force
+    if ($localBase) {
+        Copy-Item -LiteralPath $assetUrl -Destination $archive -Force
     } else {
         Invoke-WebRequest -Uri $assetUrl -OutFile $archive
+    }
+    if ($expectedSha) {
+        $archiveSha = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($archiveSha -cne $expectedSha) {
+            throw "channel checksum mismatch"
+        }
     }
     $unpack = Join-Path $work "unpack"
     Expand-Archive -LiteralPath $archive -DestinationPath $unpack -Force
     $srcAster = Join-Path $unpack "aster.exe"
     $srcAcp = Join-Path $unpack "a3s-code-acp.exe"
     if (-not (Test-Path -LiteralPath $srcAster) -or -not (Test-Path -LiteralPath $srcAcp)) {
-        Write-Error "archive $AssetName did not contain both aster-cli binaries"
+        Write-Error "archive $assetName did not contain both aster-cli binaries"
         exit 1
     }
     $identityPath = Join-Path $unpack "BUILD_ID"
@@ -143,7 +211,11 @@ try {
     }
     $destAster = Join-Path $Prefix "aster.exe"
     $destAcp = Join-Path $Prefix "a3s-code-acp.exe"
-    Write-Output "installed Aster v0.1.1 into $Prefix"
+    if ($releaseVersion) {
+        Write-Output "installed Aster v$releaseVersion into $Prefix"
+    } else {
+        Write-Output "installed Aster into $Prefix"
+    }
     Write-Output "aster=$destAster"
     Write-Output "a3s-code-acp=$destAcp"
 } finally {

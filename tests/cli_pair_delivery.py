@@ -27,7 +27,7 @@ class PairDelivery(unittest.TestCase):
         self.commands = self.root / "commands"
         for path in (self.bins, self.assets, self.prefix, self.commands):
             path.mkdir()
-        self.archive = self.assets / f"aster-cli-v0.1.1-{PLATFORM}.tar.gz"
+        self.archive = self.assets / f"aster-cli-v0.1.2-{PLATFORM}.tar.gz"
         for name in NAMES:
             self.binary(name, IDENTITY)
             (self.prefix / name).write_text("old-" + name)
@@ -38,8 +38,20 @@ class PairDelivery(unittest.TestCase):
         path.chmod(0o755)
 
     def package(self):
-        return subprocess.run(["bash", str(ROOT / "scripts/package-aster-cli.sh"),
+        result = subprocess.run(["bash", str(ROOT / "scripts/package-aster-cli.sh"),
             PLATFORM, str(self.bins), str(self.archive)], capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            self.write_manifest()
+        return result
+
+    def write_manifest(self):
+        """The compact channel manifest the release workflow publishes."""
+        digest = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        body = ('{"version":"0.1.2","tag":"aster-cli-v0.1.2","assets":'
+                f'{{"macos":{{"name":"aster-cli-v0.1.2-macos.tar.gz","sha256":"{digest}"}},'
+                f'"linux":{{"name":"aster-cli-v0.1.2-linux.tar.gz","sha256":"{digest}"}},'
+                f'"windows":{{"name":"aster-cli-v0.1.2-windows.zip","sha256":"{digest}"}}}}}}\n')
+        (self.assets / "latest.json").write_text(body)
 
     def install(self):
         env = dict(os.environ, ASTER_RELEASE_BASE=str(self.assets),
@@ -68,6 +80,9 @@ class PairDelivery(unittest.TestCase):
                 entry.mode = 0o755
                 entry.size = len(content)
                 package.addfile(entry, io.BytesIO(content))
+        # A consistent attacker controls the manifest too; the manifest stays
+        # in sync so the deeper in-archive checks are what must refuse.
+        self.write_manifest()
 
     def test_package_manifest_and_successful_install(self):
         self.assertEqual(self.package().returncode, 0)
@@ -126,6 +141,16 @@ class PairDelivery(unittest.TestCase):
         result = self.install()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("checksum mismatch", result.stderr)
+        self.assert_old()
+
+    def test_manifest_digest_mismatch_never_replaces_a_binary(self):
+        self.assertEqual(self.package().returncode, 0)
+        # Corrupt the archive without refreshing the manifest digest.
+        with self.archive.open("ab") as handle:
+            handle.write(b"tampered")
+        result = self.install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("channel checksum mismatch", result.stderr)
         self.assert_old()
 
     def test_matching_checksums_do_not_allow_mixed_build_identity(self):

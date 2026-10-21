@@ -24,3 +24,4 @@ __pycache__/
 # Local test fixtures and reversible migration snapshots.
 /.tmp/
 /.local-archive/
+/target-e2e/

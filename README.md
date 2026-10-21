@@ -30,18 +30,24 @@ Aster 连接你配置的模型，在项目中读取文件、修改代码并调�
 
 ### 1. 下载 CLI
 
-从 [Aster CLI v0.1.1 发布页](https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.1)下载对应系统的归档：
+从 [最新发布页](https://github.com/aster-ai-lab/aster/releases/latest)下载对应系统的归档，或使用安装脚本（自动发现最新版本并校验 SHA-256）：
 
-| 系统 | 下载 |
-| --- | --- |
-| macOS | [macOS 归档](https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-macos.tar.gz) |
-| Linux | [Linux 归档](https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-linux.tar.gz) |
-| Windows | [Windows 归档](https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-windows.zip) |
+```bash
+curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh | bash -s -- --prefix "$HOME/.local/bin"
+```
+
+Windows 使用 [install.ps1](https://github.com/aster-ai-lab/aster/blob/main/scripts/install.ps1)。
 
 解压后，将 `aster` 和 `a3s-code-acp` 放在同一目录；Windows 对应两个 `.exe` 文件。
 CLI 默认启动同目录的 ACP 伴随进程。需要指定其他位置时，设置 `A3S_ACP_AGENT_BIN`。
 
-该版本为未签名构建。当前自动安装脚本与该旧发布包存在兼容问题，请先手动解压安装。
+已安装的 CLI 从 v0.1.2 起支持自我更新：`aster update` 会从本仓库的
+channel manifest（`latest.json`）发现最新版本，校验归档摘要后原子安装
+`aster` 与 `a3s-code-acp` 成对二进制；`aster update --check` 只报告不改动，
+`aster update --version X.Y.Z` 安装指定版本。v0.1.1 的旧安装不含该通道，
+请先用上面的安装脚本重装一次。
+
+该版本为未签名构建。
 
 ### 2. 配置模型
 

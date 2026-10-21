@@ -5,7 +5,7 @@ use std::process::Command;
 fn product_help_and_version_use_aster() {
     for (arg, expected) in [
         ("--help", "Aster terminal coding agent"),
-        ("--version", "aster 0.1.1"),
+        ("--version", "aster 0.1.2"),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_aster"))
             .arg(arg)

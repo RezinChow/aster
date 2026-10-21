@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# Install aster-cli v0.1.1 from this repository's GitHub Release.
+# Install the aster-cli pair from this repository's GitHub Releases.
 #
 # One command:
 #   curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh | bash -s -- --prefix "$HOME/.local/bin"
 #
-# The release page is:
-#   https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.1
-# macOS downloads aster-cli-v0.1.1-macos.tar.gz.
-# Linux downloads aster-cli-v0.1.1-linux.tar.gz.
-# Windows downloads aster-cli-v0.1.1-windows.zip.
-# Each archive contains aster and a3s-code-acp.
+# The newest release is discovered from the channel manifest:
+#   https://github.com/aster-ai-lab/aster/releases/latest/download/latest.json
+# `--version X.Y.Z` installs that exact release. A positional URL may name
+# one official archive directly. macOS downloads a .tar.gz, Linux a .tar.gz,
+# Windows a .zip; each archive contains aster and a3s-code-acp.
 # The command does not clone this repository and does not compile.
 set -euo pipefail
 
-official_base="https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1"
+official_releases="https://github.com/aster-ai-lab/aster/releases"
+latest_manifest="${official_releases}/latest/download/latest.json"
 
 usage() {
-  echo "Usage: install.sh [--prefix DIR]" >&2
+  echo "Usage: install.sh [--prefix DIR] [--version X.Y.Z] [ARCHIVE-URL]" >&2
   echo "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh" >&2
-  echo "${official_base}/aster-cli-v0.1.1-macos.tar.gz" >&2
+  echo "${latest_manifest}" >&2
   exit 2
 }
 
@@ -32,6 +32,8 @@ if [[ -n "${ASTER_INSTALL_URL:-}" || -n "${GROK_INSTALL_URL:-}" ]]; then
 fi
 
 prefix=""
+want_version=""
+direct_url=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefix)
@@ -42,17 +44,23 @@ while [[ $# -gt 0 ]]; do
     --prefix=*)
       prefix="${1#--prefix=}"
       ;;
+    --version)
+      shift
+      [[ $# -gt 0 ]] || usage
+      want_version="$1"
+      ;;
+    --version=*)
+      want_version="${1#--version=}"
+      ;;
     -h|--help)
       usage
       ;;
     *://*)
-      case "$1" in
-        "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-macos.tar.gz"|"https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-linux.tar.gz"|"https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.1.1/aster-cli-v0.1.1-windows.zip")
-          ;;
-        *)
-          refuse
-          ;;
-      esac
+      if [[ "$1" =~ ^https://github\.com/aster-ai-lab/aster/releases/download/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+-(macos|linux|windows)\.(tar\.gz|zip)$ ]]; then
+        direct_url="$1"
+      else
+        refuse
+      fi
       ;;
     *)
       echo "error: unknown argument: $1" >&2
@@ -65,6 +73,15 @@ done
 case "$prefix" in
   *://*) refuse ;;
 esac
+
+if [[ -n "$want_version" ]]; then
+  want_version="${want_version#aster-cli-v}"
+  want_version="${want_version#v}"
+  if ! [[ "$want_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "error: --version wants a release triple such as 0.1.2" >&2
+    exit 2
+  fi
+fi
 
 uname_s="$(uname -s 2>/dev/null || true)"
 case "$uname_s" in
@@ -80,24 +97,76 @@ case "$uname_s" in
     fi
     ;;
 esac
-
 case "$platform" in
-  windows) asset_name="aster-cli-v0.1.1-windows.zip" ;;
-  *) asset_name="aster-cli-v0.1.1-${platform}.tar.gz" ;;
+  macos|linux) extension="tar.gz" ;;
+  windows) extension="zip" ;;
 esac
 
-base="${ASTER_RELEASE_BASE:-$official_base}"
-case "$base" in
-  *x.ai*) refuse ;;
-esac
-if [[ "$base" == "$official_base" ]]; then
-  asset_url="${base}/${asset_name}"
-  local_asset=""
-elif [[ "$base" != *://* && -d "$base" ]]; then
-  asset_url="${base}/${asset_name}"
-  local_asset="$asset_url"
+# The release workflow emits latest.json compact with this exact field order,
+# so the shell can read it with strict patterns instead of a JSON tool.
+manifest_json=""
+local_asset=""
+asset_url=""
+asset_name=""
+expected_sha=""
+version=""
+tag=""
+release_base="${ASTER_RELEASE_BASE:-}"
+
+if [[ -n "$direct_url" ]]; then
+  asset_url="$direct_url"
+  asset_name="${direct_url##*/}"
+elif [[ -n "$release_base" ]]; then
+  case "$release_base" in
+    *x.ai*|*://*) refuse ;;
+  esac
+  if [[ ! -d "$release_base" ]]; then
+    echo "error: ASTER_RELEASE_BASE is not a local release directory" >&2
+    exit 1
+  fi
+  if [[ ! -f "${release_base}/latest.json" ]]; then
+    echo "error: local release directory has no latest.json" >&2
+    exit 1
+  fi
+  manifest_json="$(cat "${release_base}/latest.json")"
 else
-  refuse
+  if [[ -n "$want_version" ]]; then
+    manifest_url="${official_releases}/download/aster-cli-v${want_version}/latest.json"
+  else
+    manifest_url="$latest_manifest"
+  fi
+  manifest_json="$(curl -fsSL --retry 3 --retry-delay 2 "$manifest_url")"
+fi
+
+if [[ -n "$manifest_json" ]]; then
+  compact="$(printf '%s' "$manifest_json" | tr -d '[:space:]')"
+  version="$(printf '%s' "$compact" | grep -oE '"version":"[0-9]+\.[0-9]+\.[0-9]+"' | head -1 | cut -d'"' -f4)"
+  tag="$(printf '%s' "$compact" | grep -oE '"tag":"aster-cli-v[0-9]+\.[0-9]+\.[0-9]+"' | head -1 | cut -d'"' -f4)"
+  if [[ -z "$version" || "$tag" != "aster-cli-v${version}" ]]; then
+    echo "error: channel manifest is malformed" >&2
+    exit 1
+  fi
+  if [[ -n "$want_version" && "$version" != "$want_version" ]]; then
+    echo "error: release ${tag} does not match the requested version ${want_version}" >&2
+    exit 1
+  fi
+  asset_name="aster-cli-v${version}-${platform}.${extension}"
+  entry="$(printf '%s' "$compact" | grep -oE "\"${platform}\":\{\"name\":\"[^\"]+\",\"sha256\":\"[0-9a-f]{64}\"\}" | head -1)"
+  expected_sha="$(printf '%s' "$entry" | grep -oE '[0-9a-f]{64}')"
+  if [[ "$entry" != "\"${platform}\":{\"name\":\"${asset_name}\",\"sha256\":\"${expected_sha}\"}" ]]; then
+    echo "error: channel manifest has no ${asset_name}" >&2
+    exit 1
+  fi
+  if [[ -n "$release_base" ]]; then
+    asset_url="${release_base}/${asset_name}"
+    local_asset="$asset_url"
+    if [[ ! -f "$asset_url" ]]; then
+      echo "error: local release is missing ${asset_name}" >&2
+      exit 1
+    fi
+  else
+    asset_url="${official_releases}/download/${tag}/${asset_name}"
+  fi
 fi
 
 if [[ -z "$prefix" ]]; then
@@ -109,13 +178,27 @@ cleanup() { rm -rf "$work"; }
 trap cleanup EXIT
 archive="${work}/${asset_name}"
 echo "platform=${platform}"
-echo "release=aster-cli-v0.1.1"
+echo "release=${tag:-direct}"
 echo "asset=${asset_url}"
 
 if [[ -n "$local_asset" ]]; then
   cp -f "$local_asset" "$archive"
 else
   curl -fsSL --retry 3 --retry-delay 2 -o "$archive" "$asset_url"
+fi
+
+hash_of() {
+  local result
+  if command -v sha256sum >/dev/null 2>&1; then result="$(sha256sum -b "$1")";
+  else result="$(shasum -a 256 -b "$1")"; fi
+  printf '%s' "${result%% *}"
+}
+
+if [[ -n "$expected_sha" ]]; then
+  if [[ "$(hash_of "$archive")" != "$expected_sha" ]]; then
+    echo "error: channel checksum mismatch" >&2
+    exit 1
+  fi
 fi
 
 unpack="${work}/unpack"
@@ -177,7 +260,7 @@ identity="$(cat "$unpack/BUILD_ID")"
 
 mkdir -p "$prefix"
 if [[ -d "$dest_aster" || -d "$dest_acp" ]]; then
-  echo "error: binary destination is a directory" >&2; exit 1;
+  echo "error: binary destination is a directory" >&2; exit 1
 fi
 lock="${prefix}/.aster-install.lock"
 mkdir "$lock" || { echo "error: another pair installation needs to finish" >&2; exit 1; }
@@ -224,6 +307,10 @@ if [[ "$platform" == "macos" ]] && command -v xattr >/dev/null 2>&1; then
   xattr -d com.apple.quarantine "$dest_acp" 2>/dev/null || true
 fi
 
-echo "installed Aster v0.1.1 into ${prefix}"
+if [[ -n "$version" ]]; then
+  echo "installed Aster v${version} into ${prefix}"
+else
+  echo "installed Aster into ${prefix}"
+fi
 echo "aster=${dest_aster}"
 echo "a3s-code-acp=${dest_acp}"
