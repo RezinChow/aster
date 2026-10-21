@@ -17,6 +17,12 @@
 - 手机首屏正文附近的 9 个背景点，以实际截图 RGB 计算白字对比度。加深文字区域底色后，最小抽样值从约 3.77:1 提升至 4.69:1。见 `contrast-before.json`、`contrast-after.json`。
 - `python3 apps/web/scripts/stage_site.py target/evaluations/aster-website/color-stage-final-20261021`：发布文件闭包及最终哈希见 `stage.json`。CSS 格式及限定差异检查通过。
 
+## 公开部署
+
+页面提交 `e0f5bb40ab8693845e070afafc234c21609664d9` 已推送到 `main`。[Pages 运行 39556292002](https://github.com/aster-ai-lab/aster/actions/runs/39556292002) 的验证和部署任务成功。保留 <https://aster-ai-lab.github.io/aster/> 地址。
+
+从公开地址读取的 15 个文件均为 200，SHA-256 全部匹配本地验证过的发布目录。目录入口 `/` 与 `/download/` 也返回 200。见 `pages-run.json` 和 `public-http.json`。浏览器回归在本地相同文件上执行，不声称重复在公开地址执行。
+
 ## Explicitly not claimed
 
 背景采样是局部文字可读性检查，不是整站 WCAG 认证。浏览器测试在本地发布源上执行，第一次的清理失败保留为基础设施问题，未声称旧运行清理成功。本次没有重建客户端安装包，没有重新验收真实模型、Office 或原生窗口；真实界面图片继续使用合成演示数据。
