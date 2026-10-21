@@ -93,3 +93,15 @@ action 变体，成本更高，需另立 ADR。
 
 D-A/D-B：2026-11-07；D-D：2026-11-15。到期未决 → 依赖故事 fail closed
 （FR-005）。
+
+## 宪法 XIII 修正草案（供 /speckit.constitution 拍板；analyze 发现 #1）
+
+行为已先行：aster-ai-lab/libkrun fork（用户 2026-10-21 明示授权）。按
+修正纪律「行为先行、文本随后」，建议在 XIII 的 apps/studio 授权句后补：
+
+> The user-authorized dependency fork boundary is
+> `aster-ai-lab/libkrun` (created from A3S-Lab/libkrun at owner
+> direction, 2026-10-21). It is consumed through the vendored
+> a3s-libkrun-sys tree; the parent tracks source provenance, never a
+> parallel Aster checkout of libkrun source inside this repository's
+> crates.

@@ -211,6 +211,31 @@ G0 构建日志契约与 Box 的外联 issue（D-F 同渠道）、以及每次�
    aster，**Then** 指针提升与 evidence 同步；aster 的 ROADMAP/文档不替
    上游写 Verified 行。
 
+### User Story 9 - krun 自有修复轨（Priority: P1；2026-10-21 日终增补）
+
+> 增补背景：owner 于 2026-10-21 指示「fork 到 aster-ai-lab、在其上修、
+> 切换到自有 fork」，替代 US-3 中 T014 的外发 issue 路径。T020-T022 已
+> 在 tasks.md Phase C+ 承载。
+
+libkrun（A3S-Lab 自有 Rust fork）的引导链故障转为 aster-ai-lab 自有
+资产修复：fork、插桩（`KRUN_BOOT_ABORT` 早退具名）、Box 侧保留失败
+引导日志、fork 修复合并后重 vendor 切换。
+
+**Why this priority**: T0.4.2 的三解阻塞之一；插桩与日志保留是取证前
+提，重 vendor 前一切诊断都靠它们。
+
+**Independent Test**: `vm::boot_diag` 三用例（拷贝/替换/no-op，3/3 绿）；
+fork `cargo check -p libkrun` exit 0（占位 init、check-only、未发布）。
+
+**Acceptance Scenarios**:
+
+1. **Given** fork main 带插桩（`02e1414`）+ Box 保留日志，**When** 失败
+   引导发生，**Then** `<home>/diag/failed-boots/<box_id>/logs/` 含具名
+   `KRUN_BOOT_ABORT` 阶段行（端到端声明待 T0.4.2 重跑）。
+2. **Given** fork 合并行为修复，**When** 重 vendor（T021），**Then**
+   `vendor/libkrun` 为 fork 确定性导出、`build.rs` 哈希与
+   SOURCE-PROVENANCE 同步、漂移可溯。
+
 ### Edge Cases
 
 - 子模块上游在史诗期间前进：一律以指针提升跟进，禁止在 aster 内直接改
