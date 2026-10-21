@@ -236,3 +236,13 @@ fork main (02e1414) finishes clean (devices + libkrun, exit 0) with a
 placeholder init/init artifact — the real static init needs the Linux
 cross toolchain from the A3S build container; the placeholder was
 removed after the check and nothing was committed or shipped from it.
+
+Fork verification upgrade: with a real static init binary (Debian
+bookworm container, aarch64 musl→glibc note: alpine/musl lacks
+linux/vm_sockets.h, Debian libc6-dev provides it; 780KB static ELF,
+rebuild: `docker run --rm -v $PWD:/w -w /w debian:bookworm sh -c "apt-get
+update -qq && apt-get install -y -qq gcc libc6-dev && cc -O2 -static -o
+init/init init/init.c"`), `cargo check -p libkrun` on the instrumented
+fork main finishes clean — the compile caveat on 02e1414 is fully
+closed at the real-artifact tier. The binary is a local build product,
+removed after the check and never committed.
