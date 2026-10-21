@@ -108,6 +108,23 @@ US-6 证据修正）
       (channel,platform,version) 唯一约束 + 全链 e2e ——**阻塞上游 PR 权**
       （草稿已备 research.md）
 
+## Phase E: CI/CD 自替代冲刺（2026-10-21 CD0 评估修正后新增）
+
+CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SDK/真 E2E）；
+「替代 GHA」收束为四缺口，且互相成环——自托管 runner 同时解 CI token、
+保留管道与 FN0 的 GHA-retain 依赖。
+
+- [ ] T025 [US1] 自托管 runner + 保留管道：backend.yml 增 self-hosted
+      label 变体（机器侧 deploy key 检出私有子模块，摆脱 STUDIO_READ_TOKEN）
+      ——**阻塞：一台 runner 机器**（与 T0.4.2 Linux 腿同一台即可）
+- [ ] T026 [US8] 月度评审提案：修订 FN0 residual 的「production-shaped
+      GHA retain」为「self-hosted retained run 等价可接受」——自认证闭环
+      （草稿随 research.md 补）
+- [ ] T027 [US1] Box 构建日志契约 issue 外发（G0/CD0.8-logs 的上游前置，
+      与 krun/lane PR 同队列；阻塞外发授权）
+- [ ] T028 [US1] CD0.8 webhook/event 触发集成 + P0 收尾（上游 cloud 工
+      作，排 Phase 2 T2.1.1 之前置化评估）
+
 ## Phase D: GA-2 aster 侧支撑（阻塞 D-B + 上游进展）
 
 - [ ] T018 [US8] 保留绿 run 管道（backend.yml 或独立 workflow；私有子
