@@ -82,9 +82,12 @@ US-6 证据修正）
       `~/.a3s/lib` 的 rpath 库，dyld 加载失败被误诊为 VM boot 失败；六格
       实验矩阵定案，补全 `~/.a3s/lib` 后 stock 3.3.0 链对 compose.acl
       两服务 converged。D-D 对 box 路径失效——compose 用的正是 pinned
-      digest。**剩余唯一阻塞 = D-A**，即步骤 4–6 的私有 CA 准入决策。
-      证据：`docs/evidence/development/2026-10-21-krun-t042-rerun-forensics/
-      OUTCOME.md`）
+      digest。**步骤 1 已执行并证明**（建链 201→解析 200→负控 404，
+      human principal + HTTPS issuer 两条 runbook 修订；前置 1 环境半边
+      跑通，含 run_cloud.sh 三处 dev 工具缺口）。**剩余唯一阻塞 = D-A**
+      （步骤 4–6 的私有 CA 准入决策）。证据：
+      `docs/evidence/development/2026-10-21-krun-t042-rerun-forensics/`、
+      `docs/evidence/development/2026-10-21-t042-step1-subject-link/`）
 - [ ] T016 [P] [US4] G0/P0/WEB0 aging 日期回填（上游 PR + 指针提升）
 - [ ] T017 [US5] lane payload 三副本命名对账（上游双 PR → 根副本 +
       gitlink-only 指针提升提交；同套保真回归测试；drift ratchet 保持绿）

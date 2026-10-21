@@ -206,3 +206,21 @@ converged**；repo 构建（vendored 或 fork 插桩库）全程绿，插桩未�
 
 fork 侧：`ad556a3`（sysroot gcc-runtime 链接修复，macOS 交叉 `make` 冷
 启动自证）——fork 首个非插桩修复已合入 main。
+
+## T0.4.2 步骤 1 执行修订 — D-A 材料补充（2026-10-21，证据见
+development/2026-10-21-t042-step1-subject-link/OUTCOME.md）
+
+步骤 1（SubjectLink 建链/解析/负控）已在真实 Cloud api 上执行并证明。
+对 D-A 材料的两点补充：
+
+- issuer 标识符在**域层**已强制有界规范 HTTPS URL（loopback HTTP 422），
+  即 D-A 的 a/b 两案之外还有一个既成事实：本地 a3s-auth 对 Cloud 的
+  issuer 标识符必须是 `https://…`。D-A 若选 a（受管信任锚），issuer
+  标识符与信任链一起落配置；选 b（公共 CA），需可公网解析的测试域名。
+- SubjectLink 的 principalId 须为活跃 human principal（`POST memberships
+  {principalKind:"human"}` 直建）——runbook 步骤 1 的前置修订，随上游
+  runbook 文本更新进 PR 队列。
+
+附带：run_cloud.sh 的 box 路径三处 dev 工具缺口（S3 凭据未导出、
+`host.orb.internal` 端点 host-run 不解析、node-control 端口无避让）已
+在证据中记录，随 lane/AppRelease PR 同队列上报。
