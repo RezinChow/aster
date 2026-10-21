@@ -108,6 +108,19 @@ US-6 证据修正）
       (channel,platform,version) 唯一约束 + 全链 e2e ——**阻塞上游 PR 权**
       （草稿已备 research.md）
 
+## Phase F: a3s-api 缺口收敛（2026-10-21 完成度核查后分类）
+
+8 缺口 → 3 类：**设计关闭**（SMS 本地适配器不建——成员面按 D4/P3 只读投影
+走 Cloud SMS 联邦；About 占位文案待 owner 提供联系方式后一并换）；**上游
+排队**（发现 P4.1、PG 队列 flow/repeat[共享副本三份对账]、继承测试债、
+Redis 启动依赖[Phase 2 T2.5]、AppRelease 治理[T024]）；**本仓可执行**：
+
+- [ ] T029 [US7] 计量环生产者侧：`apps/runtime` 接线生命周期导出——
+      `a3s.gateway.usage-batch.v1` 批次（usage store 记录→批→POST api 摄取
+      端），替换今日的 501 拒绝为真实导出；先设计步（事件源=UsageStore
+      生命周期记录、摄取端契约核对 api usage 上下文），再实现+契约测试
+      （200 仅真实 records 的既有契约保持）
+
 ## Phase E: CI/CD 自替代冲刺（2026-10-21 CD0 评估修正后新增）
 
 CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SDK/真 E2E）；
