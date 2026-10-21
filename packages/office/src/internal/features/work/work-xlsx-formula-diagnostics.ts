@@ -1,8 +1,12 @@
 import type { OoxmlPackage } from './work-ooxml-package';
-import { unsupportedSpreadsheetFormulaFunctions } from './work-spreadsheet-formula-support';
+import {
+  ensureSpreadsheetFormulaSupport,
+  unsupportedSpreadsheetFormulaFunctions,
+} from './work-spreadsheet-formula-support';
 import {
   formulaHasExternalReference,
   formulaHasStructuredReference,
+  spreadsheetFormulaFunctions,
   volatileSpreadsheetFormulaFunctions,
 } from './work-spreadsheet-formulas';
 import type { WorkCompatibilityIssue } from './work-types';
@@ -53,6 +57,11 @@ export async function diagnoseXlsxFormulas(
   const volatileFormulas = formulas.filter(
     (formula) => volatileSpreadsheetFormulaFunctions(formula.formula).length,
   );
+  if (
+    formulas.some((formula) => spreadsheetFormulaFunctions(formula.formula).length)
+  ) {
+    await ensureSpreadsheetFormulaSupport();
+  }
   const unsupportedFunctions = new Set(
     formulas.flatMap((formula) =>
       unsupportedSpreadsheetFormulaFunctions(formula.formula),

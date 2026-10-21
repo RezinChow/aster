@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import textwrap
 import unittest
 
 
@@ -43,6 +44,14 @@ class CodeLauncherTest(unittest.TestCase):
 
 @unittest.skipUnless(os.name == "posix", "Studio entry fixtures use POSIX scripts")
 class StudioLauncherTest(unittest.TestCase):
+    def test_removed_work_builds_are_not_distributed(self):
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(["just", "--summary"], cwd=root, check=True,
+                                capture_output=True, text=True, timeout=5)
+        recipes = result.stdout.split()
+        self.assertNotIn("build-work", recipes)
+        self.assertNotIn("build-work-release", recipes)
+
     def test_default_entrypoints_open_aster_studio_without_legacy_work_process_control(self):
         for recipe in ("studio", "dev", "work"):
             with self.subTest(recipe=recipe), tempfile.TemporaryDirectory(prefix="aster-studio-entry-") as directory:
@@ -68,13 +77,7 @@ class StudioLauncherTest(unittest.TestCase):
         for tenant in ("aster", "toyou"):
             with self.subTest(tenant=tenant), tempfile.TemporaryDirectory(prefix="aster-studio-build-") as directory:
                 root, env, _ = self.fixture(directory)
-                source = Path(__file__).resolve().parents[1] / "apps/studio/scripts/studio_product.py"
-                helper = root / "apps/studio/scripts/studio_product.py"
-                shutil.copy2(source, helper)
-                for name in ("icon.icns", "icon.png", "icon.ico"):
-                    icon = root / "apps/web/public/tenant" / tenant / name
-                    icon.parent.mkdir(parents=True, exist_ok=True)
-                    icon.write_bytes(b"fixture icon")
+                self.product_fixture(root, tenant)
                 cargo = root / "bin/cargo"
                 cargo.write_text('#!/usr/bin/env python3\nimport json,os,sys\nwith open(os.environ["ASTER_CARGO_LOG"],"a") as out: out.write(json.dumps(sys.argv[1:])+"\\n")\n')
                 result = subprocess.run(["just", "build-studio", tenant], cwd=root, env=env, capture_output=True, text=True)
@@ -83,6 +86,29 @@ class StudioLauncherTest(unittest.TestCase):
                 calls = [json.loads(line) for line in (root / "cargo.txt").read_text().splitlines()]
                 self.assertEqual(calls[0], ["build", "--locked", "-p", "a3s-code-acp", "-p", "a3s-office-cli"])
                 self.assertEqual(calls[1], ["build", "--locked", "-p", "a3s-studio", "--no-default-features", "--features", f"tenant-{tenant}"])
+
+    def test_invalid_brand_refuses_before_compiling_either_product(self):
+        for tenant in ("aster", "toyou"):
+            with self.subTest(tenant=tenant), tempfile.TemporaryDirectory(prefix="aster-studio-brand-") as directory:
+                root, env, _ = self.fixture(directory)
+                self.product_fixture(root, tenant)
+                info = root / "apps/web/public/tenant" / tenant / "INFO.md"
+                info.write_text(info.read_text().replace('product: "AsterDream"', 'product: "Wrong"').replace('product: "ToWork"', 'product: "Wrong"'))
+                result = subprocess.run(["just", "build-studio", tenant], cwd=root, env=env,
+                                        capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("brand", result.stderr)
+                self.assertFalse((root / "cargo.txt").exists(), "invalid brand must refuse before a compiler starts")
+
+    def product_fixture(self, root, tenant):
+        source = Path(__file__).resolve().parents[1] / "apps/studio/scripts/studio_product.py"
+        shutil.copy2(source, root / "apps/studio/scripts/studio_product.py")
+        brand = root / "apps/web/public/tenant" / tenant
+        brand.mkdir(parents=True)
+        for name in ("icon.icns", "icon.png", "icon.ico", "logo-light.png", "mark-light.png"):
+            (brand / name).write_bytes(b"fixture icon")
+        product = "AsterDream" if tenant == "aster" else "ToWork"
+        (brand / "INFO.md").write_text(f'---\nname:\n  en: "{product}"\nproduct: "{product}"\nlogos:\n  light_surface: logo-light.png\n---\n')
 
     def test_invalid_tenant_refuses_before_launch(self):
         for slug in ("", " ", "Bad", "../aster"):
@@ -115,6 +141,36 @@ class StudioLauncherTest(unittest.TestCase):
         env.pop("A3S_TENANT_SLUG", None)
         env.pop("STUDIO_RENDERER_DEV", None)
         return root, env, opened
+
+
+@unittest.skipUnless(os.name == "posix", "Build entrypoints use Bash")
+class BuildPreflightTest(unittest.TestCase):
+    def test_ci_refuses_config_errors_before_cargo(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / ".github/workflows/ci.yml").read_text()
+        step = source.split("- name: Build and test desktop product identities\n", 1)[1]
+        body = textwrap.dedent(step.split("run: |\n", 1)[1].split("\n      - name:", 1)[0])
+        self.refuses_before_cargo(body)
+
+    def test_kylin_build_refuses_config_errors_before_cargo(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "apps/studio/scripts/kylin-flatpak/build-host.sh").read_text()
+        body = source.split("bash -euo pipefail -c '\n", 1)[1].rsplit("\n'", 1)[0]
+        self.refuses_before_cargo(body)
+
+    def refuses_before_cargo(self, body):
+        with tempfile.TemporaryDirectory(prefix="aster-build-refusal-") as directory:
+            marker = Path(directory) / "compiler-called"
+            env = dict(os.environ, ASTER_COMPILER_MARKER=str(marker), A3S_TENANT_SLUG="toyou",
+                       STUDIO_RENDERER_DIST="fixture-renderer")
+            runner = '''
+python3() { if [[ "${3:-}" == tauri-config ]]; then return 42; fi; printf 'tenant-%s\\n' "$A3S_TENANT_SLUG"; }
+cargo() { printf called >"$ASTER_COMPILER_MARKER"; return 73; }
+'''
+            result = subprocess.run(["bash", "-euo", "pipefail", "-c", runner + body], env=env,
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 42, result.stderr)
+            self.assertFalse(marker.exists(), "a failed config command must never reach Cargo")
 
 
 if __name__ == "__main__":

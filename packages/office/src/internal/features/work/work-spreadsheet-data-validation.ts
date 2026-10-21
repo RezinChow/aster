@@ -23,6 +23,11 @@ export function normalizeSpreadsheetDataValidationErrorStyle(
     : 'stop';
 }
 
+/** Dependent lists are INDIRECT formulas. Kept here so XLSX import does not load the editor. */
+export function isSpreadsheetDependentListFormula(value: unknown): boolean {
+  return typeof value === 'string' && /^=?\s*INDIRECT\s*\(/iu.test(value.trim());
+}
+
 export function boundedSpreadsheetDataValidationText(
   value: unknown,
   limit: number,

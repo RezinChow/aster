@@ -43,10 +43,7 @@ fn component_table_round_trips_the_closed_set_and_contains_parameter_order() {
 fn generated_renderer_catalogs_and_skill_parameters_match_the_native_source() {
     // Catches the host, renderer, skill and tool description drifting to different argument orders.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    for path in [
-        "packages/intelligent-ui/src/catalog.generated.json",
-        "apps/work/packages/intelligent-ui/src/catalog.generated.json",
-    ] {
+    for path in ["packages/intelligent-ui/src/catalog.generated.json"] {
         let generated: serde_json::Value =
             serde_json::from_slice(&std::fs::read(root.join(path)).unwrap()).unwrap();
         assert_eq!(
@@ -56,6 +53,7 @@ fn generated_renderer_catalogs_and_skill_parameters_match_the_native_source() {
         );
     }
     let skill =
-        std::fs::read_to_string(root.join("apps/work/resources/skills/ask-form/SKILL.md")).unwrap();
+        std::fs::read_to_string(root.join("apps/studio/resources/skills/ask-form/SKILL.md"))
+            .unwrap();
     assert!(skill.contains(&openui_parameter_table().replace("; ", "\n")));
 }

@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn host_text_lands_in_extra_and_keeps_the_budget_line() {
         let delivery_contract =
-            include_str!("../../../../apps/work/src-tauri/src/agent_plane/delivery_contract.md")
+            include_str!("../../../../apps/studio/src-tauri/src/agent_plane/delivery_contract.md")
                 .trim();
         let caller = format!("每次都带上{}", "字".repeat(7995));
         let parsed = meta(serde_json::json!({

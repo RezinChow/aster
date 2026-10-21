@@ -20,7 +20,10 @@ import {
   freezeImportedSpreadsheetCell,
   registerImportedSpreadsheetMatrix,
 } from './work-spreadsheet-matrix-profile';
-import { scanSpreadsheetPackageInWorker } from './work-spreadsheet-package-scan-worker-client';
+import {
+  readPlainXlsxPackage,
+  scanSpreadsheetPackageInWorker,
+} from './work-spreadsheet-package-scan-worker-client';
 import { importedSheetProtectionAuthority } from './work-spreadsheet-protection';
 import {
   spreadsheetExplicitTextOrientationFromCell,
@@ -141,7 +144,10 @@ export async function importWorkSpreadsheetFile(
         },
       )
     : Promise.resolve(null);
-  const packageScanResult = await packageScan;
+  let packageScanResult = await packageScan;
+  if (!packageScanResult && archive && !archive.has('xl/styles.xml')) {
+    packageScanResult = await readPlainXlsxPackage(archive);
+  }
   let usesPlainXlsxFastPath = false;
   const requiresCellStyles = archive
     ? initialRequiresCellStyles ||
@@ -216,7 +222,13 @@ export async function importWorkSpreadsheetFile(
         ).catch(() => null)
       : Promise.resolve(null),
     archive
-      ? inspectXlsxPivotTables(archive).catch(() => null)
+      ? xlsxArchiveMayContainPivots(archive)
+          .then((present) =>
+            present
+              ? inspectXlsxPivotTables(archive)
+              : { tables: [], unsupported: [], detected: 0 },
+          )
+          .catch(() => null)
       : Promise.resolve(null),
   ]).then((features) => {
     recordSpreadsheetImportMeasure(
@@ -594,6 +606,30 @@ function decodeSpreadsheetCell(
   return column <= 16_384 && row <= 1_048_576
     ? { c: column - 1, r: row - 1 }
     : null;
+}
+
+/** Avoid compiling the pivot reader when the package has no pivot or slicer parts. */
+async function xlsxArchiveMayContainPivots(
+  archive: OoxmlPackage,
+): Promise<boolean> {
+  if (
+    archive
+      .paths('xl/')
+      .some((path) => /pivot|slicer/i.test(path))
+  ) {
+    return true;
+  }
+  if (
+    archive.has('xl/workbook.xml') &&
+    (await archive.text('xl/workbook.xml')).includes('pivotCache')
+  ) {
+    return true;
+  }
+  for (const path of archive.paths('xl/worksheets/_rels/')) {
+    if (!path.endsWith('.rels')) continue;
+    if ((await archive.text(path)).includes('pivotTable')) return true;
+  }
+  return false;
 }
 
 async function xlsxPackageRequiresSheetJsCellStyles(

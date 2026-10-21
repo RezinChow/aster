@@ -12,6 +12,9 @@ import {
   type SpreadsheetCellRange,
 } from './spreadsheet-cell-range';
 import { parseSpreadsheetCellRanges } from '../work-spreadsheet-ranges';
+import { isSpreadsheetDependentListFormula } from '../work-spreadsheet-data-validation';
+
+export { isSpreadsheetDependentListFormula };
 
 /** Keep dependent-list parsing synchronous and bounded at the editor boundary. */
 export const MAX_SPREADSHEET_DEPENDENT_LIST_FORMULA_LENGTH = 255;
@@ -40,18 +43,6 @@ export interface SpreadsheetDependentListReferenceResult {
   empty?: boolean;
   displayReference?: string;
   message?: string;
-}
-
-/**
- * Returns true for the deliberately small, local dependent-list grammar.
- *
- * The leading `=` is optional when reading an existing workbook, but authoring
- * always writes it back so a formula cannot be confused with a literal list.
- */
-export function isSpreadsheetDependentListFormula(value: unknown): boolean {
-  return (
-    typeof value === 'string' && /^=?\s*INDIRECT\s*\(/iu.test(value.trim())
-  );
 }
 
 /**

@@ -52,6 +52,7 @@ import {
   descendants,
   directChildren,
   OoxmlPackage,
+  xmlContainsAnyElement,
 } from './work-ooxml-package';
 import type {
   WorkCompatibilityIssue,
@@ -142,6 +143,17 @@ export async function analyzeDocxCompatibility(
       );
     }
     if (archive.has('word/fontTable.xml')) {
+      const fontTableSource = await archive.text('word/fontTable.xml');
+      if (
+        !xmlContainsAnyElement(fontTableSource, [
+          'embedRegular',
+          'embedBold',
+          'embedItalic',
+          'embedBoldItalic',
+        ])
+      ) {
+        // No embedded font payload. Skip the DOM walk.
+      } else {
       const fontTable = await archive.xml('word/fontTable.xml');
       const embeddedFontReferences = [
         'embedRegular',
@@ -161,8 +173,12 @@ export async function analyzeDocxCompatibility(
           ),
         );
       }
+      }
     }
-    if (archive.has('word/comments.xml')) {
+    if (
+      archive.has('word/comments.xml') &&
+      xmlContainsAnyElement(await archive.text('word/comments.xml'), ['comment'])
+    ) {
       const comments = await archive.xml('word/comments.xml');
       const commentDefinitions = descendants(comments, 'comment');
       if (commentDefinitions.length) {
@@ -203,20 +219,54 @@ export async function analyzeDocxCompatibility(
         }
       }
     }
-    issues.push(...(await diagnoseDocxNotes(archive, document)));
-    issues.push(...(await diagnoseDocxEquations(archive, document)));
-    if (document) {
-      issues.push(...(await diagnoseDocxKerning(archive, document)));
-      issues.push(...(await diagnoseDocxOpenTypeTypography(archive, document)));
-      issues.push(...(await diagnoseDocxEmphasisMarks(archive, document)));
-      issues.push(...(await diagnoseDocxHiddenText(archive, document)));
-      issues.push(...(await diagnoseDocxLegacyTextEffects(archive, document)));
-      issues.push(...(await diagnoseDocxRunBorders(archive, document)));
-      issues.push(...(await diagnoseDocxRunShading(archive, document)));
-      issues.push(...(await diagnoseDocxProofing(archive, document)));
-      issues.push(...(await diagnoseDocxRunFonts(archive, document)));
+    const documentSource = document
+      ? await archive.text('word/document.xml')
+      : '';
+    const storySource = await docxDiagnosticStorySource(archive, documentSource);
+    const storyHas = (names: readonly string[]) =>
+      xmlContainsAnyElement(storySource, names);
+    if (await docxArchiveMayContainNotes(archive, documentSource)) {
+      issues.push(...(await diagnoseDocxNotes(archive, document)));
     }
-    issues.push(...(await diagnoseDocxPageChrome(archive)));
+    if (storyHas(['oMath', 'oMathPara'])) {
+      issues.push(...(await diagnoseDocxEquations(archive, document)));
+    }
+    if (document) {
+      if (storyHas(['kern'])) {
+        issues.push(...(await diagnoseDocxKerning(archive, document)));
+      }
+      if (storyHas(['ligatures', 'numForm', 'numSpacing', 'stylisticSets', 'cntxtAlts'])) {
+        issues.push(...(await diagnoseDocxOpenTypeTypography(archive, document)));
+      }
+      if (storyHas(['em'])) {
+        issues.push(...(await diagnoseDocxEmphasisMarks(archive, document)));
+      }
+      if (storyHas(['vanish'])) {
+        issues.push(...(await diagnoseDocxHiddenText(archive, document)));
+      }
+      if (storyHas(['outline', 'shadow', 'emboss', 'imprint'])) {
+        issues.push(...(await diagnoseDocxLegacyTextEffects(archive, document)));
+      }
+      if (storyHas(['bdr'])) {
+        issues.push(...(await diagnoseDocxRunBorders(archive, document)));
+      }
+      if (storyHas(['shd'])) {
+        issues.push(...(await diagnoseDocxRunShading(archive, document)));
+      }
+      if (storyHas(['proofErr', 'noProof', 'lang'])) {
+        issues.push(...(await diagnoseDocxProofing(archive, document)));
+      }
+      if (storyHas(['rFonts'])) {
+        issues.push(...(await diagnoseDocxRunFonts(archive, document)));
+      }
+    }
+    if (
+      archive
+        .paths('word/')
+        .some((path) => /^word\/(?:header|footer)\d*\.xml$/i.test(path))
+    ) {
+      issues.push(...(await diagnoseDocxPageChrome(archive)));
+    }
     if (archive.paths('word/embeddings/').length) {
       issues.push(
         issue(
@@ -229,12 +279,20 @@ export async function analyzeDocxCompatibility(
     if (document) {
       issues.push(...diagnoseDocxPageSize(document));
       issues.push(...(await diagnoseDocxPageMargins(archive, document)));
-      issues.push(...(await diagnoseDocxPageBorders(archive, document)));
-      issues.push(...(await diagnoseDocxParagraphBorders(archive, document)));
-      issues.push(...(await diagnoseDocxParagraphShading(archive, document)));
-      const defaultCollapsedStates = descendants(document, 'pPr')
-        .map(parseDocxParagraphDefaultCollapsed)
-        .filter((state) => state.status !== 'absent');
+      if (storyHas(['pgBorders'])) {
+        issues.push(...(await diagnoseDocxPageBorders(archive, document)));
+      }
+      if (storyHas(['pBdr'])) {
+        issues.push(...(await diagnoseDocxParagraphBorders(archive, document)));
+      }
+      if (storyHas(['shd'])) {
+        issues.push(...(await diagnoseDocxParagraphShading(archive, document)));
+      }
+      const defaultCollapsedStates = storyHas(['pPr'])
+        ? descendants(document, 'pPr')
+            .map(parseDocxParagraphDefaultCollapsed)
+            .filter((state) => state.status !== 'absent')
+        : [];
       if (defaultCollapsedStates.length) {
         const invalid = defaultCollapsedStates.filter(
           (state) => state.status === 'invalid',
@@ -250,7 +308,10 @@ export async function analyzeDocxCompatibility(
           ),
         );
       }
-      if (descendants(document, 'AlternateContent').length) {
+      if (
+        storyHas(['AlternateContent']) &&
+        descendants(document, 'AlternateContent').length
+      ) {
         issues.push(
           issue(
             'docx.markup-compatibility',
@@ -259,12 +320,25 @@ export async function analyzeDocxCompatibility(
           ),
         );
       }
-      issues.push(...(await diagnoseDocxBookmarksAndLinks(archive, document)));
-      issues.push(...(await diagnoseDocxCitations(archive, document)));
-      const captionDiagnostics = diagnoseDocxCaptions(document);
+      if (storyHas(['bookmarkStart', 'bookmarkEnd', 'hyperlink'])) {
+        issues.push(...(await diagnoseDocxBookmarksAndLinks(archive, document)));
+      }
+      if (
+        storyHas(['instrText', 'fldSimple']) ||
+        archive.paths('customXml/').length > 0
+      ) {
+        issues.push(...(await diagnoseDocxCitations(archive, document)));
+      }
+      const captionDiagnostics = storyHas(['instrText', 'fldSimple', 'bookmarkStart'])
+        ? diagnoseDocxCaptions(document)
+        : { issues: [], hasUnsupportedFields: false };
       issues.push(...captionDiagnostics.issues);
-      const textBoxInspection = inspectDocxTextBoxes(document);
-      const connectorInspection = inspectDocxConnectors(document);
+      const textBoxInspection = storyHas(['drawing', 'pict', 'txbx'])
+        ? inspectDocxTextBoxes(document)
+        : { supported: 0, unsupported: 0 };
+      const connectorInspection = storyHas(['pict'])
+        ? inspectDocxConnectors(document)
+        : { detected: 0, connectorPictContainers: 0 };
       if (textBoxInspection.supported) {
         issues.push(
           issue(
@@ -293,7 +367,9 @@ export async function analyzeDocxCompatibility(
           ),
         );
       }
-      const contentControlInspection = inspectDocxContentControls(document);
+      const contentControlInspection = storyHas(['sdt'])
+        ? inspectDocxContentControls(document)
+        : { supported: 0, unsupported: 0 };
       if (contentControlInspection.supported) {
         issues.push(
           issue(
@@ -779,6 +855,63 @@ function report(
     assessedAt: Date.now(),
     issues: deduplicate(issues),
   };
+}
+
+async function docxDiagnosticStorySource(
+  archive: OoxmlPackage,
+  documentSource: string,
+): Promise<string> {
+  const parts = [
+    'word/styles.xml',
+    'word/footnotes.xml',
+    'word/endnotes.xml',
+    'word/comments.xml',
+  ];
+  const extra: string[] = [];
+  for (const path of parts) {
+    if (!archive.has(path)) continue;
+    extra.push(await archive.text(path).catch(() => ''));
+  }
+  return [documentSource, ...extra].join('\n');
+}
+
+async function docxArchiveMayContainNotes(
+  archive: OoxmlPackage,
+  documentSource: string,
+): Promise<boolean> {
+  if (
+    xmlContainsAnyElement(documentSource, [
+      'footnoteReference',
+      'endnoteReference',
+      'footnotePr',
+      'endnotePr',
+    ])
+  ) {
+    return true;
+  }
+  if (
+    archive.has('word/settings.xml') &&
+    xmlContainsAnyElement(await archive.text('word/settings.xml'), [
+      'footnotePr',
+      'endnotePr',
+    ])
+  ) {
+    return true;
+  }
+  for (const path of ['word/footnotes.xml', 'word/endnotes.xml'] as const) {
+    if (!archive.has(path)) continue;
+    if (docxHasNormalNote(await archive.text(path))) return true;
+  }
+  return false;
+}
+
+function docxHasNormalNote(source: string): boolean {
+  const pattern = /<w:(?:footnote|endnote)\b([^>]*)>/g;
+  for (let match = pattern.exec(source); match; match = pattern.exec(source)) {
+    const type = /\bw:type="([^"]*)"/i.exec(match[1] ?? '');
+    if (!type || type[1]?.toLowerCase() === 'normal') return true;
+  }
+  return false;
 }
 
 function issue(

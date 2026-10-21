@@ -1,5 +1,6 @@
 import type { Cell, CellMatrix } from '@fortune-sheet/core';
 import type { WorkBook } from 'xlsx';
+import { OoxmlPackage } from './work-ooxml-package';
 import {
   recordSpreadsheetImportMeasure,
   spreadsheetImportNow,
@@ -19,7 +20,9 @@ import {
   PLAIN_XLSX_COLUMN_BITS,
   PLAIN_XLSX_COLUMN_MASK,
   PLAIN_XLSX_ROW_CHUNK_SIZE,
+  createPlainXlsxWorkbookPlan,
   plainXlsxRangeExtent,
+  streamPlainXlsxWorksheet,
   type PlainXlsxCellChunk,
 } from './work-xlsx-plain-fast-path';
 import { createXlsxDenseWorksheet, xlsxDenseRows } from './work-xlsx-worksheet';
@@ -37,6 +40,123 @@ interface PendingPlainWorksheet {
   populatedCellCount: number | null;
   receivedCellCount: number;
   rowCount: number | null;
+}
+
+const PLAIN_WORKSHEET_SCAN = {
+  hasDirectCellStyles: false,
+  hasDiagnosticFeatures: false,
+  hasFormulaFeatures: false,
+  hasImportedFeatures: false,
+  hasRichTextCells: false,
+  requiresSheetJsCellStyles: false,
+} as const;
+
+/**
+ * Runs the closed-subset worksheet parser on the main thread when no scan
+ * worker is available. A null result leaves SheetJS as the authority.
+ */
+export async function readPlainXlsxPackage(
+  archive: OoxmlPackage,
+): Promise<SpreadsheetPackageScanResult | null> {
+  try {
+    const [contentTypes, rootRelationships, workbookXml, workbookRelationships] =
+      await Promise.all([
+        plainPackagePart(archive, '[Content_Types].xml'),
+        plainPackagePart(archive, '_rels/.rels'),
+        plainPackagePart(archive, 'xl/workbook.xml'),
+        plainPackagePart(archive, 'xl/_rels/workbook.xml.rels'),
+      ]);
+    if (
+      contentTypes === null ||
+      rootRelationships === null ||
+      workbookXml === null ||
+      workbookRelationships === null
+    ) {
+      return null;
+    }
+    const plan = createPlainXlsxWorkbookPlan({
+      contentTypes,
+      packagePaths: archive.paths(''),
+      rootRelationships,
+      workbook: workbookXml,
+      workbookRelationships,
+    });
+    if (!plan) return null;
+    const sheetNames = plan.workbook.SheetNames;
+    const workbook = {
+      ...plan.workbook,
+      Sheets: Object.fromEntries(
+        sheetNames.map((name) => [name, createXlsxDenseWorksheet()]),
+      ),
+    } as WorkBook;
+    const pending: Record<string, PendingPlainWorksheet> = Object.fromEntries(
+      sheetNames.map((name) => [
+        name,
+        {
+          columnCount: null,
+          data: [],
+          expectedColumnCount: null,
+          expectedRowCount: null,
+          lastCoordinate: -1,
+          populatedCellCount: null,
+          receivedCellCount: 0,
+          rowCount: null,
+        },
+      ]),
+    );
+    const worksheets: SpreadsheetPackageScanResult['worksheets'] = {};
+    for (const sheet of plan.sheets) {
+      const source = await archive.text(sheet.partPath);
+      const pendingSheet = pending[sheet.name];
+      const target = workbook.Sheets[sheet.name];
+      if (!pendingSheet || !target) return null;
+      let rejected = false;
+      const parsed = streamPlainXlsxWorksheet(
+        source,
+        (chunk) => {
+          if (!appendPlainXlsxCellChunk(pendingSheet, chunk)) rejected = true;
+        },
+        ({ columnCount, rowCount }) => {
+          if (
+            pendingSheet.expectedColumnCount !== null ||
+            !validPlainWorksheetExtent(columnCount, rowCount)
+          ) {
+            rejected = true;
+            return;
+          }
+          pendingSheet.expectedColumnCount = columnCount;
+          pendingSheet.expectedRowCount = rowCount;
+        },
+      );
+      if (
+        rejected ||
+        !parsed ||
+        pendingSheet.expectedColumnCount !== parsed.columnCount ||
+        pendingSheet.expectedRowCount !== parsed.rowCount
+      ) {
+        return null;
+      }
+      Object.assign(target, parsed.properties);
+      pendingSheet.columnCount = parsed.columnCount;
+      pendingSheet.populatedCellCount = parsed.populatedCellCount;
+      pendingSheet.rowCount = parsed.rowCount;
+      worksheets[sheet.partPath] = PLAIN_WORKSHEET_SCAN;
+    }
+    const plainWorksheets = completePlainWorksheets(workbook, pending);
+    return plainWorksheets
+      ? { plainWorksheets, workbook, worksheets }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function plainPackagePart(
+  archive: OoxmlPackage,
+  partPath: string,
+): Promise<string | null> {
+  if (!archive.has(partPath)) return null;
+  return archive.text(partPath);
 }
 
 /**

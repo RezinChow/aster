@@ -39,6 +39,10 @@
       "types": "./dist/spreadsheet.d.ts",
       "import": "./dist/spreadsheet.js"
     },
+    "./file-import": {
+      "types": "./dist/file-import.d.ts",
+      "import": "./dist/file-import.js"
+    },
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"

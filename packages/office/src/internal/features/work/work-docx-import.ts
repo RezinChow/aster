@@ -20,6 +20,10 @@ import { normalizeDocumentTableOfContentsHtml } from './work-document-table-of-c
 import { serializePreservableDocxSectionPropertyRevision } from './work-document-table-property-revision';
 import { readDocxBibliography } from './work-docx-bibliography';
 import {
+  docxDefaultStylesAffectParagraphs,
+  plainDocxParagraphHtml,
+} from './work-docx-plain-html';
+import {
   applyImportedDocxBlockContentControlMarkers,
   hasImportedDocxBlockContentControlMarkers,
   type ImportedDocxBlockContentControlMarkers,
@@ -318,12 +322,103 @@ const WORD_NAMESPACE =
   'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
 
+async function preparePlainParagraphDocx(
+  buffer: ArrayBuffer,
+  archive: OoxmlPackage,
+  document: Document,
+  pageColor: string | undefined,
+  fallback: WorkDocumentSectionLayout,
+  bibliography: PreparedDocxImport['bibliography'],
+): Promise<PreparedDocxImport> {
+  const settings = archive.has('word/settings.xml')
+    ? await archive.xml('word/settings.xml')
+    : null;
+  const pageMarginSettings = inspectDocxPageMarginSettings(settings);
+  const theme = createDocxThemeResolver(null, settings);
+  const sectionElements = effectiveSectionProperties(document);
+  const relationships = await archive.relationships('word/document.xml');
+  const oddEvenPageChrome = documentUsesOddEvenPageChrome(settings);
+  const sections: PreparedDocxImport['sections'] = [];
+  let previous = fallback;
+  if (!sectionElements.length) {
+    sections.push({ id: 'document-section-1', layout: fallback });
+  } else {
+    for (const [index, element] of sectionElements.entries()) {
+      const layout = await parseSectionLayout(
+        element,
+        archive,
+        relationships,
+        previous,
+        oddEvenPageChrome,
+        theme,
+        pageMarginSettings,
+      );
+      sections.push({ id: `document-section-${index + 1}`, layout });
+      previous = layout;
+    }
+  }
+  return {
+    conversionBuffer: buffer,
+    sections,
+    pageColor,
+    captionMarkers: { captions: [], references: [] },
+    bookmarkMarkers: { bookmarks: [], references: [] },
+    changeMarkers: { changes: [] },
+    commentMarkers: { comments: [], ranges: [] },
+    fieldMarkers: { fields: [] },
+    tableOfContentsMarkers: { tables: [] },
+    indexMarkers: { entries: [], indexes: [] },
+    equationMarkers: { equations: [] },
+    citationMarkers: { citations: [], bibliographies: [] },
+    listMarkers: { lists: [] },
+    numberingChangeMarkers: { groups: [] },
+    imageLayoutMarkers: { images: [] },
+    textBoxMarkers: { textBoxes: [] },
+    connectorMarkers: { connectors: [] },
+    contentControlMarkers: { controls: [], unsupported: 0 },
+    blockContentControlMarkers: { controls: [], unsupported: 0 },
+    repeatingSectionMarkers: { sections: [], unsupported: 0 },
+    paragraphIdentityMarkers: { paragraphs: [] },
+    paragraphFormattingChangeMarkers: { paragraphs: [] },
+    paragraphMarkChangeMarkers: { paragraphs: [] },
+    paragraphBreakChangeMarkers: { paragraphs: [] },
+    paragraphAlignmentMarkers: { paragraphs: [] },
+    paragraphDirectionMarkers: { paragraphs: [] },
+    paragraphIndentMarkers: { paragraphs: [] },
+    paragraphPaginationMarkers: { paragraphs: [] },
+    paragraphBorderMarkers: {
+      paragraphs: [],
+      invalidCount: 0,
+      spoofedCount: 0,
+    },
+    paragraphShadingMarkers: {
+      paragraphs: [],
+      invalidCount: 0,
+      spoofedCount: 0,
+    },
+    paragraphSpacingMarkers: { paragraphs: [] },
+    runFormattingMarkers: { runs: [] },
+    tabStopMarkers: { paragraphs: [], inlineTabs: [] },
+    tableCellMarkers: { cells: [] },
+    tableRowMarkers: { rows: [] },
+    tableSizingMarkers: { tables: [] },
+    bibliography,
+    trackChanges: Boolean(
+      settings && firstDescendant(settings, 'trackRevisions'),
+    ),
+  };
+}
+
 export async function prepareDocxImport(
   buffer: ArrayBuffer,
   sourcePackage?: OoxmlPackage,
 ): Promise<PreparedDocxImport> {
   const archive = sourcePackage ?? (await OoxmlPackage.load(buffer));
-  const bibliography = (await readDocxBibliography(archive)).bibliography;
+  const bibliography = archive
+    .paths('customXml/')
+    .some((path) => /^customXml\/item(?!Props)[^/]*\.xml$/i.test(path))
+    ? (await readDocxBibliography(archive)).bibliography
+    : undefined;
   const fallback = documentInitialSectionLayout({
     type: 'document',
     html: '<p></p>',
@@ -381,6 +476,26 @@ export async function prepareDocxImport(
 
   const document = await archive.xml('word/document.xml');
   const pageColor = importDocxPageColor(document);
+  const documentSource = await archive.text('word/document.xml');
+  const stylesSource = archive.has('word/styles.xml')
+    ? await archive.text('word/styles.xml')
+    : '';
+  // A plain paragraph body does not use the marker readers. Returning before
+  // those calls keeps their function bodies from compiling on this open.
+  if (
+    plainDocxParagraphHtml(documentSource) &&
+    !docxDefaultStylesAffectParagraphs(stylesSource) &&
+    effectiveSectionProperties(document).length <= 1
+  ) {
+    return preparePlainParagraphDocx(
+      buffer,
+      archive,
+      document,
+      pageColor,
+      fallback,
+      bibliography,
+    );
+  }
   const documentRelationships = (
     await archive.relationships('word/document.xml')
   ).values();

@@ -18,13 +18,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Check out pinned desktop sources
+        uses: ./.github/actions/checkout-studio
+        with:
+          token: ${{ secrets.STUDIO_READ_TOKEN }}
       - name: Install Linux build tools
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler cmake pkg-config libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
       - name: Install macOS build tools
         if: runner.os == 'macOS'
         run: brew install protobuf just
-      - name: Work launcher
+      - name: Desktop launcher
         if: runner.os == 'macOS'
         run: python3 tests/just_work.py
       - name: Install pinned toolchain
@@ -35,13 +39,12 @@ jobs:
         run: python3 tests/workspace_dependencies.py
       - name: CLI pair delivery
         run: python3 tests/cli_pair_delivery.py
-      - name: Desktop updater release boundary
-        run: python3 tests/desktop_update.py
       - name: Kylin input method launcher
         run: |
           python3 tests/kylin_input_method.py
-          python3 tests/kylin_onefile.py
-          bash apps/work/scripts/kylin-flatpak/install-on-kylin.sh --self-test
+          python3 apps/studio/scripts/kylin-flatpak/test_delivery.py
+      - name: Desktop package generation contracts
+        run: python3 -m unittest apps/studio/scripts/tests/studio_delivery_test.py apps/studio/scripts/tests/studio_product_test.py
       - name: Shared-crate drift ratchet
         # Visibly skipped when the private submodules are not checked out;
         # enforces everywhere they are (self-hosted, credentialed runners).
@@ -54,15 +57,24 @@ jobs:
       - name: Build product and companion
         run: |
           cargo build --locked -p aster -p a3s-code-acp -p a3s-office-cli
-          cargo build --locked -p a3s-studio
+      - name: Build and test desktop product identities
+        run: |
+          for tenant in aster toyou; do
+            export A3S_TENANT_SLUG="$tenant"
+            TAURI_CONFIG="$(python3 apps/studio/scripts/studio_product.py "$tenant" tauri-config)"
+            export TAURI_CONFIG
+            feature="$(python3 apps/studio/scripts/studio_product.py "$tenant" feature)"
+            cargo build --locked -p a3s-studio --no-default-features --features "$feature"
+            cargo test --locked -p a3s-studio --lib --no-default-features --features "$feature" tenant:: -- --test-threads=1
+            cargo test --locked -p a3s-studio --lib --no-default-features --features "$feature" app_updater:: -- --test-threads=1
+            cargo test --locked -p a3s-studio --lib --no-default-features --features "$feature" bundled_skills:: -- --test-threads=1
+          done
       - name: Product and runtime tests
         run: cargo test --locked -p aster -p a3s-acl -p a3s-effect
       - name: Studio native contracts
         run: cargo test --locked -p a3s-studio-data-sqlite -p a3s-studio-desktop-contract
       - name: ACP integration
         run: cargo test --locked -p a3s-code-acp --test v912_seam
-      - name: Work native artifact delivery through ACP
-        run: |
       - name: Logo cache and rendering
         run: cargo test --locked -p a3s-code-pager --lib views::welcome
       - name: Current memory-retention contracts
@@ -71,25 +83,26 @@ jobs:
         if: runner.os == 'macOS'
         run: cargo test --locked -p a3s-code-core --lib sandbox::native::lifetime_tests
 
-  work-frontend:
+  desktop-frontend:
     strategy:
       fail-fast: false
       matrix:
-        app: [work, studio]
+        tenant: [aster, toyou]
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/${{ matrix.app }}
+        working-directory: apps/studio
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Check out pinned desktop sources
+        uses: ./.github/actions/checkout-studio
+        with:
+          token: ${{ secrets.STUDIO_READ_TOKEN }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24.12.0"
       - run: npm install --global pnpm@12.6.0
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck:web
-        if: matrix.app == 'work'
-      - run: STUDIO_RENDERER_DIST=.studio-package pnpm exec rsbuild build
+      - run: A3S_TENANT_SLUG=${{ matrix.tenant }} STUDIO_RENDERER_DIST=.studio-package pnpm exec rsbuild build
       - name: Studio launcher contracts
-        if: matrix.app == 'studio'
         run: pnpm exec vitest run --project scripts scripts/__tests__/studioDev.test.ts scripts/__tests__/check-dependency-lockstep.test.ts

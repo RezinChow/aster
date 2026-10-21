@@ -14,7 +14,7 @@ of the path it edits. Crate identifiers that start with `a3s-` remain.
 
 ### Product regime
 
-Paths: `apps/aster`, `apps/work`, `apps/desktop`, `crates/code`,
+Paths: `apps/aster`, `apps/studio`, `crates/code`,
 `crates/terminal`.
 
 Obligations: a small hermetic test for new behavior; Tauri commands
@@ -167,6 +167,10 @@ repository, a GitHub project, or a sibling checkout beside `aster`
 for a library, product, or tool. Rust libraries go under `crates/`,
 applications under `apps/`, and TypeScript or React libraries under
 `packages/`. A second checkout of this repository is a git worktree.
+The user-authorized desktop source boundary is the private submodule at
+`apps/studio` (`git@github.com:kense-labs/studio.git`, `main`). It remains in
+the root Rust workspace and uses the root lockfile; the parent tracks only
+its gitlink, never desktop source files.
 **NON-NEGOTIABLE.**
 
 ### XIV. Names Are Not Guessed

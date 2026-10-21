@@ -1,47 +1,44 @@
-<a id="feature-specification-asterdream-as-desktops-default-tenant"></a>
-
 # Feature Specification: Default AsterDream desktop product
 
 **Created**: 2026-10-21
-**Status**: Specified; implementation in progress
-**Input**: Merge AsterDream into `apps/desktop` as the default tenant, retain its name/logo/theme, and retain the original desktop product under `legacy`.
-**Clarification**: The user explicitly chose functionality and branding only. Old AsterDream data remains unchanged; no history, credentials, preferences or sessions are imported.
+**Status**: Implementation and acceptance in progress
+**Input**: 将 AsterDream 功能和品牌合并到 `apps/studio`，默认保留 AsterDream；原组织产品使用 `toyou` 租户。
+**Clarification**: 仅合并功能和品牌。旧 AsterDream 数据、会话、凭据和偏好保持原样，不执行导入。
 
-## Product contract
+## 产品合同
 
-AsterDream is the shared desktop host. Its default tenant is `aster`, product **AsterDream**, with the existing Work blue/silver theme, transparent star/orbit logo and desktop icon. Explicit `legacy` remains **legacy**, retaining its current identity and appearance. Product names do not decide runtime capabilities.
-
-| Tenant | Product | Host binary | Desktop bundle/app ID | Data ownership |
+| 构建租户 | 产品标识 | 原生程序 | Bundle / App ID | 数据归属 |
 | --- | --- | --- | --- | --- |
-| aster | AsterDream | `Desktop` | dev.a3s.desktop.aster | New AsterDream-owned profile; never the legacy Work profile |
-| legacy | 通友租户 | `Desktop` | dev.a3s.desktop | Existing legacy profile and instance compatibility |
+| `aster` | `AsterDream` | `Studio` | `dev.a3s.studio.aster` | 新的本地产品配置；不读取旧 Work 数据 |
+| `toyou` | `ToWork` | `Studio` | `dev.a3s.studio` | 保留组织产品的现有配置和实例兼容 |
 
-The shared host package version remains 2.1.3. Legacy AsterDream 0.1.x is not silently upgraded into this new product generation. Installed identity and an explicitly supplied launch tenant must agree. Development entry points select `aster`; invalid/empty explicit tenants refuse rather than falling back.
+共享宿主版本为 2.1.3。旧 AsterDream 0.1.x 不自动转换为新宿主。安装身份必须与显式启动租户一致；错误、空值或不支持的身份必须拒绝。技术标识是构建和运行合同，不随文档用语清理而重命名。
 
-## Scenarios and requirements
+## 需求
 
-- **FR-001**: Default `just dev`, `just dev`, and `just work` start AsterDream. Explicit `just dev` retains the original product. No launcher kills legacy AsterDream processes.
-- **FR-002**: Loader, home, login, conversation/avatar, settings/about, window, Dock and packaged icons display the selected brand. Aster blue/silver light/dark defaults preserve user theme overrides; legacy remains visually unchanged.
-- **FR-003**: Both products retain AsterDream's own workspace, focus/timer, composer and runtime behavior, including spec 003 planning, goals, approvals, model persistence and IME repairs. Exact tenant capabilities replace display-name-dependent behavior without changing existing declared fixture behavior.
-- **FR-004**: Every native store, WebView, lock and runtime-discovery path isolates Aster's new profile from legacy Work and from legacy. Synthetic sentinels prove old credentials and preferences are not read or rewritten. No user profile is inspected during development.
-- **FR-005**: Build, sealing, signature checks, archive validation and Linux packaging use the same declared tenant/product/ID contract. Missing resources, wrong tenant, wrong ID and mixed generations refuse. ACP and Office remain root-workspace companions.
-- **FR-006**: Update detection/download/install must not cross products. Legacy's current server contract remains compatible; Aster must not consume that unscoped release as an Aster release. An unpublished product feed reports unavailable/not published truthfully and never offers or installs the other product. Live publishing/feed mutation is outside this request.
-- **FR-007**: Product configuration remains ACL, trust boundaries remain in force, and no name/intent is guessed. Organization eligibility must not be weakened to retain a branding change. The `aster` build retains local/BYOK models with optional organization login; the `legacy` build retains managed organization admission. Local identity never grants organization access.
-- **FR-008**: Hermetic before/after tests, actual renderer/host builds, two-tenant native GUI verification and independent review support the final outcome. Old fixture/package results do not qualify a new tenant or changed bytes.
+- **FR-001**: `just studio`、`just dev`、`just work` 默认启动 AsterDream；`just studio toyou` 启动组织产品。不终止旧应用进程。
+- **FR-002**: 启动、首页、登录、消息头像、关于页、窗口和安装包使用选定品牌。Aster 保留蓝银主题与星轨 logo；用户自定义主题继续生效。组织产品保持原有外观。
+- **FR-003**: 共享宿主保留规划、目标、进度、审批、模型持久化、输入法和工作区等既有修复。产品能力由明确构建选择决定，不能从展示名称推断。
+- **FR-004**: Aster 使用独立的 store、WebView、锁与 runtime 命名空间。合成哨兵证明旧 Work 数据和另一租户数据不被读取或覆盖；开发不检查用户配置。
+- **FR-005**: 编译、封装、签名、归档验证及 Linux 打包使用相同租户/产品/ID 合同。缺资源、错误产品、错误 ID、混合代际均拒绝。ACP 与 Office 来自根工作区。
+- **FR-006**: 检测、下载、安装和缓存不跨产品。组织产品保留现有更新源合同；Aster 新产品源未发布时明确返回未发布，不查询组织产品旧源。在线发布不在本次范围内。
+- **FR-007**: 配置使用 ACL，保留权限与信任边界。Aster 支持不登录组织的本地/BYOK 模型；本地构建不提供登录、用户信息或成员/组织查询。组织产品保留真实成员准入；本地身份不授予组织权限。
+- **FR-008**: 使用拥有者的 before/after 小测试、实际前端与原生构建、两个产品真实窗口和独立审查验收。旧包或旧字节的结果不能冒称验证新产物。
+- **FR-009**: 原生 `tenant-aster` / `tenant-toyou` feature 互斥；前端静态构建选择裁剪不可用功能。启动后不能用环境变量切换为另一产品。
+- **FR-010**: 状态有文字、图标与语义颜色：进行中橙色、完成绿色、失败红色、待处理灰色。规划开关的滑块可见，支持指针、键盘、禁用和输入法状态。
+- **FR-011**: 清理现行产品与内部设计说明中的旧产品用语；保留许可证、历史证据、第三方名称和准确技术标识。
+- **FR-012**: 同一助手回合内的成功规划更新复用一张稳定任务卡。失败输出不覆盖已接受进度；明确空计划清除投影。全部完成后默认折叠为可展开摘要，保留文本、工具历史和不同计划修订。
+- **FR-013**: 使用 `A3S_TENANT_SLUG=aster` 构建时保留原本地版本的功能设计、导航、本地模型设置与项目流程；`A3S_TENANT_SLUG=toyou` 保留组织托管界面。默认 `aster`。两者共享规划与执行能力，但不把组织入口补进本地版，也不新增原本没有的多智能体设计。
 
-- **FR-009**: Cargo/frontend build selection enables the selected product logic. Features are mutually exclusive; a running product cannot switch to another tenant or enable its unavailable provider logic. Build and installed identities must agree.
-- **FR-010**: Task statuses use distinct semantic foreground colors with text/icons in light/dark themes; the planning switch has a visible thumb and correct pointer, keyboard, disabled and IME behavior.
-- **FR-012**: Within one assistant turn, accepted plan updates replace a single stable progress card. Failed outputs do not replace accepted progress; completed plans default to a compact expandable summary; text/tool history and distinct plan revisions remain available.
+## 关系与边界
 
-- **FR-011**: Current product documentation and internal design prose use AsterDream/tenant names. Technical identifiers, licensing and historical evidence retain their original meaning.
+本请求替代 spec 003 中两个桌面应用继续分立的假设；其中规划、目标、审批、输入法及交付行为仍需验收。`apps/work` 在必需代码迁入现有共享包且依赖闭包验证后移除；保留来源和许可，不迁移旧用户数据。
 
-## Scope relationship
+## 成功条件
 
-This request explicitly replaces spec 003's assumption that Work and AsterDream remain separate desktop applications. Spec 003's behavior and verification obligations remain active inside the shared host. `apps/work` is retained as legacy source/provenance and for the Office kernel/vendor build dependency; removing it or migrating its data is not part of this change.
+1. 两种环境变量构建都使用正确品牌、能力和独立数据；默认 AsterDream。
+2. 新行为的拥有者测试通过，相关既有回归保留。
+3. 真实原生窗口验证两个品牌、模型对话、本地规划、审批和进度展示；目标协议另有真实 ACP 验证。
+4. 证据记录准确源代码和包代际、执行命令及平台限制。未获授权的提交、推送或发布不包含在内。
 
-## Success criteria
-
-1. Both selected tenant builds have correct names, assets, identities and isolated data; the default is AsterDream.
-2. All new owning tests pass and the existing alignment regressions remain covered.
-3. Real native GUI evidence covers both brands plus send/reply and the spec 003 planning/approval/goal flows on the shared host.
-4. Evidence records the exact source/package generations, all commands and material platform/feed limitations. No commit, push, release publication or user-data migration is implied.
+- **FR-014**: 本地构建移除登录页面、用户信息展示及相关查询；组织构建不受影响。必要 Office/资源/fixture 先迁移到根工作区已有包，构建与测试不再依赖旧目录后再移除 `apps/work`。保留来源与许可证，不复制用户配置或凭据。安装包必须包含内置技能及其引用文件，脱离构建机源码仍能加载；构建和更新校验拒绝缺失或符号链接资源。

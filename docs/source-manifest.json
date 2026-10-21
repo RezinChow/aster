@@ -1209,13 +1209,20 @@
     "file_receipt": "docs/evidence/desktop/2026-10-21-work-alignment/tenant-restored-source.json"
   },
   "default_aster_host_unification_20261021": {
-    "host": "apps/desktop",
+    "host": "apps/studio",
     "default_tenant": "aster",
-    "organization_tenant": "legacy",
+    "organization_tenant": "toyou",
     "asset_source": "apps/work/logo.svg and apps/work/build/app-icon.svg",
     "asset_receipt": "docs/evidence/desktop/2026-10-21-default-aster/brand-canonical-sources.json",
     "legacy_user_data_imported": false,
     "upstream_readme_archive": "docs/provenance/desktop-upstream-readme.md",
-    "spec": "specs/004-desktop-default-aster/spec.md"
+    "spec": "specs/004-desktop-default-aster/spec.md",
+    "account_policy": {
+      "aster": "local-only; no login, member profile or organization relay",
+      "toyou": "existing managed login and organization flow retained"
+    },
+    "retired_source_revision": "d02674726be5267e38d579d775444cab21483078",
+    "retirement_receipt": "docs/evidence/desktop/2026-10-21-default-aster/work-retirement.json",
+    "office_relocation_receipt": "docs/evidence/desktop/2026-10-21-default-aster/office-relocation-source.json"
   }
 }

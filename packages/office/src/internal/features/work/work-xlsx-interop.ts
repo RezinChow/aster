@@ -19,9 +19,9 @@ import {
   SPREADSHEET_DATA_VALIDATION_ERROR_LIMIT,
   SPREADSHEET_DATA_VALIDATION_HINT_LIMIT,
   SPREADSHEET_DATA_VALIDATION_TITLE_LIMIT,
+  isSpreadsheetDependentListFormula,
   spreadsheetDateValidationFormula,
 } from './work-spreadsheet-data-validation';
-import { isSpreadsheetDependentListFormula } from './editors/spreadsheet-data-validation-list';
 import type {
   WorkSpreadsheetContent,
   WorkSpreadsheetDataValidationItem,
@@ -136,9 +136,15 @@ export async function readXlsxSheetFeaturesFromPackage(
   const styles = archive.has('xl/styles.xml')
     ? await archive.xml('xl/styles.xml')
     : null;
-  const theme = archive.has('xl/theme/theme1.xml')
-    ? await archive.xml('xl/theme/theme1.xml')
-    : null;
+  // Theme XML is only needed when a cell style or rich-text run resolves a theme color.
+  let themeDocument: Document | null | undefined;
+  const loadTheme = async () => {
+    if (themeDocument !== undefined) return themeDocument;
+    themeDocument = archive.has('xl/theme/theme1.xml')
+      ? await archive.xml('xl/theme/theme1.xml')
+      : null;
+    return themeDocument;
+  };
   const sharedStringsSource = archive.has('xl/sharedStrings.xml')
     ? await archive.text('xl/sharedStrings.xml')
     : null;
@@ -146,12 +152,18 @@ export async function readXlsxSheetFeaturesFromPackage(
     sharedStringsSource && xmlContainsAnyElement(sharedStringsSource, ['r'])
       ? parseXml(sharedStringsSource, 'xl/sharedStrings.xml')
       : null;
-  const richText = createXlsxRichTextReadContext({
-    sharedStrings,
-    styles,
-    theme,
-  });
-  const differentialFormats = readXlsxDifferentialFormats(styles);
+  // Compiling the rich-text reader is wasted when the package has no rich text.
+  let richTextContext: ReturnType<typeof createXlsxRichTextReadContext> | undefined;
+  const richText = async () =>
+    (richTextContext ??= createXlsxRichTextReadContext({
+      sharedStrings,
+      styles,
+      theme: await loadTheme(),
+    }));
+  const sharedStringsMayBeRich = sharedStrings !== null;
+  let differentialFormats: ReturnType<typeof readXlsxDifferentialFormats> | undefined;
+  const readDifferentialFormats = () =>
+    (differentialFormats ??= readXlsxDifferentialFormats(styles));
   const features = new Map<string, XlsxSheetFeatures>();
   const imageBudget = { bytes: 0 };
   for (const [sheetName, partPath] of worksheetParts) {
@@ -162,7 +174,7 @@ export async function readXlsxSheetFeaturesFromPackage(
       !scan.hasImportedFeatures &&
       !scan.hasDirectCellStyles &&
       !scan.hasRichTextCells &&
-      !richText.hasRichSharedStrings
+      !sharedStringsMayBeRich
     ) {
       features.set(sheetName, emptyXlsxSheetFeatures());
       continue;
@@ -170,7 +182,7 @@ export async function readXlsxSheetFeaturesFromPackage(
     const source = await archive.text(partPath);
     const detected = scan ?? scanXlsxWorksheetXml(source);
     const mayReferenceRichSharedString =
-      richText.hasRichSharedStrings &&
+      sharedStringsMayBeRich &&
       xlsxWorksheetMayReferenceSharedStrings(source);
     if (
       !detected.hasImportedFeatures &&
@@ -182,27 +194,68 @@ export async function readXlsxSheetFeaturesFromPackage(
       continue;
     }
     const document = parseXml(source, partPath);
+    // Calling these readers compiles their bodies. Skip that when the worksheet
+    // has no markup for them to read.
+    const hasDrawing = xmlContainsAnyElement(source, ['drawing']);
+    const hasTableParts = xmlContainsAnyElement(source, ['tableParts']);
+    const hasConditionalFormats = xmlContainsAnyElement(source, [
+      'conditionalFormatting',
+    ]);
+    const needsDirectCellStyles = detected.hasDirectCellStyles;
+    const needsRichText =
+      detected.hasRichTextCells || mayReferenceRichSharedString;
+    const theme =
+      needsDirectCellStyles || needsRichText ? await loadTheme() : null;
     features.set(sheetName, {
-      autoFilterCriteria: readWorksheetAutoFilterCriteria(document),
-      directCellStyles: readXlsxDirectCellStyles(document, styles, theme),
-      frozen: parseFrozenPane(document) ?? undefined,
-      validations: parseDataValidations(document, uses1904DateSystem),
-      conditionalFormats: readXlsxConditionalFormats(
-        document,
-        differentialFormats,
-      ),
-      protection: readXlsxProtection(document, styles),
-      pageBreaks: readXlsxManualPageBreaks(document),
-      pageSetup: readXlsxPageSetup(document),
-      images: await readXlsxWorksheetImages(
-        archive,
-        partPath,
-        document,
-        imageBudget,
-      ),
-      charts: await readXlsxWorksheetCharts(archive, partPath, document),
-      tables: await readXlsxWorksheetTables(archive, partPath),
-      richTextCells: readXlsxRichTextCells(document, richText),
+      autoFilterCriteria: xmlContainsAnyElement(source, ['autoFilter'])
+        ? readWorksheetAutoFilterCriteria(document)
+        : [],
+      directCellStyles: needsDirectCellStyles
+        ? readXlsxDirectCellStyles(document, styles, theme)
+        : [],
+      frozen: xmlContainsAnyElement(source, ['pane'])
+        ? (parseFrozenPane(document) ?? undefined)
+        : undefined,
+      validations: xmlContainsAnyElement(source, ['dataValidations'])
+        ? parseDataValidations(document, uses1904DateSystem)
+        : [],
+      conditionalFormats: hasConditionalFormats
+        ? readXlsxConditionalFormats(document, readDifferentialFormats())
+        : [],
+      protection:
+        xmlContainsAnyElement(source, ['sheetProtection', 'protectedRanges']) ||
+        needsDirectCellStyles
+          ? readXlsxProtection(document, styles)
+          : { cellProtectionRanges: [] },
+      pageBreaks: xmlContainsAnyElement(source, ['rowBreaks', 'colBreaks'])
+        ? readXlsxManualPageBreaks(document)
+        : { rows: [], columns: [] },
+      pageSetup: xmlContainsAnyElement(source, [
+        'pageSetup',
+        'pageMargins',
+        'printOptions',
+        'headerFooter',
+        'pageSetUpPr',
+      ])
+        ? readXlsxPageSetup(document)
+        : undefined,
+      images: hasDrawing
+        ? await readXlsxWorksheetImages(
+            archive,
+            partPath,
+            document,
+            imageBudget,
+          )
+        : [],
+      charts: hasDrawing
+        ? await readXlsxWorksheetCharts(archive, partPath, document)
+        : [],
+      tables: hasTableParts
+        ? await readXlsxWorksheetTables(archive, partPath)
+        : [],
+      richTextCells: needsRichText
+        ? readXlsxRichTextCells(document, await richText())
+        : [],
     });
   }
   return features;

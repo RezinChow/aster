@@ -1,0 +1,31 @@
+name: Check out private desktop sources
+description: Check out the desktop revision pinned by the parent gitlink.
+inputs:
+  token:
+    description: Read-only token for kense-labs/studio.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Require private repository access
+      shell: bash
+      env:
+        STUDIO_READ_TOKEN: ${{ inputs.token }}
+      run: |
+        if [[ -z "$STUDIO_READ_TOKEN" ]]; then
+          echo '::error::Configure STUDIO_READ_TOKEN with read access to kense-labs/studio.'
+          exit 1
+        fi
+    - name: Resolve pinned revision
+      id: revision
+      shell: bash
+      run: |
+        test "$(git ls-tree HEAD apps/studio | cut -d ' ' -f 1)" = 160000
+        echo "sha=$(git rev-parse HEAD:apps/studio)" >> "$GITHUB_OUTPUT"
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: kense-labs/studio
+        ref: ${{ steps.revision.outputs.sha }}
+        path: apps/studio
+        token: ${{ inputs.token }}
+        persist-credentials: false

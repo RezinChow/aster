@@ -1,4 +1,4 @@
-# Desktop input and fast-completion alignment
+# Studio input and fast-completion alignment
 
 2026-10-21. Implements T002 / FR002–003 and preserves FR010. The renderer changes are ready for integration; native GUI and packaging acceptance remain separate gates.
 
@@ -12,22 +12,22 @@
 | Approval, custom-answer, variable and QuickPanel shortcuts fired during composition | Approval identity/session guards, custom-answer lifecycle guards, legacy 229 handling and QuickPanel capture-phase tracking cover Enter/Escape/Tab/arrows. Tests also use ordinary keys after the session ends. |
 | Variable editing retained a stale composition session after close, token switch or blur | Reset the ref at those ownership transitions. Three public-prop/DOM cases fail before the extra repair and pass after it; no new global tracker is introduced. |
 | SWR discarded a terminal history fetch overlapped by optimistic or duplicate reservation writes | Keep the optimistic mutation, then start a nonblocking revalidation with an observed error path. Guard before mutation and after its await with the committed session owner, preventing stale callbacks from writing/revalidating another key. Eight real SWR/controller/handoff cases cover both orderings, duplicate acknowledgement, session changes, suspended selection and failed background reads. |
-| A newly allocated static extension list needlessly changed downstream identity | Return the existing complete static list. Actual callers only read it. The real Desktop no-model provider/runtime test stays usable and sends with both existing topContent and dockContent. |
+| A newly allocated static extension list needlessly changed downstream identity | Return the existing complete static list. Actual callers only read it. The real Studio no-model provider/runtime test stays usable and sends with both existing topContent and dockContent. |
 
-Desktop's no-model home currently does **not** mount Work's AttachmentToolRuntime chain. Its lifecycle test was green before this change. Work's previously observed React 185 loop is not claimed as reproduced in Desktop, and no attachment runtime was added to manufacture that failure.
+Studio's no-model home currently does **not** mount Work's AttachmentToolRuntime chain. Its lifecycle test was green before this change. Work's previously observed React 185 loop is not claimed as reproduced in Studio, and no attachment runtime was added to manufacture that failure.
 
-`topContent` was already supported inside the frame before the editor. Its public API/layout did not need a new patch. Desktop's `composerQuickPanelReady` timeout, deferred focus intent, dockContent and send-repeat protection remain in place.
+`topContent` was already supported inside the frame before the editor. Its public API/layout did not need a new patch. Studio's `composerQuickPanelReady` timeout, deferred focus intent, dockContent and send-repeat protection remain in place.
 
 ## Evidence and counts
 
-- [Initial before](ime-before.log): eight suites, 29 failures / four passes / 188 skipped. Some initial history failures reached Desktop's separate live-to-terminal observation policy first.
+- [Initial before](ime-before.log): eight suites, 29 failures / four passes / 188 skipped. Some initial history failures reached Studio's separate live-to-terminal observation policy first.
 - [Isolated handoff/lifecycle before](ime-handoff-lifecycle-before.log): seed actual streaming status to isolate the reservation race; four handoff cases fail on missing final body, duplicate overlap, stale-session mutation and absent background read. The actual no-model lifecycle remains green.
 - [Plugin-chain before](ime-plugin-before.log): all four IME/native-229 cases fail through the actual ProseMirror chain.
 - [Additional variable lifecycle before](ime-variable-lifecycle-before.log): all three ownership transitions fail before ref cleanup.
 - [First after](ime-after.log): ten suites / 395 passes, before adding the three ownership cases and neighboring suites.
 - **[Final owning and neighboring run](ime-final-regression.log): 13 suites / 429 tests passed.** This supersedes earlier overlapping counts; they are not added together.
 
-Final command: from `apps/desktop`, `bun x --no-install vitest run --project renderer --maxWorkers 1` with the ten changed test paths in [source receipt](ime-source-receipt.json), plus `useAgentSessionParts.test.ts`, `useConversationTurnController.test.tsx` and `useComposerFileCapabilities.test.ts`.
+Final command: from `apps/studio`, `bun x --no-install vitest run --project renderer --maxWorkers 1` with the ten changed test paths in [source receipt](ime-source-receipt.json), plus `useAgentSessionParts.test.ts`, `useConversationTurnController.test.tsx` and `useComposerFileCapabilities.test.ts`.
 
 The 20 source/test paths and SHA-256 identities are in [ime-source-receipt.json](ime-source-receipt.json). No build, app launch, commit, staging or user-state operation was performed by this renderer work.
 

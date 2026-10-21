@@ -1,18 +1,22 @@
 # Aster
 
-Aster is one Rust workspace for the terminal coding tool, harness, and Work and AsterDream desktop hosts.
+Aster is one Rust workspace for the terminal coding tool, harness, and shared AsterDream desktop host.
 
 - Build from the repository root with the pinned Rust toolchain.
 - `apps/aster` is the `aster` terminal binary. `crates/code/acp` is its
   `a3s-code-acp` companion. Build and distribute both together.
 - `crates/code/core` is the embeddable Rust SDK and harness. Do not add
   Node, Python, or Go bindings, SDKs, or package publishing jobs.
-- `apps/desktop` is the shared desktop host; `just build-desktop` builds it with
+- `apps/studio` is the shared desktop host; `just build-studio` builds it with
   ACP and Office. Its default `aster` tenant is AsterDream. Keep tenant
-  identities and data isolated.
-- `apps/work` retains legacy source and the Office vendor dependency.
-  `just build-work` remains a legacy build. Do not import old user state or
-  add a second Cargo workspace or lockfile. See `specs/004-desktop-default-aster`.
+  identities and data isolated. It is a private submodule from
+  `git@github.com:kense-labs/studio.git`, tracked on `main`; never add its
+  source files to the parent repository. Initialize it before Cargo commands.
+- Office lives in `packages/office` and `crates/office`; it must build without
+  the retired application. Its required sources have been merged.
+  Do not import old user state or add a second Cargo workspace or lockfile.
+  The `aster` build has no accounts; `toyou` retains managed authentication.
+  See `specs/004-desktop-default-aster`.
 - All members have `publish = false`; A3S dependencies, including optional
   ones, must resolve locally. `tests/workspace_dependencies.py` guards this.
 - Keep internal A3S dependencies local. Preserve the upstream package names
@@ -31,7 +35,7 @@ Aster is one Rust workspace for the terminal coding tool, harness, and Work and 
   epics use `docs/spec-driven-development.md`. A NON-NEGOTIABLE principle
   cannot be waived by a spec, a plan, or a deadline.
 - The constitution's Regimes table picks the rules for a path. Product
-  paths (`apps/aster`, `apps/work`, `apps/desktop`, `crates/code`,
+  paths (`apps/aster`, `apps/studio`, `crates/code`,
   `crates/terminal`) use hermetic tests and the root workspace.
   Control-plane paths (`apps/cloud`, `apps/api`, `apps/auth`,
   `apps/billing`, `apps/config`) use bounded contexts, contiguous cloud

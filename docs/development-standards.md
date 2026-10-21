@@ -27,7 +27,7 @@ The spec-kit phase mapping lives in
 
 ### Product regime
 
-Paths: `apps/aster`, `apps/work`, `apps/desktop`, `crates/code`,
+Paths: `apps/aster`, `apps/studio`, `crates/code`,
 `crates/terminal`.
 
 New behavior has a small hermetic test. AsterDream desktop tenants use
@@ -55,11 +55,11 @@ their own workspaces and lockfiles, and they are not root members.
   its `a3s-code-acp` companion. Build and distribute both together.
 - `crates/code/core` is the embeddable Rust SDK and harness. Do not
   add Node, Python, or Go bindings, SDKs, or package publishing jobs.
-- `apps/desktop` is the shared desktop host. Build it with
-  `just build-desktop`. Its default `aster` tenant is AsterDream.
+- `apps/studio` is the shared desktop host. Build it with
+  `just build-studio`. Its default `aster` tenant is AsterDream.
   Keep tenant identities and data isolated. See `specs/004-desktop-default-aster`.
-- `apps/work` retains legacy AsterDream source and the Office vendor
-  dependency. `just build-work` remains a legacy build. Do not copy
+- Office uses the root `packages/office` and `crates/office` sources. The
+  retired app is removed after migration. Do not copy
   old user state or add another Cargo workspace or lockfile.
 - `crates/` holds Rust libraries, including internalized upstream
   trees. `packages/` holds TypeScript and React libraries (`ui`,
@@ -73,8 +73,10 @@ becomes a second source of truth. The binary that ships must be the
 tree people edit.
 
 **Enforcement.** `Agents.md`, `tests/workspace_dependencies.py`, and
-the root `Cargo.lock`. A new remote or a sibling checkout created for
-Aster work is a violation of principle XIII. A second checkout of
+the root `Cargo.lock`. The user-authorized private desktop submodule at
+`apps/studio` remains part of that workspace; its sources are committed only
+to `git@github.com:kense-labs/studio.git`. Other new remotes or sibling
+checkouts created for Aster work violate principle XIII. A second checkout of
 this same repository is a git worktree.
 
 **Structural migrations commit whole.** A rename or relocation that
@@ -307,7 +309,7 @@ React is not available. The contract is `DESIGN.md` §6 "Picker
 (dropdown)". The Radix `Select` list only shrinks.
 
 **Enforcement.** Constitution principle XVI.
-`apps/desktop/src/renderer/__tests__/noNativeSelect.test.ts` fails on
+`apps/studio/src/renderer/__tests__/noNativeSelect.test.ts` fails on
 a native dropdown in AsterDream's renderer and holds the Radix `Select`
 list shrink-only. Component tests open the trigger and choose a
 `role="option"` row.

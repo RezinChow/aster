@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { officeMessage } from '../../../i18n/office-locale';
 import { Button, CollectionState } from '../../../design-system/primitives';
 import { spreadsheetFormulaAnalysis } from '../work-spreadsheet-formula-analysis';
+import { ensureSpreadsheetFormulaSupport } from '../work-spreadsheet-formula-support';
 import { effectiveSpreadsheetCalculationSettings } from '../work-spreadsheet-formulas';
 import type {
   WorkSpreadsheetCalculationSettings,
@@ -43,14 +44,25 @@ export function SpreadsheetFormulaPanel({
     effectiveSpreadsheetCalculationSettings(content.calculation),
   );
   const [status, setStatus] = useState('');
+  const [formulaSupportReady, setFormulaSupportReady] = useState(false);
   const sourceSettings = useMemo(
     () => effectiveSpreadsheetCalculationSettings(content.calculation),
     [content.calculation],
   );
   const { summary, diagnostics } = useMemo(
     () => spreadsheetFormulaAnalysis(content),
-    [content],
+    [content, formulaSupportReady],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void ensureSpreadsheetFormulaSupport().then(() => {
+      if (!cancelled) setFormulaSupportReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     syncDraft(sourceSettings);

@@ -24,7 +24,7 @@ class WorkspaceDependenciesTest(unittest.TestCase):
         engine = engines[0]
         self.assertEqual(engine["name"], "a3s-flow")
         self.assertEqual(Path(engine["manifest_path"]), ROOT / "crates/flow/Cargo.toml")
-        for consumer in ["a3s-code-core", "aster-dream", "a3s-studio"]:
+        for consumer in ["a3s-code-core", "a3s-studio"]:
             package = next(package for package in metadata["packages"] if package["name"] == consumer)
             dependencies = [dependency for dependency in package["dependencies"]
                             if dependency["name"] == engine["name"]]
@@ -32,26 +32,26 @@ class WorkspaceDependenciesTest(unittest.TestCase):
             self.assertEqual(Path(dependencies[0]["path"]), ROOT / "crates/flow", consumer)
 
     def test_desktop_sources_and_executable_fixtures_are_present(self):
-        work = ROOT / "apps/work"
-        host = work / "src-tauri/Cargo.toml"
+        desktop = ROOT / "apps/studio"
+        host = desktop / "src-tauri/Cargo.toml"
         metadata = json.loads(subprocess.check_output([
             "cargo", "metadata", "--locked", "--offline", "--no-deps",
             "--format-version", "1", "--manifest-path", str(host),
         ], cwd=ROOT))
         self.assertEqual(Path(metadata["workspace_root"]).resolve(), ROOT)
         hosts = [package for package in metadata["packages"]
-                 if Path(package["manifest_path"]).resolve() == host]
+                 if Path(package["manifest_path"]).resolve() == host.resolve()]
         self.assertEqual(len(hosts), 1)
-        self.assertEqual(hosts[0]["name"], "aster-dream")
+        self.assertEqual(hosts[0]["name"], "a3s-studio")
+        self.assertNotIn("aster-dream", {package["name"] for package in metadata["packages"]})
         self.assertIn(hosts[0]["id"], metadata["workspace_members"])
-        for manifest in [work / "Cargo.toml", host]:
+        for manifest in [desktop / "Cargo.toml", host]:
             if manifest.is_file():
                 self.assertNotIn("workspace", tomllib.loads(manifest.read_text()), str(manifest))
-        for lock in [work / "Cargo.lock", work / "src-tauri/Cargo.lock"]:
+        for lock in [desktop / "Cargo.lock", desktop / "src-tauri/Cargo.lock"]:
             self.assertFalse(lock.exists(), str(lock))
         for path in [
-            "apps/work/vendor/packages/office/src/core.ts",
-            "apps/work/vendor/packages/office/generated/office-kernel.wasm",
+            "packages/office/src/core.ts",
             "apps/studio/src-tauri/src/lib.rs",
             "apps/web/public/tenant/toyou/INFO.md",
             "packages/office/generated/office-kernel.wasm",
@@ -65,24 +65,33 @@ class WorkspaceDependenciesTest(unittest.TestCase):
             self.assertTrue(os.access(ROOT / "crates/use/extension/fixtures/packages" / path, os.X_OK))
 
     def test_office_kernel_rebuilds_from_the_workspace(self):
-        package = (ROOT / "apps/work/vendor/packages/office/package.json").read_text()
-        script = (ROOT / "apps/work/vendor/packages/office/scripts/build-office-kernel.sh").read_text()
-        package_host = (ROOT / "apps/work/scripts/package-host.sh").read_text()
-        kylin = (ROOT / "apps/work/scripts/kylin-flatpak/build-host.sh").read_text()
-        shell = (ROOT / "apps/work/scripts/studio-shell.sh").read_text()
+        package = (ROOT / "packages/office/package.json").read_text()
+        script = (ROOT / "packages/office/scripts/build-office-kernel.sh").read_text()
+        package_host = (ROOT / "apps/studio/scripts/package-host.sh").read_text()
+        kylin = (ROOT / "apps/studio/scripts/kylin-flatpak/build-host.sh").read_text()
+        shell = (ROOT / "apps/studio/scripts/studio-shell.sh").read_text()
         self.assertIn('"build": "bash scripts/build-office-kernel.sh && rslib"', package)
         self.assertIn("--locked", script)
         self.assertIn("--package a3s-office-web-kernel", script)
         self.assertIn("OFFICE_KERNEL_REQUIRED", script)
-        self.assertIn("packages/office/generated/office-kernel.wasm", script)
+        self.assertIn("generated/office-kernel.wasm", script)
+        self.assertNotIn("apps/work", script)
         self.assertLess(package_host.index("OFFICE_KERNEL_REQUIRED=1"), package_host.index("pnpm build:office"))
-        self.assertIn("vendor/packages/office/scripts/build-office-kernel.sh", kylin)
-        self.assertIn("refresh_office_editor", shell)
-        self.assertLess(shell.index("refresh_office_editor"), shell.index('A3S_STUDIO_INSTANCE:-}" == "fork"'))
+        self.assertIn("packages/office/scripts/build-office-kernel.sh", kylin)
+        self.assertIn("pnpm build:office", package_host)
 
     def test_studio_uses_one_workspace_without_external_sources(self):
         studio = ROOT / "apps/studio"
-        self.assertFalse((studio / ".git").exists())
+        modules = subprocess.check_output([
+            "git", "config", "--file", str(ROOT / ".gitmodules"),
+            "--get", "submodule.studio.url",
+        ], cwd=ROOT, text=True).strip()
+        self.assertEqual(modules, "git@github.com:kense-labs/studio.git")
+        tracked = subprocess.check_output([
+            "git", "ls-files", "--stage", "--", "apps/studio",
+        ], cwd=ROOT, text=True).splitlines()
+        self.assertEqual(len(tracked), 1, "desktop sources belong only to the private submodule")
+        self.assertTrue(tracked[0].startswith("160000 "), tracked)
         self.assertFalse(list(studio.rglob("Cargo.lock")))
         for base in [studio, ROOT / "packages", ROOT / "apps/web", ROOT / "apps/use-registry"]:
             for directory, dirs, files in os.walk(base):
@@ -131,7 +140,7 @@ class WorkspaceDependenciesTest(unittest.TestCase):
         ], cwd=ROOT)
         metadata = json.loads(output)
         names = {package["name"] for package in metadata["packages"]}
-        self.assertTrue({"aster", "aster-dream", "a3s-code-acp", "a3s-office-cli", "a3s-studio", "a3s-studio-data-sqlite", "a3s-studio-desktop-contract"} <= names)
+        self.assertTrue({"aster", "a3s-code-acp", "a3s-office-cli", "a3s-studio", "a3s-studio-data-sqlite", "a3s-studio-desktop-contract"} <= names)
         for package in metadata["packages"]:
             self.assertEqual(package["publish"], [], package["name"])
             for dependency in package["dependencies"]:

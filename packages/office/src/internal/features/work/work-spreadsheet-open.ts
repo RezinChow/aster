@@ -8,10 +8,7 @@ import {
   assertOoxmlArchiveWithinLimits,
   isZipArchive,
 } from './work-ooxml-archive-guard';
-import {
-  createWorkSpreadsheetBlob,
-  type WorkSpreadsheetExportFormat,
-} from './work-spreadsheet-file-export';
+import type { WorkSpreadsheetExportFormat } from './work-spreadsheet-file-export';
 import { importWorkSpreadsheetFile } from './work-spreadsheet-file-import';
 import type { WorkArtifact } from './work-types';
 
@@ -53,5 +50,8 @@ export async function createWorkSpreadsheetArtifactBlob(
   if (artifact.kind !== 'spreadsheet') {
     throw new Error('只能导出表格。');
   }
+  const { createWorkSpreadsheetBlob } = await import(
+    './work-spreadsheet-file-export'
+  );
   return createWorkSpreadsheetBlob(artifact, options?.spreadsheetFormat);
 }

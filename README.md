@@ -48,7 +48,12 @@ Linux 桌面依赖见 [CI 安装步骤](.github/workflows/ci.yml)。
 ```sh
 git clone https://github.com/aster-ai-lab/aster.git
 cd aster
+git submodule update --init -- apps/studio
 ```
+
+构建需要读取私有桌面子仓库的权限。主仓库只记录该子仓库的提交号；
+桌面源码在 `git@github.com:kense-labs/studio.git` 的 `main` 分支维护。
+CI 需要配置仅具有该私有仓库读取权限的 `STUDIO_READ_TOKEN`，并检出主仓库锁定的提交。
 
 先将模型配置写入 `~/.a3s/config.acl`。以下是 OpenAI 兼容接口的最小示例；
 将接口地址和 `model-id` 替换为你的服务信息，并在本机环境中设置 `OPENAI_API_KEY`：
@@ -341,9 +346,9 @@ Aster CLI / AsterDream
 | Harness 组合、权限与完成门禁 | [crates/code/core](crates/code/core) |
 | 组件投影、效果执行和事实重放 | [crates/effect](crates/effect) |
 | 扩展能力、检索与持久化记忆 | [Use](crates/use)、[Search](crates/search)、[Memory](crates/memory)、[Vec](crates/vec) |
-| AsterDream 桌面宿主 | [apps/desktop](apps/desktop) |
-| AsterDream 旧版源码与 Office vendor 依赖 | [apps/work](apps/work) |
-| Office 引擎与编辑器 | [crates/office](crates/office)、[Office 编辑器源码](apps/work/vendor/packages/office) |
+| AsterDream 桌面宿主 | [apps/studio](apps/studio)（私有子仓库） |
+| 桌面旧版来源与许可 | [来源记录](docs/source-manifest.json)、[保留许可证](docs/provenance/asterdream-retired/legal) |
+| Office 引擎与编辑器 | [crates/office](crates/office)、[packages/office](packages/office) |
 
 所有 A3S Rust 依赖随仓库维护，成员均为 `publish = false`，共享根目录工作区和 `Cargo.lock`。
 构建 Aster 和 AsterDream 不需要先发布独立的 Harness 包，也不需要相邻的 `../a3s` 仓库。
@@ -352,30 +357,29 @@ Code 只保留 Rust SDK；内部 `a3s-*` 包名用于保留现有 Rust API 兼�
 
 ## 开发桌面应用
 
-桌面应用统一使用 `apps/desktop` 的 Rust 宿主和前端。默认 `aster` 租户为 AsterDream，
+桌面应用统一使用 `apps/studio` 的 Rust 宿主和前端。默认 `aster` 租户为 AsterDream，
 保留星标和蓝银主题。
-需要 Node 和 pnpm 12.6.0；Node 版本范围见 [package.json](apps/desktop/package.json)。
+需要 Node 和 pnpm 12.6.0；Node 版本范围见 [package.json](apps/studio/package.json)。
 
 ```sh
-cd apps/desktop
+cd apps/studio
 pnpm install --frozen-lockfile
 cd ../..
-just build-desktop
+just build-studio
 just dev
 ```
 
-`just build-desktop` 先构建 ACP、Office，再构建共享宿主。
+`just build-studio` 先构建 ACP、Office，再构建共享宿主。
 `just dev` 和 `just work` 使用 AsterDream 开发入口，默认租户为 `aster`（AsterDream），
 前端热更新端口为 `4318`。macOS 安装包：
 
 ```sh
-just build-desktop-release
+just build-studio-release
 ```
 
 新 AsterDream 使用独立应用标识和新数据目录，本次合并不读取或迁移旧版会话、项目和凭据。
-`apps/work` 和 `just build-work` 保留为旧版源码与构建入口；默认启动不再终止旧版进程。
-Office 编辑器和 `a3s-office` 仍从本仓库的 [crates/office](crates/office) 构建，
-Office 内核构建保留现有 vendor 路径。说明见 [Office 编辑器](apps/work/vendor/packages/office/README.md)。
+旧版应用已退出构建；来源和许可证保留在 [来源记录](docs/source-manifest.json) 与 [许可目录](docs/provenance/asterdream-retired/legal)。默认启动不终止旧版进程。
+Office 编辑器位于 [packages/office](packages/office)，`a3s-office` 与内核位于 [crates/office](crates/office)，均从根工作区构建。说明见 [Office 编辑器](packages/office/README.md)。
 范围与来源见 [AsterDream 迁移记录](docs/migration.md#desktop-import) 和
 [默认 AsterDream 租户规格](specs/004-desktop-default-aster/spec.md)。
 
@@ -407,5 +411,5 @@ cargo test --locked -p aster
 ## 许可证
 
 Aster 入口和仓库根许可证是 [MIT](LICENSE)。终端树保留 [Apache-2.0](crates/terminal/LICENSE)。Code / Effect 的许可见 [MIT](crates/code/LICENSE) 与 [Effect 许可](crates/effect/LICENSE)。
-桌面组件保留 [AGPL-3.0](apps/desktop/LICENSE)，旧版组件许可见 [旧版许可证](apps/work/LICENSE)。分发时请按组件保留原有许可证和第三方声明。
+桌面组件保留 [AGPL-3.0](apps/studio/LICENSE)，旧版组件许可见 [保留许可证](docs/provenance/asterdream-retired/legal/LICENSE)。分发时请按组件保留原有许可证和第三方声明。
 Hairline 图形引擎的 MIT 许可证随[图形资产](assets/readme/hairline-license.txt)保留。

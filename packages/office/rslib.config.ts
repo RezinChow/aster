@@ -76,6 +76,7 @@ export default defineConfig({
           core: './src/core.ts',
           index: './src/index.ts',
           spreadsheet: './src/spreadsheet.ts',
+          'file-import': './src/file-import.ts',
           react: './src/react.tsx',
           styles: './src/styles/index.css',
           vue: './src/vue.ts',

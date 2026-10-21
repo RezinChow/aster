@@ -1,5 +1,5 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { normalizeDocumentParagraphId } from './work-document-paragraph-identity';
+import { normalizeDocumentParagraphId } from './work-document-paragraph-id';
 
 export interface WorkDocumentOutlineItem {
   id: string;

@@ -19,18 +19,14 @@ code *args: build
 build-companions:
     cargo build --locked -p a3s-code-acp -p a3s-office-cli
 
-# Legacy Work source build; current AsterDream ships from apps/studio.
-build-work:
-    cargo build --locked -p a3s-code-acp -p a3s-office-cli
-    cargo build --locked -p aster-dream
-
 # Build Studio with its ACP and Office companions in the shared target directory.
 build-studio $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
     #!/usr/bin/env bash
     set -euo pipefail
     feature="$(python3 apps/studio/scripts/studio_product.py "$slug" feature)"
     export A3S_TENANT_SLUG="$slug"
-    export TAURI_CONFIG="$(python3 apps/studio/scripts/studio_product.py "$slug" tauri-config)"
+    TAURI_CONFIG="$(python3 apps/studio/scripts/studio_product.py "$slug" tauri-config)"
+    export TAURI_CONFIG
     cargo build --locked -p a3s-code-acp -p a3s-office-cli
     cargo build --locked -p a3s-studio --no-default-features --features "$feature"
 
@@ -56,11 +52,6 @@ build-studio-release $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
     export A3S_TENANT_SLUG="$slug"
     cd apps/studio
     exec pnpm package:host
-
-# Legacy Work package only; current AsterDream uses build-studio-release.
-[macos]
-build-work-release:
-    cd apps/work && pnpm package:host
 
 # Documented desktop host build. Same result as the shared host recipe.
 build-desktop $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):

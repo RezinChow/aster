@@ -1,4 +1,8 @@
 import { sanitizeDocumentHtml } from './work-document-html-sanitizer';
+import {
+  docxDefaultStylesAffectParagraphs,
+  plainDocxParagraphHtml,
+} from './work-docx-plain-html';
 import { documentContentLayoutProperties } from './work-document-section';
 import {
   downloadBlob,
@@ -135,7 +139,6 @@ export async function importWorkDocumentFile(
       return artifact;
     }
 
-    const mammoth = await import('mammoth');
     const { applyDocxSectionsToHtml, prepareDocxImport, readDocxLayout } =
       await import('./work-docx-import');
     const prepareStartedAt = documentImportNow();
@@ -150,16 +153,14 @@ export async function importWorkDocumentFile(
     );
     context?.controller.report('parsing', 0.45);
     const conversionBuffer = prepared?.conversionBuffer ?? arrayBuffer;
-    const input = {
-      arrayBuffer: conversionBuffer,
-      buffer: conversionBuffer,
-    } as unknown as Parameters<typeof mammoth.convertToHtml>[0];
+    const plainHtml =
+      prepared && conversionBuffer === arrayBuffer && sourcePackage
+        ? await plainDocxHtmlWithoutMammoth(sourcePackage)
+        : null;
     const mammothStartedAt = documentImportNow();
-    const result = await mammoth.convertToHtml(input, {
-      styleMap: [
-        "br[type='page'] => hr.work-page-break[data-page-break='true']:fresh",
-      ],
-    });
+    const result = plainHtml
+      ? { value: plainHtml, messages: [] }
+      : await convertDocxHtmlWithMammoth(conversionBuffer);
     recordDocumentImportMeasure(
       'a3s-office.document.mammoth',
       mammothStartedAt,
@@ -334,6 +335,37 @@ function textToHtml(source: string): string {
       return `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`;
     })
     .join('');
+}
+
+async function plainDocxHtmlWithoutMammoth(
+  sourcePackage: {
+    has(part: string): boolean;
+    text(part: string): Promise<string>;
+  },
+): Promise<string | null> {
+  const documentXml = await sourcePackage.text('word/document.xml').catch(() => '');
+  const paragraphHtml = documentXml ? plainDocxParagraphHtml(documentXml) : null;
+  if (!paragraphHtml) return null;
+  const stylesXml = sourcePackage.has('word/styles.xml')
+    ? await sourcePackage.text('word/styles.xml').catch(() => '')
+    : '';
+  return docxDefaultStylesAffectParagraphs(stylesXml) ? null : paragraphHtml;
+}
+
+async function convertDocxHtmlWithMammoth(conversionBuffer: ArrayBuffer): Promise<{
+  value: string;
+  messages: Array<{ type: string; message: string }>;
+}> {
+  const mammoth = await import('mammoth');
+  const input = {
+    arrayBuffer: conversionBuffer,
+    buffer: conversionBuffer,
+  } as unknown as Parameters<typeof mammoth.convertToHtml>[0];
+  return mammoth.convertToHtml(input, {
+    styleMap: [
+      "br[type='page'] => hr.work-page-break[data-page-break='true']:fresh",
+    ],
+  });
 }
 
 async function withStructuredDocumentModel(

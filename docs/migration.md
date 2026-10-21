@@ -94,15 +94,12 @@ backends, and release certification are separate from the local migration.
 `just code` builds both default workspace members and runs the current
 `aster` TUI. Arguments are forwarded as positional shell arguments.
 
-`just work` runs `just build-work`, then starts
-`{cargo metadata target_directory}/debug/aster-dream`. A failed build does
-not launch. It replaces an older running primary AsterDream, including one
-under `apps/work/src-tauri/target` or the primary Application Support app,
-so the new build is not asked to show the old window. `just dev` starts the
-same desktop through `apps/work`'s launcher with Rsbuild dev on
-127.0.0.1:4320, so renderer edits hot-reload. Desktop keeps 4318. Work is included in
-the same Rust workspace. Its former Git metadata is preserved locally under
-`.git/imported-work.git`; its source files are part of this repository.
+`just studio`、`just dev` 和兼容入口 `just work` 默认启动 AsterDream。
+构建和启动均从根工作区执行；`A3S_TENANT_SLUG=toyou` 选择通友托管版，
+`A3S_TENANT_SLUG=aster` 选择本地版，未设置时默认本地版。
+`just build-studio` 先构建 ACP 和 Office，再构建 `apps/studio` 宿主。
+`just build-studio-release` 打包所选产品。构建失败不会启动旧二进制。
+这两个产品分别保留自己的构建身份、配置和数据目录。
 
 The welcome screen uses the supplied Aster logo, retained at
 `assets/aster-logo.png`, with full and compact ASCII artwork. Forty-eight
@@ -308,3 +305,27 @@ Canonical asset hashes and original source paths are retained in
 `docs/evidence/desktop/2026-10-21-default-aster/brand-canonical-sources.json`.
 The imported upstream README is kept under `docs/provenance`.
 Licenses stay with each component.
+
+## 2026-10-21 本地产品合并
+
+桌面宿主统一位于 `apps/studio`。`aster` 构建保留 AsterDream 原本地版的
+品牌、导航、模型配置和文件工作流，直接进入应用，不包含登录界面或用户资料展示。
+本地宿主拒绝成员和组织接口，不读取成员会话；自备模型密钥只用于所配置的模型服务。
+`toyou` 构建继续使用原有登录、组织模型和兼容的数据目录。构建时选择产品，
+运行时不允许切换成另一个产品。
+
+旧应用独有的 Office 文档和表格兼容修复已移至 `packages/office`，构建脚本、
+测试夹具和 CI 均改用根工作区及共享资源。旧 `apps/work` 工作树已退出构建，
+其工作区注册和子模块条目已移除。未提交修改通过本机忽略目录中的原子重命名保留，
+未读取或复制凭据、会话、环境密钥及旧用户数据。原许可证的逐字节副本位于
+`docs/provenance/asterdream-retired/legal`。来源和文件哈希见
+[`work-retirement.json`](evidence/desktop/2026-10-21-default-aster/work-retirement.json)
+及 [`office-relocation-source.json`](evidence/desktop/2026-10-21-default-aster/office-relocation-source.json)。
+
+本次没有导入旧 AsterDream 的项目或会话，也没有发布新版本。新本地产品的更新渠道
+尚未发布，宿主会明确返回该状态，不查询另一产品的更新源。完整验收与已知限制见
+[`OUTCOME.md`](evidence/desktop/2026-10-21-default-aster/OUTCOME.md)。
+
+## 私有桌面子仓库边界
+
+用户授权将 `apps/studio` 改为 `git@github.com:kense-labs/studio.git` 的私有子仓库，父仓库仅锁定提交引用。`apps/work` 与 `apps/desktop` 已退出目录与构建。早期完整桌面源码及源码补丁从父仓库分支和标签历史清理；原始证据在私有子仓库保留。构建仍使用根 Cargo 工作区和锁文件，CI 需配置 `STUDIO_READ_TOKEN`。

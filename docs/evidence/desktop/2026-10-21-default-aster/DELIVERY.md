@@ -1,19 +1,22 @@
 # Default AsterDream delivery and entry points
 
-The shared `Desktop` executable now builds and packages two explicit products:
-`aster` is AsterDream / `dev.a3s.desktop.aster`; `legacy` is Former / `dev.a3s.desktop`.
+The shared `Studio` executable now builds and packages two explicit products:
+`aster` is AsterDream / `dev.a3s.studio.aster`; `toyou` is ToWork / `dev.a3s.studio`.
 Both use version 2.1.3. Legacy AsterDream 0.1.x is not imported or silently replaced.
 
 ## Implementation
 
-- `just dev`, `just dev` and `just work` select the new default. Explicit
-  `just dev` remains available. The old process-killing Work launcher was
-  removed; `build-work` and `build-work-release` remain marked legacy source builds.
-- `desktop_product.py` declares the two exact names, IDs and Cargo features. Every host
+- `just studio`, `just dev` and `just work` select the new default. Explicit
+  `just studio toyou` remains available. The old process-killing Work launcher and
+  its separate build/package recipes are retired. Physical `apps/work` deletion
+  remains the parent migration's separate gate.
+- `studio_product.py` declares the two exact names, IDs and Cargo features. Every host
   build disables default features and selects one tenant feature. The macOS Tauri CLI
   receives Cargo's `--no-default-features` after its `--` runner separator.
+  Shell entries assign the validated Tauri configuration before exporting it, so
+  `export` cannot hide a failed product/brand preflight and continue into Cargo.
 - The Tauri default is AsterDream. Selected builds override names, IDs and icons together.
-  The main binary remains `Desktop`; ACP and Office remain root-workspace companions.
+  The main binary remains `Studio`; ACP and Office remain root-workspace companions.
 - The frontend brand loader defaults to `aster`, rejects explicit empty/invalid/missing
   brands or required files, and keeps legal brand-only fixtures readable. Actual host
   activation is separately bound to the compiled native product.
@@ -36,13 +39,19 @@ Both use version 2.1.3. Legacy AsterDream 0.1.x is not imported or silently repl
 
 ## Verification and evidence
 
-Current focused checks contain 43 Python tests (5 root entry/build, 18 macOS sealer and
-identity/package entry, 18 Linux generation, 2 runtime discovery) and 17 script tests in
+Current focused checks contain 70 Python tests (9 root entry/build, 25 macOS sealer and
+identity/package entry, 23 Linux generation, 11 current input-method mechanisms,
+2 runtime discovery) and 17 script tests in
 2 files. These counts are distinct within this delivery subtask; they must not be added
 to overlapping historical frontend/UX totals. See the latest source receipt and logs:
 
 - [Source receipt](delivery-source-ready.json).
+- [Complete builtin skills and installed resource boundary](DELIVERY-BUNDLED-SKILLS.md).
 - [Entry/build checks](delivery-feature-entry-after.log).
+- Current entry/preflight: [9 tests](delivery-retired-work-entry-after.log);
+  [11 current input-method mechanisms](delivery-current-ime-mechanisms-final.log);
+  [CI's actual shell block, recorded compiler calls](delivery-ci-final-closure-probe.json).
+  These supersede the earlier entry/CI counts and retain both explicit product builds.
 - [macOS sealer/identity/package fixtures](delivery-feature-package-after.log).
 - [Linux generation checks](delivery-feature-linux-after.log).
 - Final INFO-preflight closure: [macOS/helper 18](delivery-info-macos-explicit-interpreters-final.log),

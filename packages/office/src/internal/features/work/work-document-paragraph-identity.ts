@@ -8,6 +8,12 @@ import {
   DOCUMENT_INTEGRITY_PARAGRAPH_IDENTITY,
   documentHasIntegrityFeature,
 } from './work-document-integrity-index';
+import {
+  MAX_PARAGRAPH_ID,
+  normalizeDocumentParagraphId,
+} from './work-document-paragraph-id';
+
+export { normalizeDocumentParagraphId };
 
 export interface WorkDocumentParagraphIdentity {
   paragraphId: string;
@@ -37,8 +43,6 @@ export const DOCUMENT_PARAGRAPH_ID_ATTRIBUTE = 'data-office-paragraph-id';
 export const DOCUMENT_PARAGRAPH_TEXT_ID_ATTRIBUTE =
   'data-office-paragraph-text-id';
 
-const PARAGRAPH_ID_PATTERN = /^[0-9A-F]{8}$/;
-const MAX_PARAGRAPH_ID = 0x7fff_ffff;
 let fallbackIdentitySequence = 0;
 
 export const DocumentParagraphIdentity =
@@ -99,14 +103,6 @@ export const DocumentParagraphIdentity =
       ];
     },
   });
-
-export function normalizeDocumentParagraphId(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().toUpperCase();
-  if (!PARAGRAPH_ID_PATTERN.test(normalized)) return null;
-  const number = Number.parseInt(normalized, 16);
-  return number > 0 && number <= MAX_PARAGRAPH_ID ? normalized : null;
-}
 
 export function createDocumentParagraphIdentityRegistry(): WorkDocumentParagraphIdentityRegistry {
   return { paragraphIds: new Set() };

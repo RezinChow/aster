@@ -1,4 +1,4 @@
-"""Run the Kylin launch decision the Flatpak command actually execs."""
+"""Exercise the current Kylin launcher decisions; delivery tests enforce generation integrity."""
 
 from pathlib import Path
 import importlib.util
@@ -10,17 +10,16 @@ import sys
 import tempfile
 import unittest
 
-SCRIPT_DIR = Path(__file__).resolve().parents[1] / "apps/work/scripts/kylin-flatpak"
+SCRIPT_DIR = Path(__file__).resolve().parents[1] / "apps/studio/scripts/kylin-flatpak"
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SCRIPT_DIR.parent))
 import immodule_cache  # noqa: E402
+from studio_product import desktop_entry  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LAUNCH = ROOT / "apps/work/scripts/kylin-flatpak/kylin-launch.sh"
-BUNDLE = ROOT / "apps/work/scripts/kylin-flatpak/package-bundle.sh"
-INSTALLER = ROOT / "apps/work/scripts/kylin-flatpak/install-on-kylin.sh"
-NOTES = ROOT / "apps/work/scripts/kylin-flatpak/安装说明.txt"
-README = ROOT / "apps/work/scripts/kylin-flatpak/README.md"
+LAUNCH = SCRIPT_DIR / "kylin-launch.sh"
+BUNDLE = SCRIPT_DIR / "package-bundle.sh"
 
 
 def _parse_lines(text):
@@ -58,6 +57,7 @@ class KylinInputMethodTest(unittest.TestCase):
             check=True,
             capture_output=True,
             text=True,
+            timeout=10,
         )
         self.assertEqual(completed.stderr, "")
         parsed = _parse_lines(completed.stdout)
@@ -75,11 +75,12 @@ class KylinInputMethodTest(unittest.TestCase):
 
     def launched_with_note(self, **updates):
         completed = subprocess.run(
-            ["bash", str(LAUNCH)],
-            env=self._env(KYLIN_LAUNCH_TARGET="/usr/bin/env", **updates),
+            ["bash", "-c", 'source "$1"; kylin_apply_input_method; exec /usr/bin/env', "launcher-apply", str(LAUNCH)],
+            env=self._env(**updates),
             check=True,
             capture_output=True,
             text=True,
+            timeout=10,
         )
         return _parse_lines(completed.stdout), completed.stderr
 
@@ -154,61 +155,25 @@ class KylinInputMethodTest(unittest.TestCase):
 
     def test_finish_args_grant_bus_names_without_a_fixed_module(self):
         text = BUNDLE.read_text()
-        talks = set()
-        envs = []
-        command = []
-        for line in text.splitlines():
-            stripped = line.strip().rstrip("\\").strip()
-            if stripped.startswith("--talk-name="):
-                talks.add(stripped.split("=", 1)[1].strip("'\""))
-            if stripped.startswith("--env="):
-                envs.append(stripped)
-            if stripped.startswith("--command="):
-                command.append(stripped)
+        finish = text.split('flatpak build-finish', 1)[1].split('runtime_dir=', 1)[0]
+        args = shlex.split(finish.replace('\\\n', ' '))
+        talks = {value.split('=', 1)[1] for value in args if value.startswith('--talk-name=')}
+        envs = [value for value in args if value.startswith('--env=')]
+        command = [value for value in args if value.startswith('--command=')]
         self.assertIn("org.fcitx.*", talks)
         self.assertIn("org.freedesktop.IBus", talks)
+        self.assertIn("org.freedesktop.portal.Fcitx", talks)
         self.assertNotIn("org.fcitx.Fcitx-5", talks)
         self.assertEqual(command, ["--command=kylin-launch"])
-        self.assertIn("Exec=kylin-launch", (SCRIPT_DIR / "dev.a3s.AsterDream.desktop").read_text())
-        self.assertLess(text.index('"${script_dir}/test-input-method.sh" "$files"'), text.index('flatpak build-export'))
-        self.assertIn('install -Dm755 "${script_dir}/kylin-launch.sh"', text)
-        self.assertIn('"${files}/bin/kylin-im-backend"', text)
-        self.assertIn('"${files}/share/licenses/aster-dream/kylin_im_backend.c"', text)
-        self.assertIn("/app/lib/im/fcitx5/im-fcitx5.so", text)
-        self.assertIn("immodules/fcitx4", text)
-        self.assertNotIn("--socket=session-bus", text)
-        self.assertIn("immodule_cache.py", text)
-        self.assertIn('grep -q \'libgtk-3\\.so\\.0\'', text)
-        self.assertIn("PR_SET_SECCOMP", text)
-        self.assertIn("bwrap --die-with-parent", text)
-        self.assertIn('"$im_so"', text)
-        self.assertNotIn("gtk-3.0/3.0.0/immodules", text)
+        for tenant in ("aster", "toyou"):
+            self.assertIn("Exec=kylin-launch %U", desktop_entry(tenant))
+        self.assertLess(text.index('test-input-method.sh'), text.index('flatpak build-export'))
+        self.assertNotIn("--socket=session-bus", args)
         self.assertFalse(any(item.startswith("--env=GTK_IM_MODULE=") for item in envs))
         self.assertFalse(any(item.startswith("--env=XMODIFIERS=") for item in envs))
         self.assertFalse(any(item.startswith("--env=QT_IM_MODULE=") for item in envs))
         self.assertNotIn("GTK_IM_MODULE=xim", text)
         self.assertNotIn("--talk-name=org.fcitx.Fcitx-5", text)
-
-    def test_installer_hint_removes_a_stale_override(self):
-        for path in (INSTALLER, NOTES):
-            text = path.read_text()
-            self.assertNotIn("GTK_IM_MODULE=xim", text, path)
-            self.assertIn("GTK_IM_MODULE", text, path)
-            self.assertIn("覆盖", text, path)
-        installer = INSTALLER.read_text()
-        self.assertIn("请用桌面登录用户运行本脚本，不要 sudo", installer)
-        readme = README.read_text()
-        self.assertIn("WAYLAND_DISPLAY", readme)
-        self.assertIn("GTK_IM_MODULE=ibus", readme)
-        self.assertIn("GTK_IM_MODULE_FILE", readme)
-        self.assertIn("org.fcitx.Fcitx5", readme)
-        self.assertIn("org.gnome.Platform//50", readme)
-        self.assertIn("WebKitGTK 4.0", readme)
-        self.assertIn("not a Kylin desktop IME run", readme)
-        self.assertIn("fcitx4", readme)
-        self.assertNotIn("org.fcitx.Fcitx-5", readme)
-        self.assertNotIn("XMODIFIERS=@im=fcitx", readme)
-        self.assertNotIn("xim", LAUNCH.read_text())
 
     def _fcitx_root(self, version="fcitx5", module_id="fcitx"):
         root = tempfile.TemporaryDirectory()

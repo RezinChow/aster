@@ -1,7 +1,3 @@
-import {
-  createWorkDocumentBlob,
-  importWorkDocumentFile,
-} from './work-document-file-io';
 import { materializeWorkFileSource } from './work-file-data';
 import {
   downloadBlob,
@@ -15,28 +11,16 @@ import {
 } from './work-file-import';
 import { workFileExtension, workKindForFile } from './work-file-kind';
 import {
-  createWorkMarkdownBlob,
-  importWorkMarkdownFile,
-} from './work-markdown-file-io';
-import {
   assertOoxmlArchiveWithinLimits,
   isZipArchive,
 } from './work-ooxml-archive-guard';
-import {
-  createWorkPresentationBlob,
-  importWorkPresentationFile,
-  type WorkPresentationExportOptions,
-} from './work-presentation-file-io';
+import type { WorkPresentationExportOptions } from './work-presentation-file-io';
 import {
   moveWorkSourceBlob,
   readWorkSourceBlob,
   rememberWorkSourceBlob,
 } from './work-repository';
-import {
-  createWorkSpreadsheetBlob,
-  type WorkSpreadsheetExportFormat,
-} from './work-spreadsheet-file-export';
-import { importWorkSpreadsheetFile } from './work-spreadsheet-file-import';
+import type { WorkSpreadsheetExportFormat } from './work-spreadsheet-file-export';
 import { createWorkArtifact } from './work-templates';
 import { type WorkArtifact, workArtifactExtension } from './work-types';
 
@@ -77,12 +61,20 @@ export async function importWorkFile(
   controller.report('parsing', 0);
   let artifact: WorkArtifact;
   if (kind === 'markdown') {
+    const { importWorkMarkdownFile } = await import('./work-markdown-file-io');
     artifact = await importWorkMarkdownFile(source.file, context);
   } else if (kind === 'document') {
+    const { importWorkDocumentFile } = await import('./work-document-file-io');
     artifact = await importWorkDocumentFile(source.file, extension, context);
   } else if (kind === 'spreadsheet') {
+    const { importWorkSpreadsheetFile } = await import(
+      './work-spreadsheet-file-import'
+    );
     artifact = await importWorkSpreadsheetFile(source.file, extension, context);
   } else if (kind === 'presentation') {
+    const { importWorkPresentationFile } = await import(
+      './work-presentation-file-io'
+    );
     artifact = await importWorkPresentationFile(source.file, context);
   } else {
     artifact = await importPdf(source.file);
@@ -151,12 +143,26 @@ export async function createWorkArtifactBlob(
   artifact: WorkArtifact,
   options?: WorkArtifactExportOptions,
 ): Promise<Blob> {
-  if (artifact.kind === 'document') return createWorkDocumentBlob(artifact);
-  if (artifact.kind === 'markdown') return createWorkMarkdownBlob(artifact);
-  if (artifact.kind === 'spreadsheet')
+  if (artifact.kind === 'document') {
+    const { createWorkDocumentBlob } = await import('./work-document-file-io');
+    return createWorkDocumentBlob(artifact);
+  }
+  if (artifact.kind === 'markdown') {
+    const { createWorkMarkdownBlob } = await import('./work-markdown-file-io');
+    return createWorkMarkdownBlob(artifact);
+  }
+  if (artifact.kind === 'spreadsheet') {
+    const { createWorkSpreadsheetBlob } = await import(
+      './work-spreadsheet-file-export'
+    );
     return createWorkSpreadsheetBlob(artifact, options?.spreadsheetFormat);
-  if (artifact.kind === 'presentation')
+  }
+  if (artifact.kind === 'presentation') {
+    const { createWorkPresentationBlob } = await import(
+      './work-presentation-file-io'
+    );
     return createWorkPresentationBlob(artifact, options);
+  }
   return readWorkSourceBlob(artifact);
 }
 

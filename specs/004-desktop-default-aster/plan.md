@@ -1,6 +1,6 @@
 # Implementation Plan: Default AsterDream tenant
 
-Use the existing AsterDream tenant pipeline and shared ACP. Copy only canonical Work brand assets; do not copy its renderer, product alias table, runtime or user state. Keep Legacy's legacy brand and current bundle/profile identity. Aster gets `dev.a3s.desktop.aster` and a fresh profile namespace.
+Use the existing AsterDream tenant pipeline and shared ACP. Copy only canonical Work brand assets; do not copy its renderer, product alias table, runtime or user state. Keep `toyou` and its current bundle/profile identity. Aster gets `dev.a3s.studio.aster` and a fresh profile namespace.
 
 ## Constitution check
 
@@ -24,4 +24,15 @@ Tests use newly created synthetic profiles and model/update services. HOME is no
 
 ## Analyze result
 
-No unresolved requirement/ownership conflict. User clarification resolves the migration question. The original shared bundle ID and profile collision are confirmed defects and addressed by FR-004/005. Aster's publication is not inferred from an existing legacy feed. Spec 003 remains a dependency; its unchecked interactive requirements stay incomplete until observed.
+No unresolved requirement/ownership conflict. User clarification resolves the migration question. The original shared bundle ID and profile collision are confirmed defects and addressed by FR-004/005. Aster's publication is not inferred from the existing `toyou` feed. Spec 003 remains a dependency; its unchecked interactive requirements stay incomplete until observed.
+
+## 用户补充范围
+
+本地 `aster` 构建完全移除登录、用户身份展示及成员/组织查询；`toyou` 保持原有认证。Office 必需代码先迁入现有 `packages/office`，内核脚本改为自包含；移除旧应用的 workspace、构建与 CI 依赖后再移除 `apps/work`。保留许可和来源记录，不复制凭据或迁移用户数据。
+
+## 脱离源码目录的交付闭包
+
+内置技能的精确文件清单作为共享构建契约，供两个打包器及原生校验复用。
+开发模式可读取仓库资源；安装包从自己的资源目录读取，缺失时明确拒绝，
+不退回构建机绝对路径。技能引用、脚本和许可证均随完整产品封装及校验。
+真实启动验收还覆盖空本地列表和页脚，避免隐藏的组织目录查询或通知入口残留。
