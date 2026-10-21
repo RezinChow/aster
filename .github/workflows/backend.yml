@@ -35,6 +35,7 @@ jobs:
         with:
           token: ${{ secrets.STUDIO_READ_TOKEN }}
       - run: rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1
+      - run: rustup component add rustfmt
       - run: cargo fmt --all -- --check
 
   check:

@@ -16,6 +16,7 @@ fn build_router_table(n: usize) -> RouterTable {
                 entrypoints: vec!["web".to_string()],
                 middlewares: vec![],
                 priority: i as i32,
+                parking: None,
             },
         );
     }
