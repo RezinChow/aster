@@ -153,7 +153,7 @@ fn package_okf_target(
     target: &str,
 ) -> TestTarget {
     let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/extension/fixtures/packages/plugin-v3-okf/package");
+        .join("extension//fixtures/packages/plugin-v3-okf/package");
     let package_root = fixture_root.join("package");
     copy_fixture_tree(&source, &package_root);
 

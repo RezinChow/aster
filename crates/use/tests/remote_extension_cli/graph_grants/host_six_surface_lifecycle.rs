@@ -558,7 +558,7 @@ fn package_six_surface_targets(
     target: &str,
 ) -> Vec<TestTarget> {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/extension/fixtures/packages/plugin-v3-package/package");
+        .join("extension//fixtures/packages/plugin-v3-package/package");
     let package_root = fixture_root.join("package");
     copy_fixture_tree(&source, &package_root);
     let manifest_path = package_root.join("a3s-use-extension.acl");

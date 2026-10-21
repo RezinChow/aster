@@ -602,7 +602,7 @@ extension "acme/research" {
     #[tokio::test]
     async fn mhs_bridge_publishes_only_after_its_exact_gateway_and_dependency_graph_are_ready() {
         let package_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("crates/extension/fixtures/packages/plugin-v3-mhs-bridge/package");
+            .join("extension//fixtures/packages/plugin-v3-mhs-bridge/package");
         let source = tokio::fs::read_to_string(package_root.join("a3s-use-extension.acl"))
             .await
             .unwrap();

@@ -261,7 +261,7 @@ async fn real_sqlite_backend_runs_lifecycle_and_cited_retrieval_end_to_end() {
 
 fn package_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/extension/fixtures/packages/plugin-v3-okf/package")
+        .join("extension//fixtures/packages/plugin-v3-okf/package")
 }
 
 fn intent(manifest: &ExtensionManifest, action: PluginLifecycleAction) -> PluginLifecycleIntent {

@@ -337,6 +337,6 @@ mod tests {
 
     fn fixture_package_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("crates/extension/fixtures/packages/plugin-v3-okf/package")
+            .join("extension//fixtures/packages/plugin-v3-okf/package")
     }
 }

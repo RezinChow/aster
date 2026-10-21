@@ -843,8 +843,7 @@ fn scope_database_path(
 }
 
 fn fixture_package_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/extension/fixtures/packages/plugin-v3-okf/package")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("extension//fixtures/packages/plugin-v3-okf/package")
 }
 
 fn snapshot_regular_files(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {

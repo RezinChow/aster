@@ -58,8 +58,7 @@ async fn preparation_fails_closed_when_a_declared_static_file_is_missing() {
 }
 
 fn package_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/extension/fixtures/packages/plugin-v3/package")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("extension//fixtures/packages/plugin-v3/package")
 }
 
 fn intent(manifest: &ExtensionManifest) -> PluginLifecycleIntent {

@@ -681,7 +681,7 @@ mod tests {
             temp.path().join("state"),
         ));
         let package_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("crates/extension/fixtures/packages/plugin-v3-package/package");
+            .join("extension//fixtures/packages/plugin-v3-package/package");
         let candidate =
             ExtensionLifecyclePackage::prepare_local("acme/cognitive", &package_root, true)
                 .await

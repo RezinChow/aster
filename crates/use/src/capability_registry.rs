@@ -1574,7 +1574,7 @@ extension "acme/workflow" {
             include_str!("../extension//fixtures/packages/plugin-v3-okf/package.sha256");
         let temporary = tempfile::tempdir().unwrap();
         let package_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("crates/extension/fixtures/packages/plugin-v3-okf/package");
+            .join("extension//fixtures/packages/plugin-v3-okf/package");
         let manifest = a3s_use_extension::ExtensionManifest::parse_acl(MANIFEST).unwrap();
         let mut extension = installed_extension(manifest.clone(), package_root.clone(), true);
         let package_digest = PACKAGE_DIGEST.trim().to_owned();

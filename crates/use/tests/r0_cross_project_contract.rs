@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 
 const FIXTURE_ROOT: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/crates/core/fixtures/agentic-ontology/r0-cross-project-v1"
+    "/core/fixtures/agentic-ontology/r0-cross-project-v1"
 );
 
 #[derive(Debug, Deserialize, Serialize)]
