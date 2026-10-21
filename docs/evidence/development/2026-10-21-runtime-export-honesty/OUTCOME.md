@@ -225,3 +225,8 @@ Fork follow-up: boot-diagnostics (02e1414) is fast-forward merged into
 aster-ai-lab/libkrun main — the T0.4.2 rerun can build the instrumented
 engine straight from the fork's main branch; T021 re-vendor still waits
 for the behavioral fix those diagnostics will name.
+
+Closing stamp: the full workspace check against the session's final
+HEAD (40884f7fc) finishes with exit 0 and zero errors (4m 29s) — every
+package this session touched is compile- and suite-verified at the exact
+tree state pushed to main.
