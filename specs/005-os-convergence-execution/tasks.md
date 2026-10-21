@@ -128,6 +128,10 @@ Redis 启动依赖[Phase 2 T2.5]、AppRelease 治理[T024]）；**本仓可执�
       全、库内零测——notes 有导入往返实证、另两者靠 boot campaign 兜底）
       ——**上游排队**（kense-labs/api，与 lane/AppRelease PR 同队列）
 
+- [ ] T031 [US4] studio 接线 ToBot 记忆适配器（755 行适配器的
+      recall_note/retain_exchange 挂进回合循环；后端 10 端点已交付）——
+      **上游排队**（kense-labs/studio，与 api PR 同队列）
+
 ## Phase E: CI/CD 自替代冲刺（2026-10-21 CD0 评估修正后新增）
 
 CD0 机器已 90% 在库（10-02/03 落地：九编译器/晋升治理/韧性/SDK/真 E2E）；
