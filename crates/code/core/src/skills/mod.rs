@@ -36,7 +36,20 @@ pub use validator::{
 
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Skill package roots under a workspace or a home directory.
+/// Both places use the same names. A directory that does not exist yet is
+/// still a root: the loader skips it, and the watch list keeps it.
+pub fn agent_skill_roots(base: &Path) -> Vec<PathBuf> {
+    vec![
+        base.join("skills"),
+        base.join(".a3s").join("skills"),
+        base.join(".agents").join("skills"),
+        base.join(".claude").join("skills"),
+        base.join(".codex").join("skills"),
+    ]
+}
 
 /// Skill kind classification
 ///

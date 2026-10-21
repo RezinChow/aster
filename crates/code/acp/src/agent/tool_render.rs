@@ -173,6 +173,11 @@ pub(super) fn tool_raw_output(
     exit_code: i32,
 ) -> Option<serde_json::Value> {
     if !matches!(name, "bash" | "shell" | "execute") {
+        // A failed Skill (and any other non-shell tool) keeps its error text.
+        // An empty failure and a successful read stay without a raw payload.
+        if exit_code != 0 && !output.is_empty() {
+            return Some(serde_json::Value::String(output.to_owned()));
+        }
         return None;
     }
     let command = args

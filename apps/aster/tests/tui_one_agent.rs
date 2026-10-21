@@ -342,7 +342,7 @@ fn assert_missing_companion() {
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         pty.pump();
-        let text = String::from_utf8_lossy(&pty.raw);
+        let text = String::from_utf8_lossy(&pty.raw).into_owned();
         if text.contains("a3s-code-acp") && text.contains("no agent backend") {
             println!(
                 "CAPTURE missing companion failed closed and named a3s-code-acp while A3S_ACP_AGENT_BIN was unset"

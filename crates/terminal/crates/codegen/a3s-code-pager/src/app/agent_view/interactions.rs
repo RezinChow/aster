@@ -1507,6 +1507,52 @@ mod permission_question_key_tests {
             other => panic!("expected PermissionSelect(question-1), got {other:?}"),
         }
     }
+
+    /// Auto-compaction is a status override. It does not take the keyboard away from an open permission card.
+    #[test]
+    fn permission_digit_selects_while_compaction_is_active() {
+        use crate::acp::tracker::TurnActivity;
+        use crate::app::agent::AgentState;
+
+        let mut agent = make_agent();
+        agent.session.state = AgentState::TurnRunning;
+        agent
+            .session
+            .set_compaction_activity(Some(TurnActivity::AutoCompacting));
+        assert_eq!(
+            agent.session.turn_activity(),
+            Some(TurnActivity::AutoCompacting)
+        );
+        let mut perm = super::test_fixtures::make_followup_permission_state();
+        perm.focus = crate::views::permission_view::PermissionFocus::Options;
+        perm.options = vec![
+            acp::PermissionOption::new(
+                acp::PermissionOptionId::new(Arc::from("allow-once")),
+                "Yes, proceed".to_string(),
+                acp::PermissionOptionKind::AllowOnce,
+            ),
+            acp::PermissionOption::new(
+                acp::PermissionOptionId::new(Arc::from("reject-once")),
+                "No, reject".to_string(),
+                acp::PermissionOptionKind::RejectOnce,
+            ),
+        ];
+        agent.permission_queue.push_back(perm);
+        assert!(
+            agent.focused_permission().is_some(),
+            "compaction must not park the permission card"
+        );
+        let outcome = agent.handle_input(
+            &Event::Key(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::empty())),
+            &ActionRegistry::defaults(),
+        );
+        match outcome {
+            InputOutcome::Action(Action::PermissionSelect(id)) => {
+                assert_eq!(id.0.as_ref(), "allow-once");
+            }
+            other => panic!("expected PermissionSelect(allow-once), got {other:?}"),
+        }
+    }
 }
 #[cfg(test)]
 mod permission_mouse_tests {

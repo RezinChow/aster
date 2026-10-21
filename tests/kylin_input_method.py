@@ -63,7 +63,7 @@ class KylinInputMethodTest(unittest.TestCase):
         parsed = _parse_lines(completed.stdout)
         self.assertEqual(
             list(parsed),
-            ["GTK_IM_MODULE", "GTK_IM_MODULE_FILE", "XMODIFIERS", "DBUS", "NOTE"],
+            ["GTK_IM_MODULE", "GTK_IM_MODULE_FILE", "XMODIFIERS", "QT_IM_MODULE", "DBUS", "NOTE"],
             completed.stdout,
         )
         return parsed, completed.stdout
@@ -95,6 +95,7 @@ class KylinInputMethodTest(unittest.TestCase):
         self.assertEqual(wayland["GTK_IM_MODULE"], "")
         self.assertEqual(wayland["GTK_IM_MODULE_FILE"], "")
         self.assertEqual(wayland["XMODIFIERS"], "")
+        self.assertEqual(wayland["QT_IM_MODULE"], "")
         self.assertEqual(wayland["NOTE"], "")
         self.assertNotIn("org.fcitx.Fcitx-5", wayland_text)
         self.assertNotIn("xim", wayland_text)
@@ -113,33 +114,43 @@ class KylinInputMethodTest(unittest.TestCase):
         ibus, _ibus_text = self.decide(KYLIN_IM_BUS_OWNERS="org.freedesktop.IBus")
         self.assertEqual(ibus["GTK_IM_MODULE"], "ibus")
         self.assertEqual(ibus["XMODIFIERS"], "")
+        self.assertEqual(ibus["QT_IM_MODULE"], "")
         self.assertEqual(ibus["DBUS"], "org.freedesktop.IBus")
         ibus_child = self.launched(
             KYLIN_IM_BUS_OWNERS="org.freedesktop.IBus",
             GTK_IM_MODULE="xim",
             XMODIFIERS="@im=fcitx",
+            QT_IM_MODULE="xim",
         )
         self.assertEqual(ibus_child["GTK_IM_MODULE"], "ibus")
         self.assertNotIn("GTK_IM_MODULE_FILE", ibus_child)
         self.assertNotIn("XMODIFIERS", ibus_child)
+        self.assertNotIn("QT_IM_MODULE", ibus_child)
 
         fcitx, _fcitx_text = self.decide(KYLIN_IM_BUS_OWNERS="org.fcitx.Fcitx")
-        self.assertEqual(fcitx["GTK_IM_MODULE"], "")
+        self.assertEqual(fcitx["GTK_IM_MODULE"], "xim")
         self.assertEqual(fcitx["GTK_IM_MODULE_FILE"], "")
-        self.assertEqual(fcitx["XMODIFIERS"], "")
+        self.assertEqual(fcitx["XMODIFIERS"], "@im=fcitx")
+        self.assertEqual(fcitx["QT_IM_MODULE"], "xim")
         self.assertEqual(fcitx["DBUS"], "org.fcitx.Fcitx")
         self.assertEqual(fcitx["NOTE"], "missing-fcitx4-module")
         fcitx_child, fcitx_err = self.launched_with_note(
-            KYLIN_IM_BUS_OWNERS="org.fcitx.Fcitx"
+            KYLIN_IM_BUS_OWNERS="org.fcitx.Fcitx",
+            GTK_IM_MODULE="stale",
+            QT_IM_MODULE="stale",
+            XMODIFIERS="@im=ibus",
         )
-        self.assertNotIn("GTK_IM_MODULE", fcitx_child)
-        self.assertNotIn("XMODIFIERS", fcitx_child)
+        self.assertEqual(fcitx_child["GTK_IM_MODULE"], "xim")
+        self.assertEqual(fcitx_child["QT_IM_MODULE"], "xim")
+        self.assertEqual(fcitx_child["XMODIFIERS"], "@im=fcitx")
+        self.assertNotIn("GTK_IM_MODULE_FILE", fcitx_child)
         self.assertIn("kylin-im: missing-fcitx4-module", fcitx_err)
 
         fcitx5, fcitx5_text = self.decide(KYLIN_IM_BUS_OWNERS="org.fcitx.Fcitx5")
         self.assertEqual(fcitx5["DBUS"], "org.fcitx.Fcitx5")
         self.assertEqual(fcitx5["GTK_IM_MODULE"], "")
         self.assertEqual(fcitx5["XMODIFIERS"], "")
+        self.assertEqual(fcitx5["QT_IM_MODULE"], "")
         self.assertEqual(fcitx5["NOTE"], "missing-fcitx5-module")
         self.assertNotIn("org.fcitx.Fcitx-5", fcitx5_text)
         self.assertNotIn("xim", fcitx5_text)
@@ -196,6 +207,7 @@ class KylinInputMethodTest(unittest.TestCase):
             decided["GTK_IM_MODULE_FILE"], str(root / "fcitx5" / "immodules.cache")
         )
         self.assertEqual(decided["XMODIFIERS"], "")
+        self.assertEqual(decided["QT_IM_MODULE"], "")
         self.assertEqual(decided["DBUS"], "org.fcitx.Fcitx5")
         self.assertEqual(decided["NOTE"], "")
         child = self.launched(
@@ -309,18 +321,37 @@ class KylinInputMethodTest(unittest.TestCase):
                 self.assertEqual(decided["DBUS"], service)
                 self.assertEqual(decided["GTK_IM_MODULE"], "fcitx")
                 self.assertEqual(decided["GTK_IM_MODULE_FILE"], str(root / "fcitx4/immodules.cache"))
+                self.assertEqual(decided["XMODIFIERS"], "")
+                self.assertEqual(decided["QT_IM_MODULE"], "")
                 self.assertEqual(decided["NOTE"], "")
-                child = self.launched(GTK_IM_MODULE="xim", **env)
+                child = self.launched(
+                    GTK_IM_MODULE="xim", QT_IM_MODULE="xim", XMODIFIERS="@im=fcitx", **env
+                )
                 self.assertEqual(child["GTK_IM_MODULE"], "fcitx")
                 self.assertEqual(child["GTK_IM_MODULE_FILE"], str(root / "fcitx4/immodules.cache"))
                 self.assertNotIn("XMODIFIERS", child)
+                self.assertNotIn("QT_IM_MODULE", child)
 
         missing, _ = self.decide(
             DISPLAY=":0", KYLIN_IM_BUS_OWNERS="org.fcitx.Fcitx-0",
             KYLIN_IM_MODULE_ROOT=str(root / "absent"),
         )
         self.assertEqual(missing["NOTE"], "missing-fcitx4-module")
-        self.assertEqual(missing["GTK_IM_MODULE"], "")
+        self.assertEqual(missing["GTK_IM_MODULE"], "xim")
+        self.assertEqual(missing["QT_IM_MODULE"], "xim")
+        self.assertEqual(missing["XMODIFIERS"], "@im=fcitx")
+        missing_child, missing_err = self.launched_with_note(
+            DISPLAY=":0",
+            KYLIN_IM_BUS_OWNERS="org.fcitx.Fcitx-0",
+            KYLIN_IM_MODULE_ROOT=str(root / "absent"),
+            GTK_IM_MODULE="stale",
+            QT_IM_MODULE="stale",
+            XMODIFIERS="@im=ibus",
+        )
+        self.assertEqual(missing_child["GTK_IM_MODULE"], "xim")
+        self.assertEqual(missing_child["QT_IM_MODULE"], "xim")
+        self.assertEqual(missing_child["XMODIFIERS"], "@im=fcitx")
+        self.assertIn("kylin-im: missing-fcitx4-module", missing_err)
 
     @unittest.skipUnless(
         shutil.which("dbus-run-session") and importlib.util.find_spec("gi"),

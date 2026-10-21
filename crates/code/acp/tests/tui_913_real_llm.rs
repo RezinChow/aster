@@ -18,7 +18,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
 #[path = "tui_913_real_llm/fact_evidence.rs"]
 mod fact_evidence;
@@ -33,7 +33,7 @@ mod tui_read;
 mod tui_coding;
 
 const PROMPT: &str = "Reply with one short sentence and do not call any tools.";
-const PINNED_MODEL: &str = "boyue/deepseek-v4-flash";
+const PINNED_MODEL: &str = "gateway/prism-27b";
 
 fn tui_binary() -> PathBuf {
     if let Some(path) = std::env::var_os("A3S_CODE_TUI_BIN") {
@@ -84,6 +84,10 @@ fn open_pty(binary: &Path, cwd: &Path, env: &[(&str, &str)], secrets: Vec<String
     }
     command.arg("--cwd");
     command.arg(cwd);
+    // The shipped default is plan mode, which denies bash and edits. These
+    // turns have to read, write, and run the checker, so start the execution
+    // profile. `--no-plan` is the existing pager flag.
+    command.arg("--no-plan");
     for (key, value) in env {
         command.env(key, value);
     }
@@ -155,6 +159,10 @@ impl PtySession {
     fn screen(&mut self) -> String {
         self.drain();
         self.parser.screen().contents()
+    }
+
+    fn child_exited(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(Some(_)))
     }
 
     fn write_bytes(&mut self, bytes: &[u8]) {
@@ -394,6 +402,14 @@ fn fresh_matching(
         .collect()
 }
 
+fn assert_execution_mode(pty: &PtySession, screen: &str) {
+    assert!(
+        !screen.contains("· plan"),
+        "session stayed in plan mode\n{}",
+        pty.redact(screen)
+    );
+}
+
 fn assert_screen_clean(pty: &PtySession, screen: &str) {
     let redacted = pty.redact(screen);
     assert!(
@@ -483,12 +499,13 @@ fn real_llm_tui_turn_shows_assistant_text() {
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
     let mut pty = open_pty(&binary, &workspace, &refs, secrets);
-    let ready = pty.wait_for("DeepSeek V4 Flash", Duration::from_secs(45));
+    let ready = pty.wait_for("qwen3.8-27B", Duration::from_secs(45));
     assert!(
-        ready.contains("boyue/"),
+        ready.contains("gateway/"),
         "composer missed the pinned provider\n{}",
         pty.redact(&ready)
     );
+    assert_execution_mode(&pty, &ready);
     assert_screen_clean(&pty, &ready);
     let before = pty.screen();
     pty.clear_line();
@@ -677,6 +694,17 @@ fn open_live_with_verification(coding: bool) -> Option<LiveSession> {
             "/usr/bin:/bin:/usr/sbin:/opt/homebrew/bin".into(),
         ),
     ];
+    if !coding {
+        // These turns assert the macOS pre-spawn denial. A qualified sibling
+        // companion executes the command and books a mutation, so discovery
+        // points at an empty directory. Coding turns keep that sibling.
+        let unqualified = root.path().join("unqualified-sandbox");
+        std::fs::create_dir_all(&unqualified).expect("unqualified sandbox dir");
+        env.push((
+            "ASTER_SANDBOX_DIR".to_string(),
+            unqualified.display().to_string(),
+        ));
+    }
     if let Some(trace) = &prompt_trace {
         env.push((
             "A3S_CODE_TUI_TEST_ACP_REAL".into(),
@@ -692,12 +720,13 @@ fn open_live_with_verification(coding: bool) -> Option<LiveSession> {
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
     let mut pty = open_pty(&binary, &workspace, &refs, secrets);
-    let ready = pty.wait_for("DeepSeek V4 Flash", Duration::from_secs(45));
+    let ready = pty.wait_for("qwen3.8-27B", Duration::from_secs(45));
     assert!(
-        ready.contains("boyue/"),
+        ready.contains("gateway/"),
         "composer missed the pinned provider\n{}",
         pty.redact(&ready)
     );
+    assert_execution_mode(&pty, &ready);
     assert_screen_clean(&pty, &ready);
     Some(LiveSession {
         _root: root,
@@ -711,15 +740,19 @@ fn open_live_with_verification(coding: bool) -> Option<LiveSession> {
     })
 }
 
+/// The shortcuts bar draws `Ctrl+o:yolo` only while the permission options card has the keyboard.
+/// A transcript line that still says "Yes, proceed" is not that card.
+fn permission_card_is_focused(screen: &str) -> bool {
+    screen.contains("Ctrl+o:yolo")
+}
+
 fn answer_dialog(pty: &mut PtySession, screen: &str) -> bool {
     if screen.contains("Do you trust the contents of this directory") {
         pty.type_text("y");
-        std::thread::sleep(Duration::from_millis(200));
         return true;
     }
-    if screen.contains("Yes, proceed") {
+    if permission_card_is_focused(screen) {
         pty.type_text("1");
-        std::thread::sleep(Duration::from_millis(400));
         return true;
     }
     false
@@ -1351,19 +1384,18 @@ fn drive_until(
     let mut last = String::new();
     while Instant::now() < deadline {
         last = pty.screen();
-        if answer_dialog(pty, &last) {
-            continue;
+        if pty.child_exited() {
+            panic!("tui exited\n{}", pty.redact(&last));
         }
+        answer_dialog(pty, &last);
         if let Some(hit) = banner(&last) {
             panic!("turn/provider error banner {hit}\n{}", pty.redact(&last));
         }
         if done(&last) {
             std::thread::sleep(Duration::from_millis(800));
             last = pty.screen();
-            if answer_dialog(pty, &last) {
-                continue;
-            }
-            if done(&last) {
+            answer_dialog(pty, &last);
+            if done(&last) && !permission_card_is_focused(&last) {
                 return last;
             }
         }

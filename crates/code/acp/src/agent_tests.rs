@@ -1637,6 +1637,11 @@ fn tui_mappings_cover_cards_catalog_and_questions() {
     .is_some());
     assert!(tool_raw_output("read", None, "out", 0).is_none());
     assert!(tool_raw_output("shell", None, "out", 1).is_some());
+    assert_eq!(
+        tool_raw_output("Skill", None, "Skill 'missing-skill' not found", 1),
+        Some(serde_json::json!("Skill 'missing-skill' not found"))
+    );
+    assert!(tool_raw_output("Skill", None, "", 1).is_none());
 
     assert!(effort_guideline("low").is_some());
     assert!(effort_guideline("high").is_some());
@@ -2176,12 +2181,53 @@ fn confirmation_then_execution_opens_one_tool_row() {
 }
 
 #[test]
+fn workspace_and_home_skill_roots_are_loaded_when_they_exist() {
+    let root =
+        std::env::temp_dir().join(format!("a3s-acp-workspace-skills-{}", uuid::Uuid::new_v4()));
+    let home = root.join("home");
+    let outside = root.join("outside");
+    for base in [&root, &home, &outside] {
+        for rel in [
+            "skills",
+            ".a3s/skills",
+            ".agents/skills",
+            ".claude/skills",
+            ".codex/skills",
+        ] {
+            std::fs::create_dir_all(base.join(rel)).unwrap();
+        }
+    }
+    let (dirs, missing) = interactive_skill_dirs_from(&root, &[], Some(home.as_path()));
+    for base in [&root, &home] {
+        for rel in [
+            "skills",
+            ".a3s/skills",
+            ".agents/skills",
+            ".claude/skills",
+            ".codex/skills",
+        ] {
+            assert!(
+                dirs.iter().any(|dir| dir == &base.join(rel)),
+                "loaded list missing {}",
+                base.join(rel).display()
+            );
+        }
+    }
+    assert!(
+        dirs.iter().all(|dir| !dir.starts_with(&outside)),
+        "an unconfigured directory outside the workspace and home stays unloaded"
+    );
+    assert!(missing.is_empty());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn configured_skill_directory_that_is_missing_is_named() {
     let root = std::env::temp_dir().join(format!("a3s-acp-skill-dirs-{}", uuid::Uuid::new_v4()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join(".a3s/skills")).unwrap();
     let missing = root.join("missing-skills");
-    let (dirs, absent) = interactive_skill_dirs_from(&root, std::slice::from_ref(&missing));
+    let (dirs, absent) = interactive_skill_dirs_from(&root, std::slice::from_ref(&missing), None);
     assert!(dirs.iter().any(|dir| dir.ends_with(".a3s/skills")));
     assert_eq!(absent, vec![missing]);
     let _ = std::fs::remove_dir_all(&root);
@@ -2255,17 +2301,31 @@ fn interactive_skill_dirs_load_an_explicit_profile_without_reading_home() {
 fn watched_skill_dirs_include_home_agent_roots_before_they_exist() {
     let workspace = std::path::Path::new("/tmp/a3s-watch-skills-workspace");
     let dirs = watched_skill_dirs(workspace);
-    assert!(dirs.iter().any(|dir| dir == &workspace.join("skills")));
-    assert!(dirs
-        .iter()
-        .any(|dir| dir == &workspace.join(".a3s").join("skills")));
+    for root_name in [
+        "skills",
+        ".a3s/skills",
+        ".agents/skills",
+        ".claude/skills",
+        ".codex/skills",
+    ] {
+        assert!(
+            dirs.iter().any(|dir| dir == &workspace.join(root_name)),
+            "watch list missing workspace {root_name}"
+        );
+    }
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
     let Some(home) = home.filter(|value| !value.is_empty()) else {
         return;
     };
     let home = std::path::PathBuf::from(home);
-    for root in [".a3s", ".agents", ".claude", ".codex"] {
-        let personal = home.join(root).join("skills");
+    for root in [
+        "skills",
+        ".a3s/skills",
+        ".agents/skills",
+        ".claude/skills",
+        ".codex/skills",
+    ] {
+        let personal = home.join(root);
         assert!(
             dirs.iter().any(|dir| dir == &personal),
             "watch list missing {}",

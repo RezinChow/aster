@@ -68,7 +68,7 @@ impl Tool for CodeSymbolsTool {
     }
 
     fn description(&self) -> &str {
-        "Query semantic symbols from saved workspace files. Use operation='outline' for a document hierarchy or operation='search' for workspace symbols. A search result includes one declaration line and not the function body; use read when the full body is needed."
+        "Query semantic symbols from saved workspace files. The outline operation returns the hierarchy of one document. The search operation returns one declaration line and not the function body. Use read when the full body is needed."
     }
 
     fn parameters(&self) -> Value {

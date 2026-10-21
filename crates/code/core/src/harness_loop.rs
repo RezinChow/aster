@@ -203,6 +203,11 @@ pub struct MutationLedger {
     /// workspace-attribution gap is not stored here; the run scan owns that.
     #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
     unresolved_tool_effects: std::collections::BTreeSet<String>,
+    /// Paths whose first typed before-state in this run was absence.
+    /// A later absence is not a remaining effect. Unknown history stays out.
+    /// This set is not part of the effect digest.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    started_absent: std::collections::BTreeSet<String>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
     applied_tool_receipts: std::collections::BTreeSet<String>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
@@ -557,6 +562,8 @@ impl MutationLedger {
         }
         self.unresolved_tool_effects
             .extend(cached.unresolved_tool_effects.iter().cloned());
+        self.started_absent
+            .extend(cached.started_absent.iter().cloned());
         if cached_has_evidence && !original_cache_coverage_complete {
             self.unresolved_tool_effects
                 .insert("tool_effect_cache_evidence_missing".into());
@@ -637,7 +644,7 @@ impl MutationLedger {
                     _ => {}
                 }
             }
-            self.observe_receipt_path(tool, &change.path, &change.after);
+            self.observe_receipt_path(tool, &change.path, change.before.as_ref(), &change.after);
         }
         if failed_changed {
             self.rehash();
@@ -679,7 +686,12 @@ impl MutationLedger {
             return;
         }
         for change in &effects.changes {
-            self.observe_receipt_path("background", &change.path, &change.after);
+            self.observe_receipt_path(
+                "background",
+                &change.path,
+                change.before.as_ref(),
+                &change.after,
+            );
         }
         // The caller validates the process terminal. File coverage belongs
         // to the run scan, just as it does for a captured foreground exit.
@@ -691,9 +703,39 @@ impl MutationLedger {
         &mut self,
         tool: &str,
         path: &str,
+        before: Option<&a3s_effect::ToolFileIdentityV1>,
         after: &a3s_effect::ToolFileIdentityV1,
     ) {
         if path.is_empty() || crate::porcelain::is_harness_path(path) {
+            return;
+        }
+        // A typed before of absence is the run's start for this path, unless
+        // an earlier receipt already showed the path present.
+        if before.is_some_and(|before| before.kind == a3s_effect::ToolFileKind::Missing)
+            && !self.records.iter().any(|record| {
+                record.path == path
+                    && record
+                        .after_identity
+                        .as_ref()
+                        .is_some_and(|after| after.kind != a3s_effect::ToolFileKind::Missing)
+            })
+        {
+            self.started_absent.insert(path.to_string());
+        }
+        // Created in this run and absent again: the workspace matches the
+        // start. A deletion of a file that was already there stays recorded.
+        if after.kind == a3s_effect::ToolFileKind::Missing
+            && self.started_absent.contains(path)
+            && !self.failed_effect_paths.contains_key(path)
+        {
+            let had = self.records.iter().any(|record| record.path == path);
+            self.records.retain(|record| record.path != path);
+            self.started_absent.remove(path);
+            self.native_artifact_verifications.remove(path);
+            self.nested_shell_verifications.remove(path);
+            if had {
+                self.rehash();
+            }
             return;
         }
         if self
@@ -913,7 +955,7 @@ impl MutationLedger {
             return;
         }
         for change in &effects.changes {
-            self.observe_receipt_path(tool, &change.path, &change.after);
+            self.observe_receipt_path(tool, &change.path, change.before.as_ref(), &change.after);
         }
     }
 

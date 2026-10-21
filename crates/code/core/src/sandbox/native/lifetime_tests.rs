@@ -107,7 +107,19 @@ async fn guest_discovery_detail_reaches_both_native_apis_without_changing_policy
     ] {
         let error = result.expect_err("unqualified execution stays refused");
         assert!(error.to_string().contains(reason), "{error:#}");
-        assert!(error.to_string().contains("Do not retry this process tool"));
+        let text = error.to_string();
+        assert!(
+            text.contains("invoke it once"),
+            "a later request must still be allowed to invoke the tool: {text}"
+        );
+        assert!(
+            text.contains("the command does not start"),
+            "the refusal must still say the command does not start: {text}"
+        );
+        assert!(
+            !text.contains("Do not retry this process tool"),
+            "a permanent do-not-retry instruction skips later user requests: {text}"
+        );
         assert!(is_native_process_lifetime_unqualified(&error));
     }
     assert_eq!(sandbox.policy_digest(), policy_digest);
