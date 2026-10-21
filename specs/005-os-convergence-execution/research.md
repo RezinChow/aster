@@ -227,6 +227,10 @@ development/2026-10-21-t042-step1-subject-link/OUTCOME.md）
 
 ## T021 前置锐化 — fork 与 vendor 血统分叉（2026-10-21 核查）
 
+> **[已推翻 2026-10-21 晚]** 本节"非同支血统"结论是浅克隆边界的伪影：
+> fork 克隆的 `.git/shallow` 边界恰在 `6fdc25f`，遮蔽了父边。补全历史后
+> merge-base(main, f7c69184) = f7c69184 本身。勘误与吸收探针见下节。
+
 `vendor/libkrun`（归档 SHA `b92b7d…`，源工具链提交 `f7c69184`）与
 aster-ai-lab/libkrun main（`02e1414`+`ad556a3`）**不是同支血统**：
 96 处树差异，vendor 独有 SNAPSHOT_PHASE_B.md / VSOCK_RESTORE_DIAGNOSIS.md
@@ -239,3 +243,41 @@ fork 是 A3S-Lab 主线 + 插桩 + sysroot 修复。直接重 vendor = 回归产
 cherry-pick 或 rebase 到 fork main + macOS 冷编验证），这是 owner 可见的
 实质工程项。sysroot 修复（`ad556a3`）不足以触发重 vendor——它只是让
 fork 可在本机从源构建。
+
+## T021 前置推翻与吸收探针（2026-10-21 晚；supersedes 上节结论）
+
+**血统勘误**：fork 克隆是浅克隆（shallow 边界 = `6fdc25f`），此前
+merge-base 失败是边界伪影。`git fetch upstream --unshallow` 后：
+**merge-base(main, f7c69184) = f7c69184 本身**——f7c69184 就是 fork main
+的祖先。fork main = f7c69184 + virtiofs-trunc 修复（`6fdc25f`）+ 插桩
+（`02e1414`）+ sysroot 修复（`ad556a3`），全量增量仅 3 文件。TSI 产品补丁
+（#12/#13/#14 所涉 9 文件）在 vendor 树与 f7c69184 **逐字一致**——
+"重 vendor 丢产品网络补丁"风险不存在。
+
+**真实缺口（方向反转）**：aster vendored 树相对 f7c69184 有 **94 处差异**
+（87 内容差异 + 4 vendor 独有 + 3 f7 独有），即约 91 文件的前向演化
+（`src/vmm/src/snapshot.rs` 快照实装、`KRUN_SNAPSHOT_SOCK` 触发服务、
+macOS `passthrough_tests.rs`、`SNAPSHOT_PHASE_B.md`/`VSOCK_RESTORE_DIAGNOSIS.md`
+工作文档、devices 26 / vmm 18 / utils 7 广面改动）**从未进入任何 git
+血统**——只活在 aster 仓的 vendor 树里。吸收方向 = 把这 91 文件提取进
+fork，而非从上游拉补丁。
+
+**吸收探针已执行并编译验证**（fork 分支 `absorb/t021-vendor-evolution`
+@ `3b1a018`，本地未推）：
+1. 90 文件自 vendored 树逐字拷入；`src/libkrun/src/lib.rs` 真三向合并
+   （base=f7c69184；ours=插桩；theirs=快照触发/关机路径），唯一冲突
+   （stage 标记 vs 快照块同点插入）解为两者并留。
+2. `NET=1 BLK=1 make` **exit 0**（增量，含快照触发块 linux/x86_64 cfg
+   与 macOS aarch64 cfg 放宽）。
+3. 无损失证明：`diff -rq` vendored 树 vs 分支树——**零缺失**；差异仅
+   3 个 fork 超集项（Makefile sysroot 修复、lib.rs 插桩、make 收敛后的
+   Cargo.lock +26/−14）+ 构建产物。合计 +1949/−3355（vendor 演化含删减，
+   内容逐字保真）。
+
+**T021 剩余（owner 两个决定）**：
+- D-1：`absorb/t021-vendor-evolution` 落 fork main（探针已证代价 ≈ 一次
+  merge + 一次编译，非"3 个 PR 量级"）。
+- D-2：重 vendor 的产品树是否含 boot 插桩（`KRUN_BOOT_ABORT` stderr 行
+  是行为面变化；不含则 vendor 从分支剥离插桩后再生成）。
+  再生成仍走确定性 `git archive` + `LIBKRUN_SOURCE_ARCHIVE_SHA256` +
+  SOURCE-PROVENANCE 同步。

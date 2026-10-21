@@ -104,17 +104,20 @@ US-6 证据修正）
       `KRUN_BOOT_STAGE` 标记（含原两处静默退出）；纯插桩、控制流不变、
       rustfmt 干净；编译验证边界已在提交信息声明（cargo 需 make 先产
       init 产物）✅
-- [ ] T021 [US4] 重 vendor——**前置锐化（2026-10-21 血统核查）**：vendored
-      树源自工具链提交 `f7c69184`，携带产品级补丁（TSI 反向代理流 #13、
-      host 转发端口发夹 #14、未发布 TSI 监听 -EPERM #12/Box#370、
-      allowlist-only host bind、macOS VirtioFS 目录快照、FUSE resume
-      cookie 稳定化等）；fork main 是 A3S-Lab 主线血统 + 插桩 + sysroot
-      修复（`02e1414`+`ad556a3`），与 vendored 树 96 处差异且非超集——
-      **直接重 vendor 会丢失产品网络补丁**。真实前置 = fork 先吸收
-      f7c69184 补丁集（rebase/merge/cherry-pick + macOS 编译验证），此为
-      owner 可见的实质工程项，非本轮可自行推进。吸收完成后再以确定性
-      `git archive` 再生成 vendor + 同步 `LIBKRUN_SOURCE_ARCHIVE_SHA256`
-      与 SOURCE-PROVENANCE
+- [ ] T021 [US4] 重 vendor——**血统勘误 + 吸收探针已执行（2026-10-21
+      晚）**：浅克隆边界伪影推翻"分叉血统"旧判——unshallow 后
+      **f7c69184 就是 fork main 的祖先**（fork 全量增量仅 3 文件：
+      virtiofs-trunc + 插桩 + sysroot），TSI 产品补丁在 vendor 树与
+      f7c69184 逐字一致，"重 vendor 丢产品补丁"风险不存在。真实缺口方向
+      反转：vendored 树约 91 文件的前向演化（vmm snapshot 实装、
+      KRUN_SNAPSHOT_SOCK 触发、macOS passthrough 测试、devices/vmm 广面）
+      从未进任何 git 血统。**吸收分支已建并验证**：fork
+      `absorb/t021-vendor-evolution`@`3b1a018`（90 文件逐字 + lib.rs 三向
+      合并唯一冲突解为并留；`NET=1 BLK=1 make` exit 0；`diff -rq` 零缺失，
+      差异仅 3 个 fork 超集项）。**剩余 owner 两决定**：D-1 吸收分支落
+      fork main；D-2 产品 vendor 树是否含 boot 插桩（行为面）。之后走
+      确定性 `git archive` 再生成 + `LIBKRUN_SOURCE_ARCHIVE_SHA256` +
+      SOURCE-PROVENANCE 同步。详见 research.md §T021 前置推翻
 - [x] T022 [US4] Box 保留日志策略：启动失败时先把 `box_dir/logs` 拷至
       `<home>/diag/failed-boots/<box_id>/`（按 box_id 单份、重试整体替换、
       best-effort 不影响失败路径），拆毁语义不变；`vm::boot_diag` 三用例
