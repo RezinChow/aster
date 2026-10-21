@@ -41,14 +41,20 @@ pin 即是修复动作的一部分。
 
 ## D-F krun 引导链失败 — Box 仓库 issue 草稿（外发文本）
 
-> 标题：krun VM worker fails to boot under the T0.4.2 OIDC federation
-> e2e stack（boot-chain failure，最小复现附内）
+> 标题：A3S-Lab/libkrun fork boot chain: VM exits before the guest exec
+> server is ready (macOS/HVF, T0.4.2 stack)
 >
-> 正文要点：环境（macOS/Darwin + OrbStack，pin 版本）；症状（krun worker
-> 引导失败，阻塞 `a3s-os-node-agent` 就绪）；最小复现步骤引用
-> `apps/cloud/docs/convergence/t0.4.2-oidc-federation-runbook.md` 步骤
-> 1–3；请求归属判定（libkrun-sys vendored 树 vs 引导配置）；关联：
-> 该项是收敛计划 Phase 0 唯一出口项的外部前置（D-F）。
+> 正文要点：定性——这不是上游 libkrun 报障，是**自家 fork** 的引导链
+> （`A3S-Lab/libkrun`，安装版 3.3.0 的运行时可溯源至 fork commit
+> `dc5519f`/`2692169b`，见 `a3s-libkrun-sys` SOURCE-PROVENANCE.md）。
+> 环境（macOS/Darwin，pin 版本）；症状（"VM process exited before the
+> guest exec server became ready"，且失败路径清理了 shim/console 日志，
+> 无留存诊断）；**第一诉求：失败路径保留 shim/console 日志**；第二诉
+> 求：排查 fork 的 macOS 增量（VirtioFS 目录项快照、合成 FUSE resume
+> cookie、guest-init 握手）——正是引导早期 guest 侧就绪路径的地基；
+> 最小复现引用 runbook 步骤 1–3；可对照树内 vendored 源
+> （`crates/box/deps/libkrun-sys/vendor/libkrun`）诊断；关联：收敛计划
+> Phase 0 唯一出口项的外部前置（D-F）。
 > 附：同栈已知干扰——旧 `a3s-os-node-agent.service` crash-loop（50,974
 > 次重启，203/EXEC）需在每次重跑前禁用（fn02 证据 L166-177）。
 
