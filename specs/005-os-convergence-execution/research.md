@@ -106,25 +106,36 @@ D-A/D-B：2026-11-07；D-D：2026-11-15。到期未决 → 依赖故事 fail clo
 > parallel Aster checkout of libkrun source inside this repository's
 > crates.
 
-## AppRelease 加固 — 上游 PR 草稿（kense-labs/api；2026-10-21 发现）
+## AppRelease 加固 — 上游 PR 草稿（kense-labs/api；2026-10-21 发现；当晚前提勘误+本地已实现）
 
-> 标题：fix(app-release): gate the release lifecycle and pin version
-> uniqueness
->
-> 证据：`/v1/api/app-releases` 的 upload/publish/withdraw/delete 不在
-> 任何受守卫前缀（admin `a3s_us_` / org `a3s_ms_`，见 main.rs OpenAPI
-> 自述与 exclude_global_prefix），控制器层零鉴权（对比 model_hub 的
-> `#[header("authorization")]` 模式）；`/current/file` 直供下载站。
-> 任一公网部署实例存在发布渠道投毒面（fail-closed 宪法视角）。
->
-> 修复内容：
-> 1. 管理面守卫：写操作（upload/publish/withdraw/delete）纳入 admin
->    会话（`a3s_us_`，与 `/v1/api/admin` 同门）；读操作（list/current/
->    file）保持公开（下载站需要）。
-> 2. 唯一性：`(channel, platform, version)` 唯一约束 + 冲突命名错误；
->    迁移先行去重。
-> 3. e2e：上传→发布→current 解析→下载字节 sha256 相等；未鉴权写操作
->    401/403 命名拒绝；撤回后 current 拒绝（denied 与 missing 不可分）。
+> **前提勘误（2026-10-21 晚，首 e2e 挂载时发现）**：初判"不在任何受守卫前缀"
+> 错了一半——`API_PREFIX = /v1/api/admin`，app-release 实际挂在
+> `/v1/api/admin/app-releases`，**在** SessionPlaneGuardInterceptor 的前缀门
+> 之内（含读路径）。真实洞更精确：拦截器只校验令牌**前缀形状**
+> （`a3s_us_`），控制器层零会话验证——任意 `a3s_us_` 形状（无效/吊销/外来）
+> 令牌即可写。初判的"/current/file 直供下载站"同样修正：读也在前缀门后，
+> 是否公开化是独立产品决定，未代决。
+
+原始证据（保留供对照）：`/v1/api/app-releases`（实为 admin 前缀下）的
+upload/publish/withdraw/delete 控制器层零鉴权（对比 model_hub 的
+`sessions.operator()` 全验证模式）。
+
+**本地已实现（api `58410bb`，排队上游 PR）**：
+1. 写面全验证：四个写操作前置 `AssetSessions::operator()`
+   （model_hub 模式，`ProofAssetSessions` 注入）；读路径保持现挂载形态。
+2. 唯一性：`(channel, platform, version)` 唯一索引**库内本已存在**
+   （migration 031 表级 + 063 partial published 索引）——真实缺陷是
+   `insert_err` 用词表猜冲突而 orm 错误文本从不含那些词（重复上传一直
+   500 而非命名 409）；已改为类型化链上匹配 **SQLSTATE 23505**（宪法
+   禁词表猜测的直接应用）。
+3. e2e（org_hub live 变体模式：真控制器 + 活 PG + 活 RustFS + 一次性
+   迁移库 + 脚本会话）：双层准入拒绝（前缀门：无头/成员令牌；服务层：
+   `a3s_us_` 形状未知令牌）+ 上传→发布→current→流式文件字节回环 +
+   重复三元组命名 409 + 撤回后 denied≡missing + 全量删除清理。
+   2/2 绿（本地活栈实测）。已知边界：`plugin/packaging/` 两文件 HEAD
+   既有 fmt 债（`55a64b3` 引入），未捎带，记上游队列。
+
+**剩余**：仅推送权（PR 内容已从草稿变为 ready-to-open 的实现 + 证明）。
 
 ## T029 计量环生产者 — 设计笔记（2026-10-21）
 

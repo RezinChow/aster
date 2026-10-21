@@ -131,13 +131,15 @@ US-6 证据修正）
 
 ## Phase C++: AppRelease 加固轨（2026-10-21 发现）
 
-- [x] T023 [US4] `/app-releases` 鉴权核查：不属任何受守卫前缀、控制器
-      零鉴权（对比 model_hub 显式 authorization 模式）→ 高置信「未鉴权
-      写面」；`/current/file` 直供下载站 → 投毒面。发现与上游 PR 草稿
-      入 research.md ✅
-- [ ] T024 [US4] AppRelease 上游 PR（kense-labs/api）：admin 会话守卫 +
-      (channel,platform,version) 唯一约束 + 全链 e2e ——**阻塞上游 PR 权**
-      （草稿已备 research.md）
+- [x] T023 [US4] `/app-releases` 鉴权核查——**发现已勘误（2026-10-21 晚）**：
+      实挂载在 `/v1/api/admin/app-releases`（API_PREFIX），在拦截器前缀门
+      之内；真实洞 = 前缀门只查令牌形状，控制器层零会话验证（任意
+      `a3s_us_` 形状令牌可写）。发现、勘误与上游 PR 材料入 research.md ✅
+- [ ] T024 [US4] AppRelease 上游 PR（kense-labs/api）——**加固已在本地
+      实现并证明**（2026-10-21 晚：api `58410bb` 排队上游——写面全
+      `operator()` 验证 + SQLSTATE 23505 命名 409（连带修复重复上传 500
+      的存量缺陷）+ 双层准入与全链 e2e 2/2 绿于活栈；读面公开化未代决）
+      ——**仅阻塞推送权**（PR 已从草稿变为 ready-to-open）
 
 ## Phase F: a3s-api 缺口收敛（2026-10-21 完成度核查后分类）
 
