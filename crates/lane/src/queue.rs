@@ -52,6 +52,13 @@ pub trait Command: Send + Sync {
 
     /// Get command type (for logging/debugging)
     fn command_type(&self) -> &str;
+
+    /// The serialized command payload for persistence and replay.
+    /// Commands that carry data override this; opaque commands keep the
+    /// empty default.
+    fn payload(&self) -> serde_json::Value {
+        serde_json::json!({})
+    }
 }
 
 /// A simple JSON-based command for data-driven Rust usage.
@@ -81,6 +88,10 @@ impl Command for JsonCommand {
 
     fn command_type(&self) -> &str {
         &self.command_type
+    }
+
+    fn payload(&self) -> serde_json::Value {
+        self.payload.clone()
     }
 }
 
@@ -261,6 +272,9 @@ impl Lane {
 
         let command_id = Uuid::new_v4().to_string();
         let command_type = command.command_type().to_string();
+        // Capture the payload before the command moves into the wrapper so
+        // persistence stores what a replay needs.
+        let stored_payload = command.payload();
         let wrapper = CommandWrapper {
             id: command_id.clone(),
             command: Arc::from(command),
@@ -281,7 +295,7 @@ impl Lane {
                 id: command_id,
                 command_type,
                 lane_id: self.id.clone(),
-                payload: serde_json::json!({}), // Empty payload for now
+                payload: stored_payload,
                 retry_count: 0,
                 created_at: Utc::now(),
                 last_attempt_at: None,
@@ -2037,5 +2051,85 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
         assert_eq!(lane.effective_priority().await, 0);
+    }
+
+    #[derive(Default)]
+    struct CapturingStorage {
+        saved: std::sync::Mutex<Vec<StoredCommand>>,
+    }
+
+    #[async_trait]
+    impl Storage for CapturingStorage {
+        async fn save_command(&self, command: StoredCommand) -> Result<()> {
+            self.saved.lock().unwrap().push(command);
+            Ok(())
+        }
+
+        async fn load_commands(&self) -> Result<Vec<StoredCommand>> {
+            Ok(self.saved.lock().unwrap().clone())
+        }
+
+        async fn remove_command(&self, _id: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn save_dead_letter(&self, _letter: StoredDeadLetter) -> Result<()> {
+            Ok(())
+        }
+
+        async fn load_dead_letters(&self) -> Result<Vec<StoredDeadLetter>> {
+            Ok(Vec::new())
+        }
+
+        async fn clear_dead_letters(&self) -> Result<()> {
+            Ok(())
+        }
+
+        async fn clear_all(&self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_json_command_payload_persists_for_replay() {
+        let emitter = EventEmitter::new(100);
+        let storage = Arc::new(CapturingStorage::default());
+        let queue = Arc::new(CommandQueue::with_storage(
+            emitter,
+            Arc::clone(&storage) as Arc<dyn Storage>,
+        ));
+        let lane = Arc::new(Lane::with_storage(
+            "test-lane",
+            LaneConfig::new(1, 4),
+            priorities::QUERY,
+            Arc::clone(&storage) as Arc<dyn Storage>,
+        ));
+        queue.register_lane(lane).await;
+        let scheduler = Arc::clone(&queue).spawn_scheduler();
+
+        let payload = serde_json::json!({"op": "resize", "args": [2, 3]});
+        let receiver = queue
+            .submit(
+                "test-lane",
+                Box::new(JsonCommand::new("test.json", payload.clone())),
+            )
+            .await
+            .expect("submit during normal operation");
+        let result = receiver.await.expect("result channel open");
+        assert_eq!(result.unwrap(), payload);
+
+        let stored = storage.load_commands().await.expect("stored commands");
+        let stored = stored
+            .iter()
+            .find(|cmd| cmd.command_type == "test.json")
+            .expect("the json command was persisted");
+        assert_eq!(
+            serde_json::to_vec(&stored.payload).expect("stored payload serializes"),
+            serde_json::to_vec(&payload).expect("original payload serializes"),
+            "persisted payload must carry the command bytes for replay, not an empty object"
+        );
+
+        drop(scheduler);
+        queue.shutdown().await;
     }
 }
