@@ -183,3 +183,26 @@ FN0.2 Fleet retain 钉死在 GitHub Actions `ubuntu-24.04` workflow
 自评（fail-closed 视角）：等价性主张的实质是「production-shaped = 主机
 形态 + 保留能力」，非「GitHub 品牌」。若评审不采纳，回退态 = 等
 `A3S_LABS_READ_TOKEN`，FN0 维持现状，不产生新增债。
+
+## T015 取证修订 — krun 前提更正（2026-10-21，证据见 development/
+2026-10-21-krun-t042-rerun-forensics/OUTCOME.md）
+
+六格实验矩阵定案：10-19 的「krun 引导链内部失败」是 **dyld 加载失败**——
+硬拷贝至 `~/.a3s/bin` 的 shim 其 rpath（`@executable_path/../lib` →
+`~/.a3s/lib`）无 libkrun 可载，立即退出被 CLI 报成 VM boot 失败。补全
+`~/.a3s/lib`（拷安装件 `lib/` 的 `libkrun*.dylib`）后 **stock 3.3.0 链
+converged**；repo 构建（vendored 或 fork 插桩库）全程绿，插桩未触发。
+
+对决策板的修订：
+- **D-D**：对 T0.4.2 的 box 路径失效（compose 引导用的正是 pinned
+  digest `742f…2193`；digest 不可解析是 docker.io pull 特有）。Docker
+  fallback 的镜像镜像问题独立存在，但 T0.4.2 不再依赖它。
+- **D-A**：成为 T0.4.2 步骤 4–6 的**唯一剩余决策**（Cloud 侧
+  webpki-only trust 对本地 a3s-auth issuer 的私有 CA 准入）。
+- **D-F/上游 Box issue 素材补充**：`find_shim` 会选中脱离安装上下文的
+  硬拷贝 shim，其 dyld 失败被归类为 VM boot 失败——上游修复方向：错误
+  分类区分「shim 未加载」与「VM 退出」，或 find_shim 校验 rpath 可解析。
+  stock/repo 两链 config 同形（`:copy` 目录卷），排除配置面因素。
+
+fork 侧：`ad556a3`（sysroot gcc-runtime 链接修复，macOS 交叉 `make` 冷
+启动自证）——fork 首个非插桩修复已合入 main。

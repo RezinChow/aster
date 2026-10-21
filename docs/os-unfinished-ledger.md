@@ -18,7 +18,7 @@
 | 1 | 推理数据面 I0/PW0：无 InferenceDeployment 聚合、worker 恒空、计费 tokenizer 未闭环 | `apps/cloud/docs/inference-plan.md` L1330-1763；`apps/cloud/docs/inference-service-module-plan.md` §4 | 无（上游 Planned） |
 | 2 | 生产运维 GA-3：H0.3/0.4/0.5（PG 无认证故障切换）、OBS1-8、CD0 尾项、COMP/POL | `apps/cloud/ROADMAP.md` H0 行 L2178-2473；`platform-gap-analysis.md` §3.3-3.6 | 无（GA-3 于 2027-04 开启） |
 | 3 | GA-2 验收链（当前第一优先）：W0.3 真供应商收尾 → HumanTask → 目录派发 → 匿名 Chatbot | `apps/cloud/docs/convergence/ga2-scope-and-codegen-pilot.md` L14-17；plan.md L100-108 | 等保留证据基建（D-B） |
-| 4 | Phase 0 出口 T0.4.2 OIDC e2e：三解阻塞（D-A 私有 CA、D-D postgres digest、krun） | `apps/cloud/docs/convergence/t0.4.2-oidc-federation-runbook.md` L102-113 | **krun 已转自有**（见 §三）；D-A/D-D 等决策（材料 `specs/005/research.md`） |
+| 4 | Phase 0 出口 T0.4.2 OIDC e2e：三解阻塞（D-A 私有 CA、D-D postgres digest、krun） | `apps/cloud/docs/convergence/t0.4.2-oidc-federation-runbook.md` L102-113 | **krun/D-D 已清**（2026-10-21 取证：根因非 krun，D-D 对 box 路径失效）；**仅剩 D-A**（见 §三；材料 `specs/005/research.md`） |
 | 5 | Verified 晋升债：FN0（token+裸金属）、CELL0.5（Box#627，冻结）、G0（Box 日志契约）、W0.5/A0/MCP0 | `apps/cloud/docs/fn0-verified-residual.md` L189-198；`cell0-durable-cell-checklist.md` L19-21 | 无（等外部） |
 
 ## 二、Held / Planned lane（不占 WIP 名额）
@@ -33,14 +33,16 @@ K0/AUT0/S0；FROZEN P2 = EV0/AR0/I0-TrackB+/PW0.tee/CELL0。逐 lane 门表见
 | --- | --- | --- |
 | fork `aster-ai-lab/libkrun` + 插桩（11 早退 `KRUN_BOOT_ABORT`）+ main 合入 + 编译验证 | ✅ | fork main `02e1414`；证据 krun lane 段 |
 | Box 失败引导保留日志 `<home>/diag/failed-boots/<box_id>/` | ✅ | `crates/box/runtime/src/vm/boot_diag.rs` |
-| T0.4.2 重跑取证 → 修 fork → T021 重 vendor 切换 | ⏳ | `specs/005/tasks.md` T015/T021 |
+| T0.4.2 重跑取证 → 修 fork → T021 重 vendor 切换 | 取证 ✅（2026-10-21：根因 = shim 硬拷贝缺 `~/.a3s/lib`，非 krun；stock 链补全后 converged，D-D 对 box 路径失效）→ **仅剩 D-A** | `specs/005/tasks.md` T015；证据 `docs/evidence/development/2026-10-21-krun-t042-rerun-forensics/` |
 
 ## 四、解阻钥匙（owner 动作，按杠杆排序）
 
 1. **`STUDIO_READ_TOKEN`**（kense-labs/studio+api+cloud 只读）→ 远端三
    工作流全绿 + backend.yml 方案 a 首验。最小 scope 清单：
    `specs/005/research.md`。
-2. **D-A / D-B / D-D** → T0.4.2 三解阻塞清零 + 保留管道。对比材料同上。
+2. **D-A**（T0.4.2 唯一剩余决策）**/ D-B**（W0.3 保留证据基建）→
+   对比材料同上。（D-D 已不阻塞 T0.4.2：box 路径 pinned digest 引导
+   实证成功。）
 3. **上游 PR 权**（kense-labs/api + cloud）→ lane payload 三副本对账、
    aging 回填。PR 草稿同上。
 

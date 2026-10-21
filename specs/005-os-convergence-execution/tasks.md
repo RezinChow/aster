@@ -77,8 +77,14 @@ US-6 证据修正）
 - [x] T014 [US3] D-F krun issue 外发——**由 Phase C+ fork 轨替代**
       （T020 已落：fork + 插桩 + main 合入 + 编译验证）；D-F 草稿文本留
       research.md 备 owner 后续外发，不再占执行位 ✅
-- [ ] T015 [US4] T0.4.2 runbook 首执行 + OUTCOME 证据——**阻塞
-      T011/T013/T014 与 Box 修复**
+- [ ] T015 [US4] T0.4.2 runbook 首执行 + OUTCOME 证据——取证腿已落
+      （2026-10-21：「krun 引导链失败」根因 = 10-19 硬拷贝 shim 缺
+      `~/.a3s/lib` 的 rpath 库，dyld 加载失败被误诊为 VM boot 失败；六格
+      实验矩阵定案，补全 `~/.a3s/lib` 后 stock 3.3.0 链对 compose.acl
+      两服务 converged。D-D 对 box 路径失效——compose 用的正是 pinned
+      digest。**剩余唯一阻塞 = D-A**，即步骤 4–6 的私有 CA 准入决策。
+      证据：`docs/evidence/development/2026-10-21-krun-t042-rerun-forensics/
+      OUTCOME.md`）
 - [ ] T016 [P] [US4] G0/P0/WEB0 aging 日期回填（上游 PR + 指针提升）
 - [ ] T017 [US5] lane payload 三副本命名对账（上游双 PR → 根副本 +
       gitlink-only 指针提升提交；同套保真回归测试；drift ratchet 保持绿）
@@ -92,9 +98,12 @@ US-6 证据修正）
       `KRUN_BOOT_STAGE` 标记（含原两处静默退出）；纯插桩、控制流不变、
       rustfmt 干净；编译验证边界已在提交信息声明（cargo 需 make 先产
       init 产物）✅
-- [ ] T021 [US4] 重 vendor：fork 合并首个修复后，`vendor/libkrun` 以确
+- [ ] T021 [US4] 重 vendor：fork main 现含插桩（`02e1414`）+ sysroot
+      交叉构建修复（`ad556a3`，macOS `make` 冷启动自证）。2026-10-21 矩阵
+      证明本次引导失败与 libkrun 无关，故重 vendor 触发条件改为「fork
+      出现需进 vendor 的实质修复或 owner 决策」；`vendor/libkrun` 以确
       定性 `git archive` 再生成 + `LIBKRUN_SOURCE_ARCHIVE_SHA256` 与
-      SOURCE-PROVENANCE 同步（转移注记已落）——**阻塞 fork 修复合并**
+      SOURCE-PROVENANCE 同步（转移注记已落）
 - [x] T022 [US4] Box 保留日志策略：启动失败时先把 `box_dir/logs` 拷至
       `<home>/diag/failed-boots/<box_id>/`（按 box_id 单份、重试整体替换、
       best-effort 不影响失败路径），拆毁语义不变；`vm::boot_diag` 三用例
