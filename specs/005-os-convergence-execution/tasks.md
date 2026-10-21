@@ -93,7 +93,15 @@ US-6 证据修正）
       （步骤 4–6 的私有 CA 准入决策）。证据：
       `docs/evidence/development/2026-10-21-krun-t042-rerun-forensics/`、
       `docs/evidence/development/2026-10-21-t042-step1-subject-link/`）
-- [ ] T016 [P] [US4] G0/P0/WEB0 aging 日期回填（上游 PR + 指针提升）
+- [ ] T016 [P] [US4] G0/P0/WEB0 aging 日期回填——**材料完备性已查（2026-10-22）：
+      阻塞是数据，不只是通道**。本地 kense-labs/cloud 克隆仅 13 笔提交（根
+      =`0eb6f63` 2026-10-19「Import the A3S Cloud control plane」，此前 0 笔），
+      G0/P0（ROADMAP L327/328，无子行）与 WEB0.1–4（L3322–3325）全行零日
+      期、零 evidence 链接，本地 docs/evidence 亦无该三 lane 的 retained 目
+      录——完成日期只存在于上游 A3S-Lab/Cloud 前导入史或 owner 记忆。回填
+      日期喂「两季度无 retained 证据即降级」的治理钟，猜值即腐蚀月度评审决
+      策（宪法 fail-closed 禁）。通道侧照旧：日期由 owner/上游史供给后，
+      本地编辑 + 排队 PR + 指针提升（与 T017 同队列）
 - [ ] T017 [US5] lane payload 三副本命名对账（上游双 PR → 根副本 +
       gitlink-only 指针提升提交；同套保真回归测试；drift ratchet 保持绿）
       ——**阻塞上游 PR**
