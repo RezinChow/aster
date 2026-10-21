@@ -1115,7 +1115,7 @@ pub(crate) async fn run(
         app.yolo_launch_block_notice = Some(warning);
     }
     app.require_plan_approval = a3s_code_shell::util::config::load_require_plan_approval();
-    app.plan_mode = !args.no_plan;
+    app.plan_mode = args.launch_plan_mode();
     app.subagents = !args.no_subagents;
     app.ask_user = !args.no_ask_user;
     app.chat_mode = args.chat();

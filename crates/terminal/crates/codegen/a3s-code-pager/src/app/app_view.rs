@@ -1030,8 +1030,9 @@ pub struct AppView {
     /// Require explicit plan approval via the plan viewer UI even in yolo (YOLO) mode.
     /// Loaded from `[ui] require_plan_approval` in config.toml at startup.
     pub require_plan_approval: bool,
-    /// Enable plan mode for new sessions (`--plan`).
-    /// Adds `enter_plan_mode`, `exit_plan_mode` tools; implies `ask_user`.
+    /// Start new sessions in plan mode (`--plan`).
+    /// The launch default is normal mode. When set, the plan profile adds
+    /// `enter_plan_mode` and `exit_plan_mode`.
     pub plan_mode: bool,
     /// Enable subagent spawning for new sessions (`--subagents`).
     /// Adds the `TaskTool` for spawning subagents.

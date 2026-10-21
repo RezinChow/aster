@@ -2286,6 +2286,24 @@ fn default_flags_produce_no_profile() {
     let flags = SessionFlags::default();
     assert_eq!(flags.agent_profile(), None);
 }
+#[test]
+fn default_flags_stamp_normal_permission_posture() {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            crate::app::A3S_CODE_ACTIVE.store(self.0, std::sync::atomic::Ordering::Release);
+        }
+    }
+    let restore = Restore(crate::app::A3S_CODE_ACTIVE.swap(
+        true,
+        std::sync::atomic::Ordering::Release,
+    ));
+    let flags = SessionFlags::default();
+    let meta = flags.to_meta().expect("a3s session create stamps a posture");
+    assert_eq!(flags.effective_permission_posture(), "default");
+    assert_eq!(j(&meta, "permissionPosture"), "default");
+    drop(restore);
+}
 /// --subagents alone produces no profile (a3s-build already has TaskTool).
 #[test]
 fn subagents_without_plan_produces_no_profile() {
@@ -2303,11 +2321,11 @@ fn subagents_without_plan_produces_no_profile() {
 fn without_grok_agent() -> crate::test_util::EnvVarGuard {
     crate::test_util::EnvVarGuard::set("GROK_AGENT", "")
 }
-/// At the runtime defaults every `--no-*` flag is false, so every `SessionFlags` bool is true via `!args.no_*`.
-/// `to_meta()` then reflects the full plan profile and no separate `askUserQuestion` toggle.
+/// Explicit plan + subagents + ask-user still selects the plan profile.
+/// A bare launch leaves `plan_mode` false; see `launch_plan_mode_defaults_to_normal`.
 #[serial_test::serial(GROK_AGENT)]
 #[test]
-fn runtime_default_flags_produce_plan_meta() {
+fn explicit_plan_subagents_and_ask_user_produce_plan_meta() {
     let _env = without_grok_agent();
     let flags = SessionFlags {
         plan_mode: true,

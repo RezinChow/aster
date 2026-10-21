@@ -592,8 +592,11 @@ pub struct PagerArgs {
     /// Without this flag, resume restores conversation only.
     #[arg(long = "restore-code", requires = "resume_session")]
     pub restore_code: bool,
-    /// Disable plan mode.
-    #[arg(long = "no-plan")]
+    /// Start new sessions in plan mode. Omitted launches stay in normal mode.
+    #[arg(long = "plan", conflicts_with = "no_plan")]
+    pub plan: bool,
+    /// Keep new sessions in normal mode. Normal mode is already the default.
+    #[arg(long = "no-plan", conflicts_with = "plan")]
     pub no_plan: bool,
     /// Own a local `workspace_server` (replaces remote sandbox). Requires `--chat`.
     ///
@@ -1016,6 +1019,11 @@ impl PagerArgs {
             .map(str::trim)
             .filter(|s| !s.is_empty())
     }
+    /// New sessions start in plan mode only when `--plan` is set.
+    /// `--no-plan` keeps the normal-mode default.
+    pub(crate) fn launch_plan_mode(&self) -> bool {
+        self.plan && !self.no_plan
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -1027,6 +1035,18 @@ mod tests {
             assert!(args.version, "{flag} must set the early version intent");
             assert!(args.command.is_none());
         }
+    }
+    #[test]
+    fn launch_plan_mode_defaults_to_normal() {
+        let bare = PagerArgs::try_parse_from(["grok"]).expect("bare launch parses");
+        assert!(!bare.plan);
+        assert!(!bare.no_plan);
+        assert!(!bare.launch_plan_mode());
+        let off = PagerArgs::try_parse_from(["grok", "--no-plan"]).expect("--no-plan parses");
+        assert!(!off.launch_plan_mode());
+        let on = PagerArgs::try_parse_from(["grok", "--plan"]).expect("--plan parses");
+        assert!(on.launch_plan_mode());
+        assert!(PagerArgs::try_parse_from(["grok", "--plan", "--no-plan"]).is_err());
     }
     #[test]
     fn ordinary_and_doctor_parsing_do_not_set_version_intent() {
