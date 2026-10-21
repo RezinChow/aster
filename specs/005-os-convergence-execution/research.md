@@ -105,3 +105,23 @@ D-A/D-B：2026-11-07；D-D：2026-11-15。到期未决 → 依赖故事 fail clo
 > a3s-libkrun-sys tree; the parent tracks source provenance, never a
 > parallel Aster checkout of libkrun source inside this repository's
 > crates.
+
+## AppRelease 加固 — 上游 PR 草稿（kense-labs/api；2026-10-21 发现）
+
+> 标题：fix(app-release): gate the release lifecycle and pin version
+> uniqueness
+>
+> 证据：`/v1/api/app-releases` 的 upload/publish/withdraw/delete 不在
+> 任何受守卫前缀（admin `a3s_us_` / org `a3s_ms_`，见 main.rs OpenAPI
+> 自述与 exclude_global_prefix），控制器层零鉴权（对比 model_hub 的
+> `#[header("authorization")]` 模式）；`/current/file` 直供下载站。
+> 任一公网部署实例存在发布渠道投毒面（fail-closed 宪法视角）。
+>
+> 修复内容：
+> 1. 管理面守卫：写操作（upload/publish/withdraw/delete）纳入 admin
+>    会话（`a3s_us_`，与 `/v1/api/admin` 同门）；读操作（list/current/
+>    file）保持公开（下载站需要）。
+> 2. 唯一性：`(channel, platform, version)` 唯一约束 + 冲突命名错误；
+>    迁移先行去重。
+> 3. e2e：上传→发布→current 解析→下载字节 sha256 相等；未鉴权写操作
+>    401/403 命名拒绝；撤回后 current 拒绝（denied 与 missing 不可分）。

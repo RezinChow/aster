@@ -98,6 +98,16 @@ US-6 证据修正）
       best-effort 不影响失败路径），拆毁语义不变；`vm::boot_diag` 三用例
       hermetic 绿（拷贝/替换/no-op），`vm_backend.rs` 冷启动失败分支接线 ✅
 
+## Phase C++: AppRelease 加固轨（2026-10-21 发现）
+
+- [x] T023 [US4] `/app-releases` 鉴权核查：不属任何受守卫前缀、控制器
+      零鉴权（对比 model_hub 显式 authorization 模式）→ 高置信「未鉴权
+      写面」；`/current/file` 直供下载站 → 投毒面。发现与上游 PR 草稿
+      入 research.md ✅
+- [ ] T024 [US4] AppRelease 上游 PR（kense-labs/api）：admin 会话守卫 +
+      (channel,platform,version) 唯一约束 + 全链 e2e ——**阻塞上游 PR 权**
+      （草稿已备 research.md）
+
 ## Phase D: GA-2 aster 侧支撑（阻塞 D-B + 上游进展）
 
 - [ ] T018 [US8] 保留绿 run 管道（backend.yml 或独立 workflow；私有子
