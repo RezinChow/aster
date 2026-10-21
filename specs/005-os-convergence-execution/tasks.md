@@ -116,10 +116,14 @@ US-6 证据修正）
       从未进任何 git 血统。**吸收分支已建并验证**：fork
       `absorb/t021-vendor-evolution`@`3b1a018`（90 文件逐字 + lib.rs 三向
       合并唯一冲突解为并留；`NET=1 BLK=1 make` exit 0；`diff -rq` 零缺失，
-      差异仅 3 个 fork 超集项）。**剩余 owner 两决定**：D-1 吸收分支落
-      fork main；D-2 产品 vendor 树是否含 boot 插桩（行为面）。之后走
-      确定性 `git archive` 再生成 + `LIBKRUN_SOURCE_ARCHIVE_SHA256` +
-      SOURCE-PROVENANCE 同步。详见 research.md §T021 前置推翻
+      差异仅 3 个 fork 超集项）。**D-1 已落**（2026-10-21 晚：吸收分支
+      --no-ff 合入 fork main `2fe72be`，main 成唯一超集血统）。归档机械
+      已测量并写入 SOURCE-PROVENANCE（tar 为 f7c69184 的 16 条目过滤
+      pax，配方不在库；tar 兼任 Windows corresponding-source，仅 macOS/
+      Linux 重 vendor 时应保持冻结）。**剩余 owner 单决定 D-2**：产品
+      vendor 树是否含 boot 插桩（行为面）。之后走确定性 `git archive`
+      再生成 + `LIBKRUN_SOURCE_ARCHIVE_SHA256` + SOURCE-PROVENANCE 同步。
+      详见 research.md §T021 前置推翻
 - [x] T022 [US4] Box 保留日志策略：启动失败时先把 `box_dir/logs` 拷至
       `<home>/diag/failed-boots/<box_id>/`（按 box_id 单份、重试整体替换、
       best-effort 不影响失败路径），拆毁语义不变；`vm::boot_diag` 三用例

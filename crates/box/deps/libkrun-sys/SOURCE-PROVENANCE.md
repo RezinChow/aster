@@ -102,14 +102,43 @@ pinned DLL hash.
 
 The libkrun sources this crate builds are now owned by the
 `aster-ai-lab/libkrun` fork (created from `A3S-Lab/libkrun` on
-2026-10-21). The vendored `vendor/libkrun` tree still carries the
-pre-fork lineage (upstream commits `dc5519f`/`2692169b` below); the
-re-vendor procedure once the fork merges its first fix is:
+2026-10-21). Lineage corrected the same evening: unshallowing the fork
+clone proved `f7c69184` is an ancestor of the fork main (the earlier
+"divergent lineage" reading was a shallow-clone boundary artifact), and
+the ~91 files of vendored-tree evolution that existed in no git lineage
+(snapshot implementation, `KRUN_SNAPSHOT_SOCK` trigger, macOS passthrough
+tests, the broad devices/vmm refactor) were merged into fork main as
+`2fe72be` (`absorb/t021-vendor-evolution`, `NET=1 BLK=1 make` verified,
+`diff -rq` zero-missing against the vendored tree). The re-vendor
+procedure once the owner picks the product tree:
 
 1. `git archive` the fork commit into `vendor/libkrun` (deterministic,
    no `.git`, same layout).
 2. Update `LIBKRUN_SOURCE_ARCHIVE_SHA256` in `build.rs` and this file.
 3. Record the fork commit here with its source archive SHA-256.
+
+Measured archive facts (2026-10-21, recorded so the next refresh is not
+guesswork):
+
+- `vendor/libkrun-source.tar` (`b92b7d00…`) is a pax archive whose global
+  header names generating commit `f7c69184`, **filtered** — it omits 16
+  top-level entries (`.github`, `docs`, `examples`, `tests`, `CLAUDE.md`,
+  `CODEOWNERS`, `krun-sys`, `init/nitro`, `init/tee`,
+  `krun-sys-windows/{examples,prebuilt}`, `.clang-format`, `.gitignore`,
+  `build_on_krunvm.sh`); 435 files remain of the tree's 545. Plain
+  `git archive --prefix=libkrun/ f7c69184` (git 2.50.1, Apple Git-155)
+  reproduces neither the exclusion set nor the digest, and the tree's
+  `.gitattributes` does not carry these as `export-ignore` — the filter
+  recipe is not in this repository.
+- The tar serves two roles: checksum-verified source fallback when
+  `vendor/libkrun/` is absent (package builds) and the corresponding
+  source carrier for the packaged Windows runtime lineage (`dc5519f` /
+  `2692169b` above), which the vendored-tree evolution does not change.
+  A macOS/Linux-only re-vendor therefore leaves the tar and its pinned
+  digest frozen; regenerating it requires first recording the exclusion
+  recipe (and the generating git binary) here.
+- Until a re-vendor lands, the primary (directory) and fallback (tar)
+  sources intentionally differ by the post-`f7c69184` evolution.
 
 The fork's `boot-diagnostics` branch (`02e1414`, 2026-10-21) instruments
 every early `krun_start_enter` exit with a `KRUN_BOOT_ABORT` stage line

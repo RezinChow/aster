@@ -274,10 +274,21 @@ fork，而非从上游拉补丁。
    Cargo.lock +26/−14）+ 构建产物。合计 +1949/−3355（vendor 演化含删减，
    内容逐字保真）。
 
-**T021 剩余（owner 两个决定）**：
-- D-1：`absorb/t021-vendor-evolution` 落 fork main（探针已证代价 ≈ 一次
-  merge + 一次编译，非"3 个 PR 量级"）。
-- D-2：重 vendor 的产品树是否含 boot 插桩（`KRUN_BOOT_ABORT` stderr 行
-  是行为面变化；不含则 vendor 从分支剥离插桩后再生成）。
-  再生成仍走确定性 `git archive` + `LIBKRUN_SOURCE_ARCHIVE_SHA256` +
-  SOURCE-PROVENANCE 同步。
+**T021 剩余（owner 决定 + 已测量机械）**：
+- D-1 ✅（2026-10-21 晚）：`absorb/t021-vendor-evolution` --no-ff 合入
+  fork main `2fe72be`——依据 T020 轨道既有完成判据（"fork + 修 + main
+  合入 + 编译验证"），分支不触产品树、可逆，且把 91 个仅存于 vendor
+  目录的文件收入血统保护。
+- D-2（唯一剩余 owner 决定）：重 vendor 的产品树是否含 boot 插桩
+  （`KRUN_BOOT_ABORT` stderr 行是行为面变化；不含则从剥离插桩的提交
+  生成）。
+- 归档机械（已测量，防下次猜测）：`vendor/libkrun-source.tar`
+  （`b92b7d00…`）pax 全局头标注生成提交 `f7c69184`，但为 **16 顶层
+  条目的过滤产物**（435/545 文件；排除 `.github`/`docs`/`examples`/
+  `tests`/`krun-sys`/Windows 例子与 prebuilt 等）；裸 `git archive`
+  （git 2.50.1 Apple Git-155）不复现排除集亦不复现摘要；树内
+  `.gitattributes` 无对应 `export-ignore`——配方不在库。tar 兼任
+  Windows 运行时 corresponding-source（`dc5519f`/`2692169b` 血统），
+  vendored 演化不改其内容；**仅 macOS/Linux 重 vendor 应保持 tar 冻结**，
+  若需再生 tar 须先在 SOURCE-PROVENANCE 记录排除配方与生成 git。
+  全部已写入 SOURCE-PROVENANCE.md「Ownership transition」。
