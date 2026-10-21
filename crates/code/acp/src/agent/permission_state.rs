@@ -86,7 +86,7 @@ pub(super) struct SessionPermissions {
 impl SessionPermissions {
     fn policy(&self) -> a3s_code_core::permissions::PermissionPolicy {
         if self.research_admission {
-            crate::host_context::research_policy(&self.denies)
+            crate::host_context::research_policy(self.posture.as_str(), &self.denies)
         } else {
             posture_policy(self.posture.as_str(), &self.denies)
         }
@@ -144,7 +144,10 @@ impl ResearchGate {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         live.session
-            .set_permission_policy(crate::host_context::research_policy(&state.denies))
+            .set_permission_policy(crate::host_context::research_policy(
+                state.posture.as_str(),
+                &state.denies,
+            ))
             .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
         state.research_admission = true;
         Ok(Self {

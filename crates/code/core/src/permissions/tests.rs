@@ -67,6 +67,38 @@ fn seam_admission_permission_posture_denies_under_yolo() {
         PermissionDecision::Ask
     );
     assert_eq!(
+        default_policy.check("Skill", &json!({})),
+        PermissionDecision::Ask
+    );
+    assert_eq!(
+        default_policy.check("ask_user_form", &json!({})),
+        PermissionDecision::Allow
+    );
+    assert_eq!(auto.check("Skill", &json!({})), PermissionDecision::Ask);
+    assert_eq!(
+        auto.check("ask_user_form", &json!({})),
+        PermissionDecision::Allow
+    );
+    assert_eq!(
+        policy.check("Skill", &json!({})),
+        PermissionDecision::Allow,
+        "a bash deny does not deny Skill"
+    );
+    assert_eq!(
+        policy_for_posture("yolo").check("ask_user_form", &json!({})),
+        PermissionDecision::Allow
+    );
+    assert_eq!(plan.check("Skill", &json!({})), PermissionDecision::Deny);
+    assert_eq!(
+        plan.check("ask_user_form", &json!({})),
+        PermissionDecision::Deny
+    );
+    assert_eq!(
+        policy_for_posture("force").check("ask_user_form", &json!({})),
+        PermissionDecision::Ask,
+        "a retired posture name does not allow the form"
+    );
+    assert_eq!(
         policy_for_posture("yolo").check("read", &json!({})),
         PermissionDecision::Allow,
         "full access reads without a confirmation"

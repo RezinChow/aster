@@ -2915,3 +2915,149 @@ async fn malformed_batch_does_not_park_for_confirmation() {
     });
     assert!(confirmation_parked(&policy, Some(&surface), "batch", &dispatchable).await);
 }
+
+struct IdleModel;
+
+impl Completion for IdleModel {
+    fn complete(
+        &self,
+        _: CompletionRequest,
+        _: tokio_util::sync::CancellationToken,
+    ) -> a3s_effect::coding::BoxFuture<Result<ModelDecision, ActorError>> {
+        Box::pin(async { Err(ActorError::Defect("idle".into())) })
+    }
+}
+
+struct IdleCompactor;
+
+impl Compactor for IdleCompactor {
+    fn compact(&self, _: &[String]) -> a3s_effect::coding::BoxFuture<Result<String, ActorError>> {
+        Box::pin(async { Err(ActorError::Defect("idle".into())) })
+    }
+}
+
+fn preparation_request(call: ToolCall) -> a3s_effect::ToolPreparationRequest {
+    a3s_effect::ToolPreparationRequest {
+        identity: a3s_effect::ToolInvocationIdentityV1 {
+            turn: 1,
+            cycle: 0,
+            tool_call_id: call.id.clone(),
+            batch_index: 0,
+            admission: None,
+        },
+        call,
+    }
+}
+
+fn tools_for_surface(
+    root: &std::path::Path,
+    agent: crate::agent::AgentLoop,
+    permission: crate::permissions::PermissionPolicy,
+) -> Arc<super::executor_tools::ExecutorTools> {
+    Arc::new(super::executor_tools::ExecutorTools {
+        executor: Arc::new(crate::tools::ToolExecutor::new(
+            root.to_string_lossy().into_owned(),
+        )),
+        capability_operation: None,
+        checkpoint: None,
+        events: None,
+        context: crate::tools::ToolContext::new(root.to_path_buf()),
+        permission,
+        checker: None,
+        agent: Some(agent),
+        execution_started: None,
+        run_store: None,
+        run_id: None,
+        ledger: Some(Arc::new(Mutex::new(
+            crate::harness_loop::MutationLedger::default(),
+        ))),
+        reports: None,
+        targeted_paths: None,
+        pre_tool_hook_resolved: false,
+        repeats: Arc::default(),
+    })
+}
+
+async fn prepared_output(
+    tools: Arc<super::executor_tools::ExecutorTools>,
+    call: ToolCall,
+) -> a3s_effect::ToolExecutionResultV1 {
+    let prepared = super::receipts::prepare_tools(
+        Arc::clone(&tools),
+        preparation_request(call),
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let concrete: Arc<super::executor_tools::ExecutorTools> = Arc::clone(&tools);
+    let runner: Arc<dyn ToolRunner> = concrete;
+    let services = Arc::new(CodingServices {
+        completion: Arc::new(IdleModel),
+        tools: runner,
+        compactor: Arc::new(IdleCompactor),
+    });
+    prepared.execute.run(services).await.0.unwrap()
+}
+
+#[tokio::test]
+async fn parked_skill_ask_is_not_rewritten_as_unapproved() {
+    let root = tempfile::tempdir().unwrap();
+    let surface = bash_confirmation_surface(root.path(), Arc::new(AdmitSpawn));
+    let policy = crate::permissions::policy_for_posture("default");
+    let skill = decision_from_response(
+        &tool_response(vec![(
+            "skill-1",
+            "Skill",
+            serde_json::json!({"skill_name": "example"}),
+        )]),
+        &policy,
+        Some(&surface),
+    )
+    .await;
+    let ModelDecision::Tool { call, also } = skill else {
+        panic!("expected the skill call");
+    };
+    assert!(also.is_empty());
+    assert!(call.needs_confirmation);
+    let skill_result = prepared_output(
+        tools_for_surface(root.path(), surface.agent.clone(), policy.clone()),
+        call,
+    )
+    .await;
+    assert!(
+        !skill_result
+            .output
+            .to_string()
+            .contains("tool_effect_effective_arguments_unapproved"),
+        "{}",
+        skill_result.output
+    );
+
+    let form = decision_from_response(
+        &tool_response(vec![(
+            "form-1",
+            "ask_user_form",
+            serde_json::json!({"form": "not-openui"}),
+        )]),
+        &policy,
+        Some(&surface),
+    )
+    .await;
+    let ModelDecision::Tool { call, .. } = form else {
+        panic!("expected the form call");
+    };
+    assert!(!call.needs_confirmation);
+    let form_result = prepared_output(
+        tools_for_surface(root.path(), surface.agent.clone(), policy),
+        call,
+    )
+    .await;
+    assert_ne!(
+        form_result.outcome,
+        a3s_effect::ToolExecutionOutcome::Denied
+    );
+    assert!(!form_result
+        .output
+        .to_string()
+        .contains("tool_effect_effective_arguments_unapproved"));
+}

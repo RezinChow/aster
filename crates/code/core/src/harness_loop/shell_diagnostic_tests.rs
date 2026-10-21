@@ -248,6 +248,7 @@ fn shell_gate_advice_uses_a_present_exact_file_instead_of_a_deleted_suffix_alias
     ledger.observe_receipt_path(
         "program",
         ".scratch/output/results.json",
+        None,
         &ToolFileIdentityV1 {
             kind: ToolFileKind::Missing,
             content_digest: None,
@@ -257,6 +258,7 @@ fn shell_gate_advice_uses_a_present_exact_file_instead_of_a_deleted_suffix_alias
     ledger.observe_receipt_path(
         "program",
         "output",
+        None,
         &ToolFileIdentityV1 {
             kind: ToolFileKind::Directory,
             content_digest: None,
@@ -266,6 +268,7 @@ fn shell_gate_advice_uses_a_present_exact_file_instead_of_a_deleted_suffix_alias
     ledger.observe_receipt_path(
         "program",
         "output/results.json",
+        None,
         &ToolFileIdentityV1 {
             kind: ToolFileKind::File,
             content_digest: Some(format!("sha256:{}", sha256::digest(b"actual results"))),

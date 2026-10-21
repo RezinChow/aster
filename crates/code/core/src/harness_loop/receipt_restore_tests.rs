@@ -41,7 +41,7 @@ fn later_log_uncertainty_and_current_state_survive_a_stale_checkpoint() {
         content_digest: Some(format!("sha256:{}", sha256::digest(b"later bytes"))),
         mode: Some(0o644),
     };
-    live.observe_receipt_path("bash", "changed.txt", &after);
+    live.observe_receipt_path("bash", "changed.txt", None, &after);
     live.set_unresolved_tool_effects(keys(&["later-unknown"]));
     let current_digest = live.digest().to_string();
     live.restore_checkpoint_cache(&cached, true);

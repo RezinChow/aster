@@ -5,8 +5,8 @@
 //! Per-turn constraints ride in `_meta.a3sTurn` and prefix only that turn's
 //! model string. Prompt text never grants a tool.
 
-use a3s_code_core::permissions::{PermissionDecision, PermissionPolicy};
-use a3s_code_core::{AgentStyle, SystemPromptSlots};
+use a3s_code_core::permissions::PermissionPolicy;
+use a3s_code_core::SystemPromptSlots;
 
 // Keep the host's 8000-character user allowance plus bounded delivery requirements.
 const GUIDELINES_LIMIT: usize = 12000;
@@ -210,28 +210,33 @@ pub fn apply_turn_directives(user: &str, turn: &TurnContext) -> String {
     format!("Host turn constraints:\n{lines}\n\nUser request:\n{user}")
 }
 
-/// Read-only tool policy for one research turn. Caller denies still win.
-pub fn research_policy(denies: &[String]) -> PermissionPolicy {
-    let mut policy = a3s_code_core::permissions::specialty_permission_policy(AgentStyle::Explore)
-        .unwrap_or_else(|| {
-            let mut closed = PermissionPolicy::new().deny_all(&[
-                "write",
-                "edit",
-                "download",
-                "office_file",
-                "bash",
-                "task",
-                "parallel_task",
-            ]);
-            closed.default_decision = PermissionDecision::Deny;
-            closed
-        });
-    // A selected local asset is a read. Caller denies still win.
-    policy = policy.allow("open_local_asset").allow("search_wiki");
+/// One research turn keeps the posture decision and refuses workspace writes.
+/// Caller denies still win, including over a yolo execute lane.
+pub fn research_policy(posture: &str, denies: &[String]) -> PermissionPolicy {
+    let mut policy = a3s_code_core::permissions::policy_for_posture(posture);
     for rule in denies {
         policy = policy.deny(rule);
     }
     policy
+        .allow("open_local_asset")
+        .allow("search_wiki")
+        .allow_all(&[
+            "read",
+            "search",
+            "ls",
+            "web_fetch",
+            "web_search",
+            "update_plan",
+        ])
+        .deny_all(&[
+            "write",
+            "edit",
+            "download",
+            "office_file",
+            "bash",
+            "task",
+            "parallel_task",
+        ])
 }
 
 fn sanitize_limited(limit: usize) -> impl Fn(&str) -> String {
@@ -252,6 +257,7 @@ fn normalize_output_language(raw: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a3s_code_core::permissions::PermissionDecision;
 
     fn meta(value: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
         value.as_object().cloned().unwrap_or_default()
@@ -446,7 +452,7 @@ mod tests {
 
     #[test]
     fn research_denies_writes_and_keeps_caller_denies() {
-        let policy = research_policy(&["Bash(cat:*)".to_string()]);
+        let policy = research_policy("default", &["Bash(cat:*)".to_string()]);
         assert_eq!(
             policy.check("write", &serde_json::json!({})),
             PermissionDecision::Deny
@@ -459,10 +465,64 @@ mod tests {
             PermissionDecision::Deny
         );
         assert_eq!(
+            policy.check("bash", &serde_json::json!({"command": "ls"})),
+            PermissionDecision::Deny
+        );
+        assert_eq!(
             policy.check("read", &serde_json::json!({})),
             PermissionDecision::Allow
         );
+        assert_eq!(
+            policy.check("search_wiki", &serde_json::json!({})),
+            PermissionDecision::Allow
+        );
+        assert_eq!(
+            policy.check("Skill", &serde_json::json!({})),
+            PermissionDecision::Ask
+        );
+        assert_eq!(
+            policy.check("ask_user_form", &serde_json::json!({})),
+            PermissionDecision::Allow
+        );
         assert!(policy.deny.iter().any(|rule| rule.rule == "Bash(cat:*)"));
-        assert_eq!(policy.default_decision, PermissionDecision::Deny);
+        assert_eq!(policy.default_decision, PermissionDecision::Ask);
+
+        let yolo = research_policy("yolo", &[]);
+        assert_eq!(
+            yolo.check("Skill", &serde_json::json!({})),
+            PermissionDecision::Allow
+        );
+        assert_eq!(
+            yolo.check("bash", &serde_json::json!({"command": "ls"})),
+            PermissionDecision::Deny
+        );
+        assert_eq!(
+            yolo.check("write", &serde_json::json!({})),
+            PermissionDecision::Deny
+        );
+
+        let plan = research_policy("plan", &[]);
+        assert_eq!(
+            plan.check("Skill", &serde_json::json!({})),
+            PermissionDecision::Deny
+        );
+        assert_eq!(
+            plan.check("ask_user_form", &serde_json::json!({})),
+            PermissionDecision::Deny
+        );
+        assert_eq!(
+            plan.check("read", &serde_json::json!({})),
+            PermissionDecision::Allow
+        );
+
+        let denied = research_policy("yolo", &["Skill".to_string(), "ask_user_form".to_string()]);
+        assert_eq!(
+            denied.check("Skill", &serde_json::json!({})),
+            PermissionDecision::Deny
+        );
+        assert_eq!(
+            denied.check("ask_user_form", &serde_json::json!({})),
+            PermissionDecision::Deny
+        );
     }
 }

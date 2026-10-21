@@ -7,17 +7,30 @@ use crate::queue::SessionLane;
 
 /// Policy the next run admission freezes.
 ///
-/// `default` asks. `plan` allows reads and denies mutations. `auto` allows
-/// known reads and still asks before execute. `yolo` allows query and execute
-/// lanes. Deny rules added by the caller still win, because
+/// `default` asks, and allows `ask_user` and `ask_user_form`. `plan` allows
+/// reads and denies mutations. `auto` allows known reads and those two
+/// question tools, and still asks before execute. `yolo` allows query and
+/// execute lanes, and those two question tools. Retired names stay on the
+/// asking default. Deny rules added by the caller still win, because
 /// [`PermissionPolicy::check`] evaluates deny before allow.
 pub fn policy_for_posture(posture: &str) -> PermissionPolicy {
     match posture.trim().to_ascii_lowercase().as_str() {
         "plan" => super::style_specialty::plan_permissions(),
-        "auto" => PermissionPolicy::new().allow_all(&["read", "search", "ls", "update_plan"]),
-        "yolo" => {
-            PermissionPolicy::new().allow_yolo_lanes([SessionLane::Query, SessionLane::Execute])
-        }
+        "auto" => PermissionPolicy::new().allow_all(&[
+            "read",
+            "search",
+            "ls",
+            "update_plan",
+            "ask_user",
+            "ask_user_form",
+        ]),
+        "yolo" => PermissionPolicy::new()
+            .allow_yolo_lanes([SessionLane::Query, SessionLane::Execute])
+            .allow("ask_user")
+            .allow("ask_user_form"),
+        "default" => PermissionPolicy::new()
+            .allow("ask_user")
+            .allow("ask_user_form"),
         _ => PermissionPolicy::new(),
     }
 }

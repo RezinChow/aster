@@ -18,7 +18,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 
 #[path = "tui_913_real_llm/fact_evidence.rs"]
 mod fact_evidence;
