@@ -1,0 +1,96 @@
+---
+description: "Task list for specs/005-os-convergence-execution"
+---
+
+# Tasks: A3S OS 技术收敛执行（W0–W3）
+
+**Input**: `specs/005-os-convergence-execution/{spec.md, plan.md, research.md}`
+
+**Prerequisites**: plan.md（含 Constitution Check，已通过）、spec.md（含
+US-6 证据修正）
+
+**House rule**: 每个改行为的任务在同任务内携带其 hermetic 测试；无测试
+即未完成。
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: 可并行（不同文件、无共享状态）
+- **[Story]**: 归属用户故事（US1..US8）
+
+## Path Conventions
+
+- 数据面：`apps/runtime/`
+- 共享 crate：`crates/<name>/`
+- CI：`.github/workflows/`
+- 证据：`docs/evidence/<domain>/<date-slug>/OUTCOME.md`
+
+## Phase A: Behavior and tests（已完成 2026-10-21）
+
+- [x] T001 [US7] usage/batch 与 analytics 的命名拒绝（501 +
+      `usage_export.not_wired` / `analytics.not_wired`），usage 视图移除
+      未接线的 lifecycle 广告；hermetic 测试
+      `apps/runtime/src/http/router/usage_export_tests.rs`（3 用例）✅
+- [x] T002 [P] [US1] `backend.yml` fmt job 补 `rustup component add
+      rustfmt`（`.github/workflows/backend.yml`）✅
+- [x] T003 [US6] `apps/runtime/src/lib.rs` 文档注释对齐包名；spec 记录
+      证据修正 ✅
+- [x] T004 [P] [US1] `crates/use` 测试编译修复：7 个上游根级 fixture 恢复
+      （`.github/workflows/*`、`Cargo.lock`、`install.sh/ps1`）+ 33 处陈旧
+      嵌套 include 重指向拍平布局（15 文件）；验证 =
+      `cargo check --locked -p a3s-use --all-targets`（exit 0）+
+      `cargo fmt -p a3s-use -- --check` ✅
+- [x] T004b [P] [US1] `a3s-gateway` 已提交债务修复：`benches/routing.rs`
+      补 `parking: None`（对齐 `src/config/router.rs:95` 的 Default）；
+      `examples/protocol_benchmark_load.rs:138` `Vec<u8>`→`Bytes`；
+      验证 = `cargo check -p a3s-gateway --benches --examples` 零错误 +
+      包级 fmt 干净 ✅
+- [x] T005 [US3] 决策材料与外联草稿 `specs/005-.../research.md`（D-A/
+      D-B/D-D 对比、D-F issue 草稿、US-5 上游 PR 草稿）✅
+- [x] T006 [US7/US1] 证据 `docs/evidence/development/
+      2026-10-21-runtime-export-honesty/OUTCOME.md`（含 Phase B 诊断与
+      backend.yml 结构性发现）✅
+
+## Phase B: Wiring / 落库（部分阻塞）
+
+- [ ] T007 [US1] 与并发会话协调后在途修复逐文件落库（不捎带：先
+      `git diff --cached --name-only` 核对；本切片文件清单见 OUTCOME.md）
+- [ ] T008 [US1] 全库 `cargo check --locked --workspace --all-targets`
+      转绿后，把保留绿 run 判据写入 OUTCOME.md（运行中）
+- [ ] T009 [US1] backend.yml `hermetic`/`campaigns` 死配置修复——
+      **阻塞**：等 owner 在 与收缩矩阵）间选择（OUTCOME.md §Phase B.3）
+- [ ] T010 [US1] 工作区 fmt 门清零（8 个红文件全部归属并发会话在途树；
+      该会话落库时一并解决，或经其同意后由本切片 `cargo fmt` 收敛）
+
+## Phase C: Phase 0 收口（阻塞：owner 决策 + 上游 PR）
+
+- [ ] T011 [US3] D-A ADR 落 kense-labs/cloud `docs/decisions/`（材料已
+      备于 research.md）——**阻塞 owner**
+- [ ] T012 [US3] D-B token/runner 决策与配置——**阻塞 owner**
+- [ ] T013 [US3] D-D postgres digest 方案——**阻塞 owner**
+- [ ] T014 [US3] D-F krun issue 外发（草稿已备）——可立即执行
+- [ ] T015 [US4] T0.4.2 runbook 首执行 + OUTCOME 证据——**阻塞
+      T011/T013/T014 与 Box 修复**
+- [ ] T016 [P] [US4] G0/P0/WEB0 aging 日期回填（上游 PR + 指针提升）
+- [ ] T017 [US5] lane payload 三副本命名对账（上游双 PR → 根副本 +
+      gitlink-only 指针提升提交；同套保真回归测试；drift ratchet 保持绿）
+      ——**阻塞上游 PR**
+
+## Phase D: GA-2 aster 侧支撑（阻塞 D-B + 上游进展）
+
+- [ ] T018 [US8] 保留绿 run 管道（backend.yml 或独立 workflow；私有子
+      模块不可读时命名失败，禁止跳过检出）——**阻塞 T012**
+- [ ] T019 [US8] GA-2 各环上游落地后的指针提升 + 证据托管（不代上游声明
+      Verified）
+
+## Final Verification Gate
+
+- [x] 拥有包聚焦测试通过：`cargo test --locked -p a3s-gateway-runtime`
+      → 5 passed / 0 failed；`cargo check -p a3s-use --all-targets` →
+      exit 0
+- [x] 本切片 Rust 编辑的 `cargo fmt -p <pkg> -- --check` 干净
+      （a3s-gateway-runtime、a3s-use；全库门见 T010）
+- [x] 无新增 crates.io `a3s-*` 依赖（恢复的 fixture 是数据文件；
+      `tests/workspace_dependencies.py` 不受影响）
+- [x] 未新增原生 `<select>`（无 UI 改动）
+- [x] 未新增产品配置（无配置面；D-A 产物将来必须 ACL——spec FR-012）
+- [ ] 全库 `--all-targets` 检查转绿（T008，运行中）
