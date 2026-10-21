@@ -14,6 +14,12 @@
 - `python3 apps/web/scripts/stage_site.py target/evaluations/aster-website/decor-stage-20261021`：只发布原有的 15 个公开文件，哈希见 `stage.json`。
 - HTML、CSS 格式及限定差异检查通过。
 
+## 公开部署
+
+页面提交 `bec95e14bd07095f487ac88a55338b47c93f55d2` 已推送到 `main`。[Pages 运行 39551016786](https://github.com/aster-ai-lab/aster/actions/runs/39551016786) 的验证和部署任务成功。保留 <https://aster-ai-lab.github.io/aster/> 地址。
+
+从公开地址读取的 15 个文件均为 200，SHA-256 全部匹配本地验证过的发布目录。见 `pages-run.json` 和 `public-http.json`。浏览器 47 步回归在本地相同文件上执行，不声称重复在公开地址执行。测试浏览器和本次启动的本地服务均已清理。
+
 ## Explicitly not claimed
 
 这次修改只调整官网装饰，没有修改桌面功能或重建安装包。没有声称与参考站逐像素一致，没有重新执行模型、Office 或原生窗口的功能验收。产品图继续使用此前实际界面采集的合成演示数据。
