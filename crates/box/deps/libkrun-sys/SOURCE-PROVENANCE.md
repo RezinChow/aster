@@ -97,3 +97,23 @@ embedded payload are nevertheless identified above independently and shipped
 with complete corresponding source. Future firmware refreshes must record the
 compiler, binutils, build command, and build-image digest before replacing the
 pinned DLL hash.
+
+## Ownership transition (2026-10-21)
+
+The libkrun sources this crate builds are now owned by the
+`aster-ai-lab/libkrun` fork (created from `A3S-Lab/libkrun` on
+2026-10-21). The vendored `vendor/libkrun` tree still carries the
+pre-fork lineage (upstream commits `dc5519f`/`2692169b` below); the
+re-vendor procedure once the fork merges its first fix is:
+
+1. `git archive` the fork commit into `vendor/libkrun` (deterministic,
+   no `.git`, same layout).
+2. Update `LIBKRUN_SOURCE_ARCHIVE_SHA256` in `build.rs` and this file.
+3. Record the fork commit here with its source archive SHA-256.
+
+The fork's `boot-diagnostics` branch (`02e1414`, 2026-10-21) instruments
+every early `krun_start_enter` exit with a `KRUN_BOOT_ABORT` stage line
+so a retained console log names the stage that killed the VM — the
+prerequisite for diagnosing the T0.4.2 boot-chain failure. Firmware
+(`libkrunfw`) downloads from `boxlite-ai/libkrunfw` releases are
+unchanged by this transition.

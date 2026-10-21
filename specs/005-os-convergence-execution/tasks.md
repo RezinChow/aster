@@ -82,6 +82,20 @@ US-6 证据修正）
       gitlink-only 指针提升提交；同套保真回归测试；drift ratchet 保持绿）
       ——**阻塞上游 PR**
 
+## Phase C+: krun fork 修复轨（2026-10-21 新增，替代 T014 的外发路径）
+
+- [x] T020 [US4] fork `A3S-Lab/libkrun` → **aster-ai-lab/libkrun**；分支
+      `boot-diagnostics`（`02e1414`）：`krun_start_enter` 全部 11 处早退
+      经 `boot_abort(stage, code)` 输出 `KRUN_BOOT_ABORT` 行 + 4 个
+      `KRUN_BOOT_STAGE` 标记（含原两处静默退出）；纯插桩、控制流不变、
+      rustfmt 干净；编译验证边界已在提交信息声明（cargo 需 make 先产
+      init 产物）✅
+- [ ] T021 [US4] 重 vendor：fork 合并首个修复后，`vendor/libkrun` 以确
+      定性 `git archive` 再生成 + `LIBKRUN_SOURCE_ARCHIVE_SHA256` 与
+      SOURCE-PROVENANCE 同步（转移注记已落）——**阻塞 fork 修复合并**
+- [ ] T022 [US4] Box 保留日志策略：失败引导不清除 shim/console 日志
+      （本树 `crates/box` 行为改动 + hermetic 测试）——待做
+
 ## Phase D: GA-2 aster 侧支撑（阻塞 D-B + 上游进展）
 
 - [ ] T018 [US8] 保留绿 run 管道（backend.yml 或独立 workflow；私有子

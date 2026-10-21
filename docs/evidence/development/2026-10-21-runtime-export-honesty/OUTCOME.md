@@ -178,3 +178,21 @@ green verdicts above stand.
   staging.
 - macOS execution qualification, upstream submodule work (T0.4.2, lane
   payload reconcile), and GA-2 retained runs are untouched.
+
+## krun fork lane (2026-10-21, appended)
+
+Owner directive: own the krun fix in aster-ai-lab. Delivered: fork
+`aster-ai-lab/libkrun` created from `A3S-Lab/libkrun`; branch
+`boot-diagnostics` (`02e1414`) instruments all 11 early exits of
+`krun_start_enter` with `KRUN_BOOT_ABORT: stage=… code=…` plus four
+`KRUN_BOOT_STAGE` markers, including the two previously silent exits
+(ctx lookup, kernel cmdline). Instrumentation only — return codes and
+control flow unchanged; rustfmt-clean. Not claimed: a full `make` build
+of the fork (cargo alone cannot compile `devices`, which embeds the
+make-built `init/init` artifact), any behavioral fix to the boot chain
+(awaiting the retained logs this instrumentation enables), and the
+re-vendor of `vendor/libkrun` (T021, after the fork merges a fix). The
+in-tree wiring today: `a3s-libkrun-sys` repository metadata points at
+the fork and SOURCE-PROVENANCE.md records the transition and re-vendor
+procedure. Working clone: `/Users/roylin/code/libkrun` (user-authorized
+sibling boundary, like `../a3s`).
