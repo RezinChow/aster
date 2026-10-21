@@ -142,6 +142,23 @@ The only textual references are a historical merge-evidence patch document
   to `origin/main` (fast-forward; the concurrent session's in-flight edits
   were staged around, never included).
 
+## Remote CI verdict (2026-10-21, appended after push)
+
+The pushed commits triggered real runs, and **every backend/Rust job fails
+at the first checkout step**: the `checkout-studio` fail-closed guard
+reports `Configure STUDIO_READ_TOKEN with read access to
+kense-labs/studio` (backend run 39540474980 on `17ef780db`, fmt and
+check; the Rust workflow's ubuntu/macos checks fail identically;
+hermetic/campaigns are skipped behind check). No cargo command runs at
+all. The 2026-10-20 baseline runs passed this step and died in cargo, so
+the secret was configured then and is missing or expired now. The
+option-(a) backend checkout reuses the same token and therefore also
+awaits it (needing read scope on kense-labs/studio, api, and cloud).
+**Single owner action unblocks all three workflows**: configure
+`STUDIO_READ_TOKEN` in aster-ai-lab/aster repository secrets. This
+remote red is not attributable to any commit in this slice; the local
+green verdicts above stand.
+
 ## Explicitly not claimed
 
 - No real lifecycle export or analytics aggregation was wired; the endpoints
