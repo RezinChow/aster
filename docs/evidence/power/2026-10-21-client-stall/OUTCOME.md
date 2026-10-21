@@ -2,10 +2,11 @@
 
 ## Result
 
-The latest user report is that macOS becomes apparently stable after disabling
-the VPN, while retaining `http://117.162.0.179:8080/v1`. This supports VPN-path
-involvement; it is user-reported stability, not a sustained macOS acceptance run.
-The failing VPN-on public HTTP path is **not repaired**. Ordinary tool-enabled
+The user first reported that macOS became apparently stable after disabling
+the VPN, while retaining `http://117.162.0.179:8080/v1`. Subsequently another
+user with no VPN also encountered a connection reset. The earlier stability
+report therefore does not establish VPN as the unique cause or a complete
+repair. The public HTTP path is **not repaired**. Ordinary tool-enabled
 ACP requests reproduce a connection reset through that endpoint, including
 after selecting the Windows physical network interface. The same current ACP
 executable completed both turns through an SSH local forward to the same
@@ -118,11 +119,11 @@ python -X utf8 -B docs/evidence/power/2026-10-21-client-stall/acp-public-relay.p
 powershell -File docs/evidence/power/2026-10-21-client-stall/gateway-direct-route.ps1 -Action Remove
 ```
 
-The user now retains the original public endpoint and disables the VPN. A
-future VPN-on solution can use that VPN client's destination-specific DIRECT
-rule for117.162.0.179, but its exact syntax and effectiveness have not been
-verified because the VPN product is unknown. No macOS route, VPN configuration
-or application file was remotely changed.
+The required final address remains the original public endpoint. The later
+failure from another user without a VPN remains unresolved; its exact time and
+network path have not been independently attributed. A destination-specific
+DIRECT rule has not been verified and cannot be presented as the repair. No
+macOS route, VPN configuration or application file was remotely changed.
 
 Historical macOS SSH workaround already reported working by the user:
 
@@ -138,7 +139,7 @@ ACP reads launch configuration and retains a core agent; editing an ACL file
 does not rewrite already constructed clients. Work's host-generated provider
 configuration can also differ from the terminal's trusted ACL.
 
-An enduring VPN-on solution may need a VPN policy correction, a qualified encrypted public endpoint or a repair
+An enduring public-path solution may need a qualified encrypted public endpoint or a repair
 to the actual forwarding path. The current HTTPS website is not such an
 endpoint. This record does not approve repointing an unrelated website.
 

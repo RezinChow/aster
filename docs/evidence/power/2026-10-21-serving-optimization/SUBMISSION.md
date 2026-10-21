@@ -29,15 +29,16 @@ the original bytes of serving evidence, the qualification runner and fixture
 tests on future checkouts. No expected hash, refusal gate or test assertion was
 weakened. Some original JSON receipts intentionally contain CRLF.
 
-The original thirteen Python fixture suites now pass across the focused reruns:
-141 reported cases, including one skipped actual-binary/platform case. The
+The final rerun of all thirteen Python fixture suites passes:
+141 reported cases, including three skipped actual-binary/platform cases
+(138 executed passes). The receipt is `submission-fixtures-final.json`. The
 eight changed Gateway Rust files pass the owning standalone rustfmt check, and
 code/script/test/spec diff whitespace checks pass. Immutable evidence logs and
 patch files retain their original whitespace; a whole-evidence whitespace-only
 check is not claimed clean. Existing full-workspace CI and formatting limits
 remain recorded in OUTCOME.md.
 
-The staged source/evidence credential scan checked421 paths and344 archive
+The staged source/evidence credential scan checked 421 paths and 344 archive
 members (239,977,854 bytes) before the checkout integrity repair. It found no
 actual shared credential, full gateway key, GitHub token or private-key block.
 Recovered bytes came only from those already scanned archives. The additional
