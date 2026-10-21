@@ -220,3 +220,8 @@ a3s-gateway-runtime 5 passed, a3s-use lib 320 passed after the runtime
 path fix), every package this session touched now has a green local
 full-suite run; the remote gates remain behind the missing
 STUDIO_READ_TOKEN.
+
+Fork follow-up: boot-diagnostics (02e1414) is fast-forward merged into
+aster-ai-lab/libkrun main — the T0.4.2 rerun can build the instrumented
+engine straight from the fork's main branch; T021 re-vendor still waits
+for the behavioral fix those diagnostics will name.
