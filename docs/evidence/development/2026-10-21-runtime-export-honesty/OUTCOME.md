@@ -196,3 +196,16 @@ in-tree wiring today: `a3s-libkrun-sys` repository metadata points at
 the fork and SOURCE-PROVENANCE.md records the transition and re-vendor
 procedure. Working clone: `/Users/roylin/code/libkrun` (user-authorized
 sibling boundary, like `../a3s`).
+
+## T022 retained boot diagnostics (2026-10-21, appended)
+
+A failed cold boot no longer destroys its only evidence: before the
+boot-failure teardown in `vm_backend.rs`, the manager retains
+`box_dir/logs` (console, shim, guest stderr) under
+`<home>/diag/failed-boots/<box_id>/` — one bounded copy per box id,
+replaced whole on retry, best-effort (log-and-continue). Teardown
+semantics are unchanged. `vm::boot_diag` carries three hermetic tests
+(copy, retry-replace, missing-logs no-op): 3 passed / 0 failed. Not
+claimed: a real failed-boot run against the krun stack (awaits the
+token + T0.4.2 rerun with the fork's boot-diagnostics branch, whose
+KRUN_BOOT_ABORT lines are exactly what these retained logs will carry).

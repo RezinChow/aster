@@ -1,6 +1,7 @@
 //! VM Manager - Lifecycle management for MicroVM instances.
 
 mod boot;
+mod boot_diag;
 mod execution;
 mod layout;
 mod lifecycle;

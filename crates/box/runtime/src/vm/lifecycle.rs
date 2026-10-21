@@ -28,6 +28,14 @@ async fn wait_for_provider_exit(
 }
 
 impl VmManager {
+    /// Retain the console and shim logs of a failed boot under
+    /// `<home>/diag/failed-boots/<box_id>/` before the teardown deletes the
+    /// box directory. Best-effort; the teardown itself is unchanged.
+    pub(crate) fn retain_boot_failure_diagnostics(&self) {
+        let box_dir = self.home_dir.join("boxes").join(&self.box_id);
+        crate::vm::boot_diag::retain_boot_failure_logs(&self.home_dir, &box_dir, &self.box_id);
+    }
+
     /// Destroy the VM with the default shutdown timeout and SIGTERM.
     pub async fn destroy(&mut self) -> Result<()> {
         self.destroy_with_options(default_stop_signal(), DEFAULT_SHUTDOWN_TIMEOUT_MS)

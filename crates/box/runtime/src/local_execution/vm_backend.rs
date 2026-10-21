@@ -1105,6 +1105,10 @@ impl LocalExecutionBackend for VmLocalExecutionBackend {
         self.claim_transient_registry_auth_for_boot(&mut guard);
         if let Err(error) = guard.boot().await {
             guard.config.persistent = requested_persistence;
+            // The teardown that follows deletes the box directory with the
+            // only evidence for why the guest exec server never became
+            // ready; retain one bounded copy of the boot logs first.
+            guard.retain_boot_failure_diagnostics();
             // Sandbox boot cleanup synchronously asks the authoritative OCI
             // handler for its exit status before tearing down transient host
             // artifacts. A very short task can therefore complete while boot

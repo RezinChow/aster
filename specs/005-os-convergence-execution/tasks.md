@@ -93,8 +93,10 @@ US-6 证据修正）
 - [ ] T021 [US4] 重 vendor：fork 合并首个修复后，`vendor/libkrun` 以确
       定性 `git archive` 再生成 + `LIBKRUN_SOURCE_ARCHIVE_SHA256` 与
       SOURCE-PROVENANCE 同步（转移注记已落）——**阻塞 fork 修复合并**
-- [ ] T022 [US4] Box 保留日志策略：失败引导不清除 shim/console 日志
-      （本树 `crates/box` 行为改动 + hermetic 测试）——待做
+- [x] T022 [US4] Box 保留日志策略：启动失败时先把 `box_dir/logs` 拷至
+      `<home>/diag/failed-boots/<box_id>/`（按 box_id 单份、重试整体替换、
+      best-effort 不影响失败路径），拆毁语义不变；`vm::boot_diag` 三用例
+      hermetic 绿（拷贝/替换/no-op），`vm_backend.rs` 冷启动失败分支接线 ✅
 
 ## Phase D: GA-2 aster 侧支撑（阻塞 D-B + 上游进展）
 
