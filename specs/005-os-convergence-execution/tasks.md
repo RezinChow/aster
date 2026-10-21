@@ -87,7 +87,9 @@ US-6 证据修正）
       两服务 converged。D-D 对 box 路径失效——compose 用的正是 pinned
       digest。**步骤 1 已执行并证明**（建链 201→解析 200→负控 404，
       human principal + HTTPS issuer 两条 runbook 修订；前置 1 环境半边
-      跑通，含 run_cloud.sh 三处 dev 工具缺口）。**剩余唯一阻塞 = D-A**
+      跑通，含 run_cloud.sh 三处 dev 工具缺口）。**修订文本已落 runbook**
+      （2026-10-21 晚：cloud `cda0231` 排队上游，Status 行改为步骤 1–3 已证
+      /4–6 阻 D-A，10-19 recon 结论标记被取代）。**剩余唯一阻塞 = D-A**
       （步骤 4–6 的私有 CA 准入决策）。证据：
       `docs/evidence/development/2026-10-21-krun-t042-rerun-forensics/`、
       `docs/evidence/development/2026-10-21-t042-step1-subject-link/`）
