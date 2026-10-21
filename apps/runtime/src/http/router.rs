@@ -223,6 +223,8 @@ async fn usage(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let store = state.usage.read().await;
     let items = store.list(100);
     let spend = store.spend_for_prefix(&auth.prefix);
+    // The lifecycle export is not wired (see usage_batch); the view reports
+    // only the real per-request records and omits lifecycle advertisement.
     json_ok(
         StatusCode::OK,
         ok_envelope(
@@ -233,9 +235,6 @@ async fn usage(State(state): State<AppState>, headers: HeaderMap) -> Response {
                 "entitled_tools": ENTITLED_TOOL_SKUS,
                 "entitled_apis": ENTITLED_API_SKUS,
                 "entitled_models": ENTITLED_MODEL_IDS,
-                "lifecycle_schema": "a3s.gateway.usage-lifecycle.v1",
-                "batch_schema": "a3s.gateway.usage-batch.v1",
-                "lifecycle_events": 0,
             }),
             &request_id,
         ),
@@ -243,40 +242,19 @@ async fn usage(State(state): State<AppState>, headers: HeaderMap) -> Response {
     )
 }
 
-async fn usage_batch(
-    State(_state): State<AppState>,
-    headers: HeaderMap,
-    body: Option<Json<Value>>,
-) -> Response {
+async fn usage_batch(State(_state): State<AppState>, headers: HeaderMap) -> Response {
     let request_id = request_id_from(&headers);
     if let Err(res) = require_auth(&headers, &request_id) {
         return res;
     }
-    // Loose validation / stub: accept empty or object; return empty batch when nothing to export.
-    if let Some(Json(v)) = &body {
-        if !(v.is_null() || v.is_object() || v.is_array()) {
-            return json_err(err_envelope(
-                &request_id,
-                400,
-                "body must be JSON object or array",
-                "request.invalid",
-            ));
-        }
-    }
-    json_ok(
-        StatusCode::OK,
-        ok_envelope(
-            json!({
-                "schema": "a3s.gateway.usage-batch.v1",
-                "gateway_id": "a3s-runtime",
-                "batch_id": request_id,
-                "records": [],
-                "detail": "stub: lifecycle export not yet wired in Rust runtime",
-            }),
-            &request_id,
-        ),
+    // Lifecycle export is not wired in this runtime; a named refusal beats
+    // an empty batch that reads as "nothing to export".
+    json_err(err_envelope(
         &request_id,
-    )
+        501,
+        "lifecycle export is not wired in this runtime",
+        "usage_export.not_wired",
+    ))
 }
 
 async fn analytics(State(_state): State<AppState>, headers: HeaderMap) -> Response {
@@ -284,17 +262,14 @@ async fn analytics(State(_state): State<AppState>, headers: HeaderMap) -> Respon
     if let Err(res) = require_auth(&headers, &request_id) {
         return res;
     }
-    json_ok(
-        StatusCode::OK,
-        ok_envelope(
-            json!({
-                "schema": "a3s.os.api-analytics.v1",
-                "items": [],
-            }),
-            &request_id,
-        ),
+    // No aggregation exists in this runtime; refuse instead of answering
+    // an empty feed that reads as "no events".
+    json_err(err_envelope(
         &request_id,
-    )
+        501,
+        "analytics aggregation is not wired in this runtime",
+        "analytics.not_wired",
+    ))
 }
 
 async fn events_recent(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -1224,3 +1199,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 }
+
+#[cfg(test)]
+mod usage_export_tests;

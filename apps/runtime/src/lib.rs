@@ -1,4 +1,4 @@
-//! a3s-runtime — Gateway `/v1` data-plane HTTP surface.
+//! a3s-gateway-runtime — Gateway `/v1` data-plane HTTP surface.
 
 pub mod auth;
 pub mod entitlement;
