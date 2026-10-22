@@ -9,6 +9,9 @@
 # `--version X.Y.Z` installs that exact release. A positional URL may name
 # one official archive directly. macOS downloads a .tar.gz, Linux a .tar.gz,
 # Windows a .zip; each archive contains aster and a3s-code-acp.
+# A Linux host whose glibc predates 2.32 (Kylin V10 SP1, Ubuntu 20.04, Debian
+# 11) installs the `kylin` archive, which is the same x86_64 pair built against
+# glibc 2.31; the newer-glibc `linux` archive cannot load there.
 # The command does not clone this repository and does not compile.
 set -euo pipefail
 
@@ -56,7 +59,7 @@ while [[ $# -gt 0 ]]; do
       usage
       ;;
     *://*)
-      if [[ "$1" =~ ^https://github\.com/aster-ai-lab/aster/releases/download/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+-(macos|linux|windows)\.(tar\.gz|zip)$ ]]; then
+      if [[ "$1" =~ ^https://github\.com/aster-ai-lab/aster/releases/download/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+-(macos|linux|kylin|windows)\.(tar\.gz|zip)$ ]]; then
         direct_url="$1"
       else
         refuse
@@ -97,8 +100,30 @@ case "$uname_s" in
     fi
     ;;
 esac
+
+# `linux` is built on a current Ubuntu and needs glibc 2.32 or newer. An older
+# loader cannot start those binaries at all, so those hosts take the `kylin`
+# archive — the same pair built against glibc 2.31. A host that cannot report its
+# glibc keeps the generic archive, as it did before the kylin channel existed.
+host_glibc=""
+glibc_line="$(getconf GNU_LIBC_VERSION 2>/dev/null || true)"
+if [[ -z "$glibc_line" ]]; then
+  glibc_line="$(ldd --version 2>/dev/null | head -1 || true)"
+fi
+candidate="${glibc_line##* }"
+if [[ "$candidate" =~ ^[0-9]+\.[0-9]+$ ]]; then
+  host_glibc="$candidate"
+fi
+if [[ "$platform" == "linux" && -n "$host_glibc" ]]; then
+  glibc_major="${host_glibc%%.*}"
+  glibc_minor="${host_glibc#*.}"
+  if (( glibc_major < 2 )) || (( glibc_major == 2 && glibc_minor < 32 )); then
+    platform=kylin
+  fi
+fi
+
 case "$platform" in
-  macos|linux) extension="tar.gz" ;;
+  macos|linux|kylin) extension="tar.gz" ;;
   windows) extension="zip" ;;
 esac
 
@@ -178,6 +203,9 @@ cleanup() { rm -rf "$work"; }
 trap cleanup EXIT
 archive="${work}/${asset_name}"
 echo "platform=${platform}"
+if [[ "$platform" == "kylin" ]]; then
+  echo "glibc=${host_glibc}"
+fi
 echo "release=${tag:-direct}"
 echo "asset=${asset_url}"
 

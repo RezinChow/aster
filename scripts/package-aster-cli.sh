@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # Pack the two aster-cli release binaries into one archive.
-# Usage: scripts/package-aster-cli.sh <macos|linux|windows> <bin-dir> <out-file>
+# Usage: scripts/package-aster-cli.sh <macos|linux|kylin|windows> <bin-dir> <out-file>
+#
+# `kylin` is the Kylin V10 SP1 target: x86_64, glibc 2.31. It refuses binaries
+# that need a newer glibc, because the archive would fail on the target machine
+# with a missing GLIBC_2.3x symbol rather than at packaging time.
 set -euo pipefail
 
 if [[ $# -ne 3 ]]; then
-  echo "Usage: scripts/package-aster-cli.sh <macos|linux|windows> <bin-dir> <out-file>" >&2
+  echo "Usage: scripts/package-aster-cli.sh <macos|linux|kylin|windows> <bin-dir> <out-file>" >&2
   exit 2
 fi
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 platform="$1"
 bin_dir="$2"
 out="$3"
@@ -25,14 +30,31 @@ copy_file() {
   cp -f "$src" "$dest"
 }
 
+max_glibc=""
 case "$platform" in
   macos|linux) suffix="" ;;
+  kylin)
+    suffix=""
+    max_glibc="2.31"
+    ;;
   windows) suffix=".exe" ;;
   *) echo "error: unsupported platform: $platform" >&2; exit 1 ;;
 esac
 copy_file "${bin_dir}/aster${suffix}" "${stage}/aster${suffix}"
 copy_file "${bin_dir}/a3s-code-acp${suffix}" "${stage}/a3s-code-acp${suffix}"
 chmod 755 "${stage}/aster${suffix}" "${stage}/a3s-code-acp${suffix}"
+if [[ -n "$max_glibc" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    py=(python3)
+  elif command -v python >/dev/null 2>&1; then
+    py=(python)
+  else
+    echo "error: checking the ${platform} glibc baseline needs python" >&2
+    exit 1
+  fi
+  "${py[@]}" "${script_dir}/check-glibc-symbols.py" --max "$max_glibc" \
+    "${stage}/aster${suffix}" "${stage}/a3s-code-acp${suffix}"
+fi
 aster_identity="$("${stage}/aster${suffix}" --build-id)"
 acp_identity="$("${stage}/a3s-code-acp${suffix}" --build-id)"
 if [[ "$aster_identity" != aster-cli-pair-v1:* || "$aster_identity" != "$acp_identity" ]]; then
@@ -48,7 +70,7 @@ sha256_file() {
 }
 (cd "$stage" && sha256_file "aster${suffix}" && sha256_file "a3s-code-acp${suffix}") > "${stage}/SHA256SUMS"
 case "$platform" in
-  macos|linux)
+  macos|linux|kylin)
     COPYFILE_DISABLE=1 tar -C "$stage" -czf "$out" aster a3s-code-acp BUILD_ID SHA256SUMS
     ;;
   windows)

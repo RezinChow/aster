@@ -10,7 +10,8 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  isTriggerPress
 } from '../dropdown-menu'
 import { PortalContainerProvider } from '../portal-container'
 
@@ -103,5 +104,50 @@ describe('DropdownMenuContent', () => {
     const item = screen.getByText('Delete').closest('[data-slot="dropdown-menu-item"]')
     expect(item).toHaveClass("data-[variant=destructive]:[&_svg:not([class*='text-'])]:text-destructive!")
     expect(item).not.toHaveClass('data-[variant=destructive]:*:[svg]:text-destructive!')
+  })
+
+  /**
+   * The content stays mounted for its 200ms leave animation, and the dying layer
+   * still counts as a dismissable layer. A press on the trigger in that window is
+   * an "outside" press for it, so without the guard it closes the menu the press
+   * just opened and the trigger looks dead — reported as issue #14, where a user
+   * could not reopen the permission menu at all.
+   *
+   * jsdom cannot deliver the pointerdown that Radix turns into this callback, so
+   * the decision the callback makes is pinned directly; the integration is
+   * covered by the composer's permission-posture end-to-end spec.
+   */
+  it('treats a press inside its own trigger as a trigger press', () => {
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>
+          <span>Open</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>Item</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+
+    const label = screen.getByText('Open')
+    expect(isTriggerPress({ target: label })).toBe(true)
+    expect(isTriggerPress({ target: screen.getByText('Item') })).toBe(false)
+    expect(isTriggerPress({ target: document.body })).toBe(false)
+    expect(isTriggerPress({ target: null })).toBe(false)
+  })
+
+  it('leaves the animating-out content inert so it cannot swallow a press', () => {
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>Item</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+
+    expect(screen.getByText('Item').closest('[data-slot="dropdown-menu-content"]')).toHaveClass(
+      'data-[state=closed]:pointer-events-none'
+    )
   })
 })
