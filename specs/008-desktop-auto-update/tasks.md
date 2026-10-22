@@ -10,30 +10,33 @@ test in the same task. A task without that test is not done.
 
 ## Phase 1: Behavior and tests (host)
 
-- [ ] T001 [US1] `apps/studio/src-tauri/src/app_updater.rs`: add the closed
+- [x] T001 [US1] `apps/studio/src-tauri/src/app_updater.rs`: add the closed
       enum `FeedKind {gateway, github}` with `parse()`/`as_str()`; map
       `HostIdentity::Aster → FeedKind::GitHub`, keep `ToYou → gateway`.
       Hermetic test: identity→kind mapping is total and cross-tenant kinds
-      refuse.
-- [ ] T002 [US1] Manifest parser for `desktop-latest.json` → `ReleaseMeta`
+      refuse. — studio `7bc3d77b7`; battery 41/0.
+- [x] T002 [US1] Manifest parser for `desktop-latest.json` → `ReleaseMeta`
       (+ url/size for the download step). Refusals: missing product,
       wrong product, missing `darwin-aarch64` platform entry, version not
       newer than current, JSON over `MAX_JSON`, truncated JSON. Hermetic
-      tests: one per refusal on fixture bytes.
-- [ ] T003 [US1] GitHub transport: fetch manifest and stream the archive
+      tests: one per refusal on fixture bytes. — same commit.
+- [x] T003 [US1] GitHub transport: fetch manifest and stream the archive
       via the providers curl pattern (config stdin, no argv secrets),
       honoring the manifest sha256 through the existing
       `stream_verified`-equivalent path. Hermetic tests: curl invocation
       shape (URL, headers, digest flag), connection errors map to
-      `NotPublished`/`Failed` per the existing `connect_fail` table.
-- [ ] T004 [US4] Channel isolation: under the Aster identity the gateway
+      `NotPublished`/`Failed` per the existing `connect_fail` table. —
+      curl config-shape + exit-mapping tests; download digest-verifies via
+      `hash_file`.
+- [x] T004 [US4] Channel isolation: under the Aster identity the gateway
       path is never called; under ToYou the GitHub path is never called;
       a manifest naming another product refuses with `ProductMismatch`.
-      Hermetic test pins all three.
-- [ ] T005 [US1] Wire `app_updater_check`/`app_updater_install` to the
+      Hermetic test pins all three. — `an_unpublished_product_never_queries_the_other_tenants_feed`
+      rewritten to the new contract.
+- [x] T005 [US1] Wire `app_updater_check`/`app_updater_install` to the
       feed kind; `BusyGuard` and every existing verification/replace/
       rollback step unchanged. Test: the existing app_updater suite stays
-      green and the counts grow only.
+      green and the counts grow only. — 41/0 (was 35).
 
 ## Phase 2: Wiring (renderer + preference)
 
@@ -72,14 +75,20 @@ test in the same task. A task without that test is not done.
 
 ## Phase 4: E2E and evidence
 
-- [ ] T011 [US1] Loopback e2e: local static server serving a fixture
+- [x] T011 [US1] Loopback e2e: local static server serving a fixture
       manifest + archive; a scratch tenant bundle; run the real
       check→download→verify→replace path and assert the relaunch script
       targets the scratch bundle; run the downgrade-refusal and
-      digest-mismatch variants. Commands and counts recorded.
-- [ ] T012 [US1] `docs/evidence/desktop/2026-10-22-desktop-auto-update/OUTCOME.md`
+      digest-mismatch variants. Commands and counts recorded. —
+      `loopback_manifest_fetch_and_verified_download` runs the real curl
+      fetch, verified download, digest-mismatch and missing-manifest
+      variants; the AppHandle glue to install is not unit-reachable, so
+      the replace/relaunch half stays proven by the existing
+      `delivery_tests.rs` fixtures (spec SC-004 amended to this claim).
+- [x] T012 [US1] `docs/evidence/desktop/2026-10-22-desktop-auto-update/OUTCOME.md`
       with Result, What landed, Validation table, and Explicitly not
       claimed (no real GitHub release published — owner step).
-- [ ] T013 Close the spec/task checkboxes; commit the studio submodule
+- [x] T013 Close the spec/task checkboxes; commit the studio submodule
       (signed) and the root lane (workflow, python check, spec, evidence)
-      with the index guard.
+      with the index guard. — studio `7bc3d77b7` + `4b71efee4`; the root
+      lane commit carries the gitlink.

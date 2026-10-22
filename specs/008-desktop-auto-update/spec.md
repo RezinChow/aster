@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-22
 
-**Status**: Draft
+**Status**: Landed (2026-10-22; evidence `docs/evidence/desktop/2026-10-22-desktop-auto-update/OUTCOME.md`)
 
 **Input**: User description: "Aster 桌面端基于 GitHub Releases 的自动更新（静态清单 desktop-latest.json + 启动/24h/手动检查 + 复用现有替换回滚机制）"
 
