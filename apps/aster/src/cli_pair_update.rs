@@ -108,24 +108,64 @@ fn normalize_requested_version(text: &str) -> Option<Version> {
     Version::parse(text)
 }
 
-fn platform_key() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "macos"
-    } else if cfg!(target_os = "linux") {
-        "linux"
-    } else if cfg!(windows) {
-        "windows"
-    } else {
-        "unsupported"
+/// The glibc the running binary is linked against, as `major.minor`.
+///
+/// Only a GNU-hosted Linux build can report it: the version comes from the
+/// loader the process actually started with, not from the release it was cut
+/// from.
+fn host_glibc() -> Option<(u32, u32)> {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        // SAFETY: `gnu_get_libc_version` returns a pointer to a static
+        // NUL-terminated string owned by libc; it is never freed.
+        let raw = unsafe { libc::gnu_get_libc_version() };
+        if raw.is_null() {
+            return None;
+        }
+        let text = unsafe { std::ffi::CStr::from_ptr(raw) }.to_str().ok()?;
+        let (major, minor) = text.split_once('.')?;
+        Some((major.parse().ok()?, minor.parse().ok()?))
+    }
+    #[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+    {
+        None
     }
 }
 
+/// The release channel this host must install.
+///
+/// The `linux` archive is built on a current Ubuntu, so its symbols need glibc
+/// 2.32 or newer. Older hosts (Kylin V10 SP1, Ubuntu 20.04, Debian 11) take the
+/// `kylin` archive instead: the same x86_64 pair, built against glibc 2.31.
+/// Picking by the loader's own version keeps both directions working — a binary
+/// from the kylin archive that runs on a newer distribution asks for `linux`.
+fn channel_for(os: &str, glibc: Option<(u32, u32)>) -> &'static str {
+    match os {
+        "macos" => "macos",
+        "windows" => "windows",
+        "linux" => match glibc {
+            Some(version) if version < (2, 32) => "kylin",
+            _ => "linux",
+        },
+        _ => "unsupported",
+    }
+}
+
+fn platform_key() -> &'static str {
+    channel_for(std::env::consts::OS, host_glibc())
+}
+
+fn asset_name_for(version: Version, platform: &str) -> String {
+    let extension = if platform == "windows" {
+        "zip"
+    } else {
+        "tar.gz"
+    };
+    format!("aster-cli-v{version}-{platform}.{extension}")
+}
+
 fn expected_asset_name(version: Version) -> String {
-    format!(
-        "aster-cli-v{version}-{}.{}",
-        platform_key(),
-        if cfg!(windows) { "zip" } else { "tar.gz" }
-    )
+    asset_name_for(version, platform_key())
 }
 
 pub fn run(request: Request) -> Result<()> {
@@ -1193,4 +1233,67 @@ fn style_rule(fraction: f64) -> String {
         line.push_str(&"─".repeat(BAR_W - 1 - n));
     }
     line
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Version, asset_name_for, channel_for, host_glibc};
+
+    fn version() -> Version {
+        Version(0, 1, 2)
+    }
+
+    #[test]
+    fn a_linux_host_before_glibc_2_32_takes_the_kylin_archive() {
+        assert_eq!(channel_for("linux", Some((2, 31))), "kylin");
+        assert_eq!(channel_for("linux", Some((2, 27))), "kylin");
+        assert_eq!(channel_for("linux", Some((1, 31))), "kylin");
+    }
+
+    #[test]
+    fn a_current_linux_host_takes_the_generic_archive() {
+        assert_eq!(channel_for("linux", Some((2, 32))), "linux");
+        assert_eq!(channel_for("linux", Some((2, 39))), "linux");
+        assert_eq!(channel_for("linux", Some((3, 0))), "linux");
+    }
+
+    #[test]
+    fn an_unreported_glibc_keeps_the_generic_linux_archive() {
+        // A musl or otherwise unidentifiable Linux host keeps the behaviour it
+        // had before the kylin channel existed.
+        assert_eq!(channel_for("linux", None), "linux");
+    }
+
+    #[test]
+    fn other_hosts_ignore_the_glibc_version() {
+        assert_eq!(channel_for("macos", Some((2, 31))), "macos");
+        assert_eq!(channel_for("windows", Some((2, 31))), "windows");
+        assert_eq!(channel_for("freebsd", Some((2, 31))), "unsupported");
+    }
+
+    #[test]
+    fn the_kylin_archive_keeps_the_release_asset_shape() {
+        assert_eq!(
+            asset_name_for(version(), "kylin"),
+            "aster-cli-v0.1.2-kylin.tar.gz"
+        );
+        assert_eq!(
+            asset_name_for(version(), "linux"),
+            "aster-cli-v0.1.2-linux.tar.gz"
+        );
+        assert_eq!(
+            asset_name_for(version(), "windows"),
+            "aster-cli-v0.1.2-windows.zip"
+        );
+    }
+
+    #[test]
+    fn this_host_reports_a_glibc_that_selects_a_known_channel() {
+        let channel = channel_for(std::env::consts::OS, host_glibc());
+        assert!(
+            matches!(channel, "kylin" | "linux" | "macos" | "windows"),
+            "unexpected channel {channel} on {}",
+            std::env::consts::OS
+        );
+    }
 }
