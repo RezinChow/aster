@@ -1,14 +1,14 @@
 //! LLM client factory
 
+use super::LlmClient;
 use super::anthropic::AnthropicClient;
 use super::codex_login::CodexLoginClient;
 use super::cursor_account::CursorAccountClient;
-use super::http::{default_http_client, ReqwestHttpClient};
+use super::http::{ReqwestHttpClient, default_http_client};
 use super::openai::OpenAiClient;
 use super::structured::NativeStructuredSupport;
 use super::types::SecretString;
 use super::zhipu::ZhipuClient;
-use super::LlmClient;
 use crate::retry::RetryConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -276,8 +276,8 @@ pub fn create_client_with_config(config: LlmConfig) -> Arc<dyn LlmClient> {
             Arc::new(client)
         }
         // OpenAI-compatible providers (deepseek, groq, together, ollama, grok,
-        // workbuddy, etc.)
-        "openai" | "gpt" | "grok" | "xai" | "workbuddy" | "codebuddy" => {
+        // etc.)
+        "openai" | "gpt" | "grok" | "xai" => {
             let native_structured_support = config.native_structured_support.unwrap_or_else(|| {
                 default_openai_native_structured_support(
                     &config.provider,

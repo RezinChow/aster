@@ -35,8 +35,6 @@ mod sampling_consent;
 mod turn_cancel;
 pub mod unattended;
 mod wiki_search;
-#[cfg(feature = "account-import")]
-mod workbuddy_account;
 
 pub use agent::A3sCodeAgent;
 pub use config::{

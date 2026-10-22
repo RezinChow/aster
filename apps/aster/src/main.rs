@@ -118,7 +118,6 @@ use std::env;
 
 mod cli_pair_update;
 mod startup;
-mod workbuddy_login;
 #[cfg(all(feature = "test-seams", debug_assertions))]
 mod test_seam {
     const TEST_TRUSTED_PUBKEY_FILE_ENV: &str = "GROK_TEST_TRUSTED_PUBKEY_FILE";
@@ -2069,20 +2068,6 @@ fn main() {
             std::process::exit(1);
         }
         return;
-    }
-    // Seamless WorkBuddy session: only when this launch actually uses a
-    // workbuddy model (import opted in AND the model is workbuddy/*) —
-    // never on mere startup. A live credential returns silently, a stale
-    // one refreshes, a missing one opens the one-click approval page.
-    if args.command.is_none() && workbuddy_login::model_uses_workbuddy() {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build();
-        if let Ok(runtime) = runtime {
-            if let Err(error) = runtime.block_on(workbuddy_login::ensure_session()) {
-                eprintln!("Aster: workbuddy session unavailable: {error:#}");
-            }
-        }
     }
     a3s_code_pager_minimal::install();
     #[cfg(all(feature = "test-seams", debug_assertions))]

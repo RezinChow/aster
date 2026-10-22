@@ -5,7 +5,6 @@
 //! - the current Claude provider from a local CC Switch database
 //! - models from a logged-in Grok CLI account (`~/.grok`)
 //! - models from a logged-in Cursor account on this machine
-//! - models from a logged-in WorkBuddy account (aster's own store)
 //! - models from a logged-in Codex account (`~/.codex`)
 //!
 //! Without the opt-in, no other product's login, keychain item or database
@@ -32,8 +31,6 @@ use crate::codex_account;
 use crate::cursor_account;
 #[cfg(feature = "account-import")]
 use crate::grok_account;
-#[cfg(feature = "account-import")]
-use crate::workbuddy_account;
 
 /// Merged launch identity for the ACP agent process.
 #[derive(Debug, Clone)]
@@ -246,7 +243,6 @@ fn merge_account_imports(config: &mut CodeConfig, selected: &[AccountImport]) ->
                 AccountImport::CcSwitch => cc_switch::merge_into_config(config),
                 AccountImport::Grok => grok_account::merge_into_config(config),
                 AccountImport::Cursor => cursor_account::merge_into_config(config),
-                AccountImport::Workbuddy => workbuddy_account::merge_into_config(config),
                 AccountImport::Codex => codex_account::merge_into_config(config),
             };
             match merged {

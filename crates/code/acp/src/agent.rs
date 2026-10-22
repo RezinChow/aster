@@ -592,8 +592,6 @@ fn model_picker_label(provider_name: &str, display_name: &str) -> String {
         format!("cursor · {display_name}")
     } else if provider_name == "codex" {
         format!("codex · {display_name}")
-    } else if provider_name == "workbuddy" {
-        format!("workbuddy · {display_name}")
     } else {
         format!("{provider_name}/{display_name}")
     }
@@ -608,8 +606,6 @@ fn model_picker_description(provider_name: &str) -> String {
         "Logged-in Cursor account".to_string()
     } else if provider_name == "codex" {
         "Logged-in Codex account".to_string()
-    } else if provider_name == "workbuddy" {
-        "Logged-in WorkBuddy account".to_string()
     } else {
         format!("From A3S ACL provider {provider_name}")
     }

@@ -17,30 +17,21 @@ pub enum AccountImport {
     Grok,
     /// The logged-in Cursor account (CLI config, keychain or IDE state).
     Cursor,
-    /// The logged-in WorkBuddy account (aster's own `login-workbuddy` store).
-    Workbuddy,
     /// The logged-in Codex account (`~/.codex`, ChatGPT plan login).
     Codex,
 }
 
 impl AccountImport {
-    pub const ALL: [Self; 5] = [
-        Self::CcSwitch,
-        Self::Grok,
-        Self::Cursor,
-        Self::Workbuddy,
-        Self::Codex,
-    ];
+    pub const ALL: [Self; 4] = [Self::CcSwitch, Self::Grok, Self::Cursor, Self::Codex];
 
     pub fn parse(value: &str) -> Result<Self, String> {
         match value.trim() {
             "cc-switch" => Ok(Self::CcSwitch),
             "grok" => Ok(Self::Grok),
             "cursor" => Ok(Self::Cursor),
-            "workbuddy" => Ok(Self::Workbuddy),
             "codex" => Ok(Self::Codex),
             other => Err(format!(
-                "unknown account import {other:?} (closed set: cc-switch, grok, cursor, workbuddy, codex)"
+                "unknown account import {other:?} (closed set: cc-switch, grok, cursor, codex)"
             )),
         }
     }
@@ -50,7 +41,6 @@ impl AccountImport {
             Self::CcSwitch => "cc-switch",
             Self::Grok => "grok",
             Self::Cursor => "cursor",
-            Self::Workbuddy => "workbuddy",
             Self::Codex => "codex",
         }
     }

@@ -1,6 +1,6 @@
 """Account-import closed-set contract guard.
 
-The five local account importers name themselves in three places that must
+The local account importers name themselves in three places that must
 not drift: the `AccountImport` enum, the refusal error text, and the
 companion binary's usage string. A drift makes a valid import name parse on
 one surface and be rejected as unknown on another.

@@ -1,5 +1,5 @@
 //! PTY end-to-end for model selection: the shipped TUI, the shipped ACP
-//! agent, and fixture logins for the Codex and WorkBuddy account imports.
+//! agent, and a fixture login for the Codex account import.
 //! No account endpoint is dialed — these tests cover the picker catalog,
 //! filtering, and switching, not turns. The wire paths are proven by the
 //! importer unit tests and `codex_login_roundtrip`.
@@ -18,8 +18,6 @@ const FUTURE_JWT: &str =
     "eyJhbGciOiJub25lIn0.eyJlbWFpbCI6InVzZXJAZXhhbXBsZS50ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.sig";
 const EXPIRED_JWT: &str =
     "eyJhbGciOiJub25lIn0.eyJlbWFpbCI6InVzZXJAZXhhbXBsZS50ZXN0IiwiZXhwIjo5NDY2ODQ4MDB9.sig";
-const WORKBUDDY_KEY: &str = "wb-fixture-key-9f3a7c";
-const WORKBUDDY_EMAIL: &str = "wb-fixture-user@example.com";
 const CODEX_EMAIL: &str = "user@example.test";
 
 struct Fixture {
@@ -55,27 +53,6 @@ fn write_codex_home(root: &Path, access_token: &str) -> PathBuf {
                 {"slug": "gpt-6-luna", "display_name": "GPT-6-Luna", "context_window": 272000, "visibility": "list", "supported_in_api": true},
                 {"slug": "not-in-api", "display_name": "Not In API", "context_window": 272000, "visibility": "list", "supported_in_api": false}
             ]
-        })
-        .to_string(),
-    )
-    .unwrap();
-    home
-}
-
-/// The auth store `login-workbuddy` writes; the importer reads the same
-/// shape, so the fixture writes a live entry instead of running a login.
-fn write_workbuddy_home(root: &Path) -> PathBuf {
-    let home = root.join("workbuddy-home");
-    std::fs::create_dir_all(&home).unwrap();
-    std::fs::write(
-        home.join("auth.json"),
-        serde_json::json!({
-            "workbuddy": {
-                "key": WORKBUDDY_KEY,
-                "email": WORKBUDDY_EMAIL,
-                "user_id": "wb-user-1",
-                "expires_at": "2100-01-01T00:00:00Z"
-            }
         })
         .to_string(),
     )
@@ -126,7 +103,6 @@ import_accounts = [{import_accounts}]
         ("A3S_DISABLE_CC_SWITCH".to_string(), "1".to_string()),
         ("A3S_DISABLE_GROK_ACCOUNT".to_string(), "1".to_string()),
         ("A3S_DISABLE_CURSOR_ACCOUNT".to_string(), "1".to_string()),
-        ("A3S_DISABLE_WORKBUDDY_ACCOUNT".to_string(), "1".to_string()),
         ("A3S_DISABLE_CODEX_ACCOUNT".to_string(), "1".to_string()),
         ("HOME".to_string(), home.display().to_string()),
         (
@@ -166,19 +142,11 @@ fn redact(screen: &str) -> String {
     screen
         .replace(FUTURE_JWT, "[jwt]")
         .replace(EXPIRED_JWT, "[jwt]")
-        .replace(WORKBUDDY_KEY, "[redacted]")
-        .replace(WORKBUDDY_EMAIL, "[redacted]")
         .replace(CODEX_EMAIL, "[redacted]")
 }
 
 fn assert_screen_has_no_secret(screen: &str) {
-    for secret in [
-        FUTURE_JWT,
-        EXPIRED_JWT,
-        WORKBUDDY_KEY,
-        WORKBUDDY_EMAIL,
-        CODEX_EMAIL,
-    ] {
+    for secret in [FUTURE_JWT, EXPIRED_JWT, CODEX_EMAIL] {
         assert!(
             !screen.contains(secret),
             "screen showed a fixture credential\n{}",
@@ -416,13 +384,7 @@ fn switch_model(pty: &mut PtySession, filter: &str, footer_needle: &str) {
 
 fn assert_config_clean(fixture: &Fixture) {
     let acl = std::fs::read_to_string(&fixture.config).unwrap_or_default();
-    for secret in [
-        FUTURE_JWT,
-        EXPIRED_JWT,
-        WORKBUDDY_KEY,
-        WORKBUDDY_EMAIL,
-        CODEX_EMAIL,
-    ] {
+    for secret in [FUTURE_JWT, EXPIRED_JWT, CODEX_EMAIL] {
         assert!(!acl.contains(secret), "acl contained a fixture credential");
     }
 }
@@ -465,43 +427,6 @@ fn codex_models_list_filter_and_switch() {
 }
 
 #[test]
-fn workbuddy_models_list_and_switch() {
-    let fixture = prepare("\"workbuddy\"");
-    let workbuddy_home = write_workbuddy_home(fixture._root.path());
-    let env = with_env(
-        &fixture,
-        &[
-            ("A3S_DISABLE_WORKBUDDY_ACCOUNT", "0"),
-            ("A3S_WORKBUDDY_HOME", workbuddy_home.to_str().unwrap()),
-        ],
-    );
-    let refs = as_refs(&env);
-    let mut pty = open_pty(&tui_binary(), &fixture.workspace, &refs);
-    wait_ready(&mut pty, "mock/m1", Duration::from_secs(45));
-
-    let picker = open_model_picker(&mut pty, "Logged-in WorkBuddy account");
-    assert!(
-        picker.contains("workbuddy ·") || picker.contains("workbuddy/"),
-        "picker missed the workbuddy provider\n{}",
-        redact(&picker)
-    );
-    assert_screen_has_no_secret(&picker);
-
-    // The static catalog pages; the Auto entry is reached through the
-    // picker's own filter instead of viewport luck, then switched to.
-    switch_model(&mut pty, "auto", "workbuddy · Auto");
-    // Kimi-K3 is unique under the "kimi-k3" filter, so the Enter lands on
-    // exactly one row. The picker must be (re)opened before the filter is
-    // typed: without it the text lands in the composer and Enter sends a
-    // real turn through the current provider.
-    open_model_picker(&mut pty, "Logged-in WorkBuddy account");
-    switch_model(&mut pty, "kimi-k3", "workbuddy · Kimi-K3");
-
-    pty.quit();
-    assert_config_clean(&fixture);
-}
-
-#[test]
 fn an_expired_codex_token_stays_out_of_the_picker() {
     let fixture = prepare("\"codex\"");
     let codex_home = write_codex_home(fixture._root.path(), EXPIRED_JWT);
@@ -522,28 +447,6 @@ fn an_expired_codex_token_stays_out_of_the_picker() {
     assert!(
         !settled.contains("codex"),
         "an expired codex login reached the picker\n{}",
-        redact(&settled)
-    );
-    assert_screen_has_no_secret(&settled);
-    pty.quit();
-    assert_config_clean(&fixture);
-}
-
-#[test]
-fn an_absent_workbuddy_login_stays_out_of_the_picker() {
-    // No exported key: the workbuddy provider must not reach the picker.
-    let fixture = prepare("\"workbuddy\"");
-    let env = with_env(&fixture, &[("A3S_DISABLE_WORKBUDDY_ACCOUNT", "0")]);
-    let refs = as_refs(&env);
-    let mut pty = open_pty(&tui_binary(), &fixture.workspace, &refs);
-    wait_ready(&mut pty, "mock/m1", Duration::from_secs(45));
-
-    open_model_picker(&mut pty, "From A3S ACL provider mock");
-    std::thread::sleep(Duration::from_millis(600));
-    let settled = pty.screen();
-    assert!(
-        !settled.contains("workbuddy"),
-        "an absent workbuddy login reached the picker\n{}",
         redact(&settled)
     );
     assert_screen_has_no_secret(&settled);
