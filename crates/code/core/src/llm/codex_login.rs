@@ -34,6 +34,34 @@ pub struct CodexLoginClient {
 }
 
 impl CodexLoginClient {
+    /// Build from a validated auth snapshot (the account importer or an
+    /// explicit provider block). Construction never reads disk and never
+    /// fails; an unusable token surfaces per request like any other
+    /// provider's bad key. An empty `account_id` omits the account header.
+    pub fn from_parts(
+        access_token: String,
+        account_id: String,
+        model: &str,
+        session_id: &str,
+        reasoning_effort: Option<String>,
+    ) -> Self {
+        Self {
+            access_token,
+            account_id,
+            model: model.to_string(),
+            reasoning_effort: reasoning_effort.filter(|effort| !effort.trim().is_empty()),
+            session_id: session_id.to_string(),
+            http: default_http_client(),
+            encrypted_reasoning: Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Swap the transport (factory timeout wiring, tests).
+    pub fn with_http_client(mut self, http: Arc<dyn HttpClient>) -> Self {
+        self.http = http;
+        self
+    }
+
     /// Load the local Codex login used by developer-side evaluations.
     pub fn from_local_login(model: &str, session_id: &str) -> Result<Self> {
         let home = std::env::var_os("HOME").ok_or_else(|| anyhow!("HOME unset"))?;
@@ -78,15 +106,13 @@ impl CodexLoginClient {
                 anyhow!("no ChatGPT account id in ~/.codex/auth.json; re-run `codex login`")
             })?;
 
-        Ok(Self {
+        Ok(Self::from_parts(
             access_token,
             account_id,
-            model: model.to_string(),
-            reasoning_effort: reasoning_effort.filter(|effort| !effort.trim().is_empty()),
-            session_id: session_id.to_string(),
-            http: default_http_client(),
-            encrypted_reasoning: Arc::new(std::sync::Mutex::new(Vec::new())),
-        })
+            model,
+            session_id,
+            reasoning_effort,
+        ))
     }
 
     fn build_body(
@@ -189,15 +215,20 @@ impl LlmClient for CodexLoginClient {
         let body = self.build_body(messages, system, tools, true);
         let url = format!("{CODEX_BASE}/responses");
         let bearer = format!("Bearer {}", self.access_token);
-        let headers = vec![
+        let mut headers = vec![
             ("Authorization", bearer.as_str()),
-            ("chatgpt-account-id", self.account_id.as_str()),
             ("OpenAI-Beta", "responses=experimental"),
             ("originator", ORIGINATOR),
             ("session_id", self.session_id.as_str()),
             ("Accept", "text/event-stream"),
             ("User-Agent", USER_AGENT),
         ];
+        // `from_parts` permits an empty account id (explicit provider block
+        // without one); the API then answers per request instead of this
+        // client guessing an identity.
+        if !self.account_id.is_empty() {
+            headers.push(("chatgpt-account-id", self.account_id.as_str()));
+        }
 
         let response = self
             .http

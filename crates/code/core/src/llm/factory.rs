@@ -1,6 +1,7 @@
 //! LLM client factory
 
 use super::anthropic::AnthropicClient;
+use super::codex_login::CodexLoginClient;
 use super::cursor_account::CursorAccountClient;
 use super::http::{default_http_client, ReqwestHttpClient};
 use super::openai::OpenAiClient;
@@ -274,8 +275,9 @@ pub fn create_client_with_config(config: LlmConfig) -> Arc<dyn LlmClient> {
             }
             Arc::new(client)
         }
-        // OpenAI-compatible providers (deepseek, groq, together, ollama, grok, etc.)
-        "openai" | "gpt" | "grok" | "xai" => {
+        // OpenAI-compatible providers (deepseek, groq, together, ollama, grok,
+        // workbuddy, etc.)
+        "openai" | "gpt" | "grok" | "xai" | "workbuddy" | "codebuddy" => {
             let native_structured_support = config.native_structured_support.unwrap_or_else(|| {
                 default_openai_native_structured_support(
                     &config.provider,
@@ -360,6 +362,36 @@ pub fn create_client_with_config(config: LlmConfig) -> Arc<dyn LlmClient> {
             if !headers.is_empty() {
                 client = client.with_headers(headers);
             }
+            Arc::new(client)
+        }
+        // Codex account sessions speak the ChatGPT Responses API with an
+        // OAuth bearer from the account import. `base_url` is deliberately
+        // not honored: the endpoint is the account contract, and a redirect
+        // would send that bearer somewhere else. The account id rides the
+        // protocol header the importer or an explicit provider block sets.
+        "codex" => {
+            let transport = config
+                .http_override
+                .clone()
+                .or(http)
+                .unwrap_or_else(default_http_client);
+            let account_id = headers
+                .get("chatgpt-account-id")
+                .cloned()
+                .unwrap_or_default();
+            let reasoning_effort = config.reasoning_effort.clone().or_else(|| {
+                std::env::var("A3S_CODEX_REASONING_EFFORT")
+                    .ok()
+                    .filter(|effort| !effort.trim().is_empty())
+            });
+            let client = CodexLoginClient::from_parts(
+                api_key,
+                account_id,
+                &config.model,
+                config.session_id.as_deref().unwrap_or(""),
+                reasoning_effort,
+            )
+            .with_http_client(transport);
             Arc::new(client)
         }
         // OpenAI-compatible providers (deepseek, groq, together, ollama, etc.)

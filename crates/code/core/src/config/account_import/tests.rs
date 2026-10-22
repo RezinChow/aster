@@ -8,7 +8,7 @@ fn the_closed_set_round_trips_and_names_itself_on_refusal() {
     }
     let error = AccountImport::parse("Cursor").unwrap_err();
     assert!(
-        error.contains("closed set: cc-switch, grok, cursor"),
+        error.contains("closed set: cc-switch, grok, cursor, workbuddy, codex"),
         "{error}"
     );
     assert_eq!(
@@ -35,7 +35,7 @@ fn import_accounts_parses_the_closed_set_and_refuses_unknown_sources() {
         .unwrap_err()
         .to_string();
     assert!(
-        error.contains("closed set: cc-switch, grok, cursor"),
+        error.contains("closed set: cc-switch, grok, cursor, workbuddy, codex"),
         "{error}"
     );
     assert!(CodeConfig::from_acl("import_accounts = \"cursor\"\n").is_err());

@@ -386,7 +386,7 @@ fn read_ide_item(path: &Path, key: &str) -> Result<Option<String>> {
     Ok(Some(value))
 }
 
-fn token_usable(token: &str) -> bool {
+pub(crate) fn token_usable(token: &str) -> bool {
     match jwt_exp(token) {
         None => true,
         Some(None) => false,
@@ -394,7 +394,7 @@ fn token_usable(token: &str) -> bool {
     }
 }
 
-fn unix_now() -> i64 {
+pub(crate) fn unix_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
@@ -403,7 +403,7 @@ fn unix_now() -> i64 {
 
 /// `None` when `token` is not a JWT. `Some(None)` when it is a JWT with no
 /// numeric `exp`. `Some(Some(exp))` when `exp` is present.
-fn jwt_exp(token: &str) -> Option<Option<i64>> {
+pub(crate) fn jwt_exp(token: &str) -> Option<Option<i64>> {
     let payload = jwt_payload(token)?;
     match payload.get("exp") {
         Some(Value::Number(number)) => Some(number.as_i64()),
@@ -411,7 +411,7 @@ fn jwt_exp(token: &str) -> Option<Option<i64>> {
     }
 }
 
-fn jwt_string_claim(token: &str, claim: &str) -> Option<String> {
+pub(crate) fn jwt_string_claim(token: &str, claim: &str) -> Option<String> {
     jwt_payload(token)?
         .get(claim)
         .and_then(Value::as_str)
@@ -420,7 +420,7 @@ fn jwt_string_claim(token: &str, claim: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn jwt_payload(token: &str) -> Option<Value> {
+pub(crate) fn jwt_payload(token: &str) -> Option<Value> {
     let mut parts = token.split('.');
     let header = parts.next()?;
     let payload = parts.next()?;
@@ -738,7 +738,7 @@ fn version_from_install() -> Option<String> {
     None
 }
 
-fn read_bounded(path: &Path, max_bytes: usize) -> Result<Option<String>> {
+pub(crate) fn read_bounded(path: &Path, max_bytes: usize) -> Result<Option<String>> {
     let file = std::fs::File::open(path)?;
     let metadata = file.metadata()?;
     if metadata.len() > max_bytes as u64 {
