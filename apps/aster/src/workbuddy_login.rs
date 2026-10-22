@@ -44,18 +44,29 @@ struct Session {
     email: Option<String>,
 }
 
-/// True when the launch config opts into the workbuddy account import.
-/// A config that cannot be read opts out (fail closed, no error spam).
-pub fn opted_in() -> bool {
+/// True when this launch actually USES a workbuddy model: the import is
+/// opted in and the launch model is `workbuddy/*`. Authorization triggers
+/// on use, never on mere startup. A config that cannot be read opts out
+/// (fail closed, no error spam).
+pub fn model_uses_workbuddy() -> bool {
     let workspace = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let Ok(launch) = a3s_code_acp::load_launch_config(workspace, None) else {
         return false;
     };
-    launch
+    if !launch
         .config
         .import_accounts
         .iter()
         .any(|import| import.as_str() == AUTH_SCOPE)
+    {
+        return false;
+    }
+    launch.model_id.starts_with("workbuddy/")
+        || launch
+            .config
+            .default_model
+            .as_deref()
+            .is_some_and(|model| model.starts_with("workbuddy/"))
 }
 
 /// Make sure a usable workbuddy credential exists, refreshing or
@@ -207,14 +218,17 @@ async fn device_flow(client: &reqwest::Client) -> Result<Session> {
                 .map(|seconds| chrono::Utc::now() + chrono::Duration::seconds(seconds));
             break;
         }
-        let keys = data
-            .as_object()
-            .map(|object| object.keys().cloned().collect::<Vec<_>>().join(", "))
-            .unwrap_or_else(|| "not an object".to_string());
-        bail!(
-            "the token payload names none of {} (saw: {keys}); report this output",
-            TOKEN_FIELDS.join("/")
-        );
+        // Pending approval answers with a non-object payload (null or a
+        // status string); keep polling. Only an object naming none of the
+        // candidate fields is terminal.
+        if let Some(object) = data.as_object().filter(|object| !object.is_empty()) {
+            let keys = object.keys().cloned().collect::<Vec<_>>().join(", ");
+            bail!(
+                "the token payload names none of {} (saw: {keys}); report this output",
+                TOKEN_FIELDS.join("/")
+            );
+        }
+        tokio::time::sleep(POLL_INTERVAL).await;
     }
 
     let account: Option<Value> = match client.get(format!("{ACCOUNT_URL}{state}")).send().await {

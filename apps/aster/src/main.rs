@@ -2070,11 +2070,11 @@ fn main() {
         }
         return;
     }
-    // Seamless WorkBuddy session: only when this launch opts into the
-    // workbuddy account import (import_accounts), and only for the
-    // interactive TUI — a live credential returns silently, a stale one
-    // refreshes, and a missing one opens the one-click approval page.
-    if args.command.is_none() && workbuddy_login::opted_in() {
+    // Seamless WorkBuddy session: only when this launch actually uses a
+    // workbuddy model (import opted in AND the model is workbuddy/*) —
+    // never on mere startup. A live credential returns silently, a stale
+    // one refreshes, a missing one opens the one-click approval page.
+    if args.command.is_none() && workbuddy_login::model_uses_workbuddy() {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build();
