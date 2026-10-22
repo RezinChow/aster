@@ -26,7 +26,7 @@ runtime and adds the live results.
 | --- | --- |
 | `cargo test -p a3s-studio --lib -- computer_use session_reap form_settle orphan_recovery dock_reopen hides_on_close model_list_urls` | 20 passed, 0 failed |
 | `cargo test -p a3s-code-core --lib -- fact_control permissions skill_tool_returns_workspace workspace_and_home_skill_roots watched_skill_dirs` | 312 passed, 0 failed |
-| `cargo test -p a3s-code-acp --lib -- skill host_context research posture` | 23 passed, 0 failed ×4; one unreproduced flake on the first invocation |
+| `cargo test -p a3s-code-acp --lib -- skill host_context research posture` | 23 passed, 0 failed ×4; one unreproduced flake on the first invocation. Final sweep note: one run under a concurrent session's parallel test processes reported 2 failures, then 6 consecutive runs and a `--test-threads=1` run were 23/0 — the transient matches the known shared-machine interference mode, not a source regression |
 | `python3 -m unittest cua_guard_test window_runtime_test` (apps/studio/tests/e2e/task-catalog) | 30 tests OK |
 | `python3 test_computer_use_runtime.py` (apps/studio/scripts) | 4 tests OK (fixture screenshot, both deliveries, unknown action, malformed input) |
 | `cargo test -p a3s-studio --lib -- http_marked_turn_drops_warm_history_and_the_next_session_is_empty -- --test-threads=1` | 1 passed (loopback plane, scripted ACP peer) |
