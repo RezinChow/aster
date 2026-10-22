@@ -40,6 +40,9 @@ macro_rules! closed_set {
     };
 }
 
+#[cfg(test)]
+mod dimension_registry_tests;
+
 closed_set!(GoalState {
     Active => "active", Waiting => "waiting", Paused => "paused",
     Completed => "completed", Cancelled => "cancelled",
