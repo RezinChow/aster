@@ -98,6 +98,58 @@
     context.restore();
   }
 
+  function drawConstellation(points) {
+    const limit = Math.min(width, height) * 0.17;
+    let drawn = 0;
+    context.save();
+    context.lineWidth = 1;
+    context.lineCap = 'round';
+    for (let i = 0; i < points.length && drawn < 44; i++) {
+      for (let j = i + 1; j < points.length && drawn < 44; j++) {
+        const dx = points[i].x - points[j].x;
+        const dy = points[i].y - points[j].y;
+        const distance = Math.hypot(dx, dy);
+        if (distance > limit) continue;
+        context.strokeStyle = `rgba(196,226,255,${(1 - distance / limit) * 0.17})`;
+        context.beginPath();
+        context.moveTo(points[i].x, points[i].y);
+        context.lineTo(points[j].x, points[j].y);
+        context.stroke();
+        drawn++;
+      }
+    }
+    context.restore();
+  }
+
+  function drawShootingStar(time) {
+    const local = (time + 3.2) % 7.5;
+    if (local > 0.85) return;
+    const progress = local / 0.85;
+    const x = width * (0.82 - progress * 0.56);
+    const y = height * (0.06 + progress * 0.44);
+    const length = 160 + progress * 110;
+    const angle = Math.atan2(height * 0.44, width * 0.56);
+    const tailX = x - Math.cos(angle) * length;
+    const tailY = y - Math.sin(angle) * length;
+    const trail = context.createLinearGradient(tailX, tailY, x, y);
+    trail.addColorStop(0, 'rgba(255,255,255,0)');
+    trail.addColorStop(0.7, 'rgba(214,238,255,0.5)');
+    trail.addColorStop(1, 'rgba(255,255,255,0.92)');
+    context.save();
+    context.strokeStyle = trail;
+    context.lineWidth = 2.2;
+    context.lineCap = 'round';
+    context.beginPath();
+    context.moveTo(tailX, tailY);
+    context.lineTo(x, y);
+    context.stroke();
+    context.fillStyle = 'rgba(255,255,255,0.95)';
+    context.beginPath();
+    context.arc(x, y, 2.2, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  }
+
   function draw(time) {
     if (!width || !height) return;
     context.clearRect(0, 0, width, height);
@@ -148,6 +200,16 @@
       context.fill();
     }
     context.restore();
+
+    const points = [];
+    stars.forEach(([x, y, size, tone], index) => {
+      const px = width * x + pointerX * (index % 2 ? .6 : 1);
+      const py = height * y + pointerY * .6 + Math.sin(time * .22 + index) * 3;
+      points.push({ x: px, y: py });
+    });
+    drawConstellation(points);
+    drawShootingStar(time);
+
     stars.forEach(([x, y, size, tone], index) => {
       const shimmer = .35 + (Math.sin(time * .8 + index * 1.3) * .5 + .5) * .5;
       const px = width * x + pointerX * (index % 2 ? .6 : 1);
