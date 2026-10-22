@@ -1420,7 +1420,7 @@ fn observe_identity_unix(
     let parent = match open_parent_directory(root, ancestors) {
         Ok(parent) => parent,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Some(missing_identity(relative))
+            return Some(missing_identity(relative));
         }
         Err(_) => return None,
     };
@@ -1428,7 +1428,7 @@ fn observe_identity_unix(
     let before = match stat_at(&parent, &name) {
         Ok(stat) => stat,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Some(missing_identity(relative))
+            return Some(missing_identity(relative));
         }
         Err(_) => return None,
     };

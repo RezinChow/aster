@@ -351,9 +351,7 @@ impl SessionLaneQueue {
             "none" => Ok(RetryPolicy::none()),
             "fixed" => Ok(RetryPolicy::fixed(
                 config.max_retries,
-                Duration::from_millis(
-                    config.fixed_delay_ms.unwrap_or(config.initial_delay_ms),
-                ),
+                Duration::from_millis(config.fixed_delay_ms.unwrap_or(config.initial_delay_ms)),
             )),
             "exponential" => {
                 let mut policy = RetryPolicy::exponential(config.max_retries);

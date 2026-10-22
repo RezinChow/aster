@@ -1067,8 +1067,7 @@ async fn streaming_trailing_full_response_object_without_sse_framing_finalizes()
 
 #[tokio::test]
 async fn streaming_trailing_delta_path_without_sse_framing_finalizes() {
-    let trailing =
-        "{\"choices\":[{\"delta\":{\"content\":\"d\",\"reasoning_content\":\"rd\"},\"finish_reason\":\"stop\"}]}";
+    let trailing = "{\"choices\":[{\"delta\":{\"content\":\"d\",\"reasoning_content\":\"rd\"},\"finish_reason\":\"stop\"}]}";
     let resp = drain_to_done(&glm_client(vec![trailing.to_string()])).await;
     assert_eq!(resp.text(), "d");
     assert_eq!(resp.message.reasoning_content.as_deref(), Some("rd"));

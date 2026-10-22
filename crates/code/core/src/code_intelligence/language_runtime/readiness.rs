@@ -93,7 +93,7 @@ pub(super) async fn wait_for_state(
         match *status.borrow_and_update() {
             ReadinessState::Ready => return Ok(()),
             ReadinessState::Failed(reason) => {
-                return Err(LanguageRuntimeError::Readiness { reason })
+                return Err(LanguageRuntimeError::Readiness { reason });
             }
             ReadinessState::Loading => {}
         }

@@ -603,7 +603,7 @@ pub(crate) async fn acquire_install_lock(root: &Path, deadline: Instant) -> Resu
             }
             Err(error) => {
                 return Err(error)
-                    .with_context(|| format!("acquire Moli install lock {}", path.display()))
+                    .with_context(|| format!("acquire Moli install lock {}", path.display()));
             }
         }
     }

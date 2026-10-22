@@ -277,7 +277,9 @@ impl Tool for ProjectedMcpTool {
             Err(error) => {
                 if self.binding.owns_stdio_process {
                     if let Err(cleanup) = self.binding.client.close().await {
-                        return Ok(ToolOutput::error(format!("MCP call failed: {error}; process cleanup was not acknowledged: {cleanup}")));
+                        return Ok(ToolOutput::error(format!(
+                            "MCP call failed: {error}; process cleanup was not acknowledged: {cleanup}"
+                        )));
                     }
                 }
                 Ok(ToolOutput::error(format!("MCP tool error: {error}")))

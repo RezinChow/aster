@@ -389,7 +389,11 @@ fn goal_emit_requires_acceptance_report_when_machine_acceptance_exists() {
         ],
     );
     assert!(
-        !should_emit_goal_achieved_for_workspace(true, std::slice::from_ref(&preset_only), Some(root.path())),
+        !should_emit_goal_achieved_for_workspace(
+            true,
+            std::slice::from_ref(&preset_only),
+            Some(root.path())
+        ),
         "workspace preset alone must not authorize GoalAchieved when ACCEPTANCE machine criteria exist"
     );
 

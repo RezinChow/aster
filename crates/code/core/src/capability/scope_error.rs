@@ -47,7 +47,9 @@ pub enum CapabilityScopeError {
     AgentTurnScopeUnavailable,
     #[error("Workspace operation not found in active capability scope")]
     WorkspaceOperationUnavailable,
-    #[error("Unknown workspace operation '{operation}'; expected read|write|execute|search|git|code_intelligence")]
+    #[error(
+        "Unknown workspace operation '{operation}'; expected read|write|execute|search|git|code_intelligence"
+    )]
     InvalidWorkspaceOperation { operation: String },
     #[error("Capability scope '{scope_id}' no longer accepts lifecycle registrations")]
     SupervisorClosed { scope_id: String },

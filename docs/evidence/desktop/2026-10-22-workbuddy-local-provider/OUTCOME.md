@@ -1,5 +1,12 @@
 # WorkBuddy local provider — outcome
 
+**Status 2026-10-22 (later same day): REMOVED.** Commit `288e53a3b`
+removed the whole integration — importer, login module, TUI hook,
+spec 009 — after the desktop-first `f980979ec`/`a3358fd88` bumps. The
+seamless-session design lives in history (`7da14b84b`, `90382ba70`) and
+the measured endpoint/local-state survey in this file remains valid for
+any future rebuild. The narrative below is the pre-removal record.
+
 Date: 2026-10-22. Spec: `specs/009-workbuddy-local-provider/`. Product
 regime. Placeholder counts; filled when the batteries land.
 

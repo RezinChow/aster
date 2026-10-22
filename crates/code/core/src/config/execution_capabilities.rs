@@ -91,7 +91,7 @@ fn validate_source_fields(source: &str, name: &str) -> Result<()> {
                             return Err(invalid(
                                 name,
                                 "requires literal fields and a closing brace",
-                            ))
+                            ));
                         }
                     };
                     if !fields.insert(field.clone()) {

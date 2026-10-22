@@ -296,7 +296,7 @@ async fn read_records_from_path(
             Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
-                return Err(EvaluationStoreError::SizeLimit)
+                return Err(EvaluationStoreError::SizeLimit);
             }
             Err(error) => return Err(storage_error("read evaluation result store", error)),
         };

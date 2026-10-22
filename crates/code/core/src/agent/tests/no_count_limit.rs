@@ -138,9 +138,11 @@ async fn zero_tool_rounds_retains_duplicate_finalization() {
         .last()
         .unwrap()
         .is_empty());
-    assert!(result.messages.iter().any(|message| message
-        .text()
-        .contains("Repeated identical tool calls have no new evidence")));
+    assert!(result.messages.iter().any(|message| {
+        message
+            .text()
+            .contains("Repeated identical tool calls have no new evidence")
+    }));
 }
 
 #[tokio::test]

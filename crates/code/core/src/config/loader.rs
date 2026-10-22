@@ -159,7 +159,7 @@ fn parse_memory_block(
                     return Err(CodeError::Config(format!(
                         "memory block: prune string must be one of the closed set \
                          [off, none, disabled]; got {other:?} (an object tunes the policy)"
-                    )))
+                    )));
                 }
             };
         } else {
@@ -876,7 +876,7 @@ impl CodeConfig {
                                 _ => {
                                     return Err(CodeError::Config(
                                         "notifications run_completion must be a string".to_string(),
-                                    ))
+                                    ));
                                 }
                             },
                             "min_seconds" => match value {
@@ -892,14 +892,14 @@ impl CodeConfig {
                                         "notifications min_seconds must be an integer \
                                          between 1 and 86400"
                                             .to_string(),
-                                    ))
+                                    ));
                                 }
                             },
                             other => {
                                 return Err(CodeError::Config(format!(
                                     "notifications attribute `{other}` is not in the \
                                      closed set run_completion, min_seconds"
-                                )))
+                                )));
                             }
                         }
                     }

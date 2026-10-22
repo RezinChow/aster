@@ -364,8 +364,8 @@ impl Tool for UseRuntimeTaskTool {
                 Ok(value) => value,
                 Err(error) => {
                     return Ok(ToolOutput::error(format!(
-                    "managed Runtime Task declared JSON output but returned invalid JSON: {error}"
-                )))
+                        "managed Runtime Task declared JSON output but returned invalid JSON: {error}"
+                    )));
                 }
             }
         } else {

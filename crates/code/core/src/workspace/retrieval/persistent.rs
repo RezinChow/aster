@@ -986,7 +986,7 @@ impl WorkspacePersistentIndex {
                 return Err(WorkspaceIndexError::ReadFailed {
                     path: current.display().to_string(),
                     message: error.to_string(),
-                })
+                });
             }
         };
         if generation.is_empty() || !safe_generation_name(&generation) {

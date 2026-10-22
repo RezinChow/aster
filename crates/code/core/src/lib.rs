@@ -211,7 +211,10 @@ pub mod workspace;
 // module path. Aliases are removed no earlier than 10.0 and may only shrink
 // (`tests/crate_root_surface.rs`).
 #[doc(hidden)]
-pub use agent::{context_window_for_model, documented_context_tokens, AgentExecutionFailure};
+pub use agent::{
+    context_window_for_model, documented_context_tokens, hostable_context_window,
+    AgentExecutionFailure,
+};
 pub use agent::{AgentEvent, AgentResult, ModelMiddlewareHealthSnapshot};
 #[cfg(feature = "dynamic-workflow")]
 #[doc(hidden)]

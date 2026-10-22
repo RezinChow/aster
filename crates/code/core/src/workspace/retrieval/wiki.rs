@@ -255,7 +255,7 @@ impl WikiIndex {
             Ok(guard) => guard,
             Err(std::sync::TryLockError::WouldBlock) => return Ok(not_ready(engine)),
             Err(std::sync::TryLockError::Poisoned(_)) => {
-                return Err(WorkspaceIndexError::LockPoisoned)
+                return Err(WorkspaceIndexError::LockPoisoned);
             }
         };
         if self.state.syncing.load(Ordering::Acquire) || !self.state.index.is_ready() {

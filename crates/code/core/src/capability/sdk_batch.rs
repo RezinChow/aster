@@ -139,7 +139,7 @@ fn skill_from_sdk(spec: SdkSkillCapabilityV1) -> Result<Arc<Skill>, SdkCapabilit
         other => {
             return Err(SdkCapabilityBatchError::UnknownSkillKind {
                 kind: other.to_string(),
-            })
+            });
         }
     };
     Ok(Arc::new(Skill {

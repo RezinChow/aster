@@ -416,10 +416,10 @@ impl CommandHookExecutor {
                     return HookOutcome::Retry {
                         reason,
                         retry_after_ms,
-                    }
+                    };
                 }
                 HookOutcome::Escalate { reason, target } => {
-                    return HookOutcome::Escalate { reason, target }
+                    return HookOutcome::Escalate { reason, target };
                 }
                 HookOutcome::Continue(Some(Value::Object(object))) => merged.extend(object),
                 HookOutcome::Continue(Some(value)) => {
@@ -883,7 +883,7 @@ fn load_trust_store(path: &Path) -> anyhow::Result<TrustStore> {
     let metadata = match std::fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(TrustStore::default().normalized())
+            return Ok(TrustStore::default().normalized());
         }
         Err(error) => return Err(error.into()),
     };

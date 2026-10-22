@@ -90,7 +90,7 @@ impl RunUseCapabilityGenerationV1 {
                 return Err(invalid_field(
                     "useGeneration.origin",
                     "unsupported or mixed Use publication evidence",
-                ))
+                ));
             }
         }
         Ok(())

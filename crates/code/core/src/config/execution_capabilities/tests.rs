@@ -10,7 +10,9 @@ fn capability_modes_and_disabled_retrieval_roundtrip_through_acl() {
         .tool_presentation_profile
         .is_none());
     for mode in ["adaptive", "direct", "code", "disabled"] {
-        let source = format!("tool_presentation {{ mode = \"{mode}\" }}\nworkspace_retrieval {{ enabled = false\nlocal_cpu {{}}\n}}\n");
+        let source = format!(
+            "tool_presentation {{ mode = \"{mode}\" }}\nworkspace_retrieval {{ enabled = false\nlocal_cpu {{}}\n}}\n"
+        );
         let config = CodeConfig::from_acl(&source).unwrap();
         let profile = config.tool_presentation_profile.as_ref().unwrap();
         assert_eq!(profile.mode(), ToolPresentationModeV1::parse(mode).unwrap());

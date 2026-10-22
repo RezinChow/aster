@@ -397,7 +397,7 @@ impl WorkspaceRuntime {
                     items.extend(result.items);
                 }
                 Err(CodeIntelligenceError::Cancelled) => {
-                    return Err(CodeIntelligenceError::Cancelled)
+                    return Err(CodeIntelligenceError::Cancelled);
                 }
                 Err(error) => {
                     first_error.get_or_insert(error);
@@ -497,7 +497,7 @@ impl WorkspaceRuntime {
             match result {
                 Ok(runtime) => runtimes[slot_index] = Some(runtime),
                 Err(CodeIntelligenceError::Cancelled) => {
-                    return Err(CodeIntelligenceError::Cancelled)
+                    return Err(CodeIntelligenceError::Cancelled);
                 }
                 Err(error) => {
                     truncated = true;
@@ -599,7 +599,7 @@ impl WorkspaceRuntime {
                         append_bounded(&mut items, result.items, WORKSPACE_DIAGNOSTIC_LIMIT);
                 }
                 Err(CodeIntelligenceError::Cancelled) => {
-                    return Err(CodeIntelligenceError::Cancelled)
+                    return Err(CodeIntelligenceError::Cancelled);
                 }
                 Err(error) => {
                     truncated = true;
