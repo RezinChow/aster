@@ -24,6 +24,16 @@
   inherits: false;
   initial-value: 0deg;
 }
+@property --mx {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
+@property --my {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
 @property --rise {
   syntax: "<length>";
   inherits: false;
@@ -270,8 +280,7 @@ body.has-pointer .cursor-core {
   transition:
     background-color 0.16s ease,
     border-color 0.16s ease,
-    color 0.16s ease,
-    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    color 0.16s ease;
 }
 .quiet-button:hover {
   background: var(--hover);
@@ -295,8 +304,7 @@ body.has-pointer .cursor-core {
   transition:
     background-color 0.16s ease,
     border-color 0.16s ease,
-    color 0.16s ease,
-    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    color 0.16s ease;
 }
 .pill-button:hover {
   background: #262626;
@@ -435,7 +443,6 @@ body.has-pointer .cursor-core {
 }
 .desktop-nav a.is-active {
   color: var(--header-strong);
-  font-weight: 500;
 }
 .desktop-nav a.is-active:after {
   content: "";
@@ -677,38 +684,6 @@ body.has-pointer .cursor-core {
   background: rgba(255, 255, 255, 0.13);
   border: 1px solid rgba(255, 255, 255, 0.22);
 }
-.hero-terminal {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 18px;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  transition:
-    background-color 0.16s ease,
-    border-color 0.16s ease;
-}
-.hero-terminal:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.45);
-}
-.hero-terminal-sign {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #9fd4ff;
-}
-.hero-terminal-caret {
-  width: 7px;
-  height: 15px;
-  border-radius: 1px;
-  background: #9fd4ff;
-  animation: caret-blink 1.15s steps(1, end) infinite;
-}
 .hero-marquee {
   position: relative;
   margin: 30px auto 0;
@@ -891,6 +866,7 @@ body.has-pointer .cursor-core {
   background: none;
   color: var(--muted);
   font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
   transition:
     background-color 0.16s ease,
@@ -902,7 +878,6 @@ body.has-pointer .cursor-core {
 .feature-tabs > button[aria-selected="true"] {
   background: #fff;
   color: var(--ink);
-  font-weight: 500;
   box-shadow: 0 1px 3px #00000012;
 }
 .feature-tabs > button[aria-selected="true"]:after,
@@ -1213,6 +1188,7 @@ body.has-pointer .cursor-core {
   background: none;
   color: var(--muted);
   font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
   transition:
     background-color 0.16s ease,
@@ -1224,7 +1200,6 @@ body.has-pointer .cursor-core {
 .platform-switcher > button[aria-selected="true"] {
   background: #fff;
   color: var(--ink);
-  font-weight: 500;
   box-shadow: 0 1px 3px #00000012;
 }
 .platform-panels {
@@ -1318,6 +1293,8 @@ body.has-pointer .cursor-core {
     translateY(calc(var(--rise) + var(--lift)));
   transform-style: preserve-3d;
   transition:
+    --mx 0.16s ease-out,
+    --my 0.16s ease-out,
     --rx 0.18s ease-out,
     --ry 0.18s ease-out,
     --lift 0.24s cubic-bezier(0.16, 1, 0.3, 1),

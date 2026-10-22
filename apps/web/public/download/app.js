@@ -295,8 +295,8 @@ for (const card of document.querySelectorAll(".scene-card, .practice-step, .plat
     const py = (event.clientY - bounds.top) / bounds.height;
     card.style.setProperty("--mx", `${px * 100}%`);
     card.style.setProperty("--my", `${py * 100}%`);
-    card.style.setProperty("--rx", `${(0.5 - py) * 7}deg`);
-    card.style.setProperty("--ry", `${(px - 0.5) * 9}deg`);
+    card.style.setProperty("--rx", `${(0.5 - py) * 4.5}deg`);
+    card.style.setProperty("--ry", `${(px - 0.5) * 5.5}deg`);
   });
   card.addEventListener("pointerleave", () => {
     card.style.setProperty("--rx", "0deg");
@@ -304,27 +304,8 @@ for (const card of document.querySelectorAll(".scene-card, .practice-step, .plat
   });
 }
 
-// Primary actions drift a little towards the pointer.
-for (const button of document.querySelectorAll(
-  ".hero-actions .pill-button, .hero-actions .hero-terminal, .bottom-cta .pill-button",
-)) {
-  button.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "touch") return;
-    const bounds = button.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
-    const dx = (event.clientX - bounds.left - bounds.width / 2) * 0.24;
-    const dy = (event.clientY - bounds.top - bounds.height / 2) * 0.32;
-    button.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-  });
-  button.addEventListener("pointerleave", () => {
-    button.style.transform = "";
-  });
-}
-
 // A ripple confirms every press on a control.
-for (const button of document.querySelectorAll(
-  ".pill-button, .quiet-button, .copy-button, .hero-terminal",
-)) {
+for (const button of document.querySelectorAll(".pill-button, .quiet-button, .copy-button")) {
   button.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "touch") return;
     const bounds = button.getBoundingClientRect();

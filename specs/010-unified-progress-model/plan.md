@@ -46,6 +46,19 @@ keeps the signal honest). Existing batteries green. No decision consumer.
 
 ## Phase 2 — L3 admission consumes progress (deadlock terminator)
 
+**Discovery while implementing (2026-10-22)**: the stall exit ALREADY
+exists — `ContinuationUsage.slices_since_progress` over settled slices,
+`max_no_progress_slices = 3`, one replan earns one more slice
+(`goal_control/continuation.rs`, `facts/run/continuation.rs`), and the
+extension point is the `ProgressBasis` closed set whose single member is
+`ObservedWorkspaceMutationV1` (mutation-only progress — the freeze
+scenario's counterweight: blocked mutations starve the basis, and slices
+that cannot settle do not count). P2 is therefore a BASIS UPGRADE, not a
+new mechanism: add `ProgressBasis::TurnProgressDeltaV1` (a slice makes
+progress when ANY of the four P1 deltas is nonzero), feed it from the
+settle watermark's returned delta, and keep the existing termination,
+replan grace, and admission checks untouched.
+
 **Touchpoints**: `goal_control/facts.rs` admit path,
 `GoalTickDecisionV1::TerminateStalled` (closed set + parse/as_str),
 `unattended/result.rs` terminal classification (R2: NON-RETRYABLE).

@@ -30,3 +30,5 @@ __pycache__/
 # the T01 harness output directory.
 /.workbuddy/
 /tests/T01/output/
+/crates/code/core/.a3s-vec.lock
+/crates/code/core/.a3s-vec.lock.owner

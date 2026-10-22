@@ -15,6 +15,13 @@ pub struct GoalContinuationPolicyV1 {
 
 /// Ceilings for a newly admitted policy. Replaying recorded facts does not apply
 /// them, so a log written before they existed stays readable.
+///
+/// Provenance (specs/010 P3): 1,000 slices is an abuse ceiling, never a
+/// working budget — unattended slices are bounded by their own budget and
+/// stall policy. The 30-day horizon is the product's longest supported
+/// unattended span. 3 no-progress slices predates the TurnProgressDeltaV1
+/// basis: under that basis a slice counts as no-progress only when ALL
+/// four dimensions are zero (see specs/010 P2).
 pub(crate) const MAX_GOAL_SLICES: u64 = 1_000;
 pub(crate) const MAX_GOAL_HORIZON_MS: u64 = 30 * 24 * 60 * 60 * 1_000;
 const DEFAULT_NO_PROGRESS_SLICES: u64 = 3;

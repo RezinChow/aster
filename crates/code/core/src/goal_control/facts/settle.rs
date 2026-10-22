@@ -21,6 +21,10 @@ struct SettledBody {
     step_sequence: Option<u64>,
     #[serde(deserialize_with = "Option::<TokenUsage>::deserialize")]
     usage: Option<TokenUsage>,
+    /// The slice's four-dimension progress (specs/010 P2). Absent on facts
+    /// written before the field existed: those settle mutation-only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    progress: Option<crate::harness_loop::TurnProgressDelta>,
 }
 
 type SettledFact = GoalFact<SettledBody>;
@@ -107,6 +111,7 @@ pub(crate) fn prepare_settlement(
     policy_digest: Option<&str>,
     run_id: &str,
     usage: Option<TokenUsage>,
+    progress: Option<crate::harness_loop::TurnProgressDelta>,
 ) -> Result<Option<NewFact>, GoalControlError> {
     let Some(view) = definition_from_facts(facts, session_id, workspace, policy_digest)? else {
         return Ok(None);
@@ -140,6 +145,7 @@ pub(crate) fn prepare_settlement(
         completion_sequence,
         step_sequence,
         usage,
+        progress,
     };
     let operation_id = operation_id(run_id);
     let stored = SettledFact {
@@ -170,9 +176,15 @@ pub(crate) fn reconcile_slices(
 ) -> Result<Vec<NewFact>, GoalControlError> {
     let mut pending = Vec::new();
     for run_id in unsettled_slices(facts) {
-        if let Some(fact) =
-            prepare_settlement(facts, session_id, workspace, policy_digest, &run_id, None)?
-        {
+        if let Some(fact) = prepare_settlement(
+            facts,
+            session_id,
+            workspace,
+            policy_digest,
+            &run_id,
+            None,
+            None,
+        )? {
             pending.push(fact);
         }
     }
@@ -240,10 +252,20 @@ pub(super) fn fold_settle(
         session_id,
         &body.run_id,
     );
+    // A slice with any nonzero turn dimension made progress even without a
+    // workspace mutation — the read-only task's lifeline (specs/010 P2).
+    // Facts predating the field carry None and stay mutation-only.
+    let progressed = mutated
+        || body.progress.is_some_and(|delta| {
+            delta.information_delta > 0
+                || delta.mutation_delta > 0
+                || delta.uncertainty_delta != 0
+                || delta.plan_delta > 0
+        });
     Ok((
         stored.operation_id,
         stored.command_digest,
         current.clone(),
-        mutated,
+        progressed,
     ))
 }

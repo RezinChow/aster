@@ -15,16 +15,41 @@ mod tests;
 use a3s_code_core::goal_control::GoalContinuationPolicyV1;
 use a3s_code_core::verification::{VerificationCheck, VerificationReport, VerificationStatus};
 use a3s_code_core::{AgentEvent, AgentStyle, PlanningMode, SessionOptions, SystemPromptSlots};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::collections::HashSet;
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use result::{count_artifact_evidence, RunProgress};
+use result::{RunProgress, count_artifact_evidence};
 
 /// Same default as the native runner: inside Harbor's outer agent timeout.
 pub const DEFAULT_EXECUTION_BUDGET_MS: u64 = 840_000;
+
+/// Every hard threshold the unattended loop enforces, with the reason it
+/// exists. Values stay compile-time (specs/010 P3): no runtime surface can
+/// widen or narrow them, and each name cites its origin.
+pub(crate) struct LoopPolicy {
+    /// Idle host stream retries before giving up on the attempt. Origin:
+    /// headless stream dropouts on flaky links (PR #8 era).
+    pub(crate) host_idle_attempts: usize,
+    /// Unproven stops tolerated before the attempt is treated as
+    /// non-terminal. Origin: verifier latency spikes mid-run.
+    pub(crate) host_unproven_stops: usize,
+    /// Tool rounds inside one unattended attempt. Origin: terminal-bench
+    /// long tasks need >50 interactive rounds; 256 leaves 5x headroom.
+    pub(crate) max_tool_rounds: usize,
+    /// Continuation turns across the attempt. Origin: goal slices
+    /// multiplied by per-slice turns observed on bench corpus.
+    pub(crate) max_continuation_turns: u32,
+}
+
+pub(crate) const LOOP_POLICY: LoopPolicy = LoopPolicy {
+    host_idle_attempts: HOST_IDLE_ATTEMPTS,
+    host_unproven_stops: HOST_UNPROVEN_STOPS,
+    max_tool_rounds: MAX_TOOL_ROUNDS,
+    max_continuation_turns: MAX_CONTINUATION_TURNS,
+};
 
 /// Retries when a stream makes no new workspace mutation: the model ends
 /// before any admission gate, ends idle after a bind, or the stream dies
@@ -167,8 +192,8 @@ impl Unattended {
             .with_resilience_defaults()
             .with_llm_api_timeout(LLM_TIMEOUT_MS)
             .with_auto_compact(true)
-            .with_max_tool_rounds(MAX_TOOL_ROUNDS)
-            .with_max_continuation_turns(MAX_CONTINUATION_TURNS)
+            .with_max_tool_rounds(LOOP_POLICY.max_tool_rounds)
+            .with_max_continuation_turns(LOOP_POLICY.max_continuation_turns)
             .with_code_intelligence()
             .with_manual_delegation_enabled(true)
             .with_auto_delegation_enabled(true)
@@ -276,7 +301,7 @@ pub(crate) struct HostAdmissionBudget {
 }
 
 fn idle_retry_available(used: usize) -> bool {
-    used.saturating_add(1) < HOST_IDLE_ATTEMPTS
+    used.saturating_add(1) < LOOP_POLICY.host_idle_attempts
 }
 
 /// What one stream attempt showed the host.
@@ -315,7 +340,7 @@ pub(crate) fn host_admission_step(
             return HostAdmissionStep::NudgeBeforeAnyGate;
         }
     } else if !bound_digests.is_empty() && facts.tools > 0 && terminal_event && !facts.failed {
-        if budget.unproven_stops < HOST_UNPROVEN_STOPS {
+        if budget.unproven_stops < LOOP_POLICY.host_unproven_stops {
             budget.unproven_stops += 1;
             return HostAdmissionStep::NudgeUnprovenStop;
         }

@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use super::*;
+use crate::goal_control::GoalContinuationPolicyV1;
 
 fn source(max: u64, stalled: u64, clock: u64) -> ContinuationSource {
     serde_json::from_value(serde_json::json!({
@@ -118,9 +119,11 @@ fn prove_history(log: &dyn LogStore) -> WorkspaceRef {
     let (workspace, _) = seed(log);
     append_run(log, &workspace, "ordinary", None);
     let ordinary = log.read("session").unwrap();
-    assert!(ordinary.last().unwrap().payload["body"]
-        .get("continuation")
-        .is_none());
+    assert!(
+        ordinary.last().unwrap().payload["body"]
+            .get("continuation")
+            .is_none()
+    );
     let ordinary = usage(log, &workspace);
     assert_eq!(
         (
@@ -134,29 +137,33 @@ fn prove_history(log: &dyn LogStore) -> WorkspaceRef {
     append_run(log, &workspace, "auto-1", Some(&first));
     let before = log.read("session").unwrap();
     for _ in 0..4 {
-        assert!(prepare_run(
+        assert!(
+            prepare_run(
+                &before,
+                "session",
+                &workspace,
+                None,
+                Some("auto-1"),
+                Some(&first)
+            )
+            .unwrap()
+            .unwrap()
+            .pending
+            .is_none()
+        );
+    }
+    assert!(prepare_run(&before, "session", &workspace, None, Some("auto-1"), None).is_err());
+    assert!(
+        prepare_run(
             &before,
             "session",
             &workspace,
             None,
             Some("auto-1"),
-            Some(&first)
+            Some(&source(2, 2, 101))
         )
-        .unwrap()
-        .unwrap()
-        .pending
-        .is_none());
-    }
-    assert!(prepare_run(&before, "session", &workspace, None, Some("auto-1"), None).is_err());
-    assert!(prepare_run(
-        &before,
-        "session",
-        &workspace,
-        None,
-        Some("auto-1"),
-        Some(&source(2, 2, 101))
-    )
-    .is_err());
+        .is_err()
+    );
     assert_eq!(log.read("session").unwrap(), before);
     assert_eq!(usage(log, &workspace).admitted_slices, 1);
     let view = definition_from_facts(&before, "session", &workspace, None)
@@ -182,24 +189,28 @@ fn prove_history(log: &dyn LogStore) -> WorkspaceRef {
         .is_none(),
         "exact replay consumes no extra opportunity at the cap"
     );
-    assert!(prepare_run(
-        &before,
-        "session",
-        &workspace,
-        None,
-        Some("auto-3"),
-        Some(&source(2, 9, 300))
-    )
-    .is_err());
-    assert!(prepare_run(
-        &before,
-        "session",
-        &workspace,
-        None,
-        Some("auto-3"),
-        Some(&source(9, 2, 300))
-    )
-    .is_err());
+    assert!(
+        prepare_run(
+            &before,
+            "session",
+            &workspace,
+            None,
+            Some("auto-3"),
+            Some(&source(2, 9, 300))
+        )
+        .is_err()
+    );
+    assert!(
+        prepare_run(
+            &before,
+            "session",
+            &workspace,
+            None,
+            Some("auto-3"),
+            Some(&source(9, 2, 300))
+        )
+        .is_err()
+    );
     append_run(log, &workspace, "explicit-independent", None);
     let before = log.read("session").unwrap();
     let view = definition_from_facts(&before, "session", &workspace, None)
@@ -220,15 +231,17 @@ fn prove_history(log: &dyn LogStore) -> WorkspaceRef {
     assert_eq!(usage(log, &workspace).admitted_slices, 2);
     assert_eq!(usage(log, &workspace).slices_since_progress, 2);
     let before = log.read("session").unwrap();
-    assert!(prepare_run(
-        &before,
-        "session",
-        &workspace,
-        None,
-        Some("auto-3"),
-        Some(&source(2, 9, 300))
-    )
-    .is_err());
+    assert!(
+        prepare_run(
+            &before,
+            "session",
+            &workspace,
+            None,
+            Some("auto-3"),
+            Some(&source(2, 9, 300))
+        )
+        .is_err()
+    );
     append_run(log, &workspace, "auto-3", Some(&source(3, 3, 300)));
     assert_eq!(usage(log, &workspace).admitted_slices, 3);
     assert_eq!(usage(log, &workspace).slices_since_progress, 3);
@@ -331,15 +344,17 @@ fn continuation_history_preserves_caps_across_replay_revision_replan_and_both_lo
     let log = FileLog::open(directory.path()).unwrap();
     assert_eq!(log.read("session").unwrap(), before);
     assert_eq!(usage(&log, &workspace).admitted_slices, 3);
-    assert!(prepare_run(
-        &before,
-        "session",
-        &workspace,
-        None,
-        Some("after-restart"),
-        Some(&source(3, 3, 400))
-    )
-    .is_err());
+    assert!(
+        prepare_run(
+            &before,
+            "session",
+            &workspace,
+            None,
+            Some("after-restart"),
+            Some(&source(3, 3, 400))
+        )
+        .is_err()
+    );
     assert_eq!(log.read("session").unwrap(), before);
 }
 
@@ -353,15 +368,17 @@ fn continuation_sources_refuse_recomputed_invalid_limits_clock_and_unbound_goal(
             Box::new(MemoryLog::new())
         };
         let (workspace, facts) = seed(log.as_ref());
-        assert!(prepare_run(
-            &[],
-            "session",
-            &workspace,
-            None,
-            Some("no-goal"),
-            Some(&source(2, 2, 100))
-        )
-        .is_err());
+        assert!(
+            prepare_run(
+                &[],
+                "session",
+                &workspace,
+                None,
+                Some("no-goal"),
+                Some(&source(2, 2, 100))
+            )
+            .is_err()
+        );
         let prepared = prepare_run(
             &facts,
             "session",
@@ -396,27 +413,31 @@ fn continuation_sources_refuse_recomputed_invalid_limits_clock_and_unbound_goal(
                 assert!(fold_definitions(&corrupt, "session", &workspace, None, None).is_err());
             } else {
                 let capped = source(1, 1, 200);
-                assert!(prepare_run(
-                    &corrupt,
+                assert!(
+                    prepare_run(
+                        &corrupt,
+                        "session",
+                        &workspace,
+                        None,
+                        Some("next"),
+                        Some(&capped)
+                    )
+                    .is_err()
+                );
+            }
+        }
+        for clock in [0, 99, 10000] {
+            assert!(
+                prepare_run(
+                    &before,
                     "session",
                     &workspace,
                     None,
                     Some("next"),
-                    Some(&capped)
+                    Some(&source(3, 3, clock))
                 )
-                .is_err());
-            }
-        }
-        for clock in [0, 99, 10000] {
-            assert!(prepare_run(
-                &before,
-                "session",
-                &workspace,
-                None,
-                Some("next"),
-                Some(&source(3, 3, clock))
-            )
-            .is_err());
+                .is_err()
+            );
         }
         for field in ["policy", "observed_unix_ms"] {
             let mut corrupt = before.clone();
@@ -460,4 +481,91 @@ fn continuation_source_preserves_ordinary_wire_and_is_refused_by_the_original_bo
     append_run(&log, &workspace, "auto-1", Some(&source(1, 1, 100)));
     let body = log.read("session").unwrap().last().unwrap().payload["body"].clone();
     assert!(OriginalRunBody::deserialize(&body).is_err());
+}
+
+#[test]
+fn the_progress_basis_closed_set_parses_both_members() {
+    use super::super::continuation::ProgressBasis;
+    assert!(ProgressBasis::parse("observed_workspace_mutation_v1").is_ok());
+    assert!(ProgressBasis::parse("turn_progress_delta_v1").is_ok());
+    assert!(ProgressBasis::parse("mutation").is_err());
+    assert_eq!(
+        ProgressBasis::TurnProgressDeltaV1.as_str(),
+        "turn_progress_delta_v1"
+    );
+}
+
+/// The satisfiability exit (specs/010 P4 slice 1): a stalled goal under
+/// the delta basis reaches a TERMINAL refusal — never an infinite admit
+/// loop. This is the frozen-server scenario pinned as a named refusal.
+#[test]
+fn a_zero_delta_stall_terminates_instead_of_admitting_forever() {
+    let policy = serde_json::from_value::<GoalContinuationPolicyV1>(serde_json::json!({
+        "automatic_enabled": true,
+        "max_slices": 1_000,
+        "max_no_progress_slices": 3,
+        "deadline_unix_ms": 100_000,
+    }))
+    .unwrap();
+    let mut usage = ContinuationUsage::default();
+    // Slices 1..3 admit (no progress yet, under the bound).
+    for clock in [100u64, 200, 300] {
+        let ok = usage.admit(&ContinuationSource::turn_progress(policy.clone(), clock));
+        assert!(ok.is_ok(), "slice under the stall bound admits");
+        // Zero progress: nothing resets slices_since_progress.
+    }
+    // The 4th admit (past the bound, unchanged plan) is the terminal exit.
+    let refused = usage
+        .admit(&ContinuationSource::turn_progress(policy.clone(), 400))
+        .expect_err("past the stall bound with an unchanged plan refuses");
+    match refused {
+        GoalControlError::Refused { refusal, .. } => {
+            assert_eq!(refusal, GoalRefusal::Waiting);
+        }
+        other => panic!("expected a Waiting refusal, got {other:?}"),
+    }
+    // A changed plan earns exactly one more slice, then terminates again.
+    usage.accepted_plan = Some(test_plan_identity(7));
+    let grace = usage.admit(&ContinuationSource::turn_progress(policy.clone(), 500));
+    assert!(grace.is_ok(), "a changed plan earns one more slice");
+    let final_refusal = usage
+        .admit(&ContinuationSource::turn_progress(policy.clone(), 600))
+        .expect_err("a second replan earns nothing");
+    assert!(matches!(
+        final_refusal,
+        GoalControlError::Refused {
+            refusal: GoalRefusal::Waiting,
+            ..
+        }
+    ));
+}
+
+/// A nonzero delta resets the stall count — the read-only lifeline: 20
+/// slices of pure exploration never terminate under the delta basis.
+#[test]
+fn information_progress_keeps_admitting_indefinitely() {
+    let policy = serde_json::from_value::<GoalContinuationPolicyV1>(serde_json::json!({
+        "automatic_enabled": true,
+        "max_slices": 1_000,
+        "max_no_progress_slices": 3,
+        "deadline_unix_ms": 100_000,
+    }))
+    .unwrap();
+    let mut usage = ContinuationUsage::default();
+    for i in 0..20 {
+        let ok = usage.admit(&ContinuationSource::turn_progress(policy.clone(), 100 + i));
+        assert!(ok.is_ok(), "slice {i} with progress information admits");
+        // The fact fold resets the count on any nonzero dimension; the
+        // admission path sees slices_since_progress back to zero each time.
+        usage.slices_since_progress = 0;
+    }
+}
+
+fn test_plan_identity(seed: u64) -> ExecutionIdentityV1 {
+    serde_json::from_value(serde_json::json!({
+        "schema": "plan",
+        "domain": format!("satisfiability-{seed}"),
+        "digest": format!("cap-{seed}"),
+    }))
+    .unwrap()
 }

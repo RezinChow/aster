@@ -9,10 +9,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use a3s_effect::{
-    answer_fact, confirm_fact, ingest_coding_with_optional_limit, message_fact,
-    resume_coding_with_cancel, resume_coding_with_optional_limit, ActorError, CodingPhase,
-    CodingServices, CodingView, Compactor, Completion, CompletionRequest, Exit, FileLog,
-    HarnessConfig, HarnessGraph, LogStore, ModelDecision, NewFact, ToolCall, ToolRunner, ToolSpec,
+    ActorError, CodingPhase, CodingServices, CodingView, Compactor, Completion, CompletionRequest,
+    Exit, FileLog, HarnessConfig, HarnessGraph, LogStore, ModelDecision, NewFact, ToolCall,
+    ToolRunner, ToolSpec, answer_fact, confirm_fact, ingest_coding_with_optional_limit,
+    message_fact, resume_coding_with_cancel, resume_coding_with_optional_limit,
 };
 use anyhow::Result;
 
@@ -41,13 +41,13 @@ mod turn_facts;
 
 #[cfg(test)]
 use compaction::compact_handoff;
-use compaction::{bounded_summary, SessionCompact, UsageStamp};
+use compaction::{SessionCompact, UsageStamp, bounded_summary};
+use executor_tools::{CheckpointState, ExecutorTools, NoopCompact, is_parallel_safe_read};
 #[cfg(test)]
 use executor_tools::{batch_can_run_in_parallel, is_parallel_safe_write};
-use executor_tools::{is_parallel_safe_read, CheckpointState, ExecutorTools, NoopCompact};
 pub(crate) use fact_reads::{
-    append_compaction_done, compaction_transcript, compaction_transcript_from_facts,
-    retained_transcript, tool_result_weights, ToolResultWeight,
+    ToolResultWeight, append_compaction_done, compaction_transcript,
+    compaction_transcript_from_facts, retained_transcript, tool_result_weights,
 };
 use fact_reads::{exit_to_error, message_from_fact};
 pub use fact_reads::{phase_name, project_needs_confirmation, read_workspace_facts};
@@ -59,38 +59,38 @@ pub(crate) use goal_evidence::{
 use history_seed::recorded_tool_calls;
 pub(crate) use history_seed::seed_history;
 use history_seed::{
-    attachments_from_user_payload, emit_tool_request_bound, folded_message_with_images,
-    images_for_user_line, recorded_call_from, recorded_tool_calls_in, recorded_tool_messages,
-    repeat_note_prefix, repeated_result_note, scheduler_tool_record_indexes, user_attachment_plan,
-    user_message_fact, user_message_with_images, visible_tool_output, workspace_boundary_error,
-    RecordedCall,
+    RecordedCall, attachments_from_user_payload, emit_tool_request_bound,
+    folded_message_with_images, images_for_user_line, recorded_call_from, recorded_tool_calls_in,
+    recorded_tool_messages, repeat_note_prefix, repeated_result_note,
+    scheduler_tool_record_indexes, user_attachment_plan, user_message_fact,
+    user_message_with_images, visible_tool_output, workspace_boundary_error,
 };
 pub(crate) use model_call::model_error;
 #[cfg(test)]
 use model_call::project_model_frame;
 use model_call::{interrupted_response, model_context, model_response, record_run_event};
 use model_wait::{
-    await_model_task_with_idle, execution_time_left, execution_timeout, llm_idle_timeout_error,
-    model_idle_sleep, AbortOnDrop,
+    AbortOnDrop, await_model_task_with_idle, execution_time_left, execution_timeout,
+    llm_idle_timeout_error, model_idle_sleep,
 };
 pub use tool_results::admit_tool_call;
 pub(crate) use tool_results::exposed_tool_specs;
 use tool_results::{
-    confirmation_parked, decision_from_response, decode_fact_tool_result, definitions_for,
-    fact_tool_runner_value, latest_user_text, message_from_folded_tool, run_permission,
-    skill_denial, split_folded_message, verified_turn_text, FACT_TOOL_RESULT_KIND,
+    FACT_TOOL_RESULT_KIND, confirmation_parked, decision_from_response, decode_fact_tool_result,
+    definitions_for, fact_tool_runner_value, latest_user_text, message_from_folded_tool,
+    run_permission, skill_denial, split_folded_message, verified_turn_text,
 };
+pub use turn_facts::TURN_COMPLETE_FACT_KIND;
 #[cfg(test)]
 use turn_facts::append_steer_input;
-pub use turn_facts::TURN_COMPLETE_FACT_KIND;
+pub(crate) use turn_facts::{
+    CheckpointMutationCacheCoverage, append_turn_complete_fact, has_unsettled_effects,
+    replay_unsettled_mutations, restore_checkpoint_mutation_cache, settle_terminal_run_controls,
+    unsettled_mutation_paths,
+};
 use turn_facts::{
     append_context_sections_fact, apply_run_controls, replay_unsettled_mutations_from_facts,
     surface_fact_log, surface_thread_facts,
-};
-pub(crate) use turn_facts::{
-    append_turn_complete_fact, has_unsettled_effects, replay_unsettled_mutations,
-    restore_checkpoint_mutation_cache, settle_terminal_run_controls, unsettled_mutation_paths,
-    CheckpointMutationCacheCoverage,
 };
 
 /// Thread id for one session. Valid ids are kept so two sessions in one
@@ -437,6 +437,9 @@ impl Completion for LiveCompletion {
             }
             if let Some(surface) = &surface {
                 if let Some(text) = verified_turn_text(surface, &request.messages) {
+                    if let Ok(mut guard) = surface.ledger.lock() {
+                        guard.note_assistant_output();
+                    }
                     return Ok(ModelDecision::Text { text });
                 }
             }
@@ -682,6 +685,9 @@ impl Completion for LiveCompletion {
             if let Some(surface) = &surface {
                 apply_run_controls(surface, &mut messages).await?;
                 if surface.cancel.is_cancelled() {
+                    if let Ok(mut guard) = surface.ledger.lock() {
+                        guard.note_assistant_output();
+                    }
                     return Ok(ModelDecision::Text {
                         text: "(Response interrupted by the user.)".into(),
                     });
@@ -788,6 +794,9 @@ impl Completion for LiveCompletion {
                         .transcript
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner) = messages;
+                    if let Ok(mut guard) = surface.ledger.lock() {
+                        guard.note_assistant_output();
+                    }
                     return Ok(ModelDecision::Text {
                         text: text.to_string(),
                     });
