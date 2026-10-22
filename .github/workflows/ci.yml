@@ -44,6 +44,7 @@ jobs:
       - name: Kylin input method launcher
         run: |
           python3 tests/kylin_input_method.py
+          python3 tests/progress_bench.py
           python3 apps/studio/scripts/kylin-flatpak/test_delivery.py
       - name: Desktop package generation contracts
         run: python3 -m unittest apps/studio/scripts/tests/studio_delivery_test.py apps/studio/scripts/tests/studio_product_test.py
