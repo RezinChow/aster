@@ -33,9 +33,36 @@ document.addEventListener("keydown", (event) => {
 window.matchMedia("(min-width: 768px)").addEventListener("change", (event) => {
   if (event.matches) closeMenu();
 });
+
+const progressBar = document.querySelector(".scroll-progress > span");
+const heroScreen = document.querySelector(".hero-screen");
+const spyLinks = [...document.querySelectorAll(".desktop-nav a[href^='#']")];
+const spySections = spyLinks
+  .map((link) => document.querySelector(link.getAttribute("href")))
+  .filter(Boolean);
+
+function updateScrollSpy(y) {
+  if (!spySections.length) return;
+  const marker = y + 170;
+  let current = "";
+  for (const section of spySections) {
+    if (section.offsetTop <= marker) current = section.id;
+  }
+  for (const link of spyLinks) {
+    link.classList.toggle("is-active", link.getAttribute("href") === `#${current}`);
+  }
+}
 function updateScrollControls() {
-  header.classList.toggle("scrolled", window.scrollY > 40);
-  backToTop.hidden = window.scrollY < 600;
+  const y = window.scrollY;
+  header.classList.toggle("scrolled", y > 40);
+  backToTop.hidden = y < 600;
+  if (progressBar) {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    const ratio = total > 0 ? Math.min(1, Math.max(0, y / total)) : 0;
+    progressBar.style.transform = `scaleX(${ratio})`;
+  }
+  if (heroScreen) heroScreen.style.setProperty("--hero-shift", `${Math.min(y * 0.06, 54)}px`);
+  updateScrollSpy(y);
 }
 window.addEventListener("scroll", updateScrollControls, { passive: true });
 updateScrollControls();
@@ -139,3 +166,221 @@ document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
     });
   });
 });
+
+// Copy the CLI install command so the terminal flow stays one action.
+document.querySelectorAll("[data-copy]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const source = document.querySelector(button.getAttribute("data-copy"));
+    const label = button.querySelector("[data-copy-label]");
+    if (!source) return;
+    const text = source.textContent.replace(/\s+/g, " ").trim();
+    let copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      }
+    } catch {
+      copied = false;
+    }
+    if (!copied) {
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(source);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        copied = document.execCommand("copy");
+        selection.removeAllRanges();
+      } catch {
+        copied = false;
+      }
+    }
+    if (!label) return;
+    const previous = label.textContent;
+    label.textContent = copied ? "已复制" : "复制失败";
+    button.classList.toggle("is-copied", copied);
+    window.setTimeout(() => {
+      label.textContent = previous;
+      button.classList.remove("is-copied");
+    }, 1800);
+  });
+});
+
+/* ---------- Ambient motion ---------- */
+
+// The wordmark lands letter by letter so the first screen reads as a reveal.
+const heroTitle = document.querySelector("#hero-title");
+if (heroTitle && !reducedMotion.matches) {
+  const word = heroTitle.textContent.trim();
+  heroTitle.setAttribute("aria-label", word);
+  heroTitle.textContent = "";
+  for (const [index, letter] of [...word].entries()) {
+    const span = document.createElement("span");
+    span.className = "hero-char";
+    span.setAttribute("aria-hidden", "true");
+    span.style.setProperty("--i", index);
+    span.textContent = letter;
+    heroTitle.appendChild(span);
+  }
+}
+
+// A soft spotlight follows the pointer across the reading area.
+const cursorGlow = document.querySelector(".cursor-glow");
+const cursorCore = document.querySelector(".cursor-core");
+if (cursorGlow && !reducedMotion.matches) {
+  let glowX = window.innerWidth / 2;
+  let glowY = window.innerHeight / 2;
+  let targetGlowX = glowX;
+  let targetGlowY = glowY;
+  let glowFrame = 0;
+  function stepGlow() {
+    glowFrame = 0;
+    glowX += (targetGlowX - glowX) * 0.12;
+    glowY += (targetGlowY - glowY) * 0.12;
+    cursorGlow.style.transform = `translate3d(${glowX}px, ${glowY}px, 0)`;
+    if (cursorCore) cursorCore.style.transform = `translate3d(${targetGlowX}px, ${targetGlowY}px, 0)`;
+    if (Math.abs(targetGlowX - glowX) > 0.6 || Math.abs(targetGlowY - glowY) > 0.6) {
+      glowFrame = window.requestAnimationFrame(stepGlow);
+    }
+  }
+  document.addEventListener(
+    "pointermove",
+    (event) => {
+      if (event.pointerType === "touch") return;
+      targetGlowX = event.clientX;
+      targetGlowY = event.clientY;
+      document.body.classList.add("has-pointer");
+      if (!glowFrame) glowFrame = window.requestAnimationFrame(stepGlow);
+    },
+    { passive: true },
+  );
+}
+
+// The CLI card replays a short session so the terminal flow reads at a glance.
+const demoText = document.querySelector("#cli-demo-text");
+if (demoText && !reducedMotion.matches) {
+  const script = demoText.textContent;
+  const caret = document.createElement("span");
+  caret.className = "cli-caret";
+  let origin = performance.now();
+  function paint() {
+    const elapsed = performance.now() - origin;
+    const position = Math.min(script.length, Math.floor(elapsed / 22));
+    demoText.textContent = script.slice(0, position);
+    demoText.appendChild(caret);
+    if (position >= script.length) {
+      window.setTimeout(() => {
+        origin = performance.now();
+        paint();
+      }, 3400);
+      return;
+    }
+    window.setTimeout(paint, 40);
+  }
+  demoText.textContent = "";
+  window.setTimeout(() => {
+    origin = performance.now();
+    paint();
+  }, 600);
+}
+
+// Cards lean towards the pointer and carry a highlight with them.
+for (const card of document.querySelectorAll(".scene-card, .practice-step, .platform-card")) {
+  card.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "touch") return;
+    const bounds = card.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const px = (event.clientX - bounds.left) / bounds.width;
+    const py = (event.clientY - bounds.top) / bounds.height;
+    card.style.setProperty("--mx", `${px * 100}%`);
+    card.style.setProperty("--my", `${py * 100}%`);
+    card.style.setProperty("--rx", `${(0.5 - py) * 7}deg`);
+    card.style.setProperty("--ry", `${(px - 0.5) * 9}deg`);
+  });
+  card.addEventListener("pointerleave", () => {
+    card.style.setProperty("--rx", "0deg");
+    card.style.setProperty("--ry", "0deg");
+  });
+}
+
+// Primary actions drift a little towards the pointer.
+for (const button of document.querySelectorAll(
+  ".hero-actions .pill-button, .hero-actions .hero-terminal, .bottom-cta .pill-button",
+)) {
+  button.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "touch") return;
+    const bounds = button.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const dx = (event.clientX - bounds.left - bounds.width / 2) * 0.24;
+    const dy = (event.clientY - bounds.top - bounds.height / 2) * 0.32;
+    button.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+  });
+  button.addEventListener("pointerleave", () => {
+    button.style.transform = "";
+  });
+}
+
+// A ripple confirms every press on a control.
+for (const button of document.querySelectorAll(
+  ".pill-button, .quiet-button, .copy-button, .hero-terminal",
+)) {
+  button.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "touch") return;
+    const bounds = button.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const size = Math.max(bounds.width, bounds.height) * 2;
+    const ripple = document.createElement("span");
+    ripple.className = "ripple";
+    ripple.setAttribute("aria-hidden", "true");
+    ripple.style.width = `${size}px`;
+    ripple.style.height = `${size}px`;
+    ripple.style.left = `${event.clientX - bounds.left - size / 2}px`;
+    ripple.style.top = `${event.clientY - bounds.top - size / 2}px`;
+    button.appendChild(ripple);
+    window.setTimeout(() => ripple.remove(), 640);
+  });
+}
+
+// In-page links glide to their section instead of jumping.
+for (const link of document.querySelectorAll('a[href^="#"]')) {
+  if (link.classList.contains("skip-link")) continue;
+  link.addEventListener("click", (event) => {
+    const hash = link.getAttribute("href");
+    if (!hash || hash === "#") return;
+    const target = document.querySelector(hash);
+    if (!target || typeof target.scrollIntoView !== "function") return;
+    event.preventDefault();
+    target.scrollIntoView({
+      behavior: reducedMotion.matches ? "auto" : "smooth",
+      block: "start",
+    });
+    try {
+      window.history.replaceState(null, "", hash);
+    } catch {
+      // Keep the current address when the history API refuses the update.
+    }
+  });
+}
+
+// Cards ease in once they reach the viewport; the fallback keeps them visible.
+const revealTargets = [...document.querySelectorAll("[data-reveal]")];
+if (revealTargets.length) {
+  const revealAll = () => revealTargets.forEach((node) => node.classList.add("is-visible"));
+  if (!("IntersectionObserver" in window) || reducedMotion.matches) {
+    revealAll();
+  } else {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      },
+      { rootMargin: "0px 0px -6% 0px", threshold: 0.06 },
+    );
+    revealTargets.forEach((node) => observer.observe(node));
+    window.setTimeout(revealAll, 2600);
+  }
+}
