@@ -105,3 +105,17 @@ fail-closed, correctly). Fixed the user's two ACL layers to the live
 set (`import_accounts = ["codex"]`) and reran. NOTE for the removal
 lane: any user ACL carrying `workbuddy` now hard-fails config load; a
 migration note belongs in the release changelog.
+
+
+## Real-LLM e2e FINAL (passed)
+
+`A3S_CONFIG_FILE=~/.a3s/config.acl cargo test -p a3s-code-acp --test
+tui_913_real_llm real_llm_tui_turn_shows_assistant_text -- --ignored
+--test-threads=1 --nocapture` → **1 passed / 0 failed in 27.78 s**.
+The Layer C gate drove the real TUI binary + ACP companion against the
+live gateway/prism-27b provider (the user's qwen3.8-27B endpoint) with
+the P0/P1/P2 core: a real model turn completed end to end — assistant
+text visible in the pty, workspace sentinel intact, turn terminal.
+Operational note: a concurrent workspace `cargo check` had stalled at
+0% CPU holding the build lock; it was cleared to unblock the queued
+test (16 min lock wait, then 28 s to green).
