@@ -72,3 +72,25 @@ The stall exit already exists (`slices_since_progress`, bound 3, replan
 grace) behind a `ProgressBasis` closed set with one mutation-only
 member; P2 narrows to adding a `TurnProgressDeltaV1` basis member fed
 by Phase 1's settle output. No new termination machinery is needed.
+
+
+## Phase 2 addendum (commit 56db26772)
+
+`ProgressBasis::TurnProgressDeltaV1` joined the closed set; the settle
+fact carries the slice's four-dimension delta (`SettledBody.progress`),
+the fold resets the stall counter on any nonzero dimension (facts
+without the field stay mutation-only; `skip_serializing_if` keeps old
+digests identical), the facade declares the delta basis, and the ledger
+gained a slice accumulator (`take_slice_delta`). Battery 321/1 (the
+single red still the pre-existing child_debt).
+
+## GitHub issues closed this pass (2026-10-22 evening)
+
+- #15 usage accounting rides `_meta` (f716889e4) — closed.
+- #14 posture menu always opens on a closed-menu click (studio
+  e04197651) — closed, Kylin retest requested.
+- #10/#16 kylin glibc-2.31 archive — the concurrent lane's 4854bfbf5
+  shipped `aster-cli-v0.1.2-kylin.tar.gz`; both closed as completed.
+- #13 /app read-only — root-caused to the flatpak prefix (commented);
+  the fix lane (writable WORKDIR mapping) stays open in that thread.
+Live open-issue inventory after this pass: zero.
