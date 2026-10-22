@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, Write};
 use std::os::fd::AsRawFd;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -52,13 +53,30 @@ impl PlatformSandbox {
             policy.mediator_unix_path.is_some() || policy.socks_mediator_unix_path.is_some();
         let seccomp = write_seccomp_filter(&policy.scratch, allow_network_sockets)?;
         let mut command = Command::new(&self.bwrap);
-        configure_base_arguments(&mut command, policy)?;
+        let mounts = configure_base_arguments(&mut command, policy, &self.bwrap)?;
         if allow_network_sockets {
             // Guest netns: only loopback. Host CONNECT mediator is reached via
             // the Unix socket under scratch + in-guest TCP→Unix relay.
             command.arg("--unshare-net");
         }
         configure_environment(&mut command, policy, request.env.as_deref())?;
+        // A read-only writable root is a compatibility path, not a plain bind.
+        // Name those roots in the guest so a task can tell where its writes go.
+        for (name, paths) in [
+            (OVERLAID_WRITABLE_ENV, &mounts.overlaid),
+            (REDIRECTED_WRITABLE_ENV, &mounts.redirected),
+        ] {
+            if paths.is_empty() {
+                continue;
+            }
+            command.arg("--setenv").arg(name).arg(
+                paths
+                    .iter()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join(":"),
+            );
+        }
         configure_seccomp_fd(&mut command, &seccomp)?;
         let guest_command =
             if policy.mediator_unix_path.is_some() || policy.socks_mediator_unix_path.is_some() {
@@ -86,7 +104,60 @@ impl PlatformSandbox {
     }
 }
 
-fn configure_base_arguments(command: &mut Command, policy: &EnforcedPolicy) -> Result<()> {
+/// Guest variables naming writable roots that are not plain host binds. A
+/// read-only source filesystem cannot be made writable by a bind, so those
+/// roots are redirected into the session scratch instead.
+///
+/// `OVERLAID` keeps the read-only content visible underneath the writes.
+/// `REDIRECTED` replaces the content outright; it is the fallback for kernels
+/// that cannot mount overlayfs from an unprivileged user namespace.
+const OVERLAID_WRITABLE_ENV: &str = "A3S_SANDBOX_OVERLAID_WRITABLE";
+const REDIRECTED_WRITABLE_ENV: &str = "A3S_SANDBOX_REDIRECTED_WRITABLE";
+
+#[derive(Debug, Default)]
+struct BaseMounts {
+    overlaid: Vec<PathBuf>,
+    redirected: Vec<PathBuf>,
+}
+
+/// How one writable root is mounted in the guest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WritableMount {
+    /// Ordinary `--bind` of the host path.
+    Bind,
+    /// Overlay: source stays readable, writes land in the session scratch.
+    Overlay,
+    /// Writable directory from the session scratch replaces the source.
+    Redirect,
+}
+
+/// Pick the mount for a writable root.
+///
+/// A writable root that is already writable keeps the plain bind. One that sits
+/// on a read-only filesystem needs a session-backed layer; overlayfs is preferred
+/// because it preserves reads of the original tree, and a redirect is the
+/// fallback when the kernel refuses an overlay from this user namespace.
+/// `overlay_supported` is only called for a read-only root: probing costs a
+/// process launch, and the common case never needs it.
+fn writable_mount_strategy(
+    read_only_source: bool,
+    overlay_supported: impl FnOnce() -> bool,
+) -> WritableMount {
+    if !read_only_source {
+        return WritableMount::Bind;
+    }
+    if overlay_supported() {
+        WritableMount::Overlay
+    } else {
+        WritableMount::Redirect
+    }
+}
+
+fn configure_base_arguments(
+    command: &mut Command,
+    policy: &EnforcedPolicy,
+    bwrap: &Path,
+) -> Result<BaseMounts> {
     command.args([
         "--die-with-parent",
         "--new-session",
@@ -125,6 +196,8 @@ fn configure_base_arguments(command: &mut Command, policy: &EnforcedPolicy) -> R
         }
         command.arg("--ro-bind").arg(allowed).arg(allowed);
     }
+    let mut layered = Vec::new();
+    let mut redirected = Vec::new();
     for writable in &policy.allow_write {
         ensure_mount_destination(command, writable);
         if policy.session_write == crate::policy::SessionWriteMode::Ephemeral
@@ -141,7 +214,36 @@ fn configure_base_arguments(command: &mut Command, policy: &EnforcedPolicy) -> R
             }
             continue;
         }
-        command.arg("--bind").arg(writable).arg(writable);
+        // A Kylin flatpak mounts its install prefix read-only, so `/app` stays
+        // read-only through a bind and a task writing there fails with EROFS.
+        // Only pay for the capability probe when such a root actually appears.
+        let read_only = read_only_mount(writable);
+        let strategy = writable_mount_strategy(read_only, || overlay_mounts_supported(bwrap));
+        match strategy {
+            WritableMount::Bind => {
+                command.arg("--bind").arg(writable).arg(writable);
+            }
+            WritableMount::Overlay => layered.push(writable.clone()),
+            WritableMount::Redirect => redirected.push(writable.clone()),
+        }
+    }
+    // Session-backed layers live under scratch, so they are mounted after every
+    // bind and every tmpfs. Their directories are made on the host: bubblewrap
+    // resolves a bind or overlay *source* against the real root, so a copy made
+    // only inside the guest namespace would not be found.
+    for (index, dest) in layered.iter().enumerate() {
+        let (upper, work) = scratch_layer_dirs(&policy.scratch, dest, index)?;
+        command
+            .arg("--overlay-src")
+            .arg(dest)
+            .arg("--overlay")
+            .arg(&upper)
+            .arg(&work)
+            .arg(dest);
+    }
+    for (index, dest) in redirected.iter().enumerate() {
+        let (redirect, _) = scratch_layer_dirs(&policy.scratch, dest, layered.len() + index)?;
+        command.arg("--bind").arg(&redirect).arg(dest);
     }
 
     for denied in &policy.deny_read {
@@ -177,7 +279,94 @@ fn configure_base_arguments(command: &mut Command, policy: &EnforcedPolicy) -> R
 
     command.args(["--proc", "/proc", "--dev", "/dev", "--chdir"]);
     command.arg(&policy.workspace);
-    Ok(())
+    Ok(BaseMounts {
+        overlaid: layered,
+        redirected,
+    })
+}
+
+/// Whether overlayfs can be mounted from the sandbox's user namespace.
+///
+/// Overlayfs only gained user-namespace mounts in Linux 5.11, and Kylin V10
+/// ships older kernels, so this cannot be assumed. It is probed once per
+/// process with the same bubblewrap that will run the command, because that is
+/// the only honest test of what the sandbox can actually do.
+fn overlay_mounts_supported(bwrap: &Path) -> bool {
+    static SUPPORTED: OnceLock<bool> = OnceLock::new();
+    *SUPPORTED.get_or_init(|| {
+        let probe = std::env::temp_dir().join(format!("a3s-overlay-probe-{}", std::process::id()));
+        if std::fs::create_dir_all(&probe).is_err() {
+            return false;
+        }
+        let supported = std::process::Command::new(bwrap)
+            .args([
+                "--die-with-parent",
+                "--unshare-user",
+                "--unshare-pid",
+                "--ro-bind",
+                "/",
+                "/",
+            ])
+            .arg("--tmp-overlay")
+            .arg(&probe)
+            .args(["--", "/bin/true"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success());
+        let _ = std::fs::remove_dir(&probe);
+        supported
+    })
+}
+
+/// Whether `path` sits on a filesystem mounted read-only.
+///
+/// A bind mount of a read-only source stays read-only, so the writable-root
+/// bind cannot carry writes there. Missing paths and unreadable mounts report
+/// `false` and keep the plain bind, which then fails at write time as before.
+fn read_only_mount(path: &Path) -> bool {
+    let Ok(raw) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    // SAFETY: `statvfs` only reads the NUL-terminated path and fills every field
+    // of the zeroed struct when it succeeds.
+    let mut stats: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(raw.as_ptr(), &mut stats) } != 0 {
+        return false;
+    }
+    stats.f_flag & u64::from(libc::ST_RDONLY as u32) != 0
+}
+
+/// Session-scoped directories backing one read-only writable root.
+///
+/// They live under the session scratch, so a later command in the same session
+/// sees the earlier writes. The name is stable for a destination path, which is
+/// what makes that persistence hold across invocations. `index` keeps two
+/// distinct paths from colliding if the hash ever does.
+///
+/// The returned pair is `(upper, work)`. A redirect only uses the first half as
+/// its writable directory and does not need a work directory. Both are created
+/// here rather than through bubblewrap's `--dir`, because `--dir` only makes a
+/// path inside the guest while these are consumed as mount sources.
+fn scratch_layer_dirs(scratch: &Path, dest: &Path, index: usize) -> Result<(PathBuf, PathBuf)> {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in dest.as_os_str().as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    let root = scratch.join("overlay").join(format!("{hash:016x}-{index}"));
+    let upper = root.join("upper");
+    let work = root.join("work");
+    for directory in [&upper, &work] {
+        std::fs::create_dir_all(directory).with_context(|| {
+            format!(
+                "failed to create session layer directory {}",
+                directory.display()
+            )
+        })?;
+    }
+    Ok((upper, work))
 }
 
 fn ensure_mount_destination(command: &mut Command, path: &Path) {
@@ -601,6 +790,41 @@ impl Drop for WorkspacePins {
 mod tests {
     use super::*;
 
+    fn bwrap_path(workspace: &Path) -> PathBuf {
+        resolve_executable("/usr/bin/bwrap", workspace).unwrap()
+    }
+
+    /// Run the sandbox's own bubblewrap with `mounts` applied over a read-only
+    /// bind of the host root, the way the sandbox lays out its namespace.
+    fn run_with_mounts(
+        workspace: &Path,
+        scratch: &Path,
+        mounts: &[std::ffi::OsString],
+        script: &str,
+    ) -> std::process::Output {
+        let mut command = std::process::Command::new(bwrap_path(workspace));
+        command
+            .args([
+                "--die-with-parent",
+                "--unshare-user",
+                "--unshare-pid",
+                "--unshare-ipc",
+                "--unshare-uts",
+                "--ro-bind",
+                "/",
+                "/",
+                "--bind",
+            ])
+            .arg(scratch)
+            .arg(scratch)
+            .args(mounts)
+            .args(["--proc", "/proc", "--dev", "/dev", "--chdir"])
+            .arg(workspace)
+            .args(["--", "/bin/sh", "-c"])
+            .arg(script);
+        command.output().unwrap()
+    }
+
     fn evaluate_filter(filter: &[SockFilter], arch: u32, syscall: u32, arg0: u32) -> u32 {
         let mut accumulator = 0;
         let mut index = 0;
@@ -713,7 +937,7 @@ mod tests {
         .unwrap();
         let mut command =
             Command::new(resolve_executable("/usr/bin/bwrap", workspace.path()).unwrap());
-        configure_base_arguments(&mut command, &policy).unwrap();
+        configure_base_arguments(&mut command, &policy, &bwrap_path(workspace.path())).unwrap();
         let args: Vec<String> = command
             .as_std()
             .get_args()
@@ -749,7 +973,7 @@ mod tests {
         policy.mediator_unix_path = Some(scratch.path().join("mediator.sock"));
         let mut command =
             Command::new(resolve_executable("/usr/bin/bwrap", workspace.path()).unwrap());
-        configure_base_arguments(&mut command, &policy).unwrap();
+        configure_base_arguments(&mut command, &policy, &bwrap_path(workspace.path())).unwrap();
         let args: Vec<String> = command
             .as_std()
             .get_args()
@@ -778,7 +1002,7 @@ mod tests {
         policy.mediator_port = Some(crate::GUEST_HTTP_CONNECT_RELAY_PORT);
         let mut command =
             Command::new(resolve_executable("/usr/bin/bwrap", workspace.path()).unwrap());
-        configure_base_arguments(&mut command, &policy).unwrap();
+        configure_base_arguments(&mut command, &policy, &bwrap_path(workspace.path())).unwrap();
         if policy.mediator_unix_path.is_some() {
             command.arg("--unshare-net");
         }
@@ -1164,5 +1388,137 @@ print('socks-denied-ok')\n",
         assert_eq!(output.exit_code, 0, "stderr={}", output.stderr);
         assert_eq!(output.stdout.trim(), "socks-denied-ok");
         mediator.shutdown().await;
+    }
+
+    #[test]
+    fn writable_mount_strategy_keeps_a_plain_bind_for_writable_roots() {
+        // A writable root must never be layered: it would hide the host bind and
+        // make writes vanish with the session scratch.
+        assert_eq!(
+            writable_mount_strategy(false, || panic!("probe must stay lazy")),
+            WritableMount::Bind
+        );
+    }
+
+    #[test]
+    fn writable_mount_strategy_layers_a_read_only_root() {
+        assert_eq!(
+            writable_mount_strategy(true, || true),
+            WritableMount::Overlay
+        );
+        assert_eq!(
+            writable_mount_strategy(true, || false),
+            WritableMount::Redirect
+        );
+    }
+
+    #[test]
+    fn read_only_mount_reports_false_for_unresolvable_paths() {
+        // An unresolvable path keeps the plain bind, so a genuinely writable root
+        // is never silently redirected because of a transient stat failure.
+        let missing = Path::new("/nonexistent/a3s-readonly-probe");
+        assert!(!read_only_mount(missing));
+        let scratch = tempfile::tempdir().unwrap();
+        assert!(!read_only_mount(scratch.path()));
+    }
+
+    #[test]
+    fn scratch_layer_names_are_stable_and_distinct() {
+        let scratch = tempfile::tempdir().unwrap();
+        let first = scratch_layer_dirs(scratch.path(), Path::new("/app"), 0).unwrap();
+        let again = scratch_layer_dirs(scratch.path(), Path::new("/app"), 0).unwrap();
+        let other = scratch_layer_dirs(scratch.path(), Path::new("/opt/app"), 0).unwrap();
+        // A later command in the same session must find the earlier writes, so
+        // the same destination has to resolve to the same directories.
+        assert_eq!(first, again);
+        assert_ne!(first.0, other.0);
+        assert!(first.0.starts_with(scratch.path()));
+        assert_ne!(first.0, first.1);
+        // Both are mount sources, so both must exist on the host before use.
+        assert!(first.0.is_dir());
+        assert!(first.1.is_dir());
+    }
+
+    #[test]
+    fn overlay_makes_a_read_only_root_writable_without_hiding_it() {
+        if !overlay_mounts_supported(&bwrap_path(Path::new("."))) {
+            // Kernels before 5.11 refuse overlayfs from a user namespace; the
+            // redirect fallback covers them and is proven by the test below.
+            return;
+        }
+        let lower = tempfile::tempdir().unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        std::fs::write(lower.path().join("kept.txt"), "original\n").unwrap();
+        std::fs::write(lower.path().join("rewritten.txt"), "before\n").unwrap();
+        let (upper, work) = scratch_layer_dirs(scratch.path(), lower.path(), 0).unwrap();
+        let mut mounts: Vec<std::ffi::OsString> = Vec::new();
+        mounts.push("--overlay-src".into());
+        mounts.push(lower.path().into());
+        mounts.push("--overlay".into());
+        mounts.push(upper.clone().into_os_string());
+        mounts.push(work.clone().into_os_string());
+        mounts.push(lower.path().into());
+
+        let script = format!(
+            "set -e; cat {lower}/kept.txt; echo appended > {lower}/added.txt; \
+             echo after > {lower}/rewritten.txt",
+            lower = lower.path().display()
+        );
+        let output = run_with_mounts(lower.path(), scratch.path(), &mounts, &script);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "overlay must accept writes over a read-only lower: stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "original\n");
+        // Writes go to the overlay, never to the read-only source.
+        assert!(!lower.path().join("added.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(lower.path().join("rewritten.txt")).unwrap(),
+            "before\n"
+        );
+
+        // A second command in the same session shares the same upper layer, so it
+        // sees the earlier writes.
+        let script = format!(
+            "set -e; cat {lower}/kept.txt {lower}/added.txt {lower}/rewritten.txt",
+            lower = lower.path().display()
+        );
+        let output = run_with_mounts(lower.path(), scratch.path(), &mounts, &script);
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            "original\nappended\nafter\n"
+        );
+    }
+
+    #[test]
+    fn redirect_makes_a_read_only_root_writable_when_overlay_is_unavailable() {
+        let source = tempfile::tempdir().unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("kept.txt"), "original\n").unwrap();
+        let redirect = scratch_layer_dirs(scratch.path(), source.path(), 0)
+            .unwrap()
+            .0;
+        let mut mounts: Vec<std::ffi::OsString> = Vec::new();
+        mounts.push("--bind".into());
+        mounts.push(redirect.clone().into_os_string());
+        mounts.push(source.path().into());
+
+        let script = format!(
+            "set -e; echo written > {source}/written.txt; cat {source}/written.txt",
+            source = source.path().display()
+        );
+        let output = run_with_mounts(source.path(), scratch.path(), &mounts, &script);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "redirect must accept writes where the source is read-only: stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "written\n");
+        assert!(redirect.join("written.txt").exists());
+        assert!(!source.path().join("written.txt").exists());
     }
 }
