@@ -2985,6 +2985,7 @@ dependencies = [
  "chrono",
  "futures-util",
  "getrandom 0.2.16",
+ "glib",
  "ignore",
  "lopdf",
  "notify",
