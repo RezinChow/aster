@@ -304,29 +304,8 @@ for (const card of document.querySelectorAll(".scene-card, .practice-step, .plat
   });
 }
 
-// Primary actions lean a short way towards the pointer and settle there.
-for (const button of document.querySelectorAll(
-  ".hero-actions .pill-button, .hero-actions .hero-terminal, .bottom-cta .pill-button",
-)) {
-  button.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "touch") return;
-    const bounds = button.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
-    const dx = Math.max(-6, Math.min(6, (event.clientX - bounds.left - bounds.width / 2) * 0.16));
-    const dy = Math.max(-5, Math.min(5, (event.clientY - bounds.top - bounds.height / 2) * 0.2));
-    button.style.setProperty("--mx", `${dx.toFixed(2)}px`);
-    button.style.setProperty("--my", `${dy.toFixed(2)}px`);
-  });
-  button.addEventListener("pointerleave", () => {
-    button.style.setProperty("--mx", "0px");
-    button.style.setProperty("--my", "0px");
-  });
-}
-
 // A ripple confirms every press on a control.
-for (const button of document.querySelectorAll(
-  ".pill-button, .quiet-button, .copy-button, .hero-terminal",
-)) {
+for (const button of document.querySelectorAll(".pill-button, .quiet-button, .copy-button")) {
   button.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "touch") return;
     const bounds = button.getBoundingClientRect();
