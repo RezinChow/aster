@@ -89,4 +89,12 @@ describe('SearchInput', () => {
     expect(group).toHaveClass('h-8')
     expect(group).not.toHaveClass('h-7')
   })
+
+  it('turns off the native searchfield paint so the group track is the only field', () => {
+    render(<SearchInput value="" onChange={() => {}} />)
+
+    // WebKit would otherwise draw its own fill, outline and accent focus ring
+    // inside the group.
+    expect(screen.getByRole('searchbox')).toHaveClass('appearance-none')
+  })
 })

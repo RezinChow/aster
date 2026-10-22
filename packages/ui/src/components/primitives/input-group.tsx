@@ -136,8 +136,12 @@ function InputGroupInput({ className, ...props }: InputProps) {
   return (
     <Input
       data-slot="input-group-control"
+      // `h-full`, not the Input default `h-9`: the group owns the height
+      // (`sm` is 30px), and a 36px control inside it overflows the rounded
+      // track by 3px top and bottom, so the text sits low and the row looks
+      // broken at every search field.
       className={cn(
-        'flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent',
+        'h-full flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent',
         className
       )}
       {...props}
