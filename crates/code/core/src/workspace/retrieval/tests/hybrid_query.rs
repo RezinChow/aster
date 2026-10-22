@@ -25,6 +25,7 @@ use std::time::Duration;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
+mod model_free;
 mod readiness;
 
 #[derive(Debug, Deserialize)]

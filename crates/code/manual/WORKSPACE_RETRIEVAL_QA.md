@@ -1,5 +1,10 @@
 # Workspace Retrieval Release Qualification
 
+This document retains historical upstream qualification. Its SDK/CLI commands,
+commit identities and measurements are not current Aster release evidence.
+For the current root-workspace procedure and optional-semantic hybrid contract,
+see [WORKSPACE_RETRIEVAL_OPERATIONS.md](WORKSPACE_RETRIEVAL_OPERATIONS.md).
+
 Status: Passed and delivered on 2026-08-14. A3S CLI `main` commit `53821c8`
 pins the qualified Code and Memory revisions, and the post-pin release build
 and DeepSeek CLI integration rerun passed. A later paired Core evaluation also

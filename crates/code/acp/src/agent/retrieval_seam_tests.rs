@@ -213,9 +213,9 @@ async fn retrieval_seam_stays_closed_until_a_provider_is_injected() {
         WorkspaceRetrievalPhase::Disabled
     );
     let (modes, description) = search_surface(&closed_session);
-    assert_eq!(modes, serde_json::json!(["grep", "glob", "bm25"]));
+    assert_eq!(modes, serde_json::json!(["grep", "glob", "bm25", "hybrid"]));
     assert!(!description.contains("semantic"));
-    assert!(!description.contains("hybrid"));
+    assert!(description.contains("hybrid"));
     closed_session.close().await;
 
     let blocked_root = tempfile::tempdir().expect("workspace");
@@ -241,7 +241,7 @@ async fn retrieval_seam_stays_closed_until_a_provider_is_injected() {
     let blocked_note = capability_note(&blocked_options);
     assert!(blocked_note.contains("search modes: grep, glob, bm25, semantic, hybrid."));
     assert!(blocked_note
-        .contains("If the index is degraded, semantic and hybrid leave the tool definition."));
+        .contains("If the index is degraded, semantic leaves the tool definition; hybrid retains available channels."));
     assert!(!blocked_note.contains("语义检索关闭"));
     let blocked_session = open_session(&agent, blocked_root.path(), blocked_options).await;
     assert_eq!(
@@ -293,9 +293,28 @@ async fn retrieval_seam_stays_closed_until_a_provider_is_injected() {
         );
     }
     let (modes, description) = search_surface(&failed_session);
-    assert_eq!(modes, serde_json::json!(["grep", "glob", "bm25"]));
+    assert_eq!(modes, serde_json::json!(["grep", "glob", "bm25", "hybrid"]));
     assert!(description.contains("bm25"));
     assert!(!description.contains("semantic"));
-    assert!(!description.contains("hybrid"));
+    assert!(description.contains("hybrid"));
+    let result = failed_session
+        .tool(
+            "search",
+            serde_json::json!({
+                "mode": "hybrid", "query": "semantic_probe", "limit": 1,
+            }),
+        )
+        .await
+        .expect("degraded hybrid query");
+    assert_eq!(result.exit_code, 0, "{}", result.output);
+    assert!(
+        result.output.contains("pub fn semantic_probe()"),
+        "{}",
+        result.output
+    );
+    assert_eq!(
+        result.metadata.as_ref().unwrap()["semantic_status"]["phase"],
+        "degraded"
+    );
     failed_session.close().await;
 }

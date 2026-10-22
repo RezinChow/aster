@@ -318,8 +318,8 @@ impl A3sVecLexicalIndex {
     }
 
     /// Reopen a persisted collection without rebuilding its postings.
-    /// `documents` must be in the same dense order used when the collection
-    /// was created; empty documents are skipped exactly as in `build_at_path`.
+    /// `documents` pairs persisted engine primary keys with text in catalog
+    /// order; sparse keys must survive incremental generations and restarts.
     pub(crate) fn open_persistent(
         collection_root: PathBuf,
         documents: Vec<(String, String)>,
@@ -330,15 +330,19 @@ impl A3sVecLexicalIndex {
         }
         ensure_initialized()?;
         let documents = validate_owned_documents(documents)?;
-        let mut native_ordinals = HashMap::new();
-        let prepared = prepare_documents(&documents)?;
-        let terms = collect_terms(&prepared);
-        for document_count in 0..prepared.len() {
-            native_ordinals.insert(
-                String::from("d") + &document_count.to_string(),
-                document_count,
-            );
-        }
+        let prepared = documents
+            .iter()
+            .filter_map(|(key, text)| prepare_document(text).map(|document| (key, document)))
+            .collect::<Vec<_>>();
+        let terms = prepared
+            .iter()
+            .flat_map(|(_, document)| document.tokens.iter().cloned())
+            .collect();
+        let native_ordinals: HashMap<_, _> = prepared
+            .iter()
+            .enumerate()
+            .map(|(ordinal, (key, _))| (key.to_string(), ordinal))
+            .collect();
         let document_count = prepared.len();
         let estimated_bytes = directory_size(&collection_root)?.max(
             native_ordinals

@@ -1,6 +1,6 @@
 //! Session-scoped hybrid workspace search rendering.
 
-use crate::text::truncate_utf8;
+use super::search_snippet::{bounded_results, source_snippet, SourceSnippet, MAX_OUTPUT_BYTES};
 use crate::tools::types::{Tool, ToolCapabilities, ToolContext, ToolOutput};
 use crate::workspace::{
     escape_control_chars_for_display, WorkspaceHybridFallbackReason, WorkspaceHybridSearchHit,
@@ -14,8 +14,6 @@ use std::collections::HashSet;
 const DEFAULT_LIMIT: usize = 10;
 const MAX_LIMIT: usize = 25;
 const MAX_QUERY_BYTES: usize = 2_048;
-const MAX_RENDERED_LINES: usize = 16;
-const MAX_RENDERED_LINE_BYTES: usize = 500;
 
 pub(super) struct HybridSearchTool;
 
@@ -82,7 +80,17 @@ impl Tool for HybridSearchTool {
             .hybrid_search(request, ctx.cancellation_token())
             .await
         {
-            Ok(result) => Ok(render_result(result)),
+            Ok(result) => {
+                let mut output = render_result(result, query);
+                if let (Some(catalog), Some(metadata)) = (
+                    ctx.workspace_services.chunk_catalog(),
+                    output.metadata.as_mut(),
+                ) {
+                    metadata["lexical_engine"] =
+                        serde_json::json!(catalog.build_engine().stable_id());
+                }
+                Ok(output)
+            }
             Err(WorkspaceRetrievalError::Cancelled) => {
                 Ok(ToolOutput::error("hybrid search was cancelled"))
             }
@@ -104,27 +112,35 @@ fn bounded_limit(args: &serde_json::Value) -> std::result::Result<usize, String>
     Ok(value)
 }
 
-fn render_result(result: WorkspaceHybridSearchResult) -> ToolOutput {
-    let metadata = result_metadata(&result);
+fn render_result(mut result: WorkspaceHybridSearchResult, query: &str) -> ToolOutput {
     if result.hits.is_empty() {
         let mut content = "Hybrid search returned no verified matches.".to_owned();
         if let Some(fallback) = result.fallback {
             content.push('\n');
             content.push_str(fallback_message(fallback));
         }
-        return ToolOutput::success(content).with_metadata(metadata);
+        return ToolOutput::success(content).with_metadata(result_metadata(&result, &[], false));
     }
 
-    let mut content = "Hybrid results\n\n".to_owned();
-    content.push_str(
-        &result
+    let mut snippets = result
+        .hits
+        .iter()
+        .map(|hit| source_snippet(&hit.chunk, query))
+        .collect::<Vec<_>>();
+    let (mut content, count, budget_reached) = bounded_results(
+        "Hybrid results",
+        result
             .hits
             .iter()
+            .zip(&snippets)
             .enumerate()
-            .map(|(rank, hit)| render_hit(rank + 1, hit, result.rerank.applied_mode))
-            .collect::<Vec<_>>()
-            .join("\n\n"),
+            .map(|(rank, (hit, snippet))| {
+                render_hit(rank + 1, hit, result.rerank.applied_mode, snippet)
+            }),
     );
+    result.hits.truncate(count);
+    snippets.truncate(count);
+    result.truncated |= budget_reached;
     content.push_str(&format!(
         "\n\n{} current-source-verified result(s)",
         result.hits.len()
@@ -133,20 +149,17 @@ fn render_result(result: WorkspaceHybridSearchResult) -> ToolOutput {
         content.push_str("\nWarning: ");
         content.push_str(fallback_message(fallback));
     }
-    ToolOutput::success(content).with_metadata(metadata)
+    ToolOutput::success(content).with_metadata(result_metadata(&result, &snippets, budget_reached))
 }
 
 fn render_hit(
     rank: usize,
     hit: &WorkspaceHybridSearchHit,
     rerank_mode: WorkspaceRerankMode,
+    snippet: &SourceSnippet,
 ) -> String {
     let chunk = &hit.chunk;
     let safe_path = escape_control_chars_for_display(chunk.path.as_ref());
-    let rendered_line_count = chunk.text.lines().count().min(MAX_RENDERED_LINES);
-    let rendered_end_line = chunk
-        .start_line
-        .saturating_add(rendered_line_count.saturating_sub(1));
     let evidence = hit
         .channels
         .iter()
@@ -162,26 +175,17 @@ fn render_hit(
     };
     let mut content = format!(
         "{rank}. {safe_path}:{}-{} ({ranking}; {evidence})",
-        chunk.start_line, rendered_end_line
+        snippet.start_line, snippet.end_line
     );
-    for (offset, line) in chunk.text.lines().take(MAX_RENDERED_LINES).enumerate() {
-        let safe_line = escape_control_chars_for_display(line);
-        let rendered = truncate_utf8(&safe_line, MAX_RENDERED_LINE_BYTES);
-        content.push_str(&format!(
-            "\n{:>6} | {rendered}",
-            chunk.start_line.saturating_add(offset)
-        ));
-        if rendered.len() < safe_line.len() {
-            content.push_str("...");
-        }
-    }
-    if chunk.text.lines().count() > MAX_RENDERED_LINES {
-        content.push_str("\n       | ...");
-    }
+    content.push_str(&snippet.text);
     content
 }
 
-fn result_metadata(result: &WorkspaceHybridSearchResult) -> serde_json::Value {
+fn result_metadata(
+    result: &WorkspaceHybridSearchResult,
+    snippets: &[SourceSnippet],
+    budget_reached: bool,
+) -> serde_json::Value {
     let mut seen_paths = HashSet::new();
     let source_anchors = result
         .hits
@@ -192,12 +196,16 @@ fn result_metadata(result: &WorkspaceHybridSearchResult) -> serde_json::Value {
     let results = result
         .hits
         .iter()
-        .map(|hit| {
+        .zip(snippets)
+        .map(|(hit, snippet)| {
             serde_json::json!({
                 "chunk_id": hit.chunk.id.as_str(),
                 "path": hit.chunk.path.as_ref(),
-                "start_line": hit.chunk.start_line,
-                "end_line": hit.chunk.end_line,
+                "start_line": snippet.start_line,
+                "end_line": snippet.end_line,
+                "chunk_start_line": hit.chunk.start_line,
+                "chunk_end_line": hit.chunk.end_line,
+                "snippet_truncated": snippet.truncated,
                 "source_revision": hit.chunk.source_revision,
                 "fused_score": hit.fused_score,
                 "rerank_score": hit.rerank_score,
@@ -218,6 +226,8 @@ fn result_metadata(result: &WorkspaceHybridSearchResult) -> serde_json::Value {
         "rerank": &result.rerank,
         "fallback": &result.fallback,
         "truncated": result.truncated,
+        "output_budget_reached": budget_reached,
+        "output_byte_limit": MAX_OUTPUT_BYTES,
         "source_anchors": source_anchors,
         "results": results,
         "returned_results": results.len(),

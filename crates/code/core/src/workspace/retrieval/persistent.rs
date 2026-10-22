@@ -931,11 +931,29 @@ impl WorkspacePersistentIndex {
                 .cloned()
                 .collect::<Vec<_>>(),
         );
+        let indexed_files = distinct_path_count(&indexed_chunks);
+        let legacy = manifest.schema_version == LEGACY_MANIFEST_SCHEMA_VERSION;
+        let mut pks = Vec::with_capacity(indexed_chunks.len());
+        for (ordinal, chunk) in indexed_chunks.iter().enumerate() {
+            let pk = if legacy {
+                format!("d{ordinal}")
+            } else {
+                manifest_pks
+                    .get(chunk.id.as_str())
+                    .cloned()
+                    .ok_or_else(|| {
+                        WorkspaceIndexError::InvalidConfig(
+                            "persistent a3s-vec v3 chunk omitted its primary key".to_owned(),
+                        )
+                    })?
+            };
+            pks.push(pk);
+        }
         let index = super::a3s_vec::A3sVecLexicalIndex::open_persistent(
             generation_root.join("collection"),
-            indexed_chunks
-                .iter()
-                .map(|chunk| (chunk.id.as_str().to_owned(), chunk.text.as_ref().to_owned()))
+            pks.iter()
+                .zip(indexed_chunks.iter())
+                .map(|(pk, chunk)| (pk.clone(), chunk.text.as_ref().to_owned()))
                 .collect(),
         )
         .map_err(|error| {
@@ -943,23 +961,6 @@ impl WorkspacePersistentIndex {
                 "persistent a3s-vec index failed to open: {error}"
             ))
         })?;
-        let indexed_files = distinct_path_count(&indexed_chunks);
-        let legacy = manifest.schema_version == LEGACY_MANIFEST_SCHEMA_VERSION;
-        let mut pks = Vec::with_capacity(indexed_chunks.len());
-        let mut next_dense = 0usize;
-        for chunk in indexed_chunks.iter() {
-            match if legacy {
-                None
-            } else {
-                manifest_pks.get(chunk.id.as_str())
-            } {
-                Some(pk) => pks.push(pk.clone()),
-                None => {
-                    pks.push(String::from("d") + &next_dense.to_string());
-                    next_dense += 1;
-                }
-            }
-        }
         *self
             .state
             .write()

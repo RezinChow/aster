@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "documents": [
+    {"path":"src/cache.rs","prefix_lines":63,"content":"pub fn release_workspace_vectors() {\n    // Release session vector memory on close.\n    drop_vectors();\n}\n"},
+    {"path":"src/path_policy.rs","prefix_lines":0,"content":"// 工作区权限策略阻止越界路径访问。\npub struct WorkspaceAccessPolicy;\n"},
+    {"path":"src/retry.ts","prefix_lines":0,"content":"export function retryTransientFailure() {\n  // Apply exponential backoff with jitter after temporary failures.\n}\n"},
+    {"path":"src/StatusPanel.tsx","prefix_lines":0,"content":"export function RetrievalStatusPanel() {\n  return <section aria-label=\"检索索引状态\">Ready</section>;\n}\n"},
+    {"path":"docs/index.md","prefix_lines":0,"content":"# Workspace index maintenance\n\nRebuild the lexical index after a corrupt generation. Verify source digests before returning snippets.\n"},
+    {"path":"tests/cache.rs","prefix_lines":0,"content":"#[test]\nfn vector_cleanup_test() {\n    // Test the cache lifecycle with an isolated fixture.\n    assert_cleanup();\n}\n"},
+    {"path":"examples/cache.rs","prefix_lines":0,"content":"// Example cache lifecycle; this does not implement workspace vector release.\npub fn sample_cache() {}\n"}
+  ],
+  "queries": [
+    {"id":"late-rust-identifier","category":"identifier","query":"release_workspace_vectors","relevant_path":"src/cache.rs","evidence":"pub fn release_workspace_vectors()","require_first":true},
+    {"id":"rust-split-identifier","category":"identifier","query":"workspace access policy","relevant_path":"src/path_policy.rs","evidence":"pub struct WorkspaceAccessPolicy"},
+    {"id":"cjk-boundary","category":"cjk","query":"工作区权限策略","relevant_path":"src/path_policy.rs","evidence":"工作区权限策略阻止越界路径访问"},
+    {"id":"typescript-policy","category":"typescript","query":"exponential backoff jitter","relevant_path":"src/retry.ts","evidence":"exponential backoff with jitter"},
+    {"id":"tsx-identifier","category":"tsx","query":"RetrievalStatusPanel","relevant_path":"src/StatusPanel.tsx","evidence":"export function RetrievalStatusPanel()","require_first":true},
+    {"id":"tsx-cjk","category":"cjk","query":"检索索引状态","relevant_path":"src/StatusPanel.tsx","evidence":"检索索引状态"},
+    {"id":"documentation","category":"docs","query":"corrupt generation lexical index","relevant_path":"docs/index.md","evidence":"Rebuild the lexical index"},
+    {"id":"test-discovery","category":"tests","query":"vector_cleanup_test","relevant_path":"tests/cache.rs","evidence":"fn vector_cleanup_test()","require_first":true},
+    {"id":"no-overlap-control","category":"negative_control","query":"photosynthesis chlorophyll","relevant_path":null,"evidence":null}
+  ]
+}

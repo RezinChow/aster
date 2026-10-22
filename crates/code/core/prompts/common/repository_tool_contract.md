@@ -24,6 +24,10 @@ continuations.
   `limit`/`cursor` and `sort`; use `sort: "path"` for deterministic pages.
   BM25 accepts `limit` and `context`. Copy the exact
   `metadata.page.next_cursor` and stop when it is absent.
+  Hybrid fuses available channels even without semantic retrieval; inspect
+  channel/fallback metadata for partial coverage. Ranked source results report
+  displayed line ranges separately from full chunk ranges. If the output budget
+  is reached, narrow the query or path; do not invent a continuation cursor.
 - `edit`: pass `file_path`, `old_string`, and `new_string`; set `replace_all`
   only when every occurrence should change. For `replace_all` or any mechanical
   change whose scope is uncertain, first use `dry_run`, inspect the diff and

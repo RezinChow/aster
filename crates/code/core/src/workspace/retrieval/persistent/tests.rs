@@ -319,6 +319,18 @@ fn incremental_delta_serves_edits_renames_and_reopens() {
         1
     );
 
+    // Reopen the first sparse generation before another update can rebuild it.
+    drop(index);
+    let index = WorkspacePersistentIndex::open(directory.path(), WorkspaceLexicalEngine::A3sVec)
+        .expect("reopen the single-edit generation");
+    let hits = index
+        .search(&LexicalSearchRequest::new("pinotnoir"))
+        .expect("reopened single-edit query")
+        .hits;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].chunk.path.as_ref(), "src/beta.rs");
+    assert!(hits[0].chunk.text.contains("pinotnoir"));
+
     // Rename shape: alpha.rs → renamed.rs with identical content is a
     // remove+append pair (chunk ids hash the path).
     catalog
@@ -566,6 +578,66 @@ fn published_replacement_collects_old_generations() {
         std::fs::read_to_string(directory.path().join("CURRENT")).expect("CURRENT"),
         format!("{}\n", second_generation)
     );
+}
+
+#[test]
+fn persisted_primary_keys_refuse_damage_and_keep_v2_compatibility() {
+    let directory = tempfile::tempdir().expect("index directory");
+    let catalog = WorkspaceChunkCatalog::new_with_engine(
+        ChunkingConfig::default(),
+        ChunkCatalogLimits::default(),
+        WorkspaceLexicalEngine::A3sVec,
+    )
+    .expect("catalog");
+    for (path, text) in [("a.rs", "maplefjord"), ("b.rs", "pinotnoir")] {
+        catalog
+            .replace_file(&WorkspacePath::from_normalized(path), None, 1, text)
+            .expect("admit fixture");
+    }
+    let snapshot = catalog.snapshot().expect("snapshot");
+    let index = WorkspacePersistentIndex::open(directory.path(), WorkspaceLexicalEngine::A3sVec)
+        .expect("index");
+    index.sync_snapshot(&snapshot).expect("publish");
+    let manifest_path = directory
+        .path()
+        .join(index.status().generation.expect("generation"))
+        .join(MANIFEST_FILE);
+    drop(index);
+    let valid: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&manifest_path).expect("manifest"))
+            .expect("manifest JSON");
+    let mut legacy = valid.clone();
+    legacy["schemaVersion"] = serde_json::json!(2);
+    for chunk in legacy["chunks"].as_array_mut().expect("chunks") {
+        chunk.as_object_mut().expect("chunk").remove("pk");
+    }
+    let mut missing = valid.clone();
+    missing["chunks"][0]
+        .as_object_mut()
+        .expect("chunk")
+        .remove("pk");
+    let mut duplicate = valid.clone();
+    duplicate["chunks"][1]["pk"] = duplicate["chunks"][0]["pk"].clone();
+    for (manifest, ready) in [(legacy, true), (missing, false), (duplicate, false)] {
+        std::fs::write(&manifest_path, serde_json::to_vec(&manifest).expect("JSON"))
+            .expect("write manifest variant");
+        let reopened =
+            WorkspacePersistentIndex::open(directory.path(), WorkspaceLexicalEngine::A3sVec)
+                .expect("recoverable open");
+        assert_eq!(reopened.is_ready(), ready);
+        let query = reopened.search(&LexicalSearchRequest::new("maplefjord"));
+        if ready {
+            assert_eq!(
+                query.expect("legacy query").hits[0].chunk.path.as_ref(),
+                "a.rs"
+            );
+        } else {
+            assert!(
+                query.expect("absent projection").hits.is_empty(),
+                "damaged primary keys must not serve source"
+            );
+        }
+    }
 }
 
 #[test]

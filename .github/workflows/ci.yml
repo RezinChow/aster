@@ -79,6 +79,11 @@ jobs:
         run: cargo test --locked -p a3s-studio-data-sqlite -p a3s-studio-desktop-contract
       - name: ACP integration
         run: cargo test --locked -p a3s-code-acp --test v912_seam
+      - name: Workspace retrieval contracts
+        run: |
+          cargo test --locked -p a3s-code-core --lib -- tools::builtin::search workspace::retrieval::tests::hybrid_query agent_api::retrieval_tests permissions:: --test-threads=4
+          cargo test --locked -p a3s-code-acp --lib -- local_embedding retrieval_seam session_setup execution_capabilities --test-threads=4
+          cargo test --locked -p a3s-code-acp --test shipped_tui_e2e retrieval::shipped_retrieval_stdio -- --test-threads=1
       - name: Logo cache and rendering
         run: cargo test --locked -p a3s-code-pager --lib views::welcome
       - name: Current memory-retention contracts
