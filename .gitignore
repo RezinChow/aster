@@ -25,3 +25,8 @@ __pycache__/
 /.tmp/
 /.local-archive/
 /target-e2e/
+
+# Generated artifacts: the WorkBuddy desktop agent's repo-local memory and
+# the T01 harness output directory.
+/.workbuddy/
+/tests/T01/output/
