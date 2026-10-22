@@ -193,5 +193,56 @@ class InstalledIconTest(unittest.TestCase):
         self.assertEqual(icon_path.name, installed.name)
 
 
+class SystemInstallTest(unittest.TestCase):
+    """Kylin's compositor never reads the user tree, so the system install exists.
+
+    On kylin-wlcom (through 1.3.1-ok36) a window whose only launcher entry lives
+    under `$HOME/.local/share/applications` keeps the generic gear even with the
+    class, the entry, and the icon all correct — an identical entry resolves from
+    `/usr/share/applications` and falls back from the user directory. The system
+    install writes into the system prefix and names the icon by absolute path,
+    because the hicolor theme is only scanned at compositor startup and the
+    compositor's specific-path loader resolves a path on demand.
+    """
+
+    def test_the_system_entry_keeps_the_theme_name_icon(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("studio-desktop", INSTALLER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as directory:
+            prefix = Path(directory)
+            self.assertEqual(module.install_system(prefix=prefix), 0)
+            entry = (prefix / "applications" / f"{BUNDLE_ID}.desktop").read_text(encoding="utf-8")
+            icons = sorted((prefix / "icons" / "hicolor").glob(f"*/apps/{BUNDLE_ID}.png"))
+
+            # The hicolor theme is scanned once at compositor startup, so a
+            # mid-session install names the icon by absolute path: the compositor's
+            # specific-path loader creates it from the file on demand.
+            icon_lines = [line for line in entry.splitlines() if line.startswith("Icon=")]
+            self.assertEqual(
+                icon_lines,
+                [f"Icon={prefix / 'icons' / 'hicolor' / '256x256' / 'apps' / f'{BUNDLE_ID}.png'}"],
+                entry,
+            )
+            self.assertTrue(icon_lines[0].split("=", 1)[1])
+
+    def test_remove_system_undoes_the_install(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("studio-desktop", INSTALLER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as directory:
+            prefix = Path(directory)
+            self.assertEqual(module.install_system(prefix=prefix), 0)
+            self.assertEqual(module.remove_system(prefix=prefix), 0)
+            self.assertFalse((prefix / "applications" / f"{BUNDLE_ID}.desktop").exists())
+            self.assertFalse(list((prefix / "icons" / "hicolor").glob(f"*/apps/{BUNDLE_ID}.png")))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

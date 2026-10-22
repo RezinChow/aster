@@ -165,7 +165,10 @@ app-icons:
 # Install this checkout as a desktop application: a launcher entry plus the
 # hicolor icon ladder under $XDG_DATA_HOME. Without it a dock has no entry to
 # match the window against and paints a generic gear instead of the icon.
-# `just studio-desktop remove` undoes it.
+# On Kylin the compositor (kylin-wlcom) never reads the user tree; there run
+# `just studio-desktop install-system` (with sudo), which writes the same pieces
+# into /usr/share where the icon matcher is guaranteed to resolve them.
+# `just studio-desktop remove` / `remove-system` undo it.
 studio-desktop action='install':
     python3 apps/studio/scripts/studio-desktop.py {{action}}
 
