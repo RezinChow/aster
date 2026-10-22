@@ -12,6 +12,12 @@ try {
     Copy-Item -LiteralPath $Archive -Destination (Join-Path $assets "aster-cli-v0.1.2-windows.zip")
     $env:ASTER_RELEASE_BASE = $assets
     $env:OS = "Windows_NT"
+    # The compact channel manifest the release workflow publishes; the local
+    # install path refuses to run without it. All platform digests name this
+    # fixture's archive, as tests/cli_pair_delivery.py does.
+    $sha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $assets "aster-cli-v0.1.2-windows.zip")).Hash.ToLowerInvariant()
+    $manifest = '{"version":"0.1.2","tag":"aster-cli-v0.1.2","assets":{"macos":{"name":"aster-cli-v0.1.2-macos.tar.gz","sha256":"' + $sha + '"},"linux":{"name":"aster-cli-v0.1.2-linux.tar.gz","sha256":"' + $sha + '"},"windows":{"name":"aster-cli-v0.1.2-windows.zip","sha256":"' + $sha + '"}}}'
+    [IO.File]::WriteAllText((Join-Path $assets "latest.json"), $manifest)
     foreach ($name in @("aster.exe", "a3s-code-acp.exe")) {
         [IO.File]::WriteAllText((Join-Path $prefix $name), "old-$name")
     }

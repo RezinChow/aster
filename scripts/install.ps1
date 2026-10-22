@@ -124,7 +124,9 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 try {
     $archive = Join-Path $work $assetName
     Write-Output "platform=windows"
-    Write-Output "release=$($releaseTag ? $releaseTag : 'direct')"
+    # Windows PowerShell 5.1 parses no ternary operator: keep this file 5.1-clean.
+    $releaseLabel = if ($releaseTag) { $releaseTag } else { "direct" }
+    Write-Output "release=$releaseLabel"
     Write-Output "asset=$assetUrl"
     if ($localBase) {
         Copy-Item -LiteralPath $assetUrl -Destination $archive -Force
