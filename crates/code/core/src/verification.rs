@@ -1308,7 +1308,9 @@ impl VerificationContractV1 {
                     .all(|component| matches!(component, std::path::Component::Normal(_)))
                 || path.contains('\0')
             {
-                anyhow::bail!("verification contract covers requires workspace-relative paths without traversal");
+                anyhow::bail!(
+                    "verification contract covers requires workspace-relative paths without traversal"
+                );
             }
         }
         Ok(())

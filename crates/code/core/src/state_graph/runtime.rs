@@ -704,14 +704,18 @@ pub enum RuntimeError {
     BehaviorDepthExceeded(usize),
     #[error("cannot fork at exclusive sequence {0}")]
     InvalidFork(u64),
-    #[error("external stream `{source_name}/{stream_id}` sequence diverged: expected {expected}, got {actual}")]
+    #[error(
+        "external stream `{source_name}/{stream_id}` sequence diverged: expected {expected}, got {actual}"
+    )]
     ExternalSequenceDiverged {
         source_name: String,
         stream_id: String,
         expected: u64,
         actual: u64,
     },
-    #[error("external stream `{source_name}/{stream_id}` event at sequence {sequence} conflicts with the observed event id")]
+    #[error(
+        "external stream `{source_name}/{stream_id}` event at sequence {sequence} conflicts with the observed event id"
+    )]
     ExternalEventConflict {
         source_name: String,
         stream_id: String,

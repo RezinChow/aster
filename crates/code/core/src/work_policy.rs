@@ -130,7 +130,9 @@ impl WorkPolicyRefusal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
-#[error("unknown WorkPolicyRefusal {0:?}; expected work_policy.invalid, work_policy.conflict, work_policy.missing, work_policy.corrupt or work_policy.legacy_rebind")]
+#[error(
+    "unknown WorkPolicyRefusal {0:?}; expected work_policy.invalid, work_policy.conflict, work_policy.missing, work_policy.corrupt or work_policy.legacy_rebind"
+)]
 pub struct WorkPolicyRefusalParseError(pub String);
 
 #[derive(Debug, Error)]

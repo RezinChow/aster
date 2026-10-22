@@ -78,7 +78,7 @@ fn require_closed_block(source: &str) -> Result<()> {
                         _ => {
                             return Err(invalid(
                                 "requires literal field assignments and a closing brace",
-                            ))
+                            ));
                         }
                     };
                     if !matches!(

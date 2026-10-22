@@ -257,7 +257,7 @@ impl VecMemoryStore {
                 return Err(anyhow!(
                     "read legacy memory items {}: {error}",
                     legacy_items_dir.display()
-                ))
+                ));
             }
         };
         let mut existing = std::collections::HashSet::new();

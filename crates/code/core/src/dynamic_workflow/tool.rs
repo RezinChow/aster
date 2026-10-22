@@ -309,7 +309,7 @@ impl Tool for DynamicWorkflowTool {
                 Err(error) => {
                     return Ok(ToolOutput::error(format!(
                         "invalid dynamic workflow runtime build identity: {error}"
-                    )))
+                    )));
                 }
             };
         let source_hash = source_hash(source);
@@ -380,7 +380,7 @@ impl Tool for DynamicWorkflowTool {
             Err(error) => {
                 return Ok(ToolOutput::error(format!(
                     "dynamic workflow continuation identity rejected: {error}"
-                )))
+                )));
             }
         };
         let lease_ledger = match self.continuation_lease_ledger_for_context(ctx).await {

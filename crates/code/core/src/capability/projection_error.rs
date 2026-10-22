@@ -115,7 +115,9 @@ pub enum CapabilityProjectionError {
         actual_generation: u64,
         actual_capabilities: usize,
     },
-    #[error("Capability recovery bootstrap target generation must be greater than zero (found {actual})")]
+    #[error(
+        "Capability recovery bootstrap target generation must be greater than zero (found {actual})"
+    )]
     BootstrapTargetGeneration { actual: u64 },
     #[error("Capability catalog generation is exhausted")]
     GenerationExhausted,

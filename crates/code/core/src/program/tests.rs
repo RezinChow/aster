@@ -642,9 +642,10 @@ fn program_verification_hints_cover_failed_run_without_failed_steps() {
     };
     let hints = program_verification_hints(&result, None);
     assert!(hints.iter().any(|hint| hint.kind == "inspect_matches"));
-    assert!(hints.iter().any(|hint| hint
-        .message
-        .contains("Investigate the failed program execution")));
+    assert!(hints.iter().any(|hint| {
+        hint.message
+            .contains("Investigate the failed program execution")
+    }));
 }
 
 #[test]

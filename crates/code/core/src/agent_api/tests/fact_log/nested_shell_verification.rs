@@ -415,20 +415,43 @@ async fn a_later_formal_check_can_recover_the_current_failed_effect_without_eras
 #[tokio::test]
 async fn a_write_after_the_check_invalidates_the_private_proof_for_any_path() {
     for (id, tail, initial) in [
-        ("formal-shell-late-same-path", "await ctx.tool('write', {file_path:'checked.txt', content:'unchecked bytes'});", vec![]),
-        ("formal-shell-late-other-path", "await ctx.tool('write', {file_path:'other.txt', content:'unchecked bytes'});", vec![]),
-        ("formal-shell-late-restored-path", "await ctx.tool('write', {file_path:'other.txt', content:'unchecked bytes'}); await ctx.tool('write', {file_path:'other.txt', content:'original bytes'});", vec![("other.txt", "original bytes")]),
+        (
+            "formal-shell-late-same-path",
+            "await ctx.tool('write', {file_path:'checked.txt', content:'unchecked bytes'});",
+            vec![],
+        ),
+        (
+            "formal-shell-late-other-path",
+            "await ctx.tool('write', {file_path:'other.txt', content:'unchecked bytes'});",
+            vec![],
+        ),
+        (
+            "formal-shell-late-restored-path",
+            "await ctx.tool('write', {file_path:'other.txt', content:'unchecked bytes'}); await ctx.tool('write', {file_path:'other.txt', content:'original bytes'});",
+            vec![("other.txt", "original bytes")],
+        ),
     ] {
-        let body = format!(r#"
+        let body = format!(
+            r#"
             await ctx.tool('write', {{file_path:'checked.txt', content:'checked bytes\n'}});
             await ctx.tool('bash', {{command:'test -f checked.txt'}});
             {tail}
             return {{checked:true}};
-        "#);
-        let observed = observe(id, vec![program("late-write", &body)], &initial, crate::ToolPresentationModeV1::Code).await;
+        "#
+        );
+        let observed = observe(
+            id,
+            vec![program("late-write", &body)],
+            &initial,
+            crate::ToolPresentationModeV1::Code,
+        )
+        .await;
         assert_eq!(observed.bash_calls, 1);
         assert_incomplete(&observed);
-        assert_eq!(observed.receipts.last().unwrap().outcome, ToolExecutionOutcome::Succeeded);
+        assert_eq!(
+            observed.receipts.last().unwrap().outcome,
+            ToolExecutionOutcome::Succeeded
+        );
     }
 }
 

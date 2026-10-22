@@ -62,9 +62,19 @@ async fn worker(mode: &str) {
     let cancel = ctx.cancellation_token();
     let background_write = matches!(mode, "return" | "throw") || queued_only;
     let source = if background_write {
-        format!("async function run(ctx) {{ void ctx.tool('write', {{file_path:'saved.txt',content:'saved-marker\\n'}}); {} {} }}",
-            if queued_only { "" } else { "await ctx.readFile('input.txt');" },
-            if succeeds { "return {done:true};" } else { "throw new Error('controlled JS failure');" })
+        format!(
+            "async function run(ctx) {{ void ctx.tool('write', {{file_path:'saved.txt',content:'saved-marker\\n'}}); {} {} }}",
+            if queued_only {
+                ""
+            } else {
+                "await ctx.readFile('input.txt');"
+            },
+            if succeeds {
+                "return {done:true};"
+            } else {
+                "throw new Error('controlled JS failure');"
+            }
+        )
     } else {
         "async function run(ctx) { await ctx.readFile('input.txt'); while (true) {} }".to_string()
     };

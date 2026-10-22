@@ -296,13 +296,13 @@ impl EmbeddingExecutor {
                     return Err(EmbeddingError::RetriesExhausted {
                         kind: error.kind(),
                         attempts,
-                    })
+                    });
                 }
                 Err(error) => {
                     return Err(EmbeddingError::ProviderFailure {
                         kind: error.kind(),
                         attempts,
-                    })
+                    });
                 }
             }
         }

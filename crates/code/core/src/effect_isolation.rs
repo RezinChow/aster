@@ -294,7 +294,7 @@ fn capture_change_set(binding: &IsolationBinding) -> Result<IsolatedChangeSet> {
             _ => {
                 return Err(anyhow!(
                     "refusing to promote unsupported git status {status}"
-                ))
+                ));
             }
         }
         seen.insert(path);

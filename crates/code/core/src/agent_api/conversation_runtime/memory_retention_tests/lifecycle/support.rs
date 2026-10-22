@@ -194,7 +194,7 @@ impl Client {
             MainReply::Error => {
                 return Err(
                     crate::llm::NonRetryableLlmError::new("typed main fixture failure").into(),
-                )
+                );
             }
         };
         self.guard.main_returned.store(true, Ordering::SeqCst);

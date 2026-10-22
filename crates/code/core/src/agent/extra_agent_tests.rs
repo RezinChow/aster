@@ -2643,12 +2643,16 @@ async fn test_execute_plan_emits_task_list_snapshots() {
             .all(|task| task.status == TaskStatus::Pending),
         "initial snapshot should expose the pending task list"
     );
-    assert!(snapshots.iter().any(|tasks| tasks
-        .iter()
-        .any(|task| task.id == "s1" && task.status == TaskStatus::InProgress)));
-    assert!(snapshots.iter().any(|tasks| tasks
-        .iter()
-        .any(|task| task.id == "s1" && task.status == TaskStatus::Completed)));
+    assert!(snapshots.iter().any(|tasks| {
+        tasks
+            .iter()
+            .any(|task| task.id == "s1" && task.status == TaskStatus::InProgress)
+    }));
+    assert!(snapshots.iter().any(|tasks| {
+        tasks
+            .iter()
+            .any(|task| task.id == "s1" && task.status == TaskStatus::Completed)
+    }));
     assert!(snapshots
         .last()
         .unwrap()
@@ -2879,9 +2883,11 @@ async fn test_execute_plan_delegates_parallel_task_wave_once() {
         "Summarize delegated checks"
     );
     assert_eq!(completed_steps, vec!["s1".to_string(), "s2".to_string()]);
-    assert!(task_snapshots.iter().any(|tasks| tasks
-        .iter()
-        .all(|task| task.status == TaskStatus::InProgress)));
+    assert!(task_snapshots.iter().any(|tasks| {
+        tasks
+            .iter()
+            .all(|task| task.status == TaskStatus::InProgress)
+    }));
     assert!(task_snapshots
         .last()
         .unwrap()

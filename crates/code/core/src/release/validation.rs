@@ -69,7 +69,7 @@ pub(crate) fn parse_entrypoint(block: &Block) -> Result<AgentReleaseEntrypoint, 
         _ => {
             return Err(AgentReleaseError::InvalidField(
                 AgentReleaseField::EntrypointArgument,
-            ))
+            ));
         }
     };
     if !args
@@ -130,7 +130,7 @@ pub(crate) fn parse_storage(block: &Block) -> Result<AgentReleaseStorage, AgentR
             _ => {
                 return Err(AgentReleaseError::InvalidField(
                     AgentReleaseField::WorkspaceMode,
-                ))
+                ));
             }
         };
     let cache = match required_string(block, "cache", AgentReleaseField::CacheMode)?.as_str() {
@@ -139,7 +139,7 @@ pub(crate) fn parse_storage(block: &Block) -> Result<AgentReleaseStorage, AgentR
         _ => {
             return Err(AgentReleaseError::InvalidField(
                 AgentReleaseField::CacheMode,
-            ))
+            ));
         }
     };
     let persistent_data = match required_string(
@@ -154,7 +154,7 @@ pub(crate) fn parse_storage(block: &Block) -> Result<AgentReleaseStorage, AgentR
         _ => {
             return Err(AgentReleaseError::InvalidField(
                 AgentReleaseField::PersistentDataMode,
-            ))
+            ));
         }
     };
     Ok(AgentReleaseStorage {
@@ -198,7 +198,7 @@ pub(crate) fn parse_secret(
         _ => {
             return Err(AgentReleaseError::InvalidField(
                 AgentReleaseField::SecretTarget,
-            ))
+            ));
         }
     };
     let destination = required_string(block, "destination", AgentReleaseField::SecretDestination)?;
@@ -475,7 +475,7 @@ pub(crate) fn parse_inference(block: &Block) -> Result<AgentReleaseInference, Ag
         _ => {
             return Err(AgentReleaseError::InvalidField(
                 AgentReleaseField::InferenceCredentialEnvPrefix,
-            ))
+            ));
         }
     };
     Ok(AgentReleaseInference {

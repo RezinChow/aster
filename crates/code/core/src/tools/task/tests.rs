@@ -2005,10 +2005,10 @@ async fn task_child_and_schema_coercion_share_the_scoped_budget_boundary() {
         "child turn and coercion must both call the provider"
     );
     assert_eq!(
-            guard.checks.load(Ordering::SeqCst),
-            attempts,
-            "every provider attempt, including a failed streaming attempt before fallback, must be gated"
-        );
+        guard.checks.load(Ordering::SeqCst),
+        attempts,
+        "every provider attempt, including a failed streaming attempt before fallback, must be gated"
+    );
     assert_eq!(
         guard.records.load(Ordering::SeqCst),
         successful_calls,

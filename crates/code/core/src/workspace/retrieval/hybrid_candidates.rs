@@ -243,12 +243,12 @@ pub(super) async fn structural_candidates(
         Err(crate::code_intelligence::CodeIntelligenceError::Cancelled)
             if cancellation.is_cancelled() =>
         {
-            return Err(WorkspaceRetrievalError::Cancelled)
+            return Err(WorkspaceRetrievalError::Cancelled);
         }
         Err(_) => {
             return Ok(StructuralCandidates::unavailable(
                 WorkspaceHybridFallbackReason::StructuralQueryFailed,
-            ))
+            ));
         }
     };
     let identifier_query = is_ascii_identifier(&request.query);

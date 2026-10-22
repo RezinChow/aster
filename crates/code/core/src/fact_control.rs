@@ -1286,7 +1286,9 @@ impl FactRun {
                 })
             })
         {
-            anyhow::bail!("goal.host_driver_conflict: goal execution requires the actual original Run and log");
+            anyhow::bail!(
+                "goal.host_driver_conflict: goal execution requires the actual original Run and log"
+            );
         }
         if policy.policy.is_some()
             && !child
@@ -1511,7 +1513,10 @@ impl FactRun {
             .find(|fact| fact.kind == "model.turn")
             .is_some_and(|fact| fact.payload["kind"] == "text");
         if terminal_narrative {
-            let text = format!("{prompt}\n\n[recovery] Verify the already recorded workspace changes: {}. Do not repeat completed mutations.", debt.paths.join(", "));
+            let text = format!(
+                "{prompt}\n\n[recovery] Verify the already recorded workspace changes: {}. Do not repeat completed mutations.",
+                debt.paths.join(", ")
+            );
             self.log
                 .append(
                     &self.thread,

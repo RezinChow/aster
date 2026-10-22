@@ -32,7 +32,10 @@ async fn assert_no_later_write(root: &Path) {
 #[tokio::test]
 async fn output_capture_and_input_delivery_cannot_deadlock_each_other() {
     let root = tempfile::tempdir().unwrap();
-    let mut command = shell(root.path(), "dd if=/dev/zero bs=1024 count=2048 2>/dev/null | tr '\\000' o; cat > input; printf END; printf diagnostic >&2");
+    let mut command = shell(
+        root.path(),
+        "dd if=/dev/zero bs=1024 count=2048 2>/dev/null | tr '\\000' o; cat > input; printf END; printf diagnostic >&2",
+    );
     let input = vec![b'i'; 128 * 1024];
     let output = execute_owned_process(
         &mut command,
@@ -136,7 +139,10 @@ async fn dropping_an_invocation_cannot_leave_its_background_writer() {
 #[tokio::test]
 async fn successful_exit_also_retires_background_group_members() {
     let root = tempfile::tempdir().unwrap();
-    let mut command = shell(root.path(), "cat >/dev/null; (exec 1>&- 2>&-; touch started; sleep 0.40; touch leaked) & while [ ! -f started ]; do :; done; printf done");
+    let mut command = shell(
+        root.path(),
+        "cat >/dev/null; (exec 1>&- 2>&-; touch started; sleep 0.40; touch leaked) & while [ ! -f started ]; do :; done; printf done",
+    );
     let output = execute_owned_process(
         &mut command,
         b"{}",

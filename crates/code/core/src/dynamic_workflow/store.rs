@@ -39,13 +39,13 @@ impl CrossProcessFlowEventStore {
                 return Err(a3s_flow::FlowError::Store(format!(
                     "refusing to use symlinked event-store lock {}",
                     lock_path.display()
-                )))
+                )));
             }
             Ok(metadata) if !metadata.is_file() => {
                 return Err(a3s_flow::FlowError::Store(format!(
                     "event-store lock {} exists but is not a file",
                     lock_path.display()
-                )))
+                )));
             }
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -129,14 +129,14 @@ pub async fn recover_dynamic_workflow_step_output(
     let log_path = store_root.join(format!("{run_id}.jsonl"));
     match tokio::fs::symlink_metadata(&log_path).await {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
-            return Ok(None)
+            return Ok(None);
         }
         Ok(_) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
             return Err(error).with_context(|| {
                 format!("inspect dynamic workflow history {}", log_path.display())
-            })
+            });
         }
     }
     validate_dynamic_workflow_directory(&workspace_root.join(".a3s"), ".a3s").await?;
