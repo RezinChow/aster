@@ -94,3 +94,14 @@ single red still the pre-existing child_debt).
 - #13 /app read-only — root-caused to the flatpak prefix (commented);
   the fix lane (writable WORKDIR mapping) stays open in that thread.
 Live open-issue inventory after this pass: zero.
+
+
+## Real-LLM e2e (tui_913, Layer C gate)
+
+First run failed before any model call: the user ACL still named the
+`workbuddy` import whose closed-set member the removal commit deleted,
+making the whole ACL unloadable (`CodeConfig::from_file` refused —
+fail-closed, correctly). Fixed the user's two ACL layers to the live
+set (`import_accounts = ["codex"]`) and reran. NOTE for the removal
+lane: any user ACL carrying `workbuddy` now hard-fails config load; a
+migration note belongs in the release changelog.
