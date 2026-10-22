@@ -89,9 +89,62 @@ studio $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
       echo "invalid tenant slug: ${slug}" >&2
       exit 1
     fi
+    # The toolchain (node, cargo, bun) lives under $HOME and is only on PATH
+    # after the profile block runs, which a shell opened earlier never saw.
+    # Add it here so `just studio` works from any shell, not just a fresh one.
+    for dir in "${HOME}/.local/node24/bin" "${HOME}/.cargo/bin" "${HOME}/.bun/bin"; do
+      if [ -d "${dir}" ] && [[ ":${PATH}:" != *":${dir}:"* ]]; then
+        PATH="${dir}:${PATH}"
+      fi
+    done
+    export PATH
     bun scripts/check-tenant.ts "${slug}" >/dev/null
+    if [ "$(id -u)" -eq 0 ]; then
+      echo "warning: Studio is starting as root; the fcitx immodule cannot commit composed text for a non-session uid, so IME input will not work. Start it as the session user." >&2
+    fi
     export A3S_TENANT_SLUG="${slug}"
     export STUDIO_RENDERER_DEV="${STUDIO_RENDERER_DEV:-1}"
+    cd apps/studio
+    exec scripts/studio-shell.sh
+
+# Start Studio through the X11/XIM input path.
+# The host window is a GTK3 WebKitGTK webview that reaches the input method
+# through the fcitx GTK immodule. That module is D-Bus bound to the session
+# user, so the composed text only commits for the owner of the session bus;
+# run any other way (for example as root) and the webview receives raw
+# keystrokes, so typing "nihao" leaves "nihao" in the composer instead of
+# "你好". The XIM bridge talks to the same input method over X11 instead, so
+# it commits composed text for any client that can open the display.
+# Measured on this host: fcitx module -> "nihao", XIM -> "你好".
+studio-ime $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! [[ "${slug}" =~ ^[a-z][a-z0-9-]{0,31}$ ]]; then
+      echo "invalid tenant slug: ${slug}" >&2
+      exit 1
+    fi
+    python3 apps/studio/scripts/studio_product.py "$slug" feature >/dev/null
+    root="$PWD"
+    if [ "$(id -u)" -eq 0 ]; then
+      echo "warning: Studio is starting as root; the XIM bridge still commits text, but the session input method is owned by another uid, so prefer the session user." >&2
+    fi
+    export A3S_TENANT_SLUG="${slug}"
+    export STUDIO_RENDERER_DEV="${STUDIO_RENDERER_DEV:-1}"
+    export GDK_BACKEND=x11
+    export GTK_IM_MODULE=xim
+    export XMODIFIERS="${XMODIFIERS:-@im=fcitx}"
+    binary="$root/target/debug/Studio"
+    renderer="http://127.0.0.1:${STUDIO_RENDERER_PORT:-4318}/windows/main/index.html"
+    # A renderer left behind by an earlier session still serves this product, but
+    # the ownership probe in scripts/studio-dev.mjs cannot attribute it once its
+    # parent is gone and then refuses to reuse the port. Match the page instead.
+    page="$(curl -fsS --max-time 2 "$renderer" 2>/dev/null | head -c 2000 || true)"
+    if [[ -x "$binary" && "$page" == *data-a3s-product* ]]; then
+      export TAURI_CONFIG="$(python3 apps/studio/scripts/studio_product.py "$slug" tauri-config)"
+      export A3S_ACP_AGENT_BIN="${A3S_ACP_AGENT_BIN:-$root/target/debug/a3s-code-acp}"
+      cd apps/studio
+      exec "$binary"
+    fi
     cd apps/studio
     exec scripts/studio-shell.sh
 
@@ -102,6 +155,19 @@ build-studio-release $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
     export A3S_TENANT_SLUG="$slug"
     cd apps/studio
     exec pnpm package:host
+
+# Regenerate the Aster app icons: the three SVG sources, the size ladder, and
+# the .ico/.icns containers. Sources live in apps/web/public/tenant/aster.
+app-icons:
+    python3 scripts/app-icon.py
+    python3 scripts/app-icon-assets.py
+
+# Install this checkout as a desktop application: a launcher entry plus the
+# hicolor icon ladder under $XDG_DATA_HOME. Without it a dock has no entry to
+# match the window against and paints a generic gear instead of the icon.
+# `just studio-desktop remove` undoes it.
+studio-desktop action='install':
+    python3 apps/studio/scripts/studio-desktop.py {{action}}
 
 # Documented desktop host build. Same result as the shared host recipe.
 build-desktop $slug=env_var_or_default('A3S_TENANT_SLUG', 'aster'):
