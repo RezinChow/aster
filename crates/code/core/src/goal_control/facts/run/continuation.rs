@@ -3,8 +3,13 @@
 use super::*;
 use crate::goal_control::GoalContinuationPolicyV1;
 
+// The delta basis counts any of the four turn dimensions (information,
+// mutation, uncertainty, plan) recorded on the settled slice; hosts that
+// feed deltas keep long read-only tasks alive that the mutation-only
+// basis would starve.
 closed_set!(ProgressBasis {
     ObservedWorkspaceMutationV1 => "observed_workspace_mutation_v1",
+    TurnProgressDeltaV1 => "turn_progress_delta_v1",
 });
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,6 +32,14 @@ impl ContinuationSource {
             policy,
             observed_unix_ms,
             progress_basis: Some(ProgressBasis::ObservedWorkspaceMutationV1),
+        }
+    }
+
+    pub(crate) fn turn_progress(policy: GoalContinuationPolicyV1, observed_unix_ms: u64) -> Self {
+        Self {
+            policy,
+            observed_unix_ms,
+            progress_basis: Some(ProgressBasis::TurnProgressDeltaV1),
         }
     }
 }
@@ -67,7 +80,9 @@ impl ContinuationUsage {
         let stall = source.policy.max_no_progress_slices.get();
         let since_progress = match source.progress_basis {
             None => self.legacy_slices_since_progress,
-            Some(ProgressBasis::ObservedWorkspaceMutationV1) => self.slices_since_progress,
+            Some(
+                ProgressBasis::ObservedWorkspaceMutationV1 | ProgressBasis::TurnProgressDeltaV1,
+            ) => self.slices_since_progress,
         };
         let replanned = since_progress == stall && self.accepted_plan != self.slice_plan;
         if since_progress >= stall && !replanned {

@@ -79,3 +79,41 @@ fn the_json_shape_of_a_delta_is_the_four_dimensions() {
         })
     );
 }
+
+#[test]
+fn a_read_only_slice_with_information_progress_counts() {
+    // The P2 lifeline: three receipts applied, no mutation anywhere — the
+    // slice is NOT stall material under the delta basis.
+    let delta = super::TurnProgressDelta {
+        information_delta: 3,
+        mutation_delta: 0,
+        uncertainty_delta: 0,
+        plan_delta: 0,
+    };
+    assert!(
+        delta.information_delta > 0
+            || delta.mutation_delta > 0
+            || delta.uncertainty_delta != 0
+            || delta.plan_delta > 0
+    );
+    let zero = super::TurnProgressDelta::default();
+    assert!(
+        !(zero.information_delta > 0
+            || zero.mutation_delta > 0
+            || zero.uncertainty_delta != 0
+            || zero.plan_delta > 0)
+    );
+}
+
+#[test]
+fn the_slice_accumulator_folds_turns_and_resets_on_take() {
+    let mut ledger = MutationLedger::default();
+    ledger.note_assistant_output();
+    let _ = ledger.settle_prior_turns(1);
+    ledger.note_assistant_output();
+    let _ = ledger.settle_prior_turns(2);
+    let slice = ledger.take_slice_delta();
+    assert_eq!(slice.plan_delta, 2, "both turns' outputs folded");
+    // Taking again yields a fresh (zero) slice.
+    assert_eq!(ledger.take_slice_delta(), Default::default());
+}

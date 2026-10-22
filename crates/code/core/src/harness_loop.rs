@@ -186,7 +186,7 @@ struct OpenWorkspaceChild {
 /// One turn's progress across the four dimensions the admission policy
 /// reads. A stall is ZERO on every dimension; exploration alone (nonzero
 /// information) never stalls.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TurnProgressDelta {
     /// Distinct tool receipts first applied this turn.
     pub information_delta: u64,
@@ -228,6 +228,30 @@ impl MutationLedger {
             uncertainty_open: open_now,
             ..Default::default()
         };
+        // Fold the turn into the slice accumulator the settle path reads.
+        self.slice_progress.receipts_applied += delta.information_delta;
+        self.slice_progress.effects_recorded += delta.mutation_delta;
+        self.slice_progress.assistant_outputs += delta.plan_delta;
+        self.slice_progress.uncertainty_open = open_now;
+        delta
+    }
+
+    /// The slice's accumulated progress, then reset the slice counters.
+    /// Called when the goal settles the slice; absence of any ledger makes
+    /// the settle fall back to mutation-only progress.
+    pub(crate) fn take_slice_delta(&mut self) -> TurnProgressDelta {
+        let open_now =
+            (self.unresolved_tool_effects.len() + self.recorded_uncertainties.len()) as i64;
+        let delta = TurnProgressDelta {
+            information_delta: self.slice_progress.receipts_applied,
+            mutation_delta: self.slice_progress.effects_recorded,
+            uncertainty_delta: self.slice_progress.uncertainty_open - open_now,
+            plan_delta: self.slice_progress.assistant_outputs,
+        };
+        self.slice_progress = TurnProgress {
+            uncertainty_open: open_now,
+            ..Default::default()
+        };
         delta
     }
 }
@@ -265,6 +289,10 @@ pub struct MutationLedger {
     /// Progress counters for the CURRENT turn (reset at each settle).
     #[serde(default)]
     turn_progress: TurnProgress,
+    /// Progress accumulated across the CURRENT slice's turns (reset when a
+    /// slice settles and the fact path takes its delta).
+    #[serde(skip)]
+    slice_progress: TurnProgress,
     /// Paths whose first typed before-state in this run was absence.
     /// A later absence is not a remaining effect. Unknown history stays out.
     /// This set is not part of the effect digest.

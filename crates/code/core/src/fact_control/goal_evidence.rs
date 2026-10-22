@@ -1,7 +1,7 @@
 //! Current Goal step evidence stays a projection of the original receipt fold.
 
 use super::*;
-use crate::verification::{VerificationReport, VerificationSummary, VERIFICATION_REPORT_SCHEMA};
+use crate::verification::{VERIFICATION_REPORT_SCHEMA, VerificationReport, VerificationSummary};
 
 pub(crate) async fn assess_goal_step(
     surface: &SessionSurface,
@@ -165,6 +165,17 @@ pub(crate) fn settle_goal_slice(
     }
     let thread = thread_for_session(&surface.session_id);
     let facts = log.read(&thread)?;
+    // The slice's accumulated turn deltas ride the settle fact; a poisoned
+    // lock or a cancelled run falls back to mutation-only progress.
+    let progress = if surface.cancel.is_cancelled() {
+        None
+    } else {
+        surface
+            .ledger
+            .lock()
+            .ok()
+            .map(|mut guard| guard.take_slice_delta())
+    };
     match crate::goal_control::prepare_settlement(
         &facts,
         &surface.session_id,
@@ -172,6 +183,7 @@ pub(crate) fn settle_goal_slice(
         goal.binding.work_policy_digest.as_deref(),
         run_id,
         usage.filter(|_| !surface.cancel.is_cancelled()),
+        progress,
     ) {
         Ok(Some(pending)) => {
             log.append(&thread, &[pending], None)?;

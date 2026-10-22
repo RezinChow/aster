@@ -533,10 +533,7 @@ impl AgentSession {
             return Ok(None);
         };
         Ok(Some(
-            crate::goal_control::ContinuationSource::observed_mutations(
-                policy,
-                host_clock_unix_ms()?,
-            ),
+            crate::goal_control::ContinuationSource::turn_progress(policy, host_clock_unix_ms()?),
         ))
     }
 
