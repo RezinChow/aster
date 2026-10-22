@@ -246,9 +246,36 @@ impl A3sCodeAgent {
                 let used = snapshot.reported_prompt_tokens as u64;
                 let size = session.context_window_tokens() as u64;
                 if used > 0 && size > 0 {
+                    // The wire struct has no output/cache fields, so the
+                    // complete accounting rides _meta (the ACP extensibility
+                    // channel) for clients that sum costs (#15).
+                    let mut update = acp::UsageUpdate::new(used, size);
+                    let meta = serde_json::Map::from_iter([
+                        (
+                            "completionTokens".to_string(),
+                            serde_json::json!(snapshot.reported_completion_tokens),
+                        ),
+                        (
+                            "totalTokens".to_string(),
+                            serde_json::json!(snapshot.reported_total_tokens),
+                        ),
+                        (
+                            "cacheReadTokens".to_string(),
+                            serde_json::json!(snapshot.reported_cache_read_tokens),
+                        ),
+                        (
+                            "cacheWriteTokens".to_string(),
+                            serde_json::json!(snapshot.reported_cache_write_tokens),
+                        ),
+                        (
+                            "callSequence".to_string(),
+                            serde_json::json!(snapshot.call_sequence),
+                        ),
+                    ]);
+                    update.meta = Some(meta);
                     self.emit(acp::SessionNotification::new(
                         session_id.clone(),
-                        acp::SessionUpdate::UsageUpdate(acp::UsageUpdate::new(used, size)),
+                        acp::SessionUpdate::UsageUpdate(update),
                     ))
                     .await;
                 }
@@ -805,4 +832,74 @@ pub(super) fn worker_join_failure(join_error: tokio::task::JoinError) -> String 
         Err(join_error) => format!("worker aborted: {join_error}"),
     };
     format!("turn worker died: {detail}")
+}
+
+#[cfg(test)]
+mod usage_meta_tests {
+    use super::*;
+
+    fn snapshot() -> a3s_code_core::harness_evidence::ModelUsageSnapshotV1 {
+        a3s_code_core::harness_evidence::ModelUsageSnapshotV1 {
+            schema: "test".into(),
+            call_sequence: 7,
+            input_snapshot_digest: "input-digest".into(),
+            estimated_prompt_tokens: 100,
+            reported_prompt_tokens: 90,
+            reported_completion_tokens: 40,
+            reported_total_tokens: 130,
+            reported_cache_read_tokens: Some(10),
+            reported_cache_write_tokens: Some(5),
+            tool_results: a3s_code_core::harness_evidence::ToolResultContextUsageV1 {
+                total_count: 0,
+                unique_count: 0,
+                repeated_count: 0,
+                content_bytes: 0,
+                repeated_content_bytes: 0,
+                estimated_tokens: 0,
+                repeated_estimated_tokens: 0,
+                contents_digest: None,
+                repeated_contents_digest: None,
+            },
+            snapshot_digest: "digest".into(),
+        }
+    }
+
+    #[test]
+    fn the_usage_update_carries_the_full_accounting_in_meta() {
+        let snapshot = snapshot();
+        let used = snapshot.reported_prompt_tokens as u64;
+        let size = 32_768u64;
+        let mut update = acp::UsageUpdate::new(used, size);
+        let meta = serde_json::Map::from_iter([
+            (
+                "completionTokens".to_string(),
+                serde_json::json!(snapshot.reported_completion_tokens),
+            ),
+            (
+                "totalTokens".to_string(),
+                serde_json::json!(snapshot.reported_total_tokens),
+            ),
+            (
+                "cacheReadTokens".to_string(),
+                serde_json::json!(snapshot.reported_cache_read_tokens),
+            ),
+            (
+                "cacheWriteTokens".to_string(),
+                serde_json::json!(snapshot.reported_cache_write_tokens),
+            ),
+            (
+                "callSequence".to_string(),
+                serde_json::json!(snapshot.call_sequence),
+            ),
+        ]);
+        update.meta = Some(meta);
+        let wire = serde_json::to_value(&update).unwrap();
+        assert_eq!(wire["used"], 90);
+        assert_eq!(wire["size"], 32_768);
+        assert_eq!(wire["_meta"]["completionTokens"], 40);
+        assert_eq!(wire["_meta"]["totalTokens"], 130);
+        assert_eq!(wire["_meta"]["cacheReadTokens"], 10);
+        assert_eq!(wire["_meta"]["cacheWriteTokens"], 5);
+        assert_eq!(wire["_meta"]["callSequence"], 7);
+    }
 }
