@@ -65,7 +65,7 @@ def generate(args):
         if existing_version >= version and not args.force:
             relation = "equal to" if existing_version == version else "newer than"
             raise SystemExit(
-                f"refusing: existing published version {args.existing_version_display} is {relation} {args.version}"
+                f"refusing: existing published version {'.'.join(map(str, existing_version))} is {relation} {args.version}"
             )
     notes = Path(args.notes).read_text(encoding="utf-8") if args.notes else ""
     manifest = {
@@ -88,7 +88,6 @@ def generate(args):
     Path(args.out).write_text(
         json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
     )
-    args.existing_version_display = args.version
     print(f"wrote {args.out} version {args.version} platform {args.platform}")
 
 
@@ -135,7 +134,7 @@ def main(argv):
     gen.add_argument("--out", required=True)
     gen.add_argument("--existing", help="current published manifest for regression refusal")
     gen.add_argument("--force", action="store_true")
-    gen.set_defaults(func=generate, existing_version_display="")
+    gen.set_defaults(func=generate)
     chk = sub.add_parser("check")
     chk.add_argument("--manifest", required=True)
     chk.set_defaults(func=check)
