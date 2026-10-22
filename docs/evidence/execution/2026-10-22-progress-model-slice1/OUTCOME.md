@@ -57,3 +57,18 @@ check reads the ledger.
 The same session's WorkBuddy integration was removed by `288e53a3b`
 (concurrent session); its evidence doc now records the removal, and the
 orphaned `write_auth_json` widening was reverted.
+
+
+## Phase 1 addendum (commit 5e855a3d2)
+
+`TurnProgressDelta` (information/mutation/uncertainty/plan) is computed
+at the settle watermark and returned to the fact path; 4 hermetic tests
+pin the all-zero stall case, text-exploration, obligation-growth sign,
+and the JSON shape. Battery 279/1 (the single red pre-existing).
+
+## Phase 2 seam discovery (commit e3232d260)
+
+The stall exit already exists (`slices_since_progress`, bound 3, replan
+grace) behind a `ProgressBasis` closed set with one mutation-only
+member; P2 narrows to adding a `TurnProgressDeltaV1` basis member fed
+by Phase 1's settle output. No new termination machinery is needed.
