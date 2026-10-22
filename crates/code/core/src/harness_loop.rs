@@ -183,6 +183,55 @@ struct OpenWorkspaceChild {
     nongit: bool,
 }
 
+/// One turn's progress across the four dimensions the admission policy
+/// reads. A stall is ZERO on every dimension; exploration alone (nonzero
+/// information) never stalls.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct TurnProgressDelta {
+    /// Distinct tool receipts first applied this turn.
+    pub information_delta: u64,
+    /// Verified effect records this turn (changes or failed paths).
+    pub mutation_delta: u64,
+    /// Net decrease of unresolved plus recorded obligations.
+    pub uncertainty_delta: i64,
+    /// Assistant output (text or plan) landed this turn.
+    pub plan_delta: u64,
+}
+
+/// In-flight counters behind [`TurnProgressDelta`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+struct TurnProgress {
+    receipts_applied: u64,
+    effects_recorded: u64,
+    uncertainty_open: i64,
+    assistant_outputs: u64,
+}
+
+impl MutationLedger {
+    /// Record that an assistant output (text or plan update) landed this
+    /// turn. Fed by the fact path; never inferred from tools.
+    pub(crate) fn note_assistant_output(&mut self) {
+        self.turn_progress.assistant_outputs += 1;
+    }
+
+    /// The deltas of the turn being settled, then reset the counters.
+    fn take_turn_delta(&mut self) -> TurnProgressDelta {
+        let open_now =
+            (self.unresolved_tool_effects.len() + self.recorded_uncertainties.len()) as i64;
+        let delta = TurnProgressDelta {
+            information_delta: self.turn_progress.receipts_applied,
+            mutation_delta: self.turn_progress.effects_recorded,
+            uncertainty_delta: self.turn_progress.uncertainty_open - open_now,
+            plan_delta: self.turn_progress.assistant_outputs,
+        };
+        self.turn_progress = TurnProgress {
+            uncertainty_open: open_now,
+            ..Default::default()
+        };
+        delta
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MutationLedger {
     records: Vec<MutationRecord>,
@@ -213,6 +262,9 @@ pub struct MutationLedger {
     /// latch releases only when the model advances to a later turn.
     #[serde(default)]
     settled_turn_watermark: u64,
+    /// Progress counters for the CURRENT turn (reset at each settle).
+    #[serde(default)]
+    turn_progress: TurnProgress,
     /// Paths whose first typed before-state in this run was absence.
     /// A later absence is not a remaining effect. Unknown history stays out.
     /// This set is not part of the effect digest.
@@ -609,11 +661,13 @@ impl MutationLedger {
     /// from BEFORE `turn` settle into the recorded set; same-turn denies are
     /// untouched. This is the deadlock exit — the latch can no longer outlive
     /// the turn it arose in.
-    pub(crate) fn settle_prior_turns(&mut self, turn: u64) {
+    pub(crate) fn settle_prior_turns(&mut self, turn: u64) -> Option<TurnProgressDelta> {
         if turn > self.settled_turn_watermark {
             self.settle_turn_uncertainties();
             self.settled_turn_watermark = turn;
+            return Some(self.take_turn_delta());
         }
+        None
     }
 
     /// Turn settlement: unresolved non-child obligations become recorded,
@@ -663,6 +717,7 @@ impl MutationLedger {
         if !self.applied_tool_receipts.insert(key.clone()) {
             return;
         }
+        self.turn_progress.receipts_applied += 1;
         // Obligations are NOT discharged by an observed receipt: the pinned
         // invariants (future terminal never erases prepared debt; child debt
         // needs its exact committed terminal) own every discharge path. The
@@ -1437,6 +1492,7 @@ fn append_effect_field(canonical: &mut Vec<u8>, field: &[u8]) {
 mod receipt_tests;
 
 #[cfg(test)]
+mod progress_delta_tests;
 mod receipt_restore_tests;
 
 #[cfg(test)]

@@ -6,10 +6,9 @@ mod cache_proof;
 pub(super) use cache_proof::CacheProofCursor;
 
 use a3s_effect::{
-    Effect, PreparedToolExecution, ToolAdmissionIdentityV1, ToolEffectObservationV1,
-    ToolExecutionOutcome, ToolExecutionResultV1, ToolObservationCompleteness,
-    ToolPreparationRequest, ToolPreparedV1, ToolRecoveryPolicy, TOOL_PREPARED_SCHEMA,
-    TOOL_RESULT_SCHEMA,
+    Effect, PreparedToolExecution, TOOL_PREPARED_SCHEMA, TOOL_RESULT_SCHEMA,
+    ToolAdmissionIdentityV1, ToolEffectObservationV1, ToolExecutionOutcome, ToolExecutionResultV1,
+    ToolObservationCompleteness, ToolPreparationRequest, ToolPreparedV1, ToolRecoveryPolicy,
 };
 
 pub(super) fn runner_result_value(
@@ -81,7 +80,9 @@ pub(super) async fn prepare_tools(
     // mutating calls below.
     if let Some(ledger) = tools.ledger.as_ref() {
         if let Ok(mut guard) = ledger.lock() {
-            guard.settle_prior_turns(request.identity.turn as u64);
+            // The delta is the Phase 2 admission input; Phase 1 observes it
+            // without acting.
+            let _delta = guard.settle_prior_turns(request.identity.turn as u64);
         }
     }
     let original_permission = run_permission(
