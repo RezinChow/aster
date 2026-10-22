@@ -85,10 +85,15 @@ mod tool_result_runtime;
 mod tool_turn;
 mod turn_context;
 
-/// Maximum number of tool execution rounds before stopping
+/// Interactive tool-round ceiling. Origin: the original interactive loop's
+/// budget; terminal-bench-class long tasks go unattended (256 there, see
+/// acp unattended::LOOP_POLICY). Doubled once from 25 in the harness's
+/// upstream lineage.
 pub(crate) const MAX_TOOL_ROUNDS: usize = 50;
 
-/// Window used when auto-compact is on and the model has no configured context.
+/// Window used when auto-compact is on and the model has no configured
+/// context. Origin: conservative floor below modern 200k-class windows so
+/// compaction fires before the provider rejects the prompt.
 pub(crate) const UNKNOWN_MODEL_CONTEXT_TOKENS: usize = 128_000;
 
 /// Explicit option, then the model's configured window, then a fallback.
@@ -112,7 +117,8 @@ pub(crate) fn resolve_context_window(
 /// A declared window below this cannot host the harness's fixed prompt
 /// (system prompt, skills, workspace context); such a session would sit at
 /// 100% context from the first turn and, with auto-compact on, thrash
-/// compaction forever. Refuse with the reason instead.
+/// compaction forever. Refuse with the reason instead. Origin: the
+/// 2026-10-22 context-100% incident (declared 4096).
 pub(crate) const MIN_HOSTABLE_CONTEXT_TOKENS: usize = 12_288;
 
 /// The declared or resolved window, or a named refusal when it is too small
