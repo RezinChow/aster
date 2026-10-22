@@ -25,6 +25,8 @@ path = "src/main.rs"
 # Async runtime + misc.
 flate2 = {workspace = true}
 reqwest = {workspace = true}
+chrono = {workspace = true}
+a3s-code-acp = {path = "../../crates/code/acp"}
 sha2 = {workspace = true}
 tar = {workspace = true}
 tokio = {version = "1", features = ["full", "sync", "rt", "macros", "rt-multi-thread", "signal", "io-util", "io-std"]}
