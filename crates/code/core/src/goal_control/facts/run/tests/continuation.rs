@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use super::*;
+use crate::goal_control::GoalContinuationPolicyV1;
 
 fn source(max: u64, stalled: u64, clock: u64) -> ContinuationSource {
     serde_json::from_value(serde_json::json!({
@@ -492,4 +493,79 @@ fn the_progress_basis_closed_set_parses_both_members() {
         ProgressBasis::TurnProgressDeltaV1.as_str(),
         "turn_progress_delta_v1"
     );
+}
+
+/// The satisfiability exit (specs/010 P4 slice 1): a stalled goal under
+/// the delta basis reaches a TERMINAL refusal — never an infinite admit
+/// loop. This is the frozen-server scenario pinned as a named refusal.
+#[test]
+fn a_zero_delta_stall_terminates_instead_of_admitting_forever() {
+    let policy = serde_json::from_value::<GoalContinuationPolicyV1>(serde_json::json!({
+        "automatic_enabled": true,
+        "max_slices": 1_000,
+        "max_no_progress_slices": 3,
+        "deadline_unix_ms": 100_000,
+    }))
+    .unwrap();
+    let mut usage = ContinuationUsage::default();
+    // Slices 1..3 admit (no progress yet, under the bound).
+    for clock in [100u64, 200, 300] {
+        let ok = usage.admit(&ContinuationSource::turn_progress(policy.clone(), clock));
+        assert!(ok.is_ok(), "slice under the stall bound admits");
+        // Zero progress: nothing resets slices_since_progress.
+    }
+    // The 4th admit (past the bound, unchanged plan) is the terminal exit.
+    let refused = usage
+        .admit(&ContinuationSource::turn_progress(policy.clone(), 400))
+        .expect_err("past the stall bound with an unchanged plan refuses");
+    match refused {
+        GoalControlError::Refused { refusal, .. } => {
+            assert_eq!(refusal, GoalRefusal::Waiting);
+        }
+        other => panic!("expected a Waiting refusal, got {other:?}"),
+    }
+    // A changed plan earns exactly one more slice, then terminates again.
+    usage.accepted_plan = Some(test_plan_identity(7));
+    let grace = usage.admit(&ContinuationSource::turn_progress(policy.clone(), 500));
+    assert!(grace.is_ok(), "a changed plan earns one more slice");
+    let final_refusal = usage
+        .admit(&ContinuationSource::turn_progress(policy.clone(), 600))
+        .expect_err("a second replan earns nothing");
+    assert!(matches!(
+        final_refusal,
+        GoalControlError::Refused {
+            refusal: GoalRefusal::Waiting,
+            ..
+        }
+    ));
+}
+
+/// A nonzero delta resets the stall count — the read-only lifeline: 20
+/// slices of pure exploration never terminate under the delta basis.
+#[test]
+fn information_progress_keeps_admitting_indefinitely() {
+    let policy = serde_json::from_value::<GoalContinuationPolicyV1>(serde_json::json!({
+        "automatic_enabled": true,
+        "max_slices": 1_000,
+        "max_no_progress_slices": 3,
+        "deadline_unix_ms": 100_000,
+    }))
+    .unwrap();
+    let mut usage = ContinuationUsage::default();
+    for i in 0..20 {
+        let ok = usage.admit(&ContinuationSource::turn_progress(policy.clone(), 100 + i));
+        assert!(ok.is_ok(), "slice {i} with progress information admits");
+        // The fact fold resets the count on any nonzero dimension; the
+        // admission path sees slices_since_progress back to zero each time.
+        usage.slices_since_progress = 0;
+    }
+}
+
+fn test_plan_identity(seed: u64) -> ExecutionIdentityV1 {
+    serde_json::from_value(serde_json::json!({
+        "schema": "plan",
+        "domain": format!("satisfiability-{seed}"),
+        "digest": format!("cap-{seed}"),
+    }))
+    .unwrap()
 }
