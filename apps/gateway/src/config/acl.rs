@@ -1,6 +1,12 @@
 //! ACL configuration parser for A3S Gateway.
 
 mod inference;
+#[path = "static_bundle_acl.rs"]
+mod static_bundle_acl;
+#[path = "static_object_authority_acl.rs"]
+mod static_object_authority_acl;
+
+use static_bundle_acl::parse_static_bundle_block;
 
 use super::{
     default_management_allowed_ips, default_shutdown_timeout, AnonymousChatbotUpstream,
@@ -8,14 +14,13 @@ use super::{
     FileProviderConfig, GatewayConfig, HealthCheckConfig, KubernetesProviderConfig,
     LoadBalancerConfig, ManagedConfig, ManagedTargetConfig, ManagementConfig, ManagementTlsConfig,
     MiddlewareConfig, MirrorConfig, OperatingMode, Protocol, ProviderConfig, RevisionConfig,
-    RolloutConfig, ScalingConfig, ServerConfig, ServiceConfig, StaticBundleConfig,
-    StaticBundleManifestConfig, StickyConfig, Strategy, TlsConfig, UsageSpoolConfig,
+    RolloutConfig, ScalingConfig, ServerConfig, ServiceConfig, StickyConfig, Strategy, TlsConfig,
+    UsageSpoolConfig,
 };
 use crate::error::{GatewayError, Result};
-use crate::static_object::StaticObjectEntry;
 use a3s_acl::{parse_acl, Block, Value};
-use std::collections::{BTreeMap, HashMap};
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::path::Path;
 
 pub(crate) fn parse_gateway_config(content: &str) -> Result<GatewayConfig> {
     let doc = parse_acl(content)
@@ -70,9 +75,15 @@ pub(crate) fn parse_gateway_config(content: &str) -> Result<GatewayConfig> {
             }
             "static_bundle" | "static_bundles" => {
                 let name = label_or_string_attr(block, &["name"])?;
-                config
+                if config
                     .static_bundles
-                    .insert(name, parse_static_bundle_block(block)?);
+                    .insert(name.clone(), parse_static_bundle_block(block)?)
+                    .is_some()
+                {
+                    return Err(config_error(format!(
+                        "Duplicate static_bundles target '{name}'"
+                    )));
+                }
             }
             "middleware" | "middlewares" => {
                 let name = label_or_string_attr(block, &["name"])?;
@@ -225,6 +236,27 @@ fn parse_mode_block(block: &Block) -> Result<OperatingMode> {
 }
 
 fn parse_managed_block(block: &Block) -> Result<ManagedConfig> {
+    if !block.labels.is_empty() {
+        return Err(config_error("managed does not accept labels"));
+    }
+    for field in block.attributes.keys() {
+        if !["gateway_id", "state_file"].contains(&field.as_str()) {
+            return Err(config_error(format!("Unknown managed field '{field}'")));
+        }
+    }
+    for nested in &block.blocks {
+        if !["usage_spool", "static_objects"].contains(&nested.name.as_str()) {
+            return Err(config_error(format!(
+                "Unknown managed block '{}'",
+                nested.name
+            )));
+        }
+    }
+    if children(block, &["usage_spool"]).len() > 1 {
+        return Err(config_error(
+            "managed contains duplicate usage_spool blocks",
+        ));
+    }
     let gateway_id = string_attr(block, &["gateway_id"])?
         .map(|value| {
             uuid::Uuid::parse_str(&value)
@@ -235,10 +267,21 @@ fn parse_managed_block(block: &Block) -> Result<ManagedConfig> {
     let usage_spool = child(block, "usage_spool")
         .map(parse_usage_spool_block)
         .transpose()?;
+    let authorities = children(block, &["static_objects"]);
+    if authorities.len() > 1 {
+        return Err(config_error(
+            "managed contains duplicate static_objects blocks",
+        ));
+    }
+    let static_objects = authorities
+        .first()
+        .map(|block| static_object_authority_acl::parse(block))
+        .transpose()?;
     Ok(ManagedConfig {
         gateway_id,
         state_file,
         usage_spool,
+        static_objects,
     })
 }
 
@@ -482,43 +525,6 @@ fn parse_service_block(block: &Block) -> Result<ServiceConfig> {
         failover: child(block, "failover")
             .map(parse_failover_block)
             .transpose()?,
-    })
-}
-
-fn parse_static_bundle_block(block: &Block) -> Result<StaticBundleConfig> {
-    let manifest_block = child(block, "manifest")
-        .ok_or_else(|| config_error("static_bundles require a nested manifest { ... } block"))?;
-    let mut entries = BTreeMap::new();
-    for entry in children(manifest_block, &["entries", "entry"]) {
-        let path = label_or_string_attr(entry, &["path"])?;
-        entries.insert(
-            path,
-            StaticObjectEntry {
-                digest: required_string_attr(entry, &["digest"])?,
-                size: u64_attr(entry, &["size"])?
-                    .ok_or_else(|| config_error("static_bundles manifest entries require size"))?,
-                media_type: required_string_attr(entry, &["media_type"])?,
-                content_encoding: string_attr(entry, &["content_encoding"])?,
-            },
-        );
-    }
-    if entries.is_empty() {
-        return Err(config_error(
-            "static_bundles manifest requires at least one entries block",
-        ));
-    }
-
-    Ok(StaticBundleConfig {
-        release_digest: required_string_attr(block, &["release_digest"])?,
-        object_namespace: required_string_attr(block, &["object_namespace"])?,
-        base_path: string_attr(block, &["base_path"])?.unwrap_or_else(|| "/".into()),
-        spa_fallback: string_attr(block, &["spa_fallback"])?,
-        provenance_digest: string_attr(block, &["provenance_digest"])?,
-        manifest: StaticBundleManifestConfig {
-            entry_document: required_string_attr(manifest_block, &["entry_document"])?,
-            entries,
-        },
-        local_digest_store: string_attr(block, &["local_digest_store"])?.map(PathBuf::from),
     })
 }
 

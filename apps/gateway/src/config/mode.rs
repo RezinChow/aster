@@ -59,10 +59,11 @@ impl GatewayConfig {
         if !self.routers.is_empty()
             || !self.services.is_empty()
             || !self.middlewares.is_empty()
+            || !self.static_bundles.is_empty()
             || self.inference.is_some()
         {
             return Err(GatewayError::Config(
-                "A cloud-managed bootstrap ACL with managed.gateway_id cannot define traffic routers, services, middlewares, or inference policy; deliver them as a managed snapshot"
+                "A cloud-managed bootstrap ACL with managed.gateway_id cannot define traffic routers, services, middlewares, static bundles, or inference policy; deliver them as a managed snapshot"
                     .to_string(),
             ));
         }
@@ -173,6 +174,11 @@ impl GatewayConfig {
                     "Managed target identity for service '{service}' requires operating mode 'cloud-managed'"
                 )));
             }
+            if self.managed.static_objects.is_some() {
+                return Err(GatewayError::Config(
+                    "managed.static_objects requires operating mode 'cloud-managed'".into(),
+                ));
+            }
             // Standalone static targets need a local authority before activate.
             if let Some(name) = self
                 .static_bundles
@@ -195,12 +201,14 @@ impl GatewayConfig {
                 "Operating mode 'cloud-managed' does not allow 'static_bundles.{name}.local_digest_store'; A3S Cloud owns the object authority"
             )));
         }
-        // Until Cloud WEB0.1 wires the shared object authority, cloud-managed
-        // static_bundles cannot activate. Fail at validate instead of soft-
-        // accepting ACL that later fails in build_static_bundle_runtimes.
-        if let Some(name) = self.static_bundles.keys().min() {
+        if let Some(name) = self
+            .static_bundles
+            .keys()
+            .min()
+            .filter(|_| self.managed.static_objects.is_none())
+        {
             return Err(GatewayError::Config(format!(
-                "static_bundles '{name}' cannot activate in cloud-managed mode until Cloud WEB0.1 wires the shared object authority"
+                "static_bundles '{name}' cannot activate in cloud-managed mode without a trusted bootstrap object authority"
             )));
         }
 
@@ -222,6 +230,14 @@ impl GatewayConfig {
             return Err(GatewayError::Config(
                 "managed.usage_spool requires managed.gateway_id".to_string(),
             ));
+        }
+        if let Some(authority) = &self.managed.static_objects {
+            if self.managed.gateway_id.is_none() {
+                return Err(GatewayError::Config(
+                    "managed.static_objects requires managed.gateway_id".into(),
+                ));
+            }
+            authority.validate()?;
         }
         if let Some(path) = &self.managed.state_file {
             if !path.is_absolute() {

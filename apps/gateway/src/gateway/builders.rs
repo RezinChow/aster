@@ -17,24 +17,64 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Build standalone digest-store runtimes for configured static bundles.
+/// Bind each release to either its standalone store or the trusted deployment
+/// authority. Cloud object reads are checked before the candidate can replace
+/// the currently serving snapshot.
 pub fn build_static_bundle_runtimes(
     config: &GatewayConfig,
 ) -> Result<HashMap<String, Arc<crate::static_object::StaticBundleRuntime>>> {
+    use crate::static_object::port::ReadOnlyObjectPort;
+
     let mut bundles = HashMap::new();
+    let managed = config.mode == crate::config::OperatingMode::CloudManaged;
+    let objects = if managed && !config.static_bundles.is_empty() {
+        let authority = config.managed.static_objects.as_ref().ok_or_else(|| {
+            GatewayError::Config(
+                "static bundles require a trusted bootstrap object authority".into(),
+            )
+        })?;
+        Some(crate::static_object::build_deployment_object_client(
+            authority,
+        )?)
+    } else {
+        None
+    };
     let mut names = config.static_bundles.keys().cloned().collect::<Vec<_>>();
     names.sort();
     for name in names {
         let bundle = &config.static_bundles[&name];
-        let store = bundle.local_digest_store.as_ref().ok_or_else(|| {
-            GatewayError::Config(format!(
-                "static_bundles '{name}' requires local_digest_store in standalone mode"
-            ))
-        })?;
-        let port = Arc::new(crate::static_object::DirectoryObjectAuthority::new(
-            store.clone(),
-        ));
         let manifest = bundle.sealed_manifest();
+        let port: Arc<dyn ReadOnlyObjectPort> = if managed {
+            let authority = config.managed.static_objects.as_ref().ok_or_else(|| {
+                GatewayError::Config(
+                    "static bundles require a trusted bootstrap object authority".into(),
+                )
+            })?;
+            let objects = objects.as_ref().ok_or_else(|| {
+                GatewayError::Config("static object authority client is unavailable".into())
+            })?;
+            Arc::new(
+                crate::static_object::DeploymentObjectAuthority::new(
+                    objects.clone(),
+                    &authority.s3.prefix,
+                    &bundle.object_namespace,
+                    &manifest,
+                    Duration::from_millis(authority.s3.request_timeout_ms),
+                )
+                .map_err(|error| {
+                    GatewayError::Config(format!("static_bundles '{name}': {error}"))
+                })?,
+            )
+        } else {
+            let store = bundle.local_digest_store.as_ref().ok_or_else(|| {
+                GatewayError::Config(format!(
+                    "static_bundles '{name}' requires local_digest_store in standalone mode"
+                ))
+            })?;
+            Arc::new(crate::static_object::DirectoryObjectAuthority::new(
+                store.clone(),
+            ))
+        };
         let manifest_digest = manifest.content_fingerprint();
         bundles.insert(
             name.clone(),
@@ -50,6 +90,54 @@ pub fn build_static_bundle_runtimes(
         );
     }
     Ok(bundles)
+}
+
+/// Check provider reachability and the exact entry document before publishing
+/// any managed candidate. At most eight reads run together, with one bounded
+/// overall activation deadline; rejected candidates leave the prior runtime.
+pub(super) async fn validate_static_bundle_authorities(
+    config: &GatewayConfig,
+    bundles: &HashMap<String, Arc<crate::static_object::StaticBundleRuntime>>,
+) -> Result<()> {
+    use futures_util::{StreamExt, TryStreamExt};
+    if config.mode != crate::config::OperatingMode::CloudManaged {
+        return Ok(());
+    }
+    let candidates = bundles.values().cloned().collect::<Vec<_>>();
+    let checks =
+        futures_util::stream::iter(candidates.into_iter().map(validate_static_entry_document))
+            .buffer_unordered(8)
+            .try_collect::<Vec<_>>();
+    tokio::time::timeout(Duration::from_secs(60), checks)
+        .await
+        .map_err(|_| {
+            GatewayError::Config("static object authority activation timed out".into())
+        })??;
+    Ok(())
+}
+
+async fn validate_static_entry_document(
+    bundle: Arc<crate::static_object::StaticBundleRuntime>,
+) -> Result<()> {
+    let entry_document =
+        crate::static_object::normalize_object_path(&bundle.manifest.entry_document)
+            .map_err(|error| GatewayError::Config(error.to_string()))?;
+    let entry = bundle
+        .manifest
+        .entries
+        .get(&entry_document)
+        .ok_or_else(|| {
+            GatewayError::Config("static bundle entry document is not admitted".into())
+        })?;
+    let observed = bundle.port.head(&entry.digest).await.map_err(|error| {
+        GatewayError::Config(format!("static_bundles '{}': {error}", bundle.name))
+    })?;
+    if observed.digest != entry.digest || observed.size != entry.size {
+        return Err(GatewayError::Config(
+            "static bundle entry document metadata drifted".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Build per-service HTTP proxies for private upstream CA bundles.

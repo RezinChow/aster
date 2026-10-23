@@ -54,6 +54,7 @@ pub(super) fn inference_config(
             gateway_id: Some(gateway_id),
             state_file: None,
             usage_spool: None,
+            static_objects: None,
         },
         ..GatewayConfig::default()
     };

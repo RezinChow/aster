@@ -301,6 +301,7 @@ impl RejectionKind {
 pub(crate) struct ManagedSnapshotStore {
     gateway_id: Option<Uuid>,
     state_file: Option<PathBuf>,
+    static_objects: Option<crate::config::StaticObjectAuthorityConfig>,
     persistence: Option<ManagedSnapshotPersistence>,
     apply_lock: Mutex<()>,
     state: RwLock<StoredSnapshotState>,
@@ -320,10 +321,19 @@ impl ManagedSnapshotStore {
         Self {
             gateway_id,
             state_file,
+            static_objects: None,
             persistence,
             apply_lock: Mutex::new(()),
             state: RwLock::new(StoredSnapshotState::default()),
         }
+    }
+
+    pub(crate) fn with_static_objects(
+        mut self,
+        authority: Option<crate::config::StaticObjectAuthorityConfig>,
+    ) -> Self {
+        self.static_objects = authority;
+        self
     }
 
     pub(crate) async fn load_recovery(
@@ -413,9 +423,10 @@ impl ManagedSnapshotStore {
                 "Invalid managed snapshot journal: applied_at precedes issued_at".to_string(),
             ));
         }
-        let config = parse_managed_config(&journal.snapshot).map_err(|reason| {
-            GatewayError::Config(format!("Invalid managed snapshot journal: {reason}"))
-        })?;
+        let config = parse_managed_config(&journal.snapshot, self.static_objects.as_ref())
+            .map_err(|reason| {
+                GatewayError::Config(format!("Invalid managed snapshot journal: {reason}"))
+            })?;
         self.validate_state_file(&config)
             .map_err(GatewayError::Config)?;
 
@@ -548,7 +559,7 @@ impl ManagedSnapshotStore {
             );
         }
 
-        let config = match parse_managed_config(&snapshot) {
+        let config = match parse_managed_config(&snapshot, self.static_objects.as_ref()) {
             Ok(config) => config,
             Err(reason) => {
                 return self.reject(requested, reason, RejectionKind::Invalid, now);
@@ -937,8 +948,17 @@ fn validate_digest_format(digest: &str) -> std::result::Result<(), String> {
     Ok(())
 }
 
-fn parse_managed_config(snapshot: &ManagedSnapshot) -> std::result::Result<GatewayConfig, String> {
-    let config = GatewayConfig::from_acl(&snapshot.acl).map_err(|error| error.to_string())?;
+fn parse_managed_config(
+    snapshot: &ManagedSnapshot,
+    trusted_static_objects: Option<&crate::config::StaticObjectAuthorityConfig>,
+) -> std::result::Result<GatewayConfig, String> {
+    let mut config = GatewayConfig::from_acl(&snapshot.acl).map_err(|error| error.to_string())?;
+    if config.managed.static_objects.is_some() {
+        return Err(
+            "Managed snapshots must not carry bootstrap static object authority settings".into(),
+        );
+    }
+    config.managed.static_objects = trusted_static_objects.cloned();
     config.validate().map_err(|error| error.to_string())?;
     if config.mode != OperatingMode::CloudManaged {
         return Err("Managed snapshot ACL must use operating mode 'cloud-managed'".to_string());
@@ -982,7 +1002,8 @@ fn sanitize_reason(reason: &str) -> String {
 /// corrupt, mismatched, or unwritable journal path.
 pub(crate) fn validate_managed_snapshot_activation(config: &GatewayConfig) -> Result<()> {
     let store =
-        ManagedSnapshotStore::new(config.managed.gateway_id, config.managed.state_file.clone());
+        ManagedSnapshotStore::new(config.managed.gateway_id, config.managed.state_file.clone())
+            .with_static_objects(config.managed.static_objects.clone());
     store.validate_recovery_for_activation(Utc::now())
 }
 

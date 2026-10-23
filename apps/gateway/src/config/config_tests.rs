@@ -499,6 +499,8 @@ fn router_middleware_on_non_http_entrypoint_is_not_a_silent_noop() {
 
 #[test]
 fn static_bundle_on_non_http_entrypoint_is_not_a_silent_noop() {
+    // Keep digest syntax valid so this fixture isolates the listener-protocol
+    // refusal, rather than failing earlier during static contract admission.
     let tcp = GatewayConfig::from_acl(
         r#"
             entrypoints "db" {
@@ -511,13 +513,13 @@ fn static_bundle_on_non_http_entrypoint_is_not_a_silent_noop() {
                 entrypoints = ["db"]
             }
             static_bundles "web" {
-                release_digest = "abc"
+                release_digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                 object_namespace = "org/proj/rel"
                 local_digest_store = "missing-store"
                 manifest {
                     entry_document = "index.html"
                     entries "index.html" {
-                        digest = "abc"
+                        digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                         size = 1
                         media_type = "text/html"
                     }
@@ -543,13 +545,13 @@ fn static_bundle_on_non_http_entrypoint_is_not_a_silent_noop() {
                 service = "web"
             }
             static_bundles "web" {
-                release_digest = "abc"
+                release_digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                 object_namespace = "org/proj/rel"
                 local_digest_store = "missing-store"
                 manifest {
                     entry_document = "index.html"
                     entries "index.html" {
-                        digest = "abc"
+                        digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                         size = 1
                         media_type = "text/html"
                     }

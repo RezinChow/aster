@@ -123,6 +123,9 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Async utilities
 async-trait = "0.1"
+# Read-only WEB0 access to the deployment's existing S3 object authority.
+# Match Cloud's object-store protocol implementation; no new object service.
+object_store = { version = "=0.12.4", default-features = false, features = ["aws"] }
 
 # Durable local file locking
 fs2 = "0.4"

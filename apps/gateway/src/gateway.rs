@@ -196,6 +196,7 @@ async fn build_runtime(
     tracing::info!(services = service_registry.len(), "Services registered");
     let passive_health = build_passive_health(config);
     let static_bundles = build_static_bundle_runtimes(config)?;
+    builders::validate_static_bundle_authorities(config, &static_bundles).await?;
     let route_plans = build_route_plans(
         config,
         &router_table,
@@ -700,10 +701,10 @@ impl Gateway {
         // composition (e.g. dual retry policies) must fail at construct, not only
         // when start/reload builds the runtime snapshot.
         let _ = builders::build_pipeline_cache(&config, &config.middlewares, &middleware_registry)?;
-        let managed_snapshots = Arc::new(ManagedSnapshotStore::new(
-            config.managed.gateway_id,
-            config.managed.state_file.clone(),
-        ));
+        let managed_snapshots = Arc::new(
+            ManagedSnapshotStore::new(config.managed.gateway_id, config.managed.state_file.clone())
+                .with_static_objects(config.managed.static_objects.clone()),
+        );
 
         let (shutdown_tx, _shutdown_rx) = tokio::sync::watch::channel(false);
         Ok(Self {

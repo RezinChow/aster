@@ -16,6 +16,9 @@ mod router;
 pub mod scaling;
 mod service;
 mod static_bundle;
+#[cfg(test)]
+mod static_bundle_contract_tests;
+mod static_object_authority;
 mod usage;
 
 pub(crate) use entrypoint::ListenAddress;
@@ -46,6 +49,7 @@ pub use service::{
     ServerConfig, ServiceConfig, StickyConfig, Strategy,
 };
 pub use static_bundle::{StaticBundleConfig, StaticBundleManifestConfig};
+pub use static_object_authority::{StaticObjectAuthorityConfig, StaticObjectS3Config};
 pub use usage::UsageSpoolConfig;
 pub(crate) use usage::DEFAULT_USAGE_CLOUD_INGEST_BATCH_LIMIT;
 #[cfg(test)]
@@ -995,6 +999,11 @@ pub struct ManagedConfig {
     /// Optional node-local durable usage spool.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage_spool: Option<UsageSpoolConfig>,
+
+    /// Bootstrap-only read access to the existing Cloud Web object authority.
+    /// Managed snapshots cannot supply or replace these settings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub static_objects: Option<StaticObjectAuthorityConfig>,
 }
 
 /// Dedicated node API listener configuration.

@@ -7,6 +7,7 @@
 //! See [`docs/static-object-target.md`](../../docs/static-object-target.md).
 
 mod cache;
+mod deployment;
 mod directory;
 mod manifest;
 #[cfg(test)]
@@ -14,9 +15,11 @@ mod memory;
 mod path;
 pub(crate) mod port;
 mod range;
+mod s3;
 mod serve;
 
 pub(crate) use cache::AdmittedObjectCache;
+pub(crate) use deployment::DeploymentObjectAuthority;
 pub(crate) use directory::DirectoryObjectAuthority;
 pub(crate) use manifest::{
     reject_forbidden_static_snapshot_keys, StaticBundleManifest, StaticObjectEntry,
@@ -24,10 +27,12 @@ pub(crate) use manifest::{
 };
 #[cfg(test)]
 pub(crate) use memory::MemoryObjectAuthority;
+pub(crate) use path::normalize_object_path;
 #[cfg(test)]
 pub(crate) use path::normalize_request_path;
 #[cfg(test)]
 pub(crate) use port::{admit_object_bytes, sha256_hex};
+pub(crate) use s3::build_deployment_object_client;
 pub(crate) use serve::{
     serve_static_bundle, static_serve_error_response, StaticBundleRuntime, StaticServeHeaders,
 };
