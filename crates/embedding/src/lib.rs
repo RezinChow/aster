@@ -11,9 +11,11 @@
 //! - Engines stay local. Do not add Python, torch, or a model server process.
 //! - No implicit download source; every byte is in this repository.
 
+pub mod adapter;
 pub mod assets;
 pub mod hygiene;
 pub mod provider;
 pub mod vector;
 
+pub use adapter::LightTierProvider;
 pub use provider::StaticEmbeddingProvider;

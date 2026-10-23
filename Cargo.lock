@@ -296,6 +296,7 @@ dependencies = [
  "a3s-acl",
  "a3s-code-core",
  "a3s-code-mermaid",
+ "a3s-embedding",
  "a3s-office",
  "a3s-okf",
  "a3s-use-reconcile",
@@ -2191,13 +2192,17 @@ dependencies = [
 name = "a3s-embedding"
 version = "0.1.0"
 dependencies = [
+ "a3s-code-core",
  "anyhow",
+ "async-trait",
  "hnsw_rs",
  "model2vec-rs",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "tempfile",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
