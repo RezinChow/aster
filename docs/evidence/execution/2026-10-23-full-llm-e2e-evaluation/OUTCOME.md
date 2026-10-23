@@ -100,6 +100,16 @@ These are model quality observations:
   unblocked one of the two gates; the remaining failure is not a defect.
 
 
+## Multi-model test including DeepSeek Flash (2026-10-24)
+
+| Model | Basic turn | Multi-turn | Long-task | Failure mode |
+|---|---|---|---|---|
+| gateway/prism-27b | ✅ 30s | ❌ (4 rounds) | ✅ 74.58s once, then ❌ | Model coherence |
+| glm/glm-5.3 | — | ❌ 9s | ❌ 9s | JSON-RPC -32603 |
+| deepseek/deepseek-flash | ✅ **17.12s** | ❌ 48s (permission denied instead of execution) | ❌ 11s (mutation without bound Passed) | Model doesn't follow exact execution order |
+
+DeepSeek Flash is the fastest on basic turns. On the multi-turn gate it fails because the model is denied permission to execute (rather than executing and reporting). On the long-task gate it fails because it edits both files at once instead of the exact run→fix→run→fix→run sequence.
+
 ## Definitive multi-model conclusion (2026-10-24)
 
 Both available models tested across 5+ rounds:
