@@ -211,7 +211,12 @@ impl A3sCodeAgent {
         if let Some(reason) = unavailable {
             tracing::error!(%reason, "configured local workspace retrieval is unavailable");
             let mut slots = options.prompt_slots.clone().unwrap_or_default();
-            append_slot_extra(&mut slots, &format!("Workspace semantic retrieval unavailable: {reason}. grep, glob, bm25 and hybrid remain available; hybrid uses available evidence channels. No remote backend was activated."));
+            append_slot_extra(
+                &mut slots,
+                &format!(
+                    "Workspace semantic retrieval unavailable: {reason}. grep, glob, bm25 and hybrid remain available; hybrid uses available evidence channels. No remote backend was activated."
+                ),
+            );
             options = options.with_prompt_slots(slots);
         }
         let options = self.with_client_reads(options, session_id, &setup.workspace);
@@ -694,7 +699,8 @@ pub(super) fn acp_mcp_to_config(
     }
 }
 
-/// The host's existing BGE dependency is used only after trusted local opt-in.
+/// The host's registered provider (BYO model engine) serves the trusted
+/// local_cpu opt-in; the product itself ships no engine.
 async fn local_cpu_embedding() -> (
     Option<Arc<dyn a3s_code_core::EmbeddingProvider>>,
     Option<String>,

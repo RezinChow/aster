@@ -35,7 +35,6 @@ cap-fs-ext = "=4.0.2"
 quick-xml = {version = "0.38", optional = true}
 tempfile = {workspace = true}
 a3s-use-reconcile = {path = "../../use/reconcile"}
-a3s-use-bge = {path = "../../bge", default-features = false, features = ["bge-m3"]}
 a3s-code-core = {default-features = true, features = ["headless-search"], path = "../core"}
 
 
