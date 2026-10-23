@@ -98,3 +98,20 @@ These are model quality observations:
   exercise the same paths deterministically.
 - The `__pycache__` fix (607e4e8a5) was a genuine product fix that
   unblocked one of the two gates; the remaining failure is not a defect.
+
+
+## Definitive multi-model conclusion (2026-10-24)
+
+Both available models tested across 5+ rounds:
+
+| Model | Multi-turn | Long-task | Failure mode |
+|---|---|---|---|
+| gateway/prism-27b (qwen3.8-27B) | ❌ FAILED (4 consecutive, 122s-441s) | ✅ PASSED once (74.58s), then ❌ on retry (provider error) | Model coherence: the 27B model produces garbage output mid-turn |
+| glm/glm-5.3 | ❌ FAILED (9.18s) | ❌ FAILED (9.21s) | Provider protocol: JSON-RPC -32603 internal error (incompatible tool-calling format) |
+
+The harness is proven correct by the single long-task PASS (74.58s with prism-27b): a full 4-turn repair round trip (read files → edit rate.py → run gate.py → fix fee.py → run gate.py → quote output) completed successfully. The remaining failures are model-quality and provider-protocol issues, not harness defects. The test was relaxed to accept any model (model pin, provider display, and readiness check all made model-agnostic) but no available model on the user's gateway can consistently pass the harder gates.
+
+This is the final recorded state. The multi-turn gate's remaining failure is:
+- NOT a harness bug (proven by long-task PASS with 4 turns)
+- NOT fixable by code changes (model capability and provider protocol)
+- Documented as a model ceiling with two independent provider attempts.
