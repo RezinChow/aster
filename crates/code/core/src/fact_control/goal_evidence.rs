@@ -1,7 +1,7 @@
 //! Current Goal step evidence stays a projection of the original receipt fold.
 
 use super::*;
-use crate::verification::{VERIFICATION_REPORT_SCHEMA, VerificationReport, VerificationSummary};
+use crate::verification::{VerificationReport, VerificationSummary, VERIFICATION_REPORT_SCHEMA};
 
 pub(crate) async fn assess_goal_step(
     surface: &SessionSurface,

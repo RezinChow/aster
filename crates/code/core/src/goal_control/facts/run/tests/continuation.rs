@@ -119,11 +119,9 @@ fn prove_history(log: &dyn LogStore) -> WorkspaceRef {
     let (workspace, _) = seed(log);
     append_run(log, &workspace, "ordinary", None);
     let ordinary = log.read("session").unwrap();
-    assert!(
-        ordinary.last().unwrap().payload["body"]
-            .get("continuation")
-            .is_none()
-    );
+    assert!(ordinary.last().unwrap().payload["body"]
+        .get("continuation")
+        .is_none());
     let ordinary = usage(log, &workspace);
     assert_eq!(
         (
@@ -137,33 +135,29 @@ fn prove_history(log: &dyn LogStore) -> WorkspaceRef {
     append_run(log, &workspace, "auto-1", Some(&first));
     let before = log.read("session").unwrap();
     for _ in 0..4 {
-        assert!(
-            prepare_run(
-                &before,
-                "session",
-                &workspace,
-                None,
-                Some("auto-1"),
-                Some(&first)
-            )
-            .unwrap()
-            .unwrap()
-            .pending
-            .is_none()
-        );
-    }
-    assert!(prepare_run(&before, "session", &workspace, None, Some("auto-1"), None).is_err());
-    assert!(
-        prepare_run(
+        assert!(prepare_run(
             &before,
             "session",
             &workspace,
             None,
             Some("auto-1"),
-            Some(&source(2, 2, 101))
+            Some(&first)
         )
-        .is_err()
-    );
+        .unwrap()
+        .unwrap()
+        .pending
+        .is_none());
+    }
+    assert!(prepare_run(&before, "session", &workspace, None, Some("auto-1"), None).is_err());
+    assert!(prepare_run(
+        &before,
+        "session",
+        &workspace,
+        None,
+        Some("auto-1"),
+        Some(&source(2, 2, 101))
+    )
+    .is_err());
     assert_eq!(log.read("session").unwrap(), before);
     assert_eq!(usage(log, &workspace).admitted_slices, 1);
     let view = definition_from_facts(&before, "session", &workspace, None)
@@ -189,28 +183,24 @@ fn prove_history(log: &dyn LogStore) -> WorkspaceRef {
         .is_none(),
         "exact replay consumes no extra opportunity at the cap"
     );
-    assert!(
-        prepare_run(
-            &before,
-            "session",
-            &workspace,
-            None,
-            Some("auto-3"),
-            Some(&source(2, 9, 300))
-        )
-        .is_err()
-    );
-    assert!(
-        prepare_run(
-            &before,
-            "session",
-            &workspace,
-            None,
-            Some("auto-3"),
-            Some(&source(9, 2, 300))
-        )
-        .is_err()
-    );
+    assert!(prepare_run(
+        &before,
+        "session",
+        &workspace,
+        None,
+        Some("auto-3"),
+        Some(&source(2, 9, 300))
+    )
+    .is_err());
+    assert!(prepare_run(
+        &before,
+        "session",
+        &workspace,
+        None,
+        Some("auto-3"),
+        Some(&source(9, 2, 300))
+    )
+    .is_err());
     append_run(log, &workspace, "explicit-independent", None);
     let before = log.read("session").unwrap();
     let view = definition_from_facts(&before, "session", &workspace, None)
@@ -231,17 +221,15 @@ fn prove_history(log: &dyn LogStore) -> WorkspaceRef {
     assert_eq!(usage(log, &workspace).admitted_slices, 2);
     assert_eq!(usage(log, &workspace).slices_since_progress, 2);
     let before = log.read("session").unwrap();
-    assert!(
-        prepare_run(
-            &before,
-            "session",
-            &workspace,
-            None,
-            Some("auto-3"),
-            Some(&source(2, 9, 300))
-        )
-        .is_err()
-    );
+    assert!(prepare_run(
+        &before,
+        "session",
+        &workspace,
+        None,
+        Some("auto-3"),
+        Some(&source(2, 9, 300))
+    )
+    .is_err());
     append_run(log, &workspace, "auto-3", Some(&source(3, 3, 300)));
     assert_eq!(usage(log, &workspace).admitted_slices, 3);
     assert_eq!(usage(log, &workspace).slices_since_progress, 3);
@@ -344,17 +332,15 @@ fn continuation_history_preserves_caps_across_replay_revision_replan_and_both_lo
     let log = FileLog::open(directory.path()).unwrap();
     assert_eq!(log.read("session").unwrap(), before);
     assert_eq!(usage(&log, &workspace).admitted_slices, 3);
-    assert!(
-        prepare_run(
-            &before,
-            "session",
-            &workspace,
-            None,
-            Some("after-restart"),
-            Some(&source(3, 3, 400))
-        )
-        .is_err()
-    );
+    assert!(prepare_run(
+        &before,
+        "session",
+        &workspace,
+        None,
+        Some("after-restart"),
+        Some(&source(3, 3, 400))
+    )
+    .is_err());
     assert_eq!(log.read("session").unwrap(), before);
 }
 
@@ -368,17 +354,15 @@ fn continuation_sources_refuse_recomputed_invalid_limits_clock_and_unbound_goal(
             Box::new(MemoryLog::new())
         };
         let (workspace, facts) = seed(log.as_ref());
-        assert!(
-            prepare_run(
-                &[],
-                "session",
-                &workspace,
-                None,
-                Some("no-goal"),
-                Some(&source(2, 2, 100))
-            )
-            .is_err()
-        );
+        assert!(prepare_run(
+            &[],
+            "session",
+            &workspace,
+            None,
+            Some("no-goal"),
+            Some(&source(2, 2, 100))
+        )
+        .is_err());
         let prepared = prepare_run(
             &facts,
             "session",
@@ -413,31 +397,27 @@ fn continuation_sources_refuse_recomputed_invalid_limits_clock_and_unbound_goal(
                 assert!(fold_definitions(&corrupt, "session", &workspace, None, None).is_err());
             } else {
                 let capped = source(1, 1, 200);
-                assert!(
-                    prepare_run(
-                        &corrupt,
-                        "session",
-                        &workspace,
-                        None,
-                        Some("next"),
-                        Some(&capped)
-                    )
-                    .is_err()
-                );
-            }
-        }
-        for clock in [0, 99, 10000] {
-            assert!(
-                prepare_run(
-                    &before,
+                assert!(prepare_run(
+                    &corrupt,
                     "session",
                     &workspace,
                     None,
                     Some("next"),
-                    Some(&source(3, 3, clock))
+                    Some(&capped)
                 )
-                .is_err()
-            );
+                .is_err());
+            }
+        }
+        for clock in [0, 99, 10000] {
+            assert!(prepare_run(
+                &before,
+                "session",
+                &workspace,
+                None,
+                Some("next"),
+                Some(&source(3, 3, clock))
+            )
+            .is_err());
         }
         for field in ["policy", "observed_unix_ms"] {
             let mut corrupt = before.clone();

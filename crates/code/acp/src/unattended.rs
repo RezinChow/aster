@@ -15,13 +15,13 @@ mod tests;
 use a3s_code_core::goal_control::GoalContinuationPolicyV1;
 use a3s_code_core::verification::{VerificationCheck, VerificationReport, VerificationStatus};
 use a3s_code_core::{AgentEvent, AgentStyle, PlanningMode, SessionOptions, SystemPromptSlots};
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use std::collections::HashSet;
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use result::{RunProgress, count_artifact_evidence};
+use result::{count_artifact_evidence, RunProgress};
 
 /// Same default as the native runner: inside Harbor's outer agent timeout.
 pub const DEFAULT_EXECUTION_BUDGET_MS: u64 = 840_000;
