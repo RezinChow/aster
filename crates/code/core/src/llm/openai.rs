@@ -295,14 +295,16 @@ impl OpenAiClient {
                                     "text": text,
                                 }),
                                 ContentBlock::Image { source } => self.image_part(source),
-                                ContentBlock::ToolUse { id, name, input } => serde_json::json!({
-                                    "type": "function",
-                                    "id": id,
-                                    "function": {
-                                        "name": name,
-                                        "arguments": input.to_string(),
-                                    }
-                                }),
+                                ContentBlock::ToolUse { id, name, input } => {
+                                    serde_json::json!({
+                                        "type": "function",
+                                        "id": id,
+                                        "function": {
+                                            "name": name,
+                                            "arguments": input.to_string(),
+                                        }
+                                    })
+                                }
                                 _ => serde_json::json!({}),
                             }
                         })

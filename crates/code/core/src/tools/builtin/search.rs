@@ -56,6 +56,7 @@ pub struct SearchTool {
     backend_search_enabled: bool,
     read_enabled: bool,
     semantic_enabled: bool,
+    hybrid_enabled: bool,
     persistent_backend_enabled: bool,
     /// Live index phase. `Degraded` removes semantic modes from later definitions.
     retrieval: Option<Arc<crate::workspace::WorkspaceRetrievalRuntime>>,
@@ -72,6 +73,7 @@ impl SearchTool {
             backend_search_enabled: true,
             read_enabled,
             semantic_enabled: false,
+            hybrid_enabled: false,
             persistent_backend_enabled: false,
             retrieval: None,
             description: String::new(),
@@ -94,6 +96,11 @@ impl SearchTool {
 
     pub fn with_semantic(mut self, enabled: bool) -> Self {
         self.semantic_enabled = enabled;
+        self.sync_description()
+    }
+
+    pub fn with_hybrid(mut self, enabled: bool) -> Self {
+        self.hybrid_enabled = enabled;
         self.sync_description()
     }
 
@@ -127,7 +134,10 @@ impl SearchTool {
             modes.push("bm25");
         }
         if self.semantic_advertised() {
-            modes.extend(["semantic", "hybrid"]);
+            modes.push("semantic");
+        }
+        if self.hybrid_enabled || self.semantic_enabled {
+            modes.push("hybrid");
         }
         modes
     }
@@ -170,11 +180,14 @@ impl SearchTool {
                     .to_string(),
             );
         }
-        if matches!(mode, SearchMode::Semantic | SearchMode::Hybrid) && !self.semantic_enabled {
+        if mode == SearchMode::Semantic && !self.semantic_enabled {
             return Err(format!(
                 "mode='{}' is unavailable because this session did not enable semantic retrieval",
                 mode.as_str()
             ));
+        }
+        if mode == SearchMode::Hybrid && !self.hybrid_enabled && !self.semantic_enabled {
+            return Err("mode='hybrid' is unavailable because this workspace did not provide a chunk catalog".to_owned());
         }
 
         let query = args
@@ -290,13 +303,15 @@ impl Tool for SearchTool {
                 "limit": 8
             }));
         }
-        if modes.contains(&"semantic") {
+        if modes.contains(&"hybrid") {
             examples.push(serde_json::json!({
                 "mode": "hybrid",
                 "query": "where session shutdown releases temporary indexes",
                 "path": "core/src",
                 "limit": 8
             }));
+        }
+        if modes.contains(&"semantic") {
             examples.push(serde_json::json!({
                 "mode": "semantic",
                 "query": "where session shutdown releases temporary indexes",
@@ -577,7 +592,7 @@ fn describe_modes(modes: &[&str]) -> String {
             "glob" => "glob for file names",
             "bm25" => "bm25 for ranked lexical matches",
             "semantic" => "semantic for concept similarity",
-            "hybrid" => "hybrid when exact and conceptual evidence both matter",
+            "hybrid" => "hybrid to fuse available evidence channels",
             other => other,
         })
         .collect::<Vec<_>>();
@@ -799,7 +814,14 @@ mod tests {
                 &serde_json::json!({"mode": "hybrid", "query": "workspace"}),
             )
             .unwrap_err();
-        assert!(error.contains("did not enable semantic retrieval"));
+        assert!(error.contains("did not provide a chunk catalog"));
+        assert!(SearchTool::new(true)
+            .with_hybrid(true)
+            .adapted_args(
+                SearchMode::Hybrid,
+                &serde_json::json!({"query": "workspace"}),
+            )
+            .is_ok());
     }
 
     #[test]

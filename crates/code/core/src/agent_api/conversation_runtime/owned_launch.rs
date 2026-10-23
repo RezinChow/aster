@@ -233,7 +233,7 @@ pub(super) async fn observe_owned_stream(observation: OwnedObservation) -> Resul
         OwnedReady::Replayed(_) => {
             return Err(CodeError::Session(
                 "ordinary stream cannot replay an exact Run".into(),
-            ))
+            ));
         }
     };
     Ok(AgentRunStream {

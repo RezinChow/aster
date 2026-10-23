@@ -173,12 +173,16 @@ async fn legacy_accepted_noop_history_reopens_but_new_opportunities_use_actual_p
         assert!(facts
             .iter()
             .any(|fact| fact.kind == "a3s.goal.step.accepted"));
-        assert!(facts.iter().any(|fact| fact.kind == "tool.result"
-            && fact.payload["receipt"]["effects"]["changes"]
-                .as_array()
-                .is_some_and(|changes| changes
-                    .iter()
-                    .any(|change| change["before"] == change["after"]))));
+        assert!(facts.iter().any(|fact| {
+            fact.kind == "tool.result"
+                && fact.payload["receipt"]["effects"]["changes"]
+                    .as_array()
+                    .is_some_and(|changes| {
+                        changes
+                            .iter()
+                            .any(|change| change["before"] == change["after"])
+                    })
+        }));
         assert_eq!(
             session
                 .preview_goal_tick(&automatic::request(&session, "new-strict"))

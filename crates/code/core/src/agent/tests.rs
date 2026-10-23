@@ -5122,9 +5122,11 @@ async fn duplicate_guard_forces_finalization() {
         })
         .count();
     assert_eq!(nudges, 1, "the fourth identical call is the guard");
-    assert!(result.messages.iter().any(|message| message
-        .text()
-        .contains("Repeated identical tool calls have no new evidence")));
+    assert!(result.messages.iter().any(|message| {
+        message
+            .text()
+            .contains("Repeated identical tool calls have no new evidence")
+    }));
     let presented = mock_client.request_tools.lock().unwrap();
     assert!(
         presented.last().is_some_and(|tools| tools.is_empty()),

@@ -242,12 +242,12 @@ impl FlowDecisionDispatcher {
             } => {
                 return Err(FlowDecisionDispatchError::Busy {
                     lease_expires_at_ms,
-                })
+                });
             }
             FlowDecisionClaimOutcome::Conflict => {
                 return Err(FlowDecisionDispatchError::DecisionIdConflict(
                     request.decision_id.clone(),
-                ))
+                ));
             }
             FlowDecisionClaimOutcome::Claimed { attempt } => {
                 self.metrics.claimed.fetch_add(1, Ordering::Relaxed);
@@ -418,7 +418,9 @@ impl Drop for DecisionInFlight {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum FlowDecisionDispatchError {
-    #[error("graph branch is not authorized for production Flow decisions: expected `{expected}`, got `{actual}`")]
+    #[error(
+        "graph branch is not authorized for production Flow decisions: expected `{expected}`, got `{actual}`"
+    )]
     UnauthorizedBranch { expected: String, actual: String },
     #[error("decision_id and causation_event_id must be non-empty")]
     InvalidIdentity,

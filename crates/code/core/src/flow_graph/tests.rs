@@ -194,12 +194,11 @@ async fn projects_wait_hook_retry_failure_and_terminal_run_state() {
         .unwrap();
     assert_eq!(hook.data["status"], "disposed");
     assert!(!hook.data.to_string().contains("secret-must-not-project"));
-    assert!(!runtime
-        .events()
-        .iter()
-        .any(|record| serde_json::to_string(record)
+    assert!(!runtime.events().iter().any(|record| {
+        serde_json::to_string(record)
             .unwrap()
-            .contains("secret-must-not-project")));
+            .contains("secret-must-not-project")
+    }));
     assert_eq!(
         runtime
             .graph()

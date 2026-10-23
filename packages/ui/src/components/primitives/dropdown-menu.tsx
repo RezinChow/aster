@@ -28,16 +28,43 @@ type DropdownMenuContentProps = React.ComponentProps<typeof DropdownMenuPrimitiv
   portalContainer?: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>['container']
 }
 
-function DropdownMenuContent({ className, sideOffset = 4, portalContainer, ...props }: DropdownMenuContentProps) {
+/**
+ * A press on the menu's own trigger re-opens or closes the menu itself, so the
+ * layer it must not reach is the one that is still animating out. Exported for
+ * the primitive's tests: the handler it guards can only be observed in a browser.
+ */
+export function isTriggerPress(event: { target: EventTarget | null }): boolean {
+  const target = event.target as Element | null
+  return Boolean(target?.closest?.('[data-slot="dropdown-menu-trigger"]'))
+}
+
+function DropdownMenuContent({
+  className,
+  sideOffset = 4,
+  portalContainer,
+  onPointerDownOutside,
+  ...props
+}: DropdownMenuContentProps) {
   return (
     <DropdownMenuPortal container={portalContainer}>
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
+        // Popups keep their content mounted for the length of the leave animation
+        // in popup-motion.css (200ms), and that dying layer is still registered as
+        // a dismissable layer. A press on the trigger during that window is
+        // therefore an "outside" press for it, and it dismisses the menu the same
+        // press just opened: the menu blinks shut and the trigger looks dead. Hand
+        // the trigger's own press back to the trigger.
+        onPointerDownOutside={(event) => {
+          onPointerDownOutside?.(event)
+          if (event.defaultPrevented) return
+          if (isTriggerPress(event)) event.preventDefault()
+        }}
         className={cn(
           // no-drag punches the popup's area out of any titlebar drag region it overlaps,
           // so hover/click reach the items instead of the window-drag hit test (Electron).
-          'z-[240] max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-[12px] border border-[color:var(--color-border)] bg-[var(--color-bg-elevated)] p-1.5 text-[13px] text-[var(--color-ink)] shadow-[var(--shadow-elevated)] [-webkit-app-region:no-drag]',
+          'z-[240] max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-[12px] border border-[color:var(--color-border)] bg-[var(--color-bg-elevated)] p-1.5 text-[13px] text-[var(--color-ink)] shadow-[var(--shadow-elevated)] [-webkit-app-region:no-drag] data-[state=closed]:pointer-events-none',
           className
         )}
         {...props}

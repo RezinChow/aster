@@ -41,6 +41,10 @@ Windows 使用 [install.ps1](https://github.com/aster-ai-lab/aster/blob/main/scr
 解压后，将 `aster` 和 `a3s-code-acp` 放在同一目录；Windows 对应两个 `.exe` 文件。
 CLI 默认启动同目录的 ACP 伴随进程。需要指定其他位置时，设置 `A3S_ACP_AGENT_BIN`。
 
+Linux 归档分两个 glibc 世代：`linux` 需要 glibc 2.32 及以上；`kylin` 是同样的一对
+x86_64 二进制，针对 glibc 2.31 构建，适用于银河麒麟 V10 SP1、Ubuntu 20.04、
+Debian 11 等较旧系统。安装脚本按本机 glibc 自动选择，`aster update` 使用同一规则。
+
 已安装的 CLI 从 v0.1.2 起支持自我更新：`aster update` 会从本仓库的
 channel manifest（`latest.json`）发现最新版本，校验归档摘要后原子安装
 `aster` 与 `a3s-code-acp` 成对二进制；`aster update --check` 只报告不改动，

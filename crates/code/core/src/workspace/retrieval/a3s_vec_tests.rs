@@ -182,7 +182,7 @@ fn open_persistent_rejects_a_missing_collection_directory() {
         .path()
         .join("does-not-exist");
     let result =
-        A3sVecLexicalIndex::open_persistent(missing, vec![("doc".to_owned(), "text".to_owned())]);
+        A3sVecLexicalIndex::open_persistent(missing, vec![("d0".to_owned(), "text".to_owned())]);
     assert!(result.is_err(), "missing collection must fail");
     let error = result.err().unwrap();
     assert!(
@@ -207,7 +207,7 @@ fn open_persistent_rejects_an_unexpected_symlink_in_the_collection() {
 
     let result = A3sVecLexicalIndex::open_persistent(
         collection,
-        vec![("doc".to_owned(), "symlink probe text".to_owned())],
+        vec![("d0".to_owned(), "symlink probe text".to_owned())],
     );
     assert!(
         result.is_err(),
@@ -239,7 +239,7 @@ fn open_persistent_tolerates_non_file_non_directory_collection_entries() {
 
     let index = A3sVecLexicalIndex::open_persistent(
         collection,
-        vec![("doc".to_owned(), "fifo probe text".to_owned())],
+        vec![("d0".to_owned(), "fifo probe text".to_owned())],
     )
     .expect("fifo entries contribute zero bytes and must not fail open");
     assert_eq!(index.document_count(), 1);

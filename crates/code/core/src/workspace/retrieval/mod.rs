@@ -39,6 +39,8 @@ pub use chunking_strategy::{
     WorkspaceChunkRange, WorkspaceChunkingError, WorkspaceChunkingInput, WorkspaceChunkingStrategy,
 };
 pub use eligibility::WorkspaceEligibilityPolicy;
+pub(crate) use hybrid_candidates::ValidatedHybridRequest;
+pub(crate) use hybrid_query::hybrid_search;
 pub use hybrid_types::{
     WorkspaceHybridChannelRank, WorkspaceHybridChannelStatus, WorkspaceHybridFallbackReason,
     WorkspaceHybridSearchHit, WorkspaceHybridSearchRequest, WorkspaceHybridSearchResult,

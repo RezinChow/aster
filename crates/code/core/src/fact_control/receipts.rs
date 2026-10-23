@@ -76,6 +76,16 @@ pub(super) async fn prepare_tools(
         .as_ref()
         .and_then(|agent| skill_denial(agent, &request.call.name))
         .map(|(output, _reason)| output);
+    // Deadlock exit: obligations from prior model turns settle into the
+    // recorded, goal-visible set; only same-turn uncertainty still denies
+    // mutating calls below.
+    if let Some(ledger) = tools.ledger.as_ref() {
+        if let Ok(mut guard) = ledger.lock() {
+            // The delta is the Phase 2 admission input; Phase 1 observes it
+            // without acting.
+            let _delta = guard.settle_prior_turns(request.identity.turn as u64);
+        }
+    }
     let original_permission = run_permission(
         &tools.permission,
         tools.checker.as_deref(),

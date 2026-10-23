@@ -205,10 +205,10 @@ mod tests {
 
     #[test]
     fn sequential_id_generator_is_deterministic() {
-        let gen = SequentialIdGenerator::new("run");
-        assert_eq!(gen.next_id(), "run-0");
-        assert_eq!(gen.next_id(), "run-1");
-        assert_eq!(gen.next_id(), "run-2");
+        let generator = SequentialIdGenerator::new("run");
+        assert_eq!(generator.next_id(), "run-0");
+        assert_eq!(generator.next_id(), "run-1");
+        assert_eq!(generator.next_id(), "run-2");
     }
 
     #[test]

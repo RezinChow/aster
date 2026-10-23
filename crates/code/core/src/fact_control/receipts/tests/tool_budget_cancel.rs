@@ -100,7 +100,10 @@ async fn cancellation(also_ready: bool) {
     assert_eq!(guard.entered.load(Ordering::SeqCst), 1);
     assert_eq!(guard.active.load(Ordering::SeqCst), 0);
     assert_eq!(guard.dropped.load(Ordering::SeqCst), 1);
-    assert!(timely, "original tool-budget future still live after cancellation: active={active_at_observation}, completed={completed_at_observation}; exact task drained after releasing the diagnostic barrier");
+    assert!(
+        timely,
+        "original tool-budget future still live after cancellation: active={active_at_observation}, completed={completed_at_observation}; exact task drained after releasing the diagnostic barrier"
+    );
     assert_eq!(
         completed_at_observation, 0,
         "cancellation wins over a simultaneously ready budget decision"

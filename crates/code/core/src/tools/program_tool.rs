@@ -519,7 +519,7 @@ async fn run_quickjs_script(
         Err(err) => {
             return Ok(script_preflight_error(format!(
                 "program script failed: {err}"
-            )))
+            )));
         }
     };
     let parent_cancellation = ctx.cancellation_token();

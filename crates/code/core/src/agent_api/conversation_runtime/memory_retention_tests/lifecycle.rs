@@ -57,8 +57,10 @@ async fn blocking_send_awaits_original_extraction_and_accounts_usage_in_both_sto
     for (kind, records) in &observations {
         eprintln!("original callback observations {kind:?}: {records:?}");
     }
-    assert!(observations.iter().all(|(_, records)| records == &expected),
-        "every successful main and extraction call must record its exact usage through the original guard; observations={observations:?}; expected={expected:?}");
+    assert!(
+        observations.iter().all(|(_, records)| records == &expected),
+        "every successful main and extraction call must record its exact usage through the original guard; observations={observations:?}; expected={expected:?}"
+    );
 }
 
 #[tokio::test]
@@ -86,8 +88,12 @@ async fn actual_session_extraction_budget_deny_has_no_provider_retry_in_both_sto
             fixture.assert_calls(1, 0, 0);
             fixture.guard.assert_checks(1, 1);
             let records = fixture.guard.records();
-            assert!(records.iter().all(|(id, usage)| id == SESSION_ID && *usage == record_tuple(&main_usage())),
-                "Deny must add no extractor callback; main accounting remains separately blocked: {records:?}");
+            assert!(
+                records
+                    .iter()
+                    .all(|(id, usage)| id == SESSION_ID && *usage == record_tuple(&main_usage())),
+                "Deny must add no extractor callback; main accounting remains separately blocked: {records:?}"
+            );
             eprintln!(
                 "all-stage deny observation {kind:?}/{route:?}: checks={:?}, records={records:?}",
                 fixture.guard.checks.lock().unwrap()
@@ -451,8 +457,13 @@ async fn actual_session_failed_empty_disabled_turns_admit_no_extraction_in_both_
                                 .iter()
                                 .any(|event| matches!(event, AgentEvent::Error { .. })));
                         }
-                        assert!(capture.events().iter().all(|event| event.get("disposition").is_none()),
-                            "failed main turn has no eligible mapped result/ticket, not a fabricated completed turn");
+                        assert!(
+                            capture
+                                .events()
+                                .iter()
+                                .all(|event| event.get("disposition").is_none()),
+                            "failed main turn has no eligible mapped result/ticket, not a fabricated completed turn"
+                        );
                     }
                 }
                 fixture.session.close().await;

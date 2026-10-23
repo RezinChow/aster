@@ -80,7 +80,12 @@ impl FromStr for TaskPriority {
     type Err = TaskSchedulerError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.trim().to_ascii_lowercase().replace(['-', '_'], "").as_str() {
+        match value
+            .trim()
+            .to_ascii_lowercase()
+            .replace(['-', '_'], "")
+            .as_str()
+        {
             "urgent" => Ok(Self::Urgent),
             "interactive" | "user" => Ok(Self::Interactive),
             "foreground" => Ok(Self::Foreground),
@@ -188,11 +193,9 @@ impl TaskSchedulerQuota {
                 character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
             })
         {
-            return Err(TaskSchedulerError::InvalidConfig(
-                format!(
-                    "scheduler quota scope must be one non-empty line of at most {TASK_SCHEDULER_MAX_SCOPE_BYTES} bytes"
-                ),
-            ));
+            return Err(TaskSchedulerError::InvalidConfig(format!(
+                "scheduler quota scope must be one non-empty line of at most {TASK_SCHEDULER_MAX_SCOPE_BYTES} bytes"
+            )));
         }
         let identity = ExecutionIdentityV1::derive(
             crate::execution_identity::TASK_ADMISSION_SCOPE_IDENTITY_DOMAIN_V1,

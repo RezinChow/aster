@@ -19,7 +19,7 @@ const MAX_RESULTS: usize = 25;
 pub(super) const CHANNEL_CANDIDATE_LIMIT: usize = 25;
 const STRUCTURAL_FETCH_LIMIT: usize = 100;
 
-pub(super) struct ValidatedHybridRequest {
+pub(crate) struct ValidatedHybridRequest {
     query: String,
     path: Option<WorkspacePath>,
     include_source: Option<String>,
@@ -28,7 +28,7 @@ pub(super) struct ValidatedHybridRequest {
 }
 
 impl ValidatedHybridRequest {
-    pub(super) fn new(
+    pub(crate) fn new(
         request: WorkspaceHybridSearchRequest,
     ) -> Result<Self, WorkspaceRetrievalError> {
         let query = request.query.trim();
@@ -243,12 +243,12 @@ pub(super) async fn structural_candidates(
         Err(crate::code_intelligence::CodeIntelligenceError::Cancelled)
             if cancellation.is_cancelled() =>
         {
-            return Err(WorkspaceRetrievalError::Cancelled)
+            return Err(WorkspaceRetrievalError::Cancelled);
         }
         Err(_) => {
             return Ok(StructuralCandidates::unavailable(
                 WorkspaceHybridFallbackReason::StructuralQueryFailed,
-            ))
+            ));
         }
     };
     let identifier_query = is_ascii_identifier(&request.query);

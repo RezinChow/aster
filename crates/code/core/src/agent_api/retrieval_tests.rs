@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
+mod model_free;
+
 #[tokio::test]
 async fn retrieval_is_disabled_without_explicit_typed_options() {
     let _permit = crate::test_support::resource_intensive_test_permit().await;
@@ -37,7 +39,7 @@ async fn retrieval_is_disabled_without_explicit_typed_options() {
         .unwrap();
     assert_eq!(
         search.parameters["properties"]["mode"]["enum"],
-        serde_json::json!(["grep", "glob", "bm25"])
+        serde_json::json!(["grep", "glob", "bm25", "hybrid"])
     );
     session.close().await;
     // Disabled means there is no runtime to transition; it remains a stable
@@ -130,7 +132,7 @@ async fn explicit_disable_clears_preconfigured_retrieval_without_calling_the_pro
         .unwrap();
     assert_eq!(
         search.parameters["properties"]["mode"]["enum"],
-        serde_json::json!(["grep", "glob", "bm25"])
+        serde_json::json!(["grep", "glob", "bm25", "hybrid"])
     );
     assert_eq!(provider.calls.load(Ordering::Acquire), 0);
 

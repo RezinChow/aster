@@ -211,7 +211,12 @@ impl A3sCodeAgent {
         if let Some(reason) = unavailable {
             tracing::error!(%reason, "configured local workspace retrieval is unavailable");
             let mut slots = options.prompt_slots.clone().unwrap_or_default();
-            append_slot_extra(&mut slots, &format!("Workspace semantic retrieval unavailable: {reason}. grep, glob and bm25 remain available; no remote backend was activated."));
+            append_slot_extra(
+                &mut slots,
+                &format!(
+                    "Workspace semantic retrieval unavailable: {reason}. grep, glob, bm25 and hybrid remain available; hybrid uses available evidence channels. No remote backend was activated."
+                ),
+            );
             options = options.with_prompt_slots(slots);
         }
         let options = self.with_client_reads(options, session_id, &setup.workspace);
@@ -694,65 +699,18 @@ pub(super) fn acp_mcp_to_config(
     }
 }
 
-/// The ONNX embedding runtime is linked only into `local-bge` builds.
+/// The host's registered provider (BYO model engine) serves the trusted
+/// local_cpu opt-in; the product itself ships no engine.
 async fn local_cpu_embedding() -> (
     Option<Arc<dyn a3s_code_core::EmbeddingProvider>>,
     Option<String>,
 ) {
-    #[cfg(feature = "local-bge")]
+    match super::local_embedding::local_embedding_provider(
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await
     {
-        match super::local_embedding::local_embedding_provider(
-            tokio_util::sync::CancellationToken::new(),
-        )
-        .await
-        {
-            Ok(provider) => (Some(provider), None),
-            Err(error) => (None, Some(error.to_string())),
-        }
+        Ok(provider) => (Some(provider), None),
+        Err(error) => (None, Some(error.to_string())),
     }
-    #[cfg(not(feature = "local-bge"))]
-    {
-        (
-            None,
-            Some(
-                "local_cpu workspace retrieval requires building a3s-code-acp with the local-bge feature"
-                    .to_owned(),
-            ),
-        )
-    }
-}
-
-#[cfg(all(test, not(feature = "local-bge")))]
-#[tokio::test]
-async fn local_cpu_without_local_bge_reports_retrieval_unavailable() {
-    let root = tempfile::tempdir().expect("workspace");
-    let mut launch = super::test_launch(Some(root.path().join("sessions")));
-    launch.workspace = root.path().to_owned();
-    launch.config.workspace_retrieval = Some(a3s_code_core::config::WorkspaceRetrievalConfig {
-        enabled: true,
-        local_cpu: true,
-    });
-    let agent = A3sCodeAgent::new(launch);
-    let setup = SessionSetup {
-        workspace: root.path().to_owned(),
-        model_id: "anthropic/claude-sonnet-4-20250514",
-        effort: None,
-        host: Default::default(),
-        components: &[],
-        mcp_servers: Vec::new(),
-    };
-    let options = agent
-        .session_options_for("session-1", &setup, &root.path().join("store"))
-        .await
-        .expect("session options");
-    assert!(options.workspace_retrieval.is_none());
-    let extra = options
-        .prompt_slots
-        .as_ref()
-        .and_then(|slots| slots.extra.as_deref())
-        .unwrap_or("");
-    assert!(
-        extra.contains("local-bge") && extra.contains("grep, glob and bm25"),
-        "{extra}"
-    );
 }

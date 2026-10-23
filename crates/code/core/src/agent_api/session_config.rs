@@ -77,7 +77,7 @@ impl ResolvedSessionConfig {
             resolve_session_mcp(agent, &options).await?;
         options.queue_config = queue_config.clone();
         options.mcp_manager = Some(Arc::clone(&mcp_manager));
-        let limits = resolve_limits(agent, &options, &model_name);
+        let limits = resolve_limits(agent, &options, &model_name)?;
 
         Ok(Self {
             options,
@@ -188,7 +188,7 @@ impl ResolvedSessionConfig {
         });
         options.queue_config = None;
         options.mcp_manager = Some(Arc::clone(&mcp_manager));
-        let limits = resolve_limits(agent, &options, &model_name);
+        let limits = resolve_limits(agent, &options, &model_name)?;
 
         Ok(Self {
             session_store: options.session_store.clone(),
@@ -420,9 +420,9 @@ fn resolve_limits(
     agent: &Agent,
     options: &SessionOptions,
     model_name: &str,
-) -> ResolvedSessionLimits {
+) -> crate::error::Result<ResolvedSessionLimits> {
     let base = &agent.config;
-    ResolvedSessionLimits {
+    Ok(ResolvedSessionLimits {
         max_parse_retries: options.max_parse_retries.unwrap_or(base.max_parse_retries),
         tool_timeout_ms: options.tool_timeout_ms.or(base.tool_timeout_ms),
         llm_api_timeout_ms: options
@@ -441,15 +441,21 @@ fn resolve_limits(
             .unwrap_or(base.max_parallel_tasks)
             .max(1),
         max_execution_time_ms: options.max_execution_time_ms.or(base.max_execution_time_ms),
-        max_context_tokens: crate::agent::context_window_for_model(
-            options.max_context_tokens,
-            configured_model_context_tokens(&agent.code_config, model_name),
-            model_name,
-            options.auto_compact,
-            base.max_context_tokens,
-        ),
+        max_context_tokens: crate::agent::hostable_context_window(
+            crate::agent::context_window_for_model(
+                options.max_context_tokens,
+                configured_model_context_tokens(&agent.code_config, model_name),
+                model_name,
+                options.auto_compact,
+                base.max_context_tokens,
+            ),
+        )
+        .map_err(|reason| CodeError::SessionConfiguration {
+            field: "limit.context",
+            message: reason,
+        })?,
         retention: Some(options.retention_limits.unwrap_or_default()),
-    }
+    })
 }
 
 fn configured_model_context_tokens(code_config: &CodeConfig, model_name: &str) -> Option<usize> {

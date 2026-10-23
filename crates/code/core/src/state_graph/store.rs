@@ -242,22 +242,22 @@ fn encode_graph_events(events: &[GraphEventRecord]) -> Result<Vec<u8>> {
 }
 
 async fn read_graph_events(path: &Path) -> Result<Option<Vec<GraphEventRecord>>> {
-    let bytes = match crate::bounded_io::read_file_bounded_async(path, MAX_GRAPH_EVENT_LOG_BYTES)
-        .await
-    {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
-            anyhow::bail!(
-                "graph event log `{}` exceeds the {} byte limit",
-                path.display(),
-                MAX_GRAPH_EVENT_LOG_BYTES
-            )
-        }
-        Err(error) => {
-            return Err(error).with_context(|| format!("read graph event log `{}`", path.display()))
-        }
-    };
+    let bytes =
+        match crate::bounded_io::read_file_bounded_async(path, MAX_GRAPH_EVENT_LOG_BYTES).await {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
+                anyhow::bail!(
+                    "graph event log `{}` exceeds the {} byte limit",
+                    path.display(),
+                    MAX_GRAPH_EVENT_LOG_BYTES
+                )
+            }
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("read graph event log `{}`", path.display()));
+            }
+        };
     serde_json::from_slice(&bytes)
         .with_context(|| format!("decode graph event log `{}`", path.display()))
         .map(Some)

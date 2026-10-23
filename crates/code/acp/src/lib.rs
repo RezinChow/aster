@@ -9,6 +9,8 @@ pub mod approval_learning;
 mod artifact_image;
 #[cfg(feature = "account-import")]
 mod cc_switch;
+#[cfg(feature = "account-import")]
+mod codex_account;
 mod config;
 #[cfg(feature = "account-import")]
 mod cursor_account;

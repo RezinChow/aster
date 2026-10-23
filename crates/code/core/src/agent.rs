@@ -13,6 +13,23 @@ use crate::context::ContextProvider;
 use crate::hitl::ConfirmationProvider;
 use crate::hooks::HookExecutor;
 #[cfg(test)]
+mod hostable_window_tests {
+    use super::hostable_context_window;
+
+    #[test]
+    fn a_window_below_the_prompt_floor_refuses_with_its_reason() {
+        let error = hostable_context_window(4096).unwrap_err();
+        assert!(error.contains("context_window_unhostable"), "{error}");
+        assert!(error.contains("4096"), "{error}");
+    }
+
+    #[test]
+    fn a_workable_window_passes_through() {
+        assert_eq!(hostable_context_window(32_768).unwrap(), 32_768);
+    }
+}
+
+#[cfg(test)]
 use crate::llm::LlmResponse;
 use crate::llm::{LlmClient, Message, TokenUsage, ToolDefinition};
 use crate::permissions::{PermissionChecker, PermissionPolicy};
@@ -68,10 +85,15 @@ mod tool_result_runtime;
 mod tool_turn;
 mod turn_context;
 
-/// Maximum number of tool execution rounds before stopping
+/// Interactive tool-round ceiling. Origin: the original interactive loop's
+/// budget; terminal-bench-class long tasks go unattended (256 there, see
+/// acp unattended::LOOP_POLICY). Doubled once from 25 in the harness's
+/// upstream lineage.
 pub(crate) const MAX_TOOL_ROUNDS: usize = 50;
 
-/// Window used when auto-compact is on and the model has no configured context.
+/// Window used when auto-compact is on and the model has no configured
+/// context. Origin: conservative floor below modern 200k-class windows so
+/// compaction fires before the provider rejects the prompt.
 pub(crate) const UNKNOWN_MODEL_CONTEXT_TOKENS: usize = 128_000;
 
 /// Explicit option, then the model's configured window, then a fallback.
@@ -90,6 +112,26 @@ pub(crate) fn resolve_context_window(
     } else {
         default_window
     })
+}
+
+/// A declared window below this cannot host the harness's fixed prompt
+/// (system prompt, skills, workspace context); such a session would sit at
+/// 100% context from the first turn and, with auto-compact on, thrash
+/// compaction forever. Refuse with the reason instead. Origin: the
+/// 2026-10-22 context-100% incident (declared 4096).
+pub(crate) const MIN_HOSTABLE_CONTEXT_TOKENS: usize = 12_288;
+
+/// The declared or resolved window, or a named refusal when it is too small
+/// to ever host a session.
+pub fn hostable_context_window(window: usize) -> Result<usize, String> {
+    if window < MIN_HOSTABLE_CONTEXT_TOKENS {
+        return Err(format!(
+            "context_window_unhostable: the declared context window ({window} tokens) is              smaller than the harness prompt floor ({MIN_HOSTABLE_CONTEXT_TOKENS}); raise the \
+             model's limit.context (and the serving backend's max context) or pick a model \
+             with a larger window"
+        ));
+    }
+    Ok(window)
 }
 
 /// Vendor-documented context window for a model whose ACL block omits one.

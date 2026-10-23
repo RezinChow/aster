@@ -437,6 +437,9 @@ impl Completion for LiveCompletion {
             }
             if let Some(surface) = &surface {
                 if let Some(text) = verified_turn_text(surface, &request.messages) {
+                    if let Ok(mut guard) = surface.ledger.lock() {
+                        guard.note_assistant_output();
+                    }
                     return Ok(ModelDecision::Text { text });
                 }
             }
@@ -682,6 +685,9 @@ impl Completion for LiveCompletion {
             if let Some(surface) = &surface {
                 apply_run_controls(surface, &mut messages).await?;
                 if surface.cancel.is_cancelled() {
+                    if let Ok(mut guard) = surface.ledger.lock() {
+                        guard.note_assistant_output();
+                    }
                     return Ok(ModelDecision::Text {
                         text: "(Response interrupted by the user.)".into(),
                     });
@@ -788,6 +794,9 @@ impl Completion for LiveCompletion {
                         .transcript
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner) = messages;
+                    if let Ok(mut guard) = surface.ledger.lock() {
+                        guard.note_assistant_output();
+                    }
                     return Ok(ModelDecision::Text {
                         text: text.to_string(),
                     });
@@ -1286,7 +1295,9 @@ impl FactRun {
                 })
             })
         {
-            anyhow::bail!("goal.host_driver_conflict: goal execution requires the actual original Run and log");
+            anyhow::bail!(
+                "goal.host_driver_conflict: goal execution requires the actual original Run and log"
+            );
         }
         if policy.policy.is_some()
             && !child
@@ -1511,7 +1522,10 @@ impl FactRun {
             .find(|fact| fact.kind == "model.turn")
             .is_some_and(|fact| fact.payload["kind"] == "text");
         if terminal_narrative {
-            let text = format!("{prompt}\n\n[recovery] Verify the already recorded workspace changes: {}. Do not repeat completed mutations.", debt.paths.join(", "));
+            let text = format!(
+                "{prompt}\n\n[recovery] Verify the already recorded workspace changes: {}. Do not repeat completed mutations.",
+                debt.paths.join(", ")
+            );
             self.log
                 .append(
                     &self.thread,

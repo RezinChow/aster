@@ -125,19 +125,19 @@ impl WorkspaceRetrievalRuntime {
                     return Ok(empty_result(
                         self.status(),
                         WorkspaceSemanticFallbackReason::QueryEmbeddingFailed,
-                    ))
+                    ));
                 }
             },
             Err(crate::embedding::EmbeddingError::Cancelled)
                 if cancellation.is_cancelled() || runtime_cancellation.is_cancelled() =>
             {
-                return Err(WorkspaceRetrievalError::Cancelled)
+                return Err(WorkspaceRetrievalError::Cancelled);
             }
             Err(_) => {
                 return Ok(empty_result(
                     self.status(),
                     WorkspaceSemanticFallbackReason::QueryEmbeddingFailed,
-                ))
+                ));
             }
         };
 
@@ -187,7 +187,7 @@ impl WorkspaceRetrievalRuntime {
                 return Ok(empty_result(
                     self.status(),
                     WorkspaceSemanticFallbackReason::VectorSearchFailed,
-                ))
+                ));
             }
         };
         let after_search = self.status();

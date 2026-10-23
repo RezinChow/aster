@@ -23,6 +23,7 @@ pub(crate) mod read;
 mod safe_http;
 mod search;
 mod search_fallback;
+mod search_snippet;
 mod semantic_search;
 mod update_plan;
 mod web_fetch;
@@ -101,13 +102,15 @@ pub fn register_builtins(
     }
     let retrieval = workspace_services.workspace_retrieval();
     let semantic_enabled = capabilities.read && retrieval.is_some();
+    let hybrid_enabled = workspace_services.hybrid_search_available();
     // Prefer durable FTS at call time when this workspace can host one. Do not
     // open native indexes during tool registration (Loading / session build).
     let persistent_backend_enabled = capabilities.read && workspace_services.local_root().is_some();
-    if capabilities.search || semantic_enabled || persistent_backend_enabled {
+    if capabilities.search || semantic_enabled || hybrid_enabled || persistent_backend_enabled {
         let mut search = search::SearchTool::new(capabilities.read)
             .with_backend_search(capabilities.search)
             .with_semantic(semantic_enabled)
+            .with_hybrid(hybrid_enabled)
             .with_persistent_backend(persistent_backend_enabled);
         if let Some(runtime) = retrieval {
             search = search.with_retrieval_runtime(runtime);

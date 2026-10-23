@@ -1,60 +1,44 @@
-# Workspace Search Production Qualification
+# Aster workspace search qualification
 
-`scripts/workspace_search_production.sh` is the repeatable local acceptance
-gate for the framework-owned workspace search path. It does not require MCP or
-a live model provider. The default profile runs focused native/portable
-retrieval tests, strict Clippy, and a release qualification over 512 real
-source files so normal development does not wait for unrelated CI suites.
+Run commands from the initialized root Cargo workspace. The current operations
+contract and focused commands are in [WORKSPACE_RETRIEVAL_OPERATIONS.md](WORKSPACE_RETRIEVAL_OPERATIONS.md).
 
-Run it from `crates/code`:
+The existing `workspace_persistent_index_production` example exercises real
+manifest discovery, deferred catalog admission, durable a3s-vec generations,
+concurrent verified readers, identical-byte reuse, changed-byte publication,
+generation collection and reopen after restart:
 
-```bash
-scripts/workspace_search_production.sh
+```sh
+cargo run --locked --release -p a3s-code-core --example workspace_persistent_index_production
 ```
 
-Run the complete Core unit suites only for release admission:
+The existing `workspace_retrieval_benchmark` retains the locked separate exact
+vector and hybrid profiles, provider batching, rerank resource and close gates:
 
-```bash
-scripts/workspace_search_production.sh --full
+```sh
+cargo run --locked --release -p a3s-code-core --example workspace_retrieval_benchmark
 ```
 
-The scale profile creates a temporary workspace, starts the real deferred
-manifest scanner, activates the normal retrieval services, and waits for the
-background a3s-vec generation. It then verifies all of the invariants that matter
-for production use:
+The Aster matrix adds fixed Rust/TS/TSX/Chinese/doc/test cases, a late line-64
+match, and a negative control. It compares Lines/Recursive × RRF/MMR through
+public session APIs and actual tool rendering, checks provider request counts
+and zero vectors after close, and exits nonzero when an invariant fails:
 
-- every source file is admitted and every chunk is indexed;
-- concurrent readers continue to return verified hits while the index is live;
-- rewriting identical bytes reuses the current generation;
-- changed bytes publish a new generation and become searchable;
-- obsolete generations are removed after the atomic `CURRENT` switch; and
-- a fresh `WorkspacePersistentIndex` reopens the published generation and
-  answers the same query.
-
-The automatic persistent path uses a3s-vec for the workspace-wide durable
-projection. During cold admission, the session catalog uses the portable
-scorer as a verified fallback, so the runtime does not open one native
-collection per source file. This keeps admission proportional to source bytes;
-the model-facing `search` contract remains unchanged and switches to the
-durable native postings as soon as that generation is ready.
-
-The command prints one JSON measurement line. `discoveryMs` is the standalone
-manifest scan, `admissionMs` is catalog admission through the real runtime,
-`buildMs` is the first durable generation, and `queryP50Ms`/`queryP95Ms` are
-warm native query samples under concurrent readers. These values are machine
-dependent; the acceptance gate asserts correctness and lifecycle invariants,
-not a brittle wall-clock threshold.
-
-For a smaller or larger local profile:
-
-```bash
-A3S_WORKSPACE_ACCEPTANCE_FILES=1024 \
-  A3S_WORKSPACE_ACCEPTANCE_QUERY_WORKERS=16 \
-  scripts/workspace_search_production.sh
+```sh
+cargo run --locked --release -p a3s-code-core --example workspace_retrieval_aster
 ```
 
-The native feature can be pointed at a verified packaged library with
-`A3S_WORKSPACE_FEATURES=a3s-vec-fts` and the pure-Rust a3s-vec dependency
-configuration. The default bundled feature is intended for local and CI
-qualification; release artifacts must still pass the repository's native
-library attestation and packaging checks.
+Its orthogonal document/query control cannot create semantic recall. Response bytes and the
+legacy-prefix display ablation are reported without claiming actual model
+token savings. Profile timing and machine identity accompany results.
+
+The stdio and A3S Test terminal regressions execute the actual built ACP/Aster
+against a deterministic loopback model. The model fixture confirms that the
+verified source evidence reaches its next request before returning the visible
+completion marker. The missing-asset stdio case also proves that trusted local
+opt-in fails with the actual asset reason and retains model-free hybrid.
+
+Evidence for this epic belongs to
+`docs/evidence/code/2026-10-23-workspace-retrieval/`, separately from its
+`specs/011-workspace-retrieval/` planning artifacts. Historical upstream reports
+remain provenance and do not establish performance for this Aster build.

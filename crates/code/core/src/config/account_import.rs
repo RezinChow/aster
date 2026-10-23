@@ -17,18 +17,21 @@ pub enum AccountImport {
     Grok,
     /// The logged-in Cursor account (CLI config, keychain or IDE state).
     Cursor,
+    /// The logged-in Codex account (`~/.codex`, ChatGPT plan login).
+    Codex,
 }
 
 impl AccountImport {
-    pub const ALL: [Self; 3] = [Self::CcSwitch, Self::Grok, Self::Cursor];
+    pub const ALL: [Self; 4] = [Self::CcSwitch, Self::Grok, Self::Cursor, Self::Codex];
 
     pub fn parse(value: &str) -> Result<Self, String> {
         match value.trim() {
             "cc-switch" => Ok(Self::CcSwitch),
             "grok" => Ok(Self::Grok),
             "cursor" => Ok(Self::Cursor),
+            "codex" => Ok(Self::Codex),
             other => Err(format!(
-                "unknown account import {other:?} (closed set: cc-switch, grok, cursor)"
+                "unknown account import {other:?} (closed set: cc-switch, grok, cursor, codex)"
             )),
         }
     }
@@ -38,6 +41,7 @@ impl AccountImport {
             Self::CcSwitch => "cc-switch",
             Self::Grok => "grok",
             Self::Cursor => "cursor",
+            Self::Codex => "codex",
         }
     }
 

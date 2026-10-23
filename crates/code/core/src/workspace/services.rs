@@ -421,6 +421,12 @@ impl WorkspaceServices {
         self.chunk_catalog.is_some() || self.lazy_lexical.get().is_some()
     }
 
+    /// Observe hybrid support without starting catalog admission or opening FTS.
+    pub(crate) fn hybrid_search_available(&self) -> bool {
+        self.capabilities.read
+            && (self.chunk_catalog.is_some() || self.lazy_lexical_backend.is_some())
+    }
+
     fn ensure_lazy_lexical(&self) -> Option<&LazyLexicalHandles> {
         let backend = self.lazy_lexical_backend.as_ref()?;
         Some(self.lazy_lexical.get_or_init(|| {
@@ -496,19 +502,20 @@ impl WorkspaceServices {
                     .to_owned(),
             );
         }
-        let runtime = self
-            .workspace_retrieval
-            .as_ref()
+        let request = super::retrieval::ValidatedHybridRequest::new(request)?;
+        let catalog = self
+            .chunk_catalog()
             .ok_or(super::WorkspaceRetrievalError::Unavailable)?;
-        runtime
-            .hybrid_search(
-                request,
-                Arc::clone(&self.file_system),
-                self.code_intelligence.clone(),
-                self.operation_timeout,
-                cancellation,
-            )
-            .await
+        super::retrieval::hybrid_search(
+            catalog,
+            self.workspace_retrieval.as_deref(),
+            request,
+            Arc::clone(&self.file_system),
+            self.code_intelligence.clone(),
+            self.operation_timeout,
+            cancellation,
+        )
+        .await
     }
 
     pub(crate) fn with_workspace_retrieval(

@@ -305,14 +305,14 @@ impl WorkspaceFileSystem for LocalWorkspaceBackend {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 return Err(WorkspaceError::NotFound {
                     path: resolved.display().to_string(),
-                })
+                });
             }
             Err(e) => {
                 return Err(WorkspaceError::Backend(anyhow!(
                     "Failed to open file {}: {}",
                     resolved.display(),
                     e
-                )))
+                )));
             }
         };
         let metadata = file.metadata().await.map_err(|error| {

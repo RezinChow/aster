@@ -20,7 +20,6 @@ mod emit;
 mod extensions;
 mod goal_ext;
 mod host_methods;
-#[cfg(feature = "local-bge")]
 mod local_embedding;
 mod models;
 mod permission_ask;
@@ -293,9 +292,9 @@ fn session_capability_note(
 ) -> String {
     let retrieval = if semantic {
         "search modes: grep, glob, bm25, semantic, hybrid.\n\
-         If the index is degraded, semantic and hybrid leave the tool definition."
+         If the index is degraded, semantic leaves the tool definition; hybrid retains available channels."
     } else {
-        "search modes: grep, glob, bm25.\n语义检索关闭。"
+        "search modes: grep, glob, bm25, hybrid.\n语义检索关闭；hybrid 使用可用的精确、词法和符号通道。"
     };
     format!(
         "Session capabilities:\n\
@@ -590,6 +589,8 @@ fn model_picker_label(provider_name: &str, display_name: &str) -> String {
         format!("grok · {display_name}")
     } else if provider_name == "cursor" {
         format!("cursor · {display_name}")
+    } else if provider_name == "codex" {
+        format!("codex · {display_name}")
     } else {
         format!("{provider_name}/{display_name}")
     }
@@ -602,6 +603,8 @@ fn model_picker_description(provider_name: &str) -> String {
         "Logged-in Grok account".to_string()
     } else if provider_name == "cursor" {
         "Logged-in Cursor account".to_string()
+    } else if provider_name == "codex" {
+        "Logged-in Codex account".to_string()
     } else {
         format!("From A3S ACL provider {provider_name}")
     }

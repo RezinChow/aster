@@ -621,7 +621,7 @@ async fn opcov_retrieval_skills() {
         .hybrid_search(crate::WorkspaceHybridSearchRequest::new("alpha-token").with_limit(0))
         .await;
     match hybrid {
-        Err(crate::WorkspaceRetrievalError::Unavailable) => {}
+        Err(crate::WorkspaceRetrievalError::InvalidQuery(_)) => {}
         other => panic!("hybrid search: {other:?}"),
     }
     let first_mcp = session.mcp_status().await;

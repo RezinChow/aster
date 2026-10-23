@@ -3,8 +3,8 @@
 use super::*;
 
 mod continuation;
-pub(crate) use continuation::ContinuationSource;
 pub(super) use continuation::ContinuationUsage;
+pub(crate) use continuation::{ContinuationSource, ProgressBasis};
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

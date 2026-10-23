@@ -140,11 +140,15 @@ fn account_imports_are_off_unless_named_from_the_closed_set() {
             "--import-accounts",
             "cursor,grok",
             "--import-accounts",
-            "cursor"
+            "codex"
         ])
         .expect("args")
         .import_accounts,
-        vec![AccountImport::Cursor, AccountImport::Grok]
+        vec![
+            AccountImport::Cursor,
+            AccountImport::Grok,
+            AccountImport::Codex
+        ]
     );
     assert!(parse(&["--import-accounts"]).is_err());
     assert!(parse(&["--import-accounts", "keychain"]).is_err());

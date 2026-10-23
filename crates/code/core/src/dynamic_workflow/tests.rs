@@ -2340,8 +2340,7 @@ async fn dynamic_workflow_control_reuses_a_host_owned_event_store() {
     let dir = tempfile::tempdir().unwrap();
     let executor = ToolExecutor::new(dir.path().to_string_lossy().to_string());
     let store: Arc<dyn FlowEventStore> = Arc::new(InMemoryEventStore::new());
-    let source =
-        "async function run(ctx, inputs) { return { type: 'complete', output: { hosted: true } }; }";
+    let source = "async function run(ctx, inputs) { return { type: 'complete', output: { hosted: true } }; }";
     let tool = DynamicWorkflowTool::new(Arc::clone(executor.registry()))
         .with_flow_event_store(Arc::clone(&store));
     let args = json!({

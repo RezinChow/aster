@@ -236,7 +236,7 @@ pub(super) async fn prepare_owned_fact(
                     "bound exact Run '{run_id}' disappeared before execution"
                 )),
             )
-            .await)
+            .await);
         }
     };
     Ok(OwnedPinnedFact {

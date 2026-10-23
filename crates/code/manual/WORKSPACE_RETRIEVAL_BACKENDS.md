@@ -1,5 +1,10 @@
 # Workspace Retrieval Backends
 
+For current Aster host enablement and root-workspace qualification commands,
+see [WORKSPACE_RETRIEVAL_OPERATIONS.md](WORKSPACE_RETRIEVAL_OPERATIONS.md).
+Historical upstream SDK qualification below is provenance, not an Aster binding
+or release requirement. Hybrid now treats the semantic projection as optional.
+
 Status: shipped in the current development line. The workspace catalog has a
 single lexical backend boundary and a single semantic vector authority.
 
@@ -66,7 +71,7 @@ feature; no native sidecar library, `ZVEC_LIB_DIR`, or platform packaging
 script is required. Unsupported or minimal embeds can compile with
 `--no-default-features` and use the portable scorer.
 
-Persistent generations use an atomic `CURRENT` pointer and a schema-v2
+Persistent generations use an atomic `CURRENT` pointer and a schema-v3
 manifest. On reopen, Code verifies every retained chunk's text digest, stable
 chunk identity, byte/line range, canonical source digest, and duplicate-ID
 constraint before exposing the collection. A damaged or incompatible

@@ -2965,7 +2965,7 @@ dependencies = [
 
 [[package]]
 name = "a3s-studio"
-version = "2.1.3"
+version = "0.1.3"
 dependencies = [
  "a3s-acl",
  "a3s-boot",
@@ -2985,6 +2985,8 @@ dependencies = [
  "chrono",
  "futures-util",
  "getrandom 0.2.16",
+ "glib",
+ "gtk",
  "ignore",
  "lopdf",
  "notify",

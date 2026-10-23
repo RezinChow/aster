@@ -20,6 +20,9 @@ use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 const MODEL_ID: &str = "mock/gpt";
+
+#[path = "shipped_tui_e2e/retrieval.rs"]
+mod retrieval;
 const COMPACT_SUMMARY: &str = "COMPACT-SUMMARY-7f3a";
 const DURABLE_TOKEN: &str = "DURABLE-TOKEN-42";
 const GOAL_OBJECTIVE: &str = "pty-goal-7b2e";
@@ -220,6 +223,9 @@ fn decide(raw: &str, state: &mut MockState) -> String {
         return reply_text(&pre_analysis_object(), streaming);
     }
     let tools = has_tools(&parsed);
+    if let Some(response) = retrieval::response(&parsed, state, streaming) {
+        return response;
+    }
     if raw.contains("FORM-ORACLE") {
         if let Some(values) = returned_form_values(&parsed["messages"]) {
             let valid = values["name"] == "Ada"
@@ -571,6 +577,15 @@ default_model = "{MODEL_ID}"
 }
 
 async fn spawn_agent(workspace: &Path, config: &Path, home: &Path) -> AgentProc {
+    spawn_agent_with_env(workspace, config, home, &[]).await
+}
+
+async fn spawn_agent_with_env(
+    workspace: &Path,
+    config: &Path,
+    home: &Path,
+    extra_env: &[(&str, &Path)],
+) -> AgentProc {
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_a3s-code-acp"));
     let stderr_path = home.join("acp.stderr");
     let stderr = std::fs::File::create(&stderr_path).expect("acp stderr");
@@ -584,9 +599,11 @@ async fn spawn_agent(workspace: &Path, config: &Path, home: &Path) -> AgentProc 
         .env("XAI_API_KEY", "sk-dummy-not-a-model")
         .env("HOME", home)
         .env("GROK_HOME", home.join("grok"))
+        .envs(extra_env.iter().map(|(key, value)| (*key, *value)))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::from(stderr))
+        .kill_on_drop(true)
         .spawn()
         .expect("spawn a3s-code-acp");
     let stdout = child.stdout.take().expect("stdout").compat();

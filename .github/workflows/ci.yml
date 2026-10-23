@@ -39,12 +39,17 @@ jobs:
         run: python3 tests/workspace_dependencies.py
       - name: CLI pair delivery
         run: python3 tests/cli_pair_delivery.py
+      - name: Kylin CLI glibc baseline and channel selection
+        run: python3 tests/aster_cli_kylin.py
       - name: Kylin input method launcher
         run: |
           python3 tests/kylin_input_method.py
+          python3 tests/progress_bench.py
           python3 apps/studio/scripts/kylin-flatpak/test_delivery.py
       - name: Desktop package generation contracts
         run: python3 -m unittest apps/studio/scripts/tests/studio_delivery_test.py apps/studio/scripts/tests/studio_product_test.py
+      - name: App icon ladder and desktop identity
+        run: python3 tests/app_icon_assets.py
       - name: Shared-crate drift ratchet
         # Visibly skipped when the private submodules are not checked out;
         # enforces everywhere they are (self-hosted, credentialed runners).
@@ -75,6 +80,11 @@ jobs:
         run: cargo test --locked -p a3s-studio-data-sqlite -p a3s-studio-desktop-contract
       - name: ACP integration
         run: cargo test --locked -p a3s-code-acp --test v912_seam
+      - name: Workspace retrieval contracts
+        run: |
+          cargo test --locked -p a3s-code-core --lib -- tools::builtin::search workspace::retrieval::tests::hybrid_query agent_api::retrieval_tests permissions:: --test-threads=4
+          cargo test --locked -p a3s-code-acp --lib -- local_embedding retrieval_seam session_setup execution_capabilities --test-threads=4
+          cargo test --locked -p a3s-code-acp --test shipped_tui_e2e retrieval::shipped_retrieval_stdio -- --test-threads=1
       - name: Logo cache and rendering
         run: cargo test --locked -p a3s-code-pager --lib views::welcome
       - name: Current memory-retention contracts

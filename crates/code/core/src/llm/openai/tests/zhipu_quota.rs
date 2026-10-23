@@ -90,7 +90,9 @@ async fn invoke(
             .expect_err("the controlled response is an HTTP error")
     };
     let calls = http.calls.load(Ordering::SeqCst);
-    eprintln!("zhipu quota fixture: provider={provider} status={status} streaming={streaming} calls={calls}");
+    eprintln!(
+        "zhipu quota fixture: provider={provider} status={status} streaming={streaming} calls={calls}"
+    );
     (error, calls)
 }
 

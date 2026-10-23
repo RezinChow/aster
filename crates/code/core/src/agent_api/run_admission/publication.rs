@@ -548,7 +548,7 @@ impl OriginalExecutionContext {
             OriginalRunBinding::Created { snapshot, .. } => Some(snapshot.id.clone()),
             OriginalRunBinding::NoRun => None,
             OriginalRunBinding::Unobserved => {
-                return Err(owner_error("unobserved publication target"))
+                return Err(owner_error("unobserved publication target"));
             }
         };
         Ok(OriginalPublicationTarget {

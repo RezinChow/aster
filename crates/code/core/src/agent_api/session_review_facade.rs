@@ -116,7 +116,7 @@ impl AgentSession {
                     return Err(CodeError::Session(format!(
                         "review finding {} already holds other content",
                         draft.finding_id
-                    )))
+                    )));
                 }
                 None => fresh.push(draft),
             }

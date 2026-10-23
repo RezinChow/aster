@@ -368,10 +368,12 @@ async fn failed_read_calls_still_exhaust_the_total_tool_budget() {
     );
     assert_eq!(results.len(), 3, "the fourth failed read must not execute");
     assert!(results.iter().all(|fact| fact.payload["ok"] == false));
-    assert!(results.iter().all(|fact| fact.payload["output"]
-        .as_str()
-        .unwrap()
-        .contains("Failed to read file")));
+    assert!(results.iter().all(|fact| {
+        fact.payload["output"]
+            .as_str()
+            .unwrap()
+            .contains("Failed to read file")
+    }));
     session.close().await;
 }
 

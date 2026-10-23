@@ -60,7 +60,14 @@ function SearchInput({
         type="search"
         value={value}
         disabled={disabled}
-        className={cn('[&::-webkit-search-cancel-button]:hidden', className)}
+        // A WebKit `type=search` paints its own native field on top of ours:
+        // white fill, a 1px outline and the platform accent ring on focus, all
+        // inside the group's rounded track. The design's search field is one
+        // borderless track, so the native paint is turned off here.
+        className={cn(
+          'appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden',
+          className
+        )}
         {...props}
       />
       {showClear && (

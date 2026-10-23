@@ -993,7 +993,11 @@ fn build_initial_messages(req: &StructuredRequest, mode: StructuredMode) -> Vec<
                 "{}\n\n{}{}\n\nYou MUST respond with ONLY a valid JSON object (no markdown, no explanation) that conforms to this JSON Schema:\n\n```json\n{}\n```",
                 req.prompt,
                 envelope_instruction,
-                if envelope_instruction.is_empty() { "" } else { "\n" },
+                if envelope_instruction.is_empty() {
+                    ""
+                } else {
+                    "\n"
+                },
                 serde_json::to_string_pretty(&response_schema).unwrap_or_default()
             );
             vec![Message::user(&augmented)]
@@ -1017,7 +1021,11 @@ fn build_system_prompt(req: &StructuredRequest, mode: StructuredMode) -> String 
                 base,
                 if base.is_empty() { "" } else { "\n\n" },
                 req.schema_name,
-                if envelope_instruction.is_empty() { "" } else { "\n\n" },
+                if envelope_instruction.is_empty() {
+                    ""
+                } else {
+                    "\n\n"
+                },
                 envelope_instruction
             )
         }
@@ -1026,7 +1034,11 @@ fn build_system_prompt(req: &StructuredRequest, mode: StructuredMode) -> String 
                 "{}{}You are a structured data extraction assistant. Always respond with valid JSON only, no markdown fences, no explanation text.{}{}",
                 base,
                 if base.is_empty() { "" } else { "\n\n" },
-                if envelope_instruction.is_empty() { "" } else { "\n\n" },
+                if envelope_instruction.is_empty() {
+                    ""
+                } else {
+                    "\n\n"
+                },
                 envelope_instruction,
             )
         }
@@ -1255,7 +1267,11 @@ fn build_repair_message(raw_text: &str, errors: &[String]) -> String {
     format!(
         "Your previous output failed schema validation:\n\n{}\n\nValidation errors:\n{}\n\nPlease return ONLY a corrected JSON object that fixes these errors. No explanation, no markdown.",
         truncated_raw,
-        errors.iter().map(|e| format!("- {}", e)).collect::<Vec<_>>().join("\n")
+        errors
+            .iter()
+            .map(|e| format!("- {}", e))
+            .collect::<Vec<_>>()
+            .join("\n")
     )
 }
 

@@ -183,6 +183,79 @@ struct OpenWorkspaceChild {
     nongit: bool,
 }
 
+/// One turn's progress across the four dimensions the admission policy
+/// reads. A stall is ZERO on every dimension; exploration alone (nonzero
+/// information) never stalls.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TurnProgressDelta {
+    /// Distinct tool receipts first applied this turn.
+    pub information_delta: u64,
+    /// Verified effect records this turn (changes or failed paths).
+    pub mutation_delta: u64,
+    /// Net decrease of unresolved plus recorded obligations.
+    pub uncertainty_delta: i64,
+    /// Assistant output (text or plan) landed this turn.
+    pub plan_delta: u64,
+}
+
+/// In-flight counters behind [`TurnProgressDelta`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+struct TurnProgress {
+    receipts_applied: u64,
+    effects_recorded: u64,
+    uncertainty_open: i64,
+    assistant_outputs: u64,
+}
+
+impl MutationLedger {
+    /// Record that an assistant output (text or plan update) landed this
+    /// turn. Fed by the fact path; never inferred from tools.
+    pub(crate) fn note_assistant_output(&mut self) {
+        self.turn_progress.assistant_outputs += 1;
+    }
+
+    /// The deltas of the turn being settled, then reset the counters.
+    fn take_turn_delta(&mut self) -> TurnProgressDelta {
+        let open_now =
+            (self.unresolved_tool_effects.len() + self.recorded_uncertainties.len()) as i64;
+        let delta = TurnProgressDelta {
+            information_delta: self.turn_progress.receipts_applied,
+            mutation_delta: self.turn_progress.effects_recorded,
+            uncertainty_delta: self.turn_progress.uncertainty_open - open_now,
+            plan_delta: self.turn_progress.assistant_outputs,
+        };
+        self.turn_progress = TurnProgress {
+            uncertainty_open: open_now,
+            ..Default::default()
+        };
+        // Fold the turn into the slice accumulator the settle path reads.
+        self.slice_progress.receipts_applied += delta.information_delta;
+        self.slice_progress.effects_recorded += delta.mutation_delta;
+        self.slice_progress.assistant_outputs += delta.plan_delta;
+        self.slice_progress.uncertainty_open = open_now;
+        delta
+    }
+
+    /// The slice's accumulated progress, then reset the slice counters.
+    /// Called when the goal settles the slice; absence of any ledger makes
+    /// the settle fall back to mutation-only progress.
+    pub(crate) fn take_slice_delta(&mut self) -> TurnProgressDelta {
+        let open_now =
+            (self.unresolved_tool_effects.len() + self.recorded_uncertainties.len()) as i64;
+        let delta = TurnProgressDelta {
+            information_delta: self.slice_progress.receipts_applied,
+            mutation_delta: self.slice_progress.effects_recorded,
+            uncertainty_delta: self.slice_progress.uncertainty_open - open_now,
+            plan_delta: self.slice_progress.assistant_outputs,
+        };
+        self.slice_progress = TurnProgress {
+            uncertainty_open: open_now,
+            ..Default::default()
+        };
+        delta
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MutationLedger {
     records: Vec<MutationRecord>,
@@ -203,6 +276,23 @@ pub struct MutationLedger {
     /// workspace-attribution gap is not stored here; the run scan owns that.
     #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
     unresolved_tool_effects: std::collections::BTreeSet<String>,
+    /// Obligations that survived their turn: recorded, goal-visible debt that
+    /// no longer denies future mutating calls. Never silently cleared — a
+    /// later matching observation removes the record.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    recorded_uncertainties: std::collections::BTreeSet<String>,
+    /// The highest model turn whose PRIOR turns' obligations have settled
+    /// into the recorded set. Same-turn denies stay byte-identical; the
+    /// latch releases only when the model advances to a later turn.
+    #[serde(default)]
+    settled_turn_watermark: u64,
+    /// Progress counters for the CURRENT turn (reset at each settle).
+    #[serde(default)]
+    turn_progress: TurnProgress,
+    /// Progress accumulated across the CURRENT slice's turns (reset when a
+    /// slice settles and the fact path takes its delta).
+    #[serde(skip)]
+    slice_progress: TurnProgress,
     /// Paths whose first typed before-state in this run was absence.
     /// A later absence is not a remaining effect. Unknown history stays out.
     /// This set is not part of the effect digest.
@@ -590,6 +680,42 @@ impl MutationLedger {
             .any(|key| !key.starts_with("workspace-child:"))
     }
 
+    /// Obligations that outlived their turn, recorded for the goal to see.
+    pub(crate) fn recorded_uncertainties(&self) -> &std::collections::BTreeSet<String> {
+        &self.recorded_uncertainties
+    }
+
+    /// Release prior turns' obligations when the model advances: obligations
+    /// from BEFORE `turn` settle into the recorded set; same-turn denies are
+    /// untouched. This is the deadlock exit — the latch can no longer outlive
+    /// the turn it arose in.
+    pub(crate) fn settle_prior_turns(&mut self, turn: u64) -> Option<TurnProgressDelta> {
+        if turn > self.settled_turn_watermark {
+            self.settle_turn_uncertainties();
+            self.settled_turn_watermark = turn;
+            return Some(self.take_turn_delta());
+        }
+        None
+    }
+
+    /// Turn settlement: unresolved non-child obligations become recorded,
+    /// goal-visible debt instead of a permanent write ban. The record is
+    /// removed only by a later matching observation — never by a waiver.
+    pub(crate) fn settle_turn_uncertainties(&mut self) {
+        let remaining: std::collections::BTreeSet<String> = self
+            .unresolved_tool_effects
+            .iter()
+            .filter(|key| key.starts_with("workspace-child:"))
+            .cloned()
+            .collect();
+        for key in &self.unresolved_tool_effects {
+            if !key.starts_with("workspace-child:") {
+                self.recorded_uncertainties.insert(key.clone());
+            }
+        }
+        self.unresolved_tool_effects = remaining;
+    }
+
     /// A full log projection must apply every typed event in log order. An
     /// eagerly observed foreground receipt must not hide a later replay step
     /// after an older background receipt first becomes visible locally.
@@ -619,6 +745,11 @@ impl MutationLedger {
         if !self.applied_tool_receipts.insert(key.clone()) {
             return;
         }
+        self.turn_progress.receipts_applied += 1;
+        // Obligations are NOT discharged by an observed receipt: the pinned
+        // invariants (future terminal never erases prepared debt; child debt
+        // needs its exact committed terminal) own every discharge path. The
+        // only additional path is turn settlement into the recorded set.
         let mut failed_changed = false;
         for change in &result.effects.changes {
             if !crate::porcelain::is_harness_path(&change.path)
@@ -1389,6 +1520,7 @@ fn append_effect_field(canonical: &mut Vec<u8>, field: &[u8]) {
 mod receipt_tests;
 
 #[cfg(test)]
+mod progress_delta_tests;
 mod receipt_restore_tests;
 
 #[cfg(test)]

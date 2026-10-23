@@ -57,18 +57,11 @@ pub fn publish_note_bundle_with(
     }
     let files = collect_files(root)?;
     let planned = plan_bundle(&files, Some(root), on_file)?;
-    let mut snapshot = files.clone();
-    for key in snapshot
-        .keys()
-        .filter(|path| is_direct_concept(path))
-        .cloned()
-        .collect::<Vec<_>>()
-    {
-        snapshot.remove(&key);
-    }
-    for (relative, bytes) in &planned.notes {
-        snapshot.insert(relative.clone(), bytes.clone());
-    }
+    // Inspect what the planner produced, not every file on disk. A note skipped for being
+    // empty, oversized, or too deep keeps its raw bytes and must not be read as a concept:
+    // one empty note would otherwise reject the whole bundle. A note the planner marked
+    // failed keeps its raw bytes in `notes`, so a malformed one still rejects the publish.
+    let mut snapshot = planned.notes.clone();
     for (relative, bytes) in &planned.concepts {
         snapshot.insert(relative.clone(), bytes.clone());
     }
