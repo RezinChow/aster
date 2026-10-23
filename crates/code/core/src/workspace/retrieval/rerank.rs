@@ -711,3 +711,87 @@ mod definition_boost_tests {
         }
     }
 }
+
+/// Phase 4 adaptive query weighting: symbol-like queries lean lexical,
+/// natural-language queries lean semantic. The classifier picks between two
+/// FIXED weight vectors — it never invents weights. Applied as a channel
+/// multiplier on the rerank score, bounded by the existing compare_fused
+/// ordering: exact_identifier still gates first.
+pub(crate) const SYMBOL_LEAN: f64 = 1.25;
+pub(crate) const NATURAL_LEAN: f64 = 1.15;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum QueryShape {
+    Symbol,
+    NaturalLanguage,
+}
+
+/// Classify the query shape. A single ASCII identifier (snake_case,
+/// camelCase, PascalCase, or dotted path segment) is symbol-like;
+/// anything with whitespace or multiple words is natural language.
+pub(crate) fn classify_query(query: &str) -> QueryShape {
+    let trimmed = query.trim();
+    if trimmed.is_empty() || trimmed.contains(char::is_whitespace) {
+        return QueryShape::NaturalLanguage;
+    }
+    let mut chars = trimmed.chars();
+    let first_ok = chars
+        .next()
+        .is_some_and(|c| c == '_' || c == '.' || c.is_ascii_alphabetic());
+    let rest_ok = trimmed
+        .chars()
+        .skip(1)
+        .all(|c| c == '_' || c == '.' || c == ':' || c.is_ascii_alphanumeric());
+    if first_ok && rest_ok {
+        QueryShape::Symbol
+    } else {
+        QueryShape::NaturalLanguage
+    }
+}
+
+/// Apply the lean to a channel multiplier. Symbol queries multiply the
+/// lexical/structural channel bonus; natural queries multiply the semantic
+/// channel bonus. Returns the multiplier for the given channel name.
+pub(crate) fn channel_lean(shape: QueryShape, channel: &str) -> f64 {
+    match (shape, channel) {
+        (QueryShape::Symbol, "lexical") | (QueryShape::Symbol, "structural") => SYMBOL_LEAN,
+        (QueryShape::NaturalLanguage, "semantic") => NATURAL_LEAN,
+        _ => 1.0,
+    }
+}
+
+#[cfg(test)]
+mod adaptive_weighting_tests {
+    use super::*;
+
+    #[test]
+    fn single_identifiers_are_symbol_queries() {
+        assert_eq!(classify_query("apply_boost"), QueryShape::Symbol);
+        assert_eq!(classify_query("Widget::new"), QueryShape::Symbol);
+        assert_eq!(classify_query("_private"), QueryShape::Symbol);
+        assert_eq!(classify_query("path.to::Thing"), QueryShape::Symbol);
+    }
+
+    #[test]
+    fn sentences_and_mixed_are_natural() {
+        assert_eq!(
+            classify_query("how does rendering work"),
+            QueryShape::NaturalLanguage
+        );
+        assert_eq!(classify_query("Widget new"), QueryShape::NaturalLanguage);
+        assert_eq!(classify_query(""), QueryShape::NaturalLanguage);
+        assert_eq!(classify_query("with spaces "), QueryShape::NaturalLanguage);
+    }
+
+    #[test]
+    fn the_lean_picks_between_two_fixed_vectors() {
+        assert!((channel_lean(QueryShape::Symbol, "lexical") - 1.25).abs() < 1e-9);
+        assert!((channel_lean(QueryShape::Symbol, "structural") - 1.25).abs() < 1e-9);
+        assert!((channel_lean(QueryShape::NaturalLanguage, "semantic") - 1.15).abs() < 1e-9);
+        // Cross-shape and unlisted channels stay neutral — the classifier
+        // never penalizes a channel it did not classify.
+        assert!((channel_lean(QueryShape::Symbol, "semantic") - 1.0).abs() < 1e-9);
+        assert!((channel_lean(QueryShape::NaturalLanguage, "lexical") - 1.0).abs() < 1e-9);
+        assert!((channel_lean(QueryShape::Symbol, "exact") - 1.0).abs() < 1e-9);
+    }
+}
