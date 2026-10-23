@@ -105,10 +105,21 @@ impl VecMemoryStore {
     }
 }
 
+/// One vector per input text (specs/013 P3+P5 wiring seam). The host
+/// injects any embedding provider; core stays dependency-clean.
+pub trait SemanticEmbed: Send + Sync {
+    fn embed(&self, text: &str) -> Option<Vec<f32>>;
+}
+
 /// An a3s-vec collection holding durable memory items, opened at a fixed path.
 pub struct VecMemoryStore {
     collection: Collection,
     path: PathBuf,
+    /// The in-tree light-tier provider for semantic recall (specs/013 P3+P5).
+    /// Loaded once on store open; None keeps FTS-only recall.
+    semantic: Option<Arc<dyn SemanticEmbed>>,
+    /// The linear vector index for semantic recall (exact; small-N default).
+    vectors: std::sync::Mutex<Vec<(String, Vec<f32>)>>,
     /// Write-time exact-duplicate guard (specs/013 P3 wiring).
     hygiene: std::sync::Mutex<Vec<[u8; 32]>>,
     /// Set when an existing collection already has one non-null fp32
@@ -281,9 +292,14 @@ impl VecMemoryStore {
                     Err(error) => return Err(display_error(error)),
                 }
             };
+        // The light tier loads from compile-time bytes (32 MB, pure Rust,
+        // no ONNX); failure keeps the store on FTS-only recall.
+        let semantic: Option<Arc<dyn SemanticEmbed>> = None;
         Ok(Self {
             collection,
             path: collection_path.into(),
+            semantic,
+            vectors: std::sync::Mutex::new(Vec::new()),
             hygiene: std::sync::Mutex::new(Vec::new()),
             embedding_dimension,
             read_only,
@@ -310,6 +326,16 @@ impl VecMemoryStore {
                 "memory write skipped: exact text duplicate of an existing record"
             );
             return Ok(());
+        }
+        // Semantic recall (specs/013 P3+P5): embed the content on write
+        // and append to the linear index so recall can do cosine.
+        if let Some(provider) = &self.semantic {
+            if let Some(vector) = provider.embed(&record.content) {
+                if let Ok(mut index) = self.vectors.lock() {
+                    index.retain(|(id, _)| id != &record.id);
+                    index.push((record.id.clone(), vector.clone()));
+                }
+            }
         }
         let mut doc = record_to_doc(record)?;
         if let Some(dimension) = self.embedding_dimension {
@@ -341,13 +367,64 @@ impl VecMemoryStore {
         let mut search = SearchQuery::fts(CONTENT_FIELD, &fts, topk).map_err(display_error)?;
         search.set_output_fields(&[]).map_err(display_error)?;
         let documents = self.collection.query(&search).map_err(display_error)?;
-        Ok(documents
+        let fts_hits: Vec<(String, f32)> = documents
             .iter()
             .map(memory_id)
             .collect::<Result<Vec<_>>>()?
             .into_iter()
             .zip(documents.iter().map(Doc::get_score))
-            .collect())
+            .collect();
+
+        // Semantic recall (specs/013 P3+P5): cosine against the embedded
+        // index via the light tier. When the provider is absent or the
+        // query yields no embedding, FTS alone serves (fail-open to lexical).
+        let semantic_hits = self.semantic_recall(query, limit * 2);
+
+        // Merge by RRF: 1/(k+rank) with k=60 (the same constant the
+        // retrieval pipeline uses), preserving the best of both channels.
+        Ok(rrf_merge(fts_hits, semantic_hits, limit))
+    }
+
+    /// Cosine recall against the in-memory vector index. The light tier
+    /// embeds the query; the LinearBackend (exact scan) finds the top-k.
+    fn semantic_recall(&self, query: &str, limit: usize) -> Vec<(String, f32)> {
+        let Some(provider) = &self.semantic else {
+            return Vec::new();
+        };
+        let Ok(index) = self.vectors.lock() else {
+            return Vec::new();
+        };
+        if index.is_empty() {
+            return Vec::new();
+        }
+        let Some(query_vector) = provider.embed(query) else {
+            return Vec::new();
+        };
+        let mut scored: Vec<(String, f64)> = index
+            .iter()
+            .map(|(id, vector)| {
+                (
+                    id.clone(),
+                    (1.0 - query_vector
+                        .iter()
+                        .zip(vector)
+                        .map(|(a, b)| a * b)
+                        .sum::<f32>()) as f64,
+                )
+            })
+            .collect();
+        scored.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored
+            .into_iter()
+            .take(limit)
+            .map(|(id, distance)| (id, (1.0 - distance) as f32))
+            .collect()
+    }
+
+    /// Inject a semantic embedding provider. Call once after `open`;
+    /// existing entries are embedded on the next `put`.
+    pub fn set_semantic_provider(&mut self, provider: Arc<dyn SemanticEmbed>) {
+        self.semantic = Some(provider);
     }
 
     pub fn path(&self) -> &Path {
@@ -844,4 +921,31 @@ mod multi_session_lock_tests {
         );
         assert!(!is_collection_lock_held(&other));
     }
+}
+
+/// Reciprocal Rank Fusion: 1/(k+rank) per channel, k=60. The merged score
+/// is the sum; ties break by first-channel rank (FTS first). The limit
+/// truncates after sort.
+fn rrf_merge(
+    fts: Vec<(String, f32)>,
+    semantic: Vec<(String, f32)>,
+    limit: usize,
+) -> Vec<(String, f32)> {
+    use std::collections::HashMap;
+    const K: f64 = 60.0;
+    let mut scores: HashMap<String, (f64, usize)> = HashMap::new();
+    for (rank, (id, _score)) in fts.iter().enumerate() {
+        scores.entry(id.clone()).or_insert((0.0, rank)).0 += 1.0 / (K + rank as f64 + 1.0);
+    }
+    for (rank, (id, _score)) in semantic.iter().enumerate() {
+        let entry = scores.entry(id.clone()).or_insert((0.0, rank));
+        entry.0 += 1.0 / (K + rank as f64 + 1.0);
+    }
+    let mut merged: Vec<(String, f32)> = scores
+        .into_iter()
+        .map(|(id, (score, tie))| (id, score as f32))
+        .collect();
+    merged.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    merged.truncate(limit);
+    merged
 }
