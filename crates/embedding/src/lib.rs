@@ -14,5 +14,6 @@
 pub mod assets;
 pub mod hygiene;
 pub mod provider;
+pub mod vector;
 
 pub use provider::StaticEmbeddingProvider;
