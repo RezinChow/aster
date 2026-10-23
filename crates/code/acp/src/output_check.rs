@@ -14,8 +14,20 @@ pub(crate) struct OutputCheckTool;
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 enum Check {
-    TextLength { text: String },
-    PercentageChange { pairs: Vec<Pair> },
+    TextLength {
+        text: String,
+    },
+    PercentageChange {
+        pairs: Vec<Pair>,
+    },
+    DateSpan {
+        start: String,
+        end: String,
+        endpoint_counting: String,
+    },
+    SequenceChanges {
+        values: Vec<Option<f64>>,
+    },
 }
 
 #[derive(Deserialize)]
@@ -34,13 +46,17 @@ impl Tool for OutputCheckTool {
     }
 
     fn description(&self) -> &str {
-        "Check text length or compute percentage changes in process, without Bash. text_length counts Unicode characters including punctuation/whitespace, non-whitespace characters, and whitespace-delimited words. percentage_change uses (current-previous)/abs(previous)*100, returns full numeric values and signed prose rounded to at most 2 decimals with ASCII signs (+10%, -50%); explicit user precision still takes precedence. Missing values and zero baselines are not treated as zero changes."
+        "Check text length, percentage changes, date spans or every adjacent sequence change in process, without Bash. text_length counts Unicode characters including punctuation/whitespace, non-whitespace characters, and whitespace-delimited words. percentage_change uses (current-previous)/abs(previous)*100, returns full numeric values and signed prose rounded to at most 2 decimals with ASCII signs (+10%, -50%); explicit user precision still takes precedence. date_span requires exact YYYY-MM-DD dates and explicit elapsed or inclusive endpoint counting; reversed dates are refused. sequence_changes returns every adjacent difference and every decrease with zero-based indices; missing values leave the complete-sequence conclusion unknown. Missing values and zero baselines are never converted to zero changes. These measurements do not establish business meaning or resolve conflicting user requirements; compare every final claim with its source and counting rule."
     }
 
     fn parameters(&self) -> Value {
         json!({"type":"object","properties":{
-            "action":{"type":"string","enum":["text_length","percentage_change"]},
+            "action":{"type":"string","enum":["text_length","percentage_change","date_span","sequence_changes"]},
             "text":{"type":"string","maxLength":32768,"description":"Required only for text_length."},
+            "start":{"type":"string","minLength":10,"maxLength":10,"description":"Required for date_span: YYYY-MM-DD."},
+            "end":{"type":"string","minLength":10,"maxLength":10,"description":"Required for date_span: YYYY-MM-DD, on or after start."},
+            "endpoint_counting":{"type":"string","enum":["elapsed","inclusive"],"description":"Required for date_span. elapsed counts end minus start; inclusive counts both endpoints."},
+            "values":{"type":"array","minItems":2,"maxItems":512,"items":{"type":["number","null"]},"description":"Required for sequence_changes, in source order; null is missing."},
             "pairs":{"type":"array","maxItems":512,"items":{
                 "type":"object","properties":{
                     "current":{"type":["number","null"]},
@@ -48,8 +64,10 @@ impl Tool for OutputCheckTool {
                 },"required":["current","previous"],"additionalProperties":false}}
         },"required":["action"],"additionalProperties":false,
         "oneOf":[
-            {"properties":{"action":{"const":"text_length"}},"required":["text"]},
-            {"properties":{"action":{"const":"percentage_change"}},"required":["pairs"]}
+            {"properties":{"action":{"const":"text_length"},"text":{}},"required":["text"],"additionalProperties":false},
+            {"properties":{"action":{"const":"percentage_change"},"pairs":{}},"required":["pairs"],"additionalProperties":false},
+            {"properties":{"action":{"const":"date_span"},"start":{},"end":{},"endpoint_counting":{}},"required":["start","end","endpoint_counting"],"additionalProperties":false},
+            {"properties":{"action":{"const":"sequence_changes"},"values":{}},"required":["values"],"additionalProperties":false}
         ]})
     }
 
@@ -92,6 +110,67 @@ impl Tool for OutputCheckTool {
                 }).collect();
                 json!({"results":results})
             }
+            Check::DateSpan {
+                start,
+                end,
+                endpoint_counting,
+            } => {
+                let counting = match metrics::EndpointCounting::parse(&endpoint_counting) {
+                    Ok(value) => value,
+                    Err(reason) => return Ok(ToolOutput::error(reason)),
+                };
+                match metrics::date_span(&start, &end, counting) {
+                    Ok(days) => {
+                        json!({"start":start,"end":end,"endpoint_counting":counting.as_str(),"days":days})
+                    }
+                    Err(reason) => return Ok(ToolOutput::error(reason)),
+                }
+            }
+            Check::SequenceChanges { values } => {
+                if !(2..=512).contains(&values.len()) {
+                    return Ok(ToolOutput::error("values must contain 2..512 items"));
+                }
+                let mut steps = Vec::with_capacity(values.len() - 1);
+                let mut decreases = Vec::new();
+                let mut complete = true;
+                for (index, pair) in values.windows(2).enumerate() {
+                    let mut step = json!({"from_index":index,"to_index":index+1,"previous":pair[0],"current":pair[1]});
+                    match (pair[0], pair[1]) {
+                        (Some(previous), Some(current))
+                            if current.is_finite() && previous.is_finite() =>
+                        {
+                            let difference = current - previous;
+                            if !difference.is_finite() {
+                                return Ok(ToolOutput::error(
+                                    "sequence difference exceeds finite numeric range",
+                                ));
+                            }
+                            step["difference"] = json!(difference);
+                            if current < previous {
+                                decreases.push(json!({"from_index":index,"to_index":index+1}));
+                            }
+                            match metrics::percentage_change(current, previous) {
+                                Ok((value, display)) => {
+                                    step["percentage_change"] = json!(value);
+                                    step["display"] = json!(display);
+                                }
+                                Err(reason) => {
+                                    step["percentage_change"] = Value::Null;
+                                    step["reason"] = json!(reason);
+                                }
+                            }
+                        }
+                        _ => {
+                            complete = false;
+                            step["difference"] = Value::Null;
+                            step["percentage_change"] = Value::Null;
+                            step["reason"] = json!("missing value; not provided");
+                        }
+                    }
+                    steps.push(step);
+                }
+                json!({"steps":steps,"decreases":decreases,"all_steps_observed":complete,"non_decreasing":if complete { json!(decreases.is_empty()) } else { Value::Null }})
+            }
         };
         Ok(ToolOutput::success(result.to_string()))
     }
@@ -100,3 +179,7 @@ impl Tool for OutputCheckTool {
 #[cfg(test)]
 #[path = "output_check_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "output_check_sequence_tests.rs"]
+mod sequence_tests;

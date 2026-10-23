@@ -29,6 +29,22 @@ pub(super) fn workspace_id_map(
     )
 }
 
+fn add_private_tmp_mount(mounts: &mut Vec<serde_json::Value>) -> Result<()> {
+    for mount in mounts.iter() {
+        if let Some(destination) = mount["destination"].as_str() {
+            if Path::new(destination).starts_with("/tmp") {
+                bail!("OCI template mount at {destination} conflicts with per-call private /tmp");
+            }
+        }
+    }
+    // Private tmpfs keeps unlinked temporary files readable without host path mediation.
+    mounts.push(json!({
+        "source": "tmpfs", "destination": "/tmp", "type": "tmpfs",
+        "options": ["rw", "nosuid", "nodev", "mode=1777", "size=67108864"]
+    }));
+    Ok(())
+}
+
 pub(super) async fn prepare(
     workspace: &Path,
     assets: &OciSandboxAssets,
@@ -186,6 +202,7 @@ pub(super) async fn prepare(
     let mounts = config["mounts"]
         .as_array_mut()
         .context("OCI template has no mounts")?;
+    add_private_tmp_mount(mounts)?;
     let index = mounts.len();
     mounts.push(json!({"source":workspace,"destination":workspace,"type":"none","options":["rbind","rw","nodev","nosuid"]}));
     let encoded = serde_json::to_string(&config)?;
@@ -214,7 +231,42 @@ pub(super) async fn prepare(
 
 #[cfg(test)]
 mod tests {
-    use super::workspace_id_map;
+    use super::{add_private_tmp_mount, workspace_id_map};
+    use serde_json::json;
+
+    #[test]
+    fn private_tmp_is_bounded_memory_storage_and_preserves_other_mounts() {
+        let original = vec![
+            json!({"destination":"/proc","type":"proc","source":"proc"}),
+            json!({"destination":"/tmp-other","type":"tmpfs","source":"tmpfs"}),
+        ];
+        let mut mounts = original.clone();
+        add_private_tmp_mount(&mut mounts).unwrap();
+        assert_eq!(&mounts[..original.len()], original);
+        let temporary = mounts.last().unwrap();
+        assert_eq!(temporary["type"], "tmpfs");
+        assert_eq!(temporary["source"], "tmpfs");
+        assert_eq!(temporary["destination"], "/tmp");
+        let options = temporary["options"].as_array().unwrap();
+        for required in ["rw", "nosuid", "nodev", "mode=1777", "size=67108864"] {
+            assert!(options.contains(&json!(required)));
+        }
+    }
+
+    #[test]
+    fn private_tmp_refuses_template_mounts_that_would_override_its_boundary() {
+        for destination in ["/tmp", "/tmp/cache", "/tmp/../var"] {
+            let original = vec![json!({
+                "destination":destination,"type":"none","source":"/outside"
+            })];
+            let mut mounts = original.clone();
+            let error = add_private_tmp_mount(&mut mounts).unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("conflicts with per-call private /tmp"));
+            assert_eq!(mounts, original);
+        }
+    }
 
     #[test]
     fn maps_container_root_onto_the_caller_only() {

@@ -153,7 +153,7 @@ impl crate::agent::TurnEngine {
                                         question: question.question,
                                         options: question.options,
                                         allow_free_text: question.allow_free_text,
-                                        form: Some(form.openui.clone()),
+                                        form: Some(form.spec.clone()),
                                     })
                                     .await
                                     .is_ok();
@@ -162,7 +162,7 @@ impl crate::agent::TurnEngine {
                         if !parked {
                             parked = tx
                                 .send(AgentEvent::TextDelta {
-                                    text: format!("\n```openui\n{}\n```\n", form.openui),
+                                    text: format!("\n```json-render\n{}\n```\n", form.spec),
                                 })
                                 .await
                                 .is_ok();
@@ -1175,11 +1175,11 @@ mod tests {
         assert!(!shown.contains("leave_card"));
         assert!(events.iter().any(|event| matches!(
             event,
-            AgentEvent::UserQuestion { form: Some(form), .. } if form.contains("Input(")
+            AgentEvent::UserQuestion { form: Some(form), .. } if form.contains("\"type\":\"Input\"")
         )));
         assert!(!events.iter().any(|event| matches!(
             event,
-            AgentEvent::TextDelta { text } if text.contains("```openui")
+            AgentEvent::TextDelta { text } if text.contains("```json-render")
         )));
     }
 
@@ -1227,7 +1227,7 @@ mod tests {
         assert!(!state.surface_form_parked);
         assert!(!events.iter().any(|event| matches!(
             event,
-            AgentEvent::TextDelta { text } if text.contains("```openui")
+            AgentEvent::TextDelta { text } if text.contains("```json-render")
         )));
     }
 
@@ -1275,12 +1275,12 @@ mod tests {
         assert!(!shown.contains("已汇总完成"));
         assert!(events.iter().any(|event| matches!(
             event,
-            AgentEvent::TextDelta { text } if text.contains("```openui") && text.contains("BarChart")
+            AgentEvent::TextDelta { text } if text.contains("```json-render") && text.contains("BarChart")
         )));
     }
 
     #[tokio::test]
-    async fn a_declared_leave_card_paints_openui_when_the_question_cap_is_full() {
+    async fn a_declared_leave_card_paints_json_render_when_the_question_cap_is_full() {
         let session = "leave-surface-capped";
         for index in 0..3 {
             crate::ask_user::begin(session, &format!("prior-{index}"), "已有问题", &[], true)
@@ -1291,7 +1291,7 @@ mod tests {
         assert!(!model_tool_text(&state).contains("leave_card"));
         assert!(events.iter().any(|event| matches!(
             event,
-            AgentEvent::TextDelta { text } if text.contains("```openui") && text.contains("去医院")
+            AgentEvent::TextDelta { text } if text.contains("```json-render") && text.contains("去医院")
         )));
     }
 }

@@ -87,6 +87,7 @@ impl A3sCodeAgent {
                         tool_args.as_ref(),
                         &output,
                         exit_code,
+                        metadata.as_ref(),
                     )
                     .await;
                 }
@@ -319,6 +320,7 @@ impl A3sCodeAgent {
                     Some(&tool_args),
                     &reason,
                     1,
+                    None,
                 )
                 .await;
             }

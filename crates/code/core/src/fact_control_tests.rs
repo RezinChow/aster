@@ -3037,7 +3037,7 @@ async fn parked_skill_ask_is_not_rewritten_as_unapproved() {
         &tool_response(vec![(
             "form-1",
             "ask_user_form",
-            serde_json::json!({"form": "not-openui"}),
+            serde_json::json!({"form": "not-json-render"}),
         )]),
         &policy,
         Some(&surface),

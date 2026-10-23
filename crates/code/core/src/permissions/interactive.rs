@@ -367,7 +367,7 @@ pub(super) fn classify_atomic_tool(
     workspace: Option<&std::path::Path>,
 ) -> PermissionDecision {
     match tool_name.to_ascii_lowercase().as_str() {
-        "read" => classify_read(args, workspace),
+        "read" | "office_read" => classify_read(args, workspace),
         "search" | "ls" | "code_symbols" | "code_navigation" | "code_diagnostics" => {
             classify_scoped_path(args, "path", PermissionDecision::Allow, workspace)
         }

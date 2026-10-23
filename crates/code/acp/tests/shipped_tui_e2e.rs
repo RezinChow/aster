@@ -28,11 +28,7 @@ const DURABLE_TOKEN: &str = "DURABLE-TOKEN-42";
 const GOAL_OBJECTIVE: &str = "pty-goal-7b2e";
 const WIRE_TEST: &str = "shipped_agent_session_wire";
 const PTY_TEST: &str = "shipped_tui_launch_resume_and_visible_commands";
-const NATIVE_FORM: &str = r#"root = Card("Aster form", [name, amount, ready, submit])
-name = Input("name", "Name", "", "text", null, null, null, true)
-amount = Input("amount", "Amount", 3, "number", 1, 5)
-ready = Checkbox("ready", "Ready", false, true)
-submit = Button("submit", "Continue")"#;
+const NATIVE_FORM: &str = r#"{"root":"root","elements":{"root":{"type":"Card","props":{"title":"Aster form"},"children":["name","amount","ready","submit"]},"name":{"type":"Input","props":{"label":"Name","type":"text","required":true,"value":{"$bindState":"/form/name"}}},"amount":{"type":"Input","props":{"label":"Amount","type":"number","min":1,"max":5,"value":{"$bindState":"/form/amount"}}},"ready":{"type":"Checkbox","props":{"label":"Ready","required":true,"checked":{"$bindState":"/form/ready"}}},"submit":{"type":"Button","props":{"action":"submit","label":"Continue"}}},"state":{"form":{"name":"","amount":3,"ready":false}}}"#;
 
 fn oracle(test: &str, name: &str, detail: &str) {
     let detail = detail.replace(['\n', '\r'], " ");
@@ -243,7 +239,7 @@ fn decide(raw: &str, state: &mut MockState) -> String {
         if raw.contains("form was cancelled by the user") {
             return reply_text("FORM-CANCELLED", streaming);
         }
-        if raw.contains("unsupported terminal form component") {
+        if raw.contains("invalid JSON Render document:") {
             return reply_text("FORM-REJECTED", streaming);
         }
         if parsed["tools"].as_array().is_some_and(|tools| {

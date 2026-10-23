@@ -10,6 +10,7 @@ mod argument_validation;
 mod cache_proof;
 mod cache_provenance;
 mod execution_availability;
+mod heredoc_approval;
 mod native_artifact_scope;
 mod pre_spawn;
 mod readonly_effect;

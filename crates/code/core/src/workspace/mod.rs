@@ -37,12 +37,12 @@ pub use grep_candidates::{
 pub use local::LocalWorkspaceBackend;
 pub(crate) use local_access::LocalWorkspaceAccessBoundary;
 
-/// Direct file mutation that does not go through [`WorkspaceFileSystem::write_text`].
+/// Direct file I/O that does not go through [`WorkspaceFileSystem`].
 ///
-/// Download promotion is one caller. The implementation is the local backend's
-/// write boundary, not a second policy.
-pub(crate) trait DirectWriteGuard: Send + Sync {
+/// Native Office reads and download promotion share the local backend's boundary.
+pub(crate) trait DirectFileGuard: Send + Sync {
     fn refuse_direct_write(&self, path: &WorkspacePath) -> Result<()>;
+    fn refuse_direct_read(&self, path: &WorkspacePath, file: &std::fs::File) -> Result<()>;
 }
 pub use local_access::LocalWorkspaceAccessPolicy;
 pub use manifest::{
@@ -77,6 +77,12 @@ pub use retrieval::{
 pub use retrieval::{
     WikiIndex, WikiReconcileReport, WikiSearchHit, WikiSearchPhase, WikiSearchResult,
     WIKI_PASSAGE_CHARS,
+};
+pub use retrieval::{
+    WorkspaceCatalogDocument, WorkspaceCollectionError, WorkspaceCollectionHit,
+    WorkspaceCollectionMatch, WorkspaceCollectionOrder, WorkspaceCollectionPage,
+    WorkspaceCollectionQuery, WorkspaceCollectionRequest, WorkspaceCollectionSort,
+    WorkspaceCollectionTextRange,
 };
 #[cfg(feature = "s3")]
 pub use s3::{S3BackendConfig, S3WorkspaceBackend};
@@ -627,3 +633,6 @@ pub trait WorkspaceGitWorktreeProvider: Send + Sync {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod direct_file_tests;

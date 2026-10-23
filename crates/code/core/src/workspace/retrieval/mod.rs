@@ -9,6 +9,7 @@ mod a3s_vec;
 mod catalog;
 mod chunk;
 mod chunking_strategy;
+mod collection;
 mod eligibility;
 mod hybrid_candidates;
 mod hybrid_query;
@@ -32,11 +33,16 @@ mod verification;
 #[cfg(feature = "a3s-vec-fts")]
 mod wiki;
 
-pub use catalog::{ChunkCatalogSnapshot, WorkspaceChunkCatalog};
+pub use catalog::{ChunkCatalogSnapshot, WorkspaceCatalogDocument, WorkspaceChunkCatalog};
 pub(crate) use chunk::digest_content;
 pub use chunking_strategy::{
     CustomWorkspaceChunkingStrategy, FixedWindowChunkingOptions, RecursiveChunkingOptions,
     WorkspaceChunkRange, WorkspaceChunkingError, WorkspaceChunkingInput, WorkspaceChunkingStrategy,
+};
+pub use collection::{
+    WorkspaceCollectionError, WorkspaceCollectionHit, WorkspaceCollectionMatch,
+    WorkspaceCollectionOrder, WorkspaceCollectionPage, WorkspaceCollectionQuery,
+    WorkspaceCollectionRequest, WorkspaceCollectionSort, WorkspaceCollectionTextRange,
 };
 pub use eligibility::WorkspaceEligibilityPolicy;
 pub(crate) use hybrid_candidates::ValidatedHybridRequest;

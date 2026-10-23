@@ -135,10 +135,8 @@ mod byo_factory_tests {
             Ok(_) => {}
             Err(other) => panic!("unexpected setup error: {other}"),
         }
-        assert!(
-            super::LocalEmbeddingSetupError::Unregistered
-                .to_string()
-                .contains("A3S_EMBEDDING_PROVIDER_LIB")
-        );
+        assert!(super::LocalEmbeddingSetupError::Unregistered
+            .to_string()
+            .contains("A3S_EMBEDDING_PROVIDER_LIB"));
     }
 }

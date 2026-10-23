@@ -373,6 +373,7 @@ fn analyze_into(source: &str, depth: usize, acc: &mut Accumulator) -> bool {
 struct Flow {
     fetches: bool,
     executes_stdin: bool,
+    executes_shell_stdin: bool,
 }
 
 fn classify_segment(
@@ -460,7 +461,7 @@ fn classify_segment(
                     command.risk = command.risk.max(ShellRisk::Destructive);
                 }
             }
-            RedirectKind::Heredoc | RedirectKind::HereString if flow.executes_stdin => {
+            RedirectKind::Heredoc | RedirectKind::HereString if flow.executes_shell_stdin => {
                 if let Some(body) = &redirect.body {
                     analyze_into(body, depth + 1, acc);
                 }
@@ -857,7 +858,11 @@ fn classify_shell_invocation(args: &[Word], depth: usize, flow: &mut Flow, acc: 
             acc.opaque.insert(OpaqueConstruct::UnbalancedNesting);
         }
         Some(_) if !reads_stdin => {}
-        _ => flow.executes_stdin = true,
+        _ => {
+            flow.executes_stdin = true;
+            // Other interpreters still execute input, but its language is not shell syntax.
+            flow.executes_shell_stdin = true;
+        }
     }
 }
 

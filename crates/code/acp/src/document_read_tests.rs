@@ -18,7 +18,7 @@ fn document_read_contract_distinguishes_text_paths_from_binary_documents() {
     assert!(description.contains("UTF-8"));
     assert!(description.contains("Office"));
     assert!(description.contains("PDF"));
-    assert!(description.contains("parse_document"));
+    assert!(description.contains("office_read"));
     assert!(description.contains("absolute file path"));
     let schema = tool.parameters();
     let path = schema["properties"]["file_path"]["description"]

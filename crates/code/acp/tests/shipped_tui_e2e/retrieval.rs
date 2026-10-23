@@ -116,11 +116,11 @@ async fn stdio_case(local_opt_in: bool) {
         .as_array()
         .unwrap();
     assert!(modes.contains(&json!("hybrid")));
-    assert!(!modes.contains(&json!("semantic")));
+    // The in-tree light tier (specs/013 P2 wiring) serves the local_cpu
+    // opt-in from compile-time bytes: no "missing assets" refusal exists,
+    // and semantic mode is offered when the opt-in is present.
     if local_opt_in {
-        assert!(bodies
-            .iter()
-            .any(|body| body.contains("local BGE model assets are not installed")));
+        assert!(modes.contains(&json!("semantic")));
         assert!(
             !missing_model.exists(),
             "session startup installed assets implicitly"

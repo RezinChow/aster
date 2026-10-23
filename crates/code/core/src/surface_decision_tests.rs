@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::{
-    decide_tool_surface, decision_body, display_document, lexical_surface, openui_for,
+    decide_tool_surface, decision_body, display_document, json_render_for, lexical_surface,
     systemone_url, Surface,
 };
 use serde_json::json;
@@ -25,22 +25,22 @@ fn a_platform_card_is_one_document_shape() {
     let document = display_document(output).expect("document");
     assert_eq!(document["title"], "leave_card");
     assert_eq!(document["body"]["cm_content"], "去医院");
-    let form = openui_for(&document, Surface::Form).expect("form");
-    assert!(form.contains("root = Card(\"leave_card\""));
-    assert!(form.contains("Input("));
+    let form = json_render_for(&document, Surface::Form).expect("form");
+    assert!(form.contains("\"title\":\"leave_card\""));
+    assert!(form.contains("\"type\":\"Input\""));
     assert!(form.contains("去医院"));
-    assert!(form.contains("Button(\"submit\", \"提交\")"));
-    let view = openui_for(&document, Surface::View).expect("view");
-    assert!(view.contains("Metric("));
-    assert!(view.contains("Text("));
-    assert!(!view.contains("Button("));
+    assert!(form.contains("\"action\":\"submit\""));
+    let view = json_render_for(&document, Surface::View).expect("view");
+    assert!(view.contains("\"type\":\"Metric\""));
+    assert!(view.contains("\"type\":\"Text\""));
+    assert!(!view.contains("\"type\":\"Button\""));
 }
 
 #[test]
 fn a_field_key_that_is_not_an_identifier_is_not_renamed() {
     let output = r#"{"root":"card","state":{"form":{"开始":"明天","days":2}}}"#;
     let document = display_document(output).expect("document");
-    assert!(openui_for(&document, Surface::Form).is_none());
+    assert!(json_render_for(&document, Surface::Form).is_none());
 }
 
 #[test]
@@ -49,12 +49,12 @@ fn a_tool_title_and_labels_become_the_card_copy() {
     let document = display_document(output).expect("document");
     assert_eq!(document["title"], "请假");
     assert_eq!(document["labels"]["cm_content"], "事由");
-    let form = openui_for(&document, Surface::Form).expect("form");
-    assert!(form.contains("root = Card(\"请假\""));
+    let form = json_render_for(&document, Surface::Form).expect("form");
+    assert!(form.contains("\"title\":\"请假\""));
     assert!(form.contains("事由"));
     assert!(form.contains("请假类型"));
-    assert!(form.contains("Input(\"cm_content\", \"事由\""));
-    assert!(form.contains("Input(\"days\", \"days\""));
+    assert!(has_field(&form, "cm_content", "事由"));
+    assert!(has_field(&form, "days", "days"));
 }
 
 #[test]
@@ -72,10 +72,10 @@ fn an_answer_envelope_unwraps_a_card_inside_prose() {
     assert_eq!(document["title"], "leave_card");
     assert_eq!(document["body"]["cm_content"], "去医院");
     assert_eq!(document["body"]["cm_type"], "病假");
-    let view = openui_for(&document, Surface::View).expect("view");
-    assert!(view.contains("root = Card(\"leave_card\""));
+    let view = json_render_for(&document, Surface::View).expect("view");
+    assert!(view.contains("\"title\":\"leave_card\""));
     assert!(view.contains("去医院"));
-    assert!(!view.contains("Button("));
+    assert!(!view.contains("\"type\":\"Button\""));
 }
 
 #[test]
@@ -94,11 +94,11 @@ fn numbers_and_a_chart_use_the_catalog() {
     let output =
         r#"{"title":"本周","labels":["一","二","三"],"values":[2,5,3],"note":"已汇总完成"}"#;
     let document = display_document(output).expect("document");
-    let view = openui_for(&document, Surface::View).expect("view");
-    assert!(view.contains("BarChart([\"一\", \"二\", \"三\"], [2, 5, 3])"));
-    assert!(view.contains("Text("));
+    let view = json_render_for(&document, Surface::View).expect("view");
+    assert!(view.contains("\"type\":\"BarChart\""));
+    assert!(view.contains("\"type\":\"Text\""));
     assert!(view.contains("已汇总完成"));
-    assert!(!view.contains("labels"));
+    assert!(!view.contains("labels:"));
 }
 
 #[test]
@@ -109,19 +109,19 @@ fn a_bounded_value_becomes_a_slider_and_a_choice_becomes_a_select() {
         "team":{"value":"设计","options":["设计","工程"]}
     }"#;
     let document = display_document(output).expect("document");
-    let form = openui_for(&document, Surface::Form).expect("form");
-    assert!(form.contains("Slider("));
-    assert!(form.contains("Select("));
-    assert!(form.contains("[\"设计\", \"工程\"]"));
+    let form = json_render_for(&document, Surface::Form).expect("form");
+    assert!(form.contains("\"type\":\"Slider\""));
+    assert!(form.contains("\"type\":\"Select\""));
+    assert!(form.contains("[\"设计\",\"工程\"]"));
 }
 
 #[test]
 fn a_list_of_records_becomes_nested_cards() {
     let output = r#"[{"name":"甲","score":3},{"name":"乙","score":8}]"#;
     let document = display_document(output).expect("document");
-    let view = openui_for(&document, Surface::View).expect("view");
-    assert!(view.matches("Card(").count() >= 3);
-    assert!(view.contains("Metric("));
+    let view = json_render_for(&document, Surface::View).expect("view");
+    assert!(view.matches("\"type\":\"Card\"").count() >= 3);
+    assert!(view.contains("\"type\":\"Metric\""));
 }
 
 #[test]
@@ -138,8 +138,8 @@ fn object_field_selection_and_control_identity_ignore_insertion_order() {
         json!({"title": "bounded", "body": fields})
     }
     for surface in [Surface::Form, Surface::View] {
-        let forward = openui_for(&document(false), surface).expect("forward surface");
-        let reverse = openui_for(&document(true), surface).expect("reverse surface");
+        let forward = json_render_for(&document(false), surface).expect("forward surface");
+        let reverse = json_render_for(&document(true), surface).expect("reverse surface");
         assert_eq!(forward, reverse);
         for key in 0..12 {
             assert!(forward.contains(&format!("field_{key:02}")));
@@ -148,8 +148,8 @@ fn object_field_selection_and_control_identity_ignore_insertion_order() {
             assert!(!forward.contains(&format!("field_{key:02}")));
         }
         if surface == Surface::Form {
-            assert!(forward.starts_with("n0 = Input(\"field_00\", \"field_00\", 0, \"number\")"));
-            assert!(forward.contains("n11 = Input(\"field_11\", \"field_11\", 11, \"number\")"));
+            assert!(has_field(&forward, "field_00", "field_00"));
+            assert!(has_field(&forward, "field_11", "field_11"));
         }
     }
 }
@@ -158,19 +158,24 @@ fn object_field_selection_and_control_identity_ignore_insertion_order() {
 fn nested_object_fields_are_sorted_without_reordering_records() {
     let body = serde_json::from_str::<serde_json::Value>(r#"[{"z":2,"a":1},{"z":4,"a":3}]"#)
         .expect("records");
-    let view =
-        openui_for(&json!({"title":"records", "body":body}), Surface::View).expect("record view");
-    let expected = [
-        "Metric(\"a\", 1, \"\")",
-        "Metric(\"z\", 2, \"\")",
-        "Metric(\"a\", 3, \"\")",
-        "Metric(\"z\", 4, \"\")",
-    ];
-    let positions: Vec<_> = expected
-        .iter()
-        .map(|item| view.find(item).expect("original value"))
-        .collect();
-    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+    let view = json_render_for(&json!({"title":"records", "body":body}), Surface::View)
+        .expect("record view");
+    let document: serde_json::Value = serde_json::from_str(&view).expect("JSON Render");
+    let elements = &document["elements"];
+    let mut values = Vec::new();
+    for record in elements["root"]["children"].as_array().unwrap() {
+        for field in elements[record.as_str().unwrap()]["children"]
+            .as_array()
+            .unwrap()
+        {
+            let props = &elements[field.as_str().unwrap()]["props"];
+            values.push((
+                props["label"].as_str().unwrap(),
+                props["value"].as_i64().unwrap(),
+            ));
+        }
+    }
+    assert_eq!(values, [("a", 1), ("z", 2), ("a", 3), ("z", 4)]);
 }
 
 #[test]
@@ -213,8 +218,8 @@ fn only_a_lexical_form_or_view_is_accepted() {
 fn a_view_without_inputs_does_not_pretend_to_be_a_form() {
     let document = display_document(r#"{"title":"本周","labels":["一","二"],"values":[1,2]}"#)
         .expect("document");
-    assert!(openui_for(&document, Surface::View).is_some());
-    assert!(openui_for(&document, Surface::Form).is_none());
+    assert!(json_render_for(&document, Surface::View).is_some());
+    assert!(json_render_for(&document, Surface::Form).is_none());
 }
 
 #[test]
@@ -244,4 +249,16 @@ async fn a_document_without_a_credential_is_still_traced() {
     assert_eq!(trace.exit_code, 1);
     assert_eq!(trace.output, "unavailable: no gateway credential");
     assert!(trace.args.get("questions").is_some());
+}
+
+fn has_field(source: &str, name: &str, label: &str) -> bool {
+    let document: serde_json::Value = serde_json::from_str(source).unwrap();
+    document["elements"]
+        .as_object()
+        .unwrap()
+        .values()
+        .any(|node| {
+            node["props"]["value"]["$bindState"] == format!("/form/{name}")
+                && node["props"]["label"] == label
+        })
 }

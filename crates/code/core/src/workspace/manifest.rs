@@ -13,7 +13,7 @@ use super::retrieval::{
 };
 use super::{
     escape_control_chars_for_display, validate_relative_pattern, CommandOutput, CommandRequest,
-    DirectWriteGuard, LocalWorkspaceAccessPolicy, LocalWorkspaceBackend, WorkspaceCommandRunner,
+    DirectFileGuard, LocalWorkspaceAccessPolicy, LocalWorkspaceBackend, WorkspaceCommandRunner,
     WorkspaceDirEntry, WorkspaceFileSystem, WorkspaceGit, WorkspaceGitBranch,
     WorkspaceGitCheckoutOutput, WorkspaceGitCheckoutRequest, WorkspaceGitCommit,
     WorkspaceGitCreateBranchRequest, WorkspaceGitCreateWorktreeRequest, WorkspaceGitDiffRequest,
@@ -910,9 +910,12 @@ impl Drop for ManifestWorkspaceBackend {
     }
 }
 
-impl DirectWriteGuard for ManifestWorkspaceBackend {
+impl DirectFileGuard for ManifestWorkspaceBackend {
     fn refuse_direct_write(&self, path: &WorkspacePath) -> anyhow::Result<()> {
         self.local.refuse_direct_write(path)
+    }
+    fn refuse_direct_read(&self, path: &WorkspacePath, file: &std::fs::File) -> anyhow::Result<()> {
+        self.local.refuse_direct_read(path, file)
     }
 }
 

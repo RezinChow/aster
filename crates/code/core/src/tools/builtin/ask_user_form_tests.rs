@@ -2,56 +2,29 @@
 use super::*;
 
 #[test]
-fn malformed_components_are_rejected_before_waiting_for_an_answer() {
+fn malformed_documents_are_rejected_before_waiting_for_an_answer() {
     for form in [
-        "root = Card(\"Title\", \"subtitle instead of children\")",
-        "root = Stack([Text(\"inline call\"), Button(\"submit\", \"Go\")])",
-        "root = Card(\"First\", [go])\nroot = Stack([go])\ngo = Button(\"submit\", \"Go\")",
-        "root = Widget(\"unsupported component\")",
-    ] {
-        assert!(
-            check_form_shape(form).is_err(),
-            "invalid form was admitted: {form}"
-        );
-    }
-    let widget = check_form_shape("root = Widget(\"unsupported component\")")
-        .expect_err("widget is outside the catalog");
-    assert!(
-        widget.contains("unsupported OpenUI form component: Widget"),
-        "{widget}"
-    );
-}
-
-#[test]
-fn accepts_openui_and_refuses_mdx_or_json() {
-    let form = "root = Card(\"Details\", [reason, submit])\nreason = Input(\"reason\", \"Reason\")\nsubmit = Button(\"submit\", \"Continue\")";
-    assert!(check_form_shape(form).is_ok());
-    for source in [
         "",
-        "  ",
-        "not a form",
-        r#"<Card title="Details"></Card>"#,
-        r#"{"root":"f","elements":{"f":{}}}"#,
+        "not JSON",
+        "root = Input(\"name\", \"Name\")",
+        r#"<Card />"#,
+        r#"{"root":"root","elements":{"root":{"type":"Widget","props":{}}}}"#,
     ] {
-        assert!(check_form_shape(source).is_err());
+        assert!(check_form_shape(form).is_err());
     }
+    assert!(check_form_shape(FORM).is_ok());
+    assert!(check_form_shape(&"x".repeat(MAX_FORM_BYTES + 1)).is_err());
 }
 
 #[test]
-fn tool_description_uses_the_shared_component_parameter_order() {
-    // Catches missing Grid support or models being given an incomplete Select signature.
+fn tool_description_uses_the_shared_json_component_catalog() {
     let description = AskUserFormTool.description();
-    assert!(description.contains(&a3s_form_core::openui_parameter_table()));
-    assert!(description.contains("Select(name, label, initial, options, required, placeholder)"));
-    assert!(description.contains("Grid(columns, children)"));
+    assert!(description.contains(&a3s_form_core::json_render_component_catalog().to_string()));
+    assert!(description.contains("$bindState"));
+    assert!(description.contains("root, elements"));
 }
 
-#[test]
-fn oversized_openui_is_rejected() {
-    assert!(check_form_shape(&format!("root = Card(\"{}\")", "x".repeat(MAX_FORM_BYTES))).is_err());
-}
-
-const FORM: &str = "root = Card(\"Details\", [name, go])\nname = Input(\"name\", \"Name\")\ngo = Button(\"submit\", \"Continue\")";
+const FORM: &str = "{\"root\":\"root\",\"elements\":{\"root\":{\"type\":\"Card\",\"props\":{\"title\":\"Details\"},\"children\":[\"name\",\"go\"]},\"name\":{\"type\":\"Input\",\"props\":{\"label\":\"Name\",\"value\":{\"$bindState\":\"/form/name\"}}},\"go\":{\"type\":\"Button\",\"props\":{\"action\":\"submit\",\"label\":\"Continue\"}}},\"state\":{\"form\":{\"name\":\"\"}}}";
 
 async fn run_form(answer: &'static str) -> ToolOutput {
     let root = tempfile::tempdir().unwrap();

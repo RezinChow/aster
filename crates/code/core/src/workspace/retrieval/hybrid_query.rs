@@ -1,17 +1,16 @@
 //! Deterministic orchestration for exact, lexical, structural, and semantic retrieval.
 
 use super::hybrid_candidates::{
-    CHANNEL_CANDIDATE_LIMIT, StructuralCandidates, ValidatedHybridRequest, exact_candidates,
-    structural_candidates,
+    exact_candidates, structural_candidates, StructuralCandidates, ValidatedHybridRequest,
+    CHANNEL_CANDIDATE_LIMIT,
 };
-use super::hybrid_rank::{RankedCandidate, fuse_candidates};
+use super::hybrid_rank::{fuse_candidates, RankedCandidate};
 use super::rerank::{rerank_fused_candidates, rerank_status_not_run};
 use super::{
-    ChunkCatalogSnapshot, WorkspaceChunkCatalog, WorkspaceHybridChannelStatus,
+    retain_verified, ChunkCatalogSnapshot, WorkspaceChunkCatalog, WorkspaceHybridChannelStatus,
     WorkspaceHybridFallbackReason, WorkspaceHybridSearchResult, WorkspaceRerankStatus,
     WorkspaceRetrievalChannel, WorkspaceRetrievalError, WorkspaceRetrievalRuntime,
     WorkspaceRetrievalStatus, WorkspaceSemanticFallbackReason, WorkspaceSemanticSearchResult,
-    retain_verified,
 };
 use crate::code_intelligence::WorkspaceCodeIntelligence;
 use crate::workspace::WorkspaceFileSystem;

@@ -127,6 +127,12 @@ async fn unsupported_effort_is_refused_without_replacing_the_session() {
 /// Core restoration build the subsequent requests and retain the transcript.
 #[tokio::test]
 async fn effort_switch_preserves_history_and_exposes_existing_anthropic_none_semantics() {
+    let phrasings = [
+        "核对材料中的数值后交付报告。",
+        "请逐条检查来源，说明不能同时满足的要求。",
+        "先确认日期口径，再逐段检查变化。",
+        "完成文件后，复核回复中的每项结论。",
+    ];
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}/v1", listener.local_addr().unwrap());
@@ -259,7 +265,7 @@ async fn effort_switch_preserves_history_and_exposes_existing_anthropic_none_sem
         }
         tokio::time::timeout(
             std::time::Duration::from_secs(5),
-            session.send(&format!("marker-{index}"), None),
+            session.send(&format!("marker-{index}\n{}", phrasings[index]), None),
         )
         .await
         .unwrap()
@@ -312,6 +318,9 @@ async fn effort_switch_preserves_history_and_exposes_existing_anthropic_none_sem
             "core boundary must remain in request {index}"
         );
         let messages = request["messages"].to_string();
+        if index < phrasings.len() {
+            assert!(messages.contains(phrasings[index]));
+        }
         for earlier in 0..index {
             assert!(
                 messages.contains(&format!("marker-{earlier}")),

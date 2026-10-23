@@ -25,6 +25,7 @@ mod host_context;
 mod local_assets;
 pub mod log_file;
 mod office_file;
+mod office_read;
 mod output_check;
 mod plugin_mcp;
 mod plugin_selection;

@@ -13,7 +13,7 @@
 
 use a3s_memory::{MemoryItem, MemoryStore, MemoryType};
 use a3s_vec::{Collection, CollectionSchema, DataType, Doc, FieldSchema, IndexParams, SearchQuery};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, Weak};

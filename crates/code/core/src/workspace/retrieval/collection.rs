@@ -68,6 +68,40 @@ impl Default for WorkspaceCollectionRequest {
     }
 }
 
+impl WorkspaceCollectionRequest {
+    /// Validate before an owner performs discovery or reads any source.
+    pub fn validate(&self) -> Result<(), WorkspaceCollectionError> {
+        if self.search.chars().count() > 512
+            || self.search.contains('\0')
+            || !(1..=100).contains(&self.limit)
+        {
+            return Err(WorkspaceCollectionError::InvalidRequest(
+                "collection search permits at most 512 characters and a limit from 1 to 100",
+            ));
+        }
+        if self
+            .folder
+            .as_ref()
+            .is_some_and(|folder| !safe_folder(folder))
+            || self.tag.as_ref().is_some_and(|tag| {
+                tag.is_empty() || tag.chars().count() > 128 || tag.contains('\0')
+            })
+        {
+            return Err(WorkspaceCollectionError::InvalidRequest(
+                "collection folder or tag is invalid",
+            ));
+        }
+        if self
+            .cursor
+            .as_ref()
+            .is_some_and(|cursor| cursor.len() != 36 || Uuid::parse_str(cursor).is_err())
+        {
+            return Err(WorkspaceCollectionError::InvalidCursor);
+        }
+        Ok(())
+    }
+}
+
 /// UTF-8 offsets in the addressed source/context. Hosts map them to their editor's coordinate system.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct WorkspaceCollectionTextRange {
@@ -145,24 +179,19 @@ impl WorkspaceCollectionQuery {
         &self,
         request: &WorkspaceCollectionRequest,
     ) -> Result<WorkspaceCollectionPage, WorkspaceCollectionError> {
-        if request.search.chars().count() > 512
-            || request.search.contains('\0')
-            || !(1..=100).contains(&request.limit)
-        {
+        self.query_with_budget(request, MAX_PAGE_BYTES)
+    }
+
+    /// Reserve room for an owner's envelope without truncating an already-addressed page.
+    pub fn query_with_budget(
+        &self,
+        request: &WorkspaceCollectionRequest,
+        max_page_bytes: usize,
+    ) -> Result<WorkspaceCollectionPage, WorkspaceCollectionError> {
+        request.validate()?;
+        if !(32 * 1024..=MAX_PAGE_BYTES).contains(&max_page_bytes) {
             return Err(WorkspaceCollectionError::InvalidRequest(
-                "collection search permits at most 512 characters and a limit from 1 to 100",
-            ));
-        }
-        if request
-            .folder
-            .as_ref()
-            .is_some_and(|folder| !safe_folder(folder))
-            || request.tag.as_ref().is_some_and(|tag| {
-                tag.is_empty() || tag.chars().count() > 128 || tag.contains('\0')
-            })
-        {
-            return Err(WorkspaceCollectionError::InvalidRequest(
-                "collection folder or tag is invalid",
+                "collection page budget must be between 32 and 256 KiB",
             ));
         }
         let query = fingerprint(request);
@@ -320,7 +349,7 @@ impl WorkspaceCollectionQuery {
         let mut bytes = json_size(&page)?;
         for hit in matches.into_iter().skip(offset).take(request.limit) {
             let size = json_size(&hit)? + usize::from(!page.hits.is_empty());
-            if bytes + size > MAX_PAGE_BYTES {
+            if bytes + size > max_page_bytes {
                 break;
             }
             bytes += size;

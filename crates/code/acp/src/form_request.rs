@@ -1,4 +1,4 @@
-//! `_a3s/form/request` — the agent asks the client to render an OpenUI Lang
+//! `_a3s/form/request` — the agent asks the client to render a JSON Render
 //! form and waits for the submitted values. Mirrors the document bridge's
 //! ext-method round trip, but open-ended: a form can stay on screen until the
 //! user submits or the session dies, so there is no call timeout.
@@ -42,7 +42,7 @@ async fn request_form_inner(
         "formId": question_id,
         "prompt": question,
         "spec": form,
-        "format": "openui",
+        "format": "json-render",
     });
     if let Some(session_id) = session_id {
         params["sessionId"] = session_id.into();
