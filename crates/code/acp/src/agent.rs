@@ -64,7 +64,7 @@ use session_open::{acp_mcp_to_config, session_mcp_configs};
 use tool_render::edit_diff;
 use tool_render::{
     prepared_raw_input, streaming_bash_delta, task_to_plan_entry, tool_call_content, tool_kind_for,
-    tool_raw_output, tool_title,
+    tool_publication_output, tool_raw_output, tool_title,
 };
 use turn::{agent_failure_error, worker_join_failure};
 #[cfg(test)]
@@ -1487,7 +1487,18 @@ const SESSION_OUTCOME_BOUNDARY: &str = "\
 Finish the user's outcome in this turn. Do not read or explain the product \
 implementation unless the user asked to change that implementation. When a \
 host command already does the outcome, name that command and stop. Example: \
-the user lists recent sessions with `aster sessions list`.";
+the user lists recent sessions with `aster sessions list`. \
+For persisted DOCX/XLSX/PPTX sources, prefer office_read when exposed, and \
+use the exposed native Office creation and output_check tools before probing \
+external packages. Respect each tool's explicit unavailable capabilities. \
+Before finishing, read back deliverables and check every factual and numerical \
+claim against source locations, periods, units and calculation inputs. \
+Structural file validation does not prove semantic correctness. Use date_span \
+with an explicit endpoint-counting convention and sequence_changes to check \
+every adjacent step; an overall increase does not establish a monotonic sequence. \
+If the user's content, format and length requirements cannot all be satisfied, \
+explain the conflict and ask which takes priority instead of silently dropping \
+a requirement or inventing missing facts.";
 
 const HOST_PARALLEL_TASKS: usize = 8;
 const HOST_CONTINUATION_TURNS: u32 = 8;

@@ -60,7 +60,7 @@ pub(crate) use platform_models::{
 };
 pub(crate) use prefix_affinity::{target_signature, PrefixHint, PrefixLease, PrefixTarget};
 pub(crate) use prefix_feedback::track_prefix_body;
-pub(crate) use principal::PrincipalSubject;
+pub(crate) use principal::{shared_token_admits, PrincipalSubject};
 pub(crate) use routing::{
     build_decision_request, decision_inputs, effective_targets, evaluate_routing,
     plan_decision_definition, turn_identity_from_document, DecisionInputs, RouteDecision,

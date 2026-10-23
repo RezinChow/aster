@@ -1334,8 +1334,8 @@ async fn reserved_catalog_paths_do_not_fall_through_to_an_ordinary_route() {
         ("POST", "/v1/mcp"),
         ("POST", "/v1/service"),
         ("POST", "/v1/images/generations"),
-        ("POST", "/v1/audio/speech"),
-        ("POST", "/v1/audio/transcriptions"),
+        // Audio is admitted: the ACL proxy route serves it, so it must not
+        // appear here. Its admission is asserted in standards_tests.
         ("POST", "/v1beta/models/gemma:generateContent"),
         ("POST", "/v1beta/models/gemma:streamGenerateContent"),
         ("POST", "/v1beta/models/gemma:embedContent"),

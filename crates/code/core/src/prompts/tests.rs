@@ -19,11 +19,12 @@ fn test_all_prompts_loaded() {
     assert!(!SKILLS_CATALOG_HEADER.contains("search_skills"));
     assert!(SKILLS_CATALOG_HEADER.contains("`Skill`"));
     assert!(SKILLS_CATALOG_HEADER.contains("ask_user_form"));
-    assert!(SKILLS_CATALOG_HEADER.contains("`openui`"));
+    assert!(SKILLS_CATALOG_HEADER.contains("`json-render`"));
     assert!(SKILLS_CATALOG_HEADER.contains("`ask-form`"));
     assert!(SKILLS_CATALOG_HEADER.contains("only if it appears in the catalog"));
-    assert!(SKILLS_CATALOG_HEADER
-        .contains("If that skill is absent, use the component parameter table"));
+    assert!(
+        SKILLS_CATALOG_HEADER.contains("If that skill is absent, use the closed component catalog")
+    );
     let first_load = SKILLS_CATALOG_HEADER
         .find("load the `ask-form` skill")
         .expect("load before the form");
@@ -35,7 +36,7 @@ fn test_all_prompts_loaded() {
     assert!(
         second_load
             < SKILLS_CATALOG_HEADER
-                .find("emit one `openui` fence")
+                .find("emit one `json-render` fence")
                 .unwrap()
     );
     assert!(!SKILLS_CATALOG_HEADER.contains("skills add"));

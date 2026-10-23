@@ -1,0 +1,14 @@
+[
+  {
+    "id": "call_00_yU7gmDXSLrgqpQT9Bc452971",
+    "args": {
+      "command": "cd __WORKSPACE__ && python3 - <<'EOF'\nimport zipfile, re, datetime\np='tobot-inbox/01a166d4-8530-7272-b357-e7c9ddf7ee4b/TC06_客户跟进记录_待清洗.xlsx'\nz=zipfile.ZipFile(p)\nprint(z.namelist())\nsh=z.read('xl/worksheets/sheet1.xml').decode('utf-8')\nprint(sh[:1500])\nEOF"
+    }
+  },
+  {
+    "id": "call_00_2EAXKbEJPwrrztMrZDeI8514",
+    "args": {
+      "command": "cd __WORKSPACE__ && python3 - <<'EOF'\nimport zipfile, re, datetime, html\np='tobot-inbox/01a166d4-8530-7272-b357-e7c9ddf7ee4b/TC06_客户跟进记录_待清洗.xlsx'\nz=zipfile.ZipFile(p)\nsh=z.read('xl/worksheets/sheet1.xml').decode('utf-8')\nrows=re.findall(r'<row r=\"(\\d+)\"[^>]*>(.*?)</row>', sh, re.S)\nfor rn, body in rows:\n    out=[]\n    for cell in re.findall(r'<c r=\"([A-F]\\d+)\"([^>]*)>(.*?)</c>|<c r=\"([A-F]\\d+)\"([^>]*)/>', body, re.S):\n        ref=cell[0] or cell[3]; attrs=cell[1] or cell[4]; inner=cell[2]\n        t=re.search(r't=\"([^\"]+)\"',attrs)\n        v=re.search(r'<v>(.*?)</v>',inner)\n        it=re.search(r'<is><t>(.*?)</t></is>',inner)\n        val = html.unescape(it.group(1)) if it else (v.group(1) if v else '')\n        out.append(f\"{ref}={val!r}({t.group(1) if t else 'n'})\")\n    print(rn, ' | '.join(out))\nprint()\nfor s in (46030,46035,46027,46036):\n    print(s, datetime.date(1899,12,30)+datetime.timedelta(days=s))\nEOF"
+    }
+  }
+]

@@ -1,7 +1,7 @@
 use super::memory_vector_adapter::MemoryVectorIndexAdapter;
 use super::semantic_batch::SemanticBatchFlushReason;
 use super::semantic_projection::{
-    ProjectionContext, project_pending_partitions, publish_progress, remove_stale_partition,
+    project_pending_partitions, publish_progress, remove_stale_partition, ProjectionContext,
 };
 use super::semantic_status::SemanticStatusCell;
 use super::vector_contract::{VectorIndexDescriptor, WorkspaceVectorIndex};

@@ -597,7 +597,7 @@ fn column_name(mut index: usize) -> String {
     }
 }
 
-fn parent_dir(root: &Path, relative: &str) -> Result<(Dir, std::ffi::OsString)> {
+pub(crate) fn parent_dir(root: &Path, relative: &str) -> Result<(Dir, std::ffi::OsString)> {
     let path = Path::new(relative);
     ensure!(
         !path.as_os_str().is_empty()

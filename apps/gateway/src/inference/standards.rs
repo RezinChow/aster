@@ -196,7 +196,13 @@ impl ModelStandard {
             Self::OpenaiModels
             | Self::OpenaiChat
             | Self::OpenaiCompletions
-            | Self::OpenaiEmbeddings => StandardAdmission::Admitted,
+            | Self::OpenaiEmbeddings
+            // Audio is served by a plain proxy route bound in the ACL, not by
+            // managed inference: `from_standard` yields no profile, so the
+            // request falls through to ordinary router matching. Admitting the
+            // standard only lifts the reserved-path 404; the backend registered
+            // for the route owns authentication for these multipart calls.
+            | Self::OpenaiAudio => StandardAdmission::Admitted,
             Self::Ocr | Self::DecisionSystemOne => StandardAdmission::Platform,
             Self::OpenaiResponses
             | Self::AnthropicMessages
@@ -204,7 +210,6 @@ impl ModelStandard {
             | Self::GeminiGenerate
             | Self::GeminiEmbed
             | Self::OpenaiImages
-            | Self::OpenaiAudio
             | Self::Api
             | Self::Mcp => StandardAdmission::Reserved,
         }

@@ -645,7 +645,7 @@ pub enum AgentEvent {
         options: Vec<String>,
         #[serde(default)]
         allow_free_text: bool,
-        /// OpenUI Lang source. Present only for
+        /// JSON Render source. Present only for
         /// `ask_user_form`; the answer then carries the submitted values JSON.
         #[serde(default)]
         form: Option<String>,

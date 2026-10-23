@@ -11,6 +11,13 @@ use std::path::{Component, Path};
 use std::sync::{Arc, RwLock};
 use tokio::sync::watch;
 
+/// Already-authorized source data supplied by an owner that retains its own watcher.
+#[derive(Clone, Debug)]
+pub struct WorkspaceCatalogDocument {
+    pub manifest: LocalWorkspaceFile,
+    pub text: String,
+}
+
 /// Immutable, query-safe view of one catalog revision.
 #[derive(Clone)]
 pub struct ChunkCatalogSnapshot {
@@ -86,6 +93,27 @@ impl ChunkCatalogSnapshot {
             .map(|file| Arc::clone(&file.content_digest))
     }
 
+    /// Reassemble the complete admitted source, including overlapping chunk boundaries.
+    pub fn source_text(&self, path: &WorkspacePath) -> WorkspaceIndexResult<Option<String>> {
+        let Some(file) = self.state.files.get(path.as_str()) else {
+            return Ok(None);
+        };
+        let mut source = String::new();
+        for chunk in file.chunks.iter() {
+            if chunk.start_byte > source.len() || chunk.end_byte < source.len() {
+                return Err(WorkspaceIndexError::InvalidConfig(
+                    "catalog source ranges are inconsistent".into(),
+                ));
+            }
+            let offset = source.len() - chunk.start_byte;
+            let tail = chunk.text.get(offset..).ok_or_else(|| {
+                WorkspaceIndexError::InvalidConfig("catalog source range is not UTF-8".into())
+            })?;
+            source.push_str(tail);
+        }
+        Ok(Some(source))
+    }
+
     pub fn chunks(&self) -> Arc<[Arc<WorkspaceChunk>]> {
         Arc::clone(&self.state.chunks)
     }
@@ -123,6 +151,66 @@ impl std::fmt::Debug for WorkspaceChunkCatalog {
 }
 
 impl WorkspaceChunkCatalog {
+    /// Replace one admitted generation without creating a scanner, watcher or model runtime.
+    pub fn replace_documents(
+        &self,
+        source_revision: u64,
+        documents: Vec<WorkspaceCatalogDocument>,
+    ) -> WorkspaceIndexResult<ChunkCatalogSnapshot> {
+        self.replace_documents_cancellable(source_revision, documents, || false)
+    }
+
+    /// A host can withdraw a cold generation between bounded per-file builds.
+    pub fn replace_documents_cancellable(
+        &self,
+        source_revision: u64,
+        documents: Vec<WorkspaceCatalogDocument>,
+        cancelled: impl Fn() -> bool,
+    ) -> WorkspaceIndexResult<ChunkCatalogSnapshot> {
+        let expected = self.snapshot()?.revision();
+        let count = documents.len();
+        check_limit("file count", count, self.limits.max_files)?;
+        let source_bytes = documents.iter().fold(0usize, |size, document| {
+            size.saturating_add(document.text.len())
+        });
+        check_limit("text byte", source_bytes, self.limits.max_text_bytes)?;
+        let mut files = BTreeMap::new();
+        let mut usage = CatalogUsage::default();
+        for document in documents {
+            if cancelled() {
+                return Err(WorkspaceIndexError::Cancelled);
+            }
+            let path = &document.manifest.path;
+            if !safe_relative_path(path)
+                || path.len() > 4096
+                || path.contains(['\\', '\0'])
+                || path.split('/').any(|part| matches!(part, "" | "." | ".."))
+                || document.manifest.size != document.text.len() as u64
+                || files.contains_key(path)
+            {
+                return Err(WorkspaceIndexError::InvalidConfig(
+                    "catalog document paths must be unique, relative and match their source size"
+                        .into(),
+                ));
+            }
+            let path = path.clone();
+            let file = Arc::new(CatalogFile::build(
+                document.manifest,
+                source_revision,
+                &document.text,
+                self.chunking,
+                &self.chunking_strategy,
+                self.build_engine,
+            )?);
+            usage.try_add(&file, self.limits)?;
+            files.insert(path, file);
+        }
+        if cancelled() {
+            return Err(WorkspaceIndexError::Cancelled);
+        }
+        self.publish_reconciliation(expected, source_revision, files, count, 0)
+    }
+
     pub fn new(
         chunking: ChunkingConfig,
         limits: ChunkCatalogLimits,

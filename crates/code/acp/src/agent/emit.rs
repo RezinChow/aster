@@ -138,6 +138,7 @@ impl A3sCodeAgent {
         args: Option<&serde_json::Value>,
         output: &str,
         exit_code: i32,
+        metadata: Option<&serde_json::Value>,
     ) {
         let status = if exit_code == 0 {
             acp::ToolCallStatus::Completed
@@ -152,7 +153,9 @@ impl A3sCodeAgent {
         if let Some(raw_input) = args.and_then(|args| prepared_raw_input(name, args)) {
             fields = fields.raw_input(raw_input);
         }
-        if let Some(raw_output) = tool_raw_output(name, args, output, exit_code) {
+        if let Some(raw_output) = tool_publication_output(name, metadata, exit_code)
+            .or_else(|| tool_raw_output(name, args, output, exit_code))
+        {
             fields = fields.raw_output(raw_output);
         }
         self.emit(acp::SessionNotification::new(

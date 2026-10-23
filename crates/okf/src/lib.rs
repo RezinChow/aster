@@ -18,9 +18,12 @@ pub use extract::{
     ExtractedBlock, ImageRecognizer, RecognizedSpan, PARSER_GENERATION,
 };
 pub use personal::{
-    accept_personal_bundle, is_personal_vault, pin_personal_compile, plan_personal_compile,
-    publish_note_bundle, publish_note_bundle_with, release_personal_compile,
-    remember_personal_generations,
+    abandon_knowledge_maintenance, accept_personal_bundle, begin_knowledge_maintenance,
+    fail_knowledge_maintenance, finish_knowledge_maintenance, is_personal_vault, knowledge_change,
+    knowledge_maintenance_job, knowledge_maintenance_plan, pin_personal_compile,
+    plan_personal_compile, publish_note_bundle, publish_note_bundle_with, release_personal_compile,
+    remember_personal_generations, review_knowledge_change, KnowledgeChangeDetail, KnowledgeJob,
+    KnowledgePlan, MaintenanceOperation,
 };
 
 pub const PASSAGE_CAP: usize = 32;

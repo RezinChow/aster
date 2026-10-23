@@ -811,7 +811,7 @@ fn interactive_guardrail_modes_keep_the_hard_deny_floor() {
         assert_eq!(
             InteractiveToolGuardrail::for_mode(mode).unwrap().check(
                 "ask_user_form",
-                &json!({"form": "root = Card(\"Confirm\", [go])\ngo = Button(\"submit\", \"OK\")"})
+                &json!({"form": "{\"root\":\"root\",\"elements\":{\"root\":{\"type\":\"Card\",\"props\":{\"title\":\"Confirm\"},\"children\":[\"go\"]},\"go\":{\"type\":\"Button\",\"props\":{\"action\":\"submit\",\"label\":\"OK\"}}}}"})
             ),
             PermissionDecision::Allow,
             "{mode} mode lets the agent ask through a structured user form"

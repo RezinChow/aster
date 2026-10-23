@@ -77,7 +77,12 @@ async fn own_registration_resource(
 
 #[tokio::test]
 async fn native_registration_failure_closes_and_settles_the_open_session() {
-    for failure in ["workspace_unavailable", "office_file", "output_check"] {
+    for failure in [
+        "workspace_unavailable",
+        "office_read",
+        "office_file",
+        "output_check",
+    ] {
         let root = tempfile::tempdir().unwrap();
         let workspace = root.path().join("workspace");
         std::fs::create_dir(&workspace).unwrap();
@@ -105,7 +110,9 @@ async fn native_registration_failure_closes_and_settles_the_open_session() {
         let session = Arc::clone(&live.session);
         let cancellation = session.session_cancel_token();
         let releases = Arc::new(AtomicUsize::new(0));
-        let tool: Arc<dyn Tool> = if failure == "office_file" {
+        let tool: Arc<dyn Tool> = if failure == "office_read" {
+            Arc::new(crate::office_read::OfficeReadTool::new(&workspace).unwrap())
+        } else if failure == "office_file" {
             Arc::new(crate::office_file::OfficeFileTool::new(&workspace).unwrap())
         } else {
             Arc::new(crate::output_check::OutputCheckTool)

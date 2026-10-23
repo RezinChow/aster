@@ -154,6 +154,8 @@ impl ChunkCatalogLimits {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum WorkspaceIndexError {
+    #[error("workspace catalog admission was cancelled")]
+    Cancelled,
     #[error("invalid workspace retrieval configuration: {0}")]
     InvalidConfig(String),
     #[error("workspace file '{path}' produced more than {limit} chunks")]

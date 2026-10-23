@@ -6,7 +6,7 @@
 //! bash, grep, glob, git, git_stash, git_worktree).
 
 use super::local_access::{LocalWorkspaceAccessBoundary, LocalWorkspaceAccessPolicy};
-use super::DirectWriteGuard;
+use super::DirectFileGuard;
 use super::{
     default_path_input, escape_control_chars_for_display, has_windows_path_prefix,
     normalize_relative_path, pathbuf_to_workspace_path, validate_relative_pattern, CommandOutput,
@@ -153,6 +153,22 @@ impl LocalWorkspaceBackend {
         self.ensure_access(path, Some(&candidate), metadata.as_ref(), None, "write")
     }
 
+    pub(crate) fn refuse_direct_read(
+        &self,
+        path: &WorkspacePath,
+        file: &std::fs::File,
+    ) -> Result<()> {
+        let resolved = self.local_path_for_read(path)?;
+        let metadata = file.metadata()?;
+        self.ensure_access(
+            path,
+            Some(&resolved),
+            Some(&metadata),
+            Some(hard_link_count_for_open_file(file, &metadata)),
+            "read",
+        )
+    }
+
     fn ensure_access(
         &self,
         path: &WorkspacePath,
@@ -271,9 +287,12 @@ impl LocalWorkspaceBackend {
     }
 }
 
-impl DirectWriteGuard for LocalWorkspaceBackend {
+impl DirectFileGuard for LocalWorkspaceBackend {
     fn refuse_direct_write(&self, path: &WorkspacePath) -> Result<()> {
         LocalWorkspaceBackend::refuse_direct_write(self, path)
+    }
+    fn refuse_direct_read(&self, path: &WorkspacePath, file: &std::fs::File) -> Result<()> {
+        LocalWorkspaceBackend::refuse_direct_read(self, path, file)
     }
 }
 

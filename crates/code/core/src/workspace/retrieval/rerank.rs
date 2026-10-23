@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 mod features;
-use features::{CandidateFeatures, candidate_features, scratch_bytes};
+use features::{candidate_features, scratch_bytes, CandidateFeatures};
 
 const MAX_CANDIDATES: usize = 100;
 const MAX_FEATURE_BYTES_PER_CANDIDATE: usize = 4 * 1024;

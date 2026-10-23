@@ -10,7 +10,7 @@ mod evaluation;
 mod expression;
 mod interaction;
 mod interaction_types;
-mod openui;
+mod json_render;
 mod pointer;
 mod protocol;
 mod schema;
@@ -42,9 +42,9 @@ pub use interaction_types::{
     DEFAULT_INTERACTION_MAX_VALUE_BYTES, FORM_INTERACTION_REQUEST_API_VERSION,
     FORM_INTERACTION_SUBMISSION_API_VERSION, FORM_RELEASE_REF_API_VERSION,
 };
-pub use openui::{
-    openui_component_catalog, openui_parameter_table, validate_openui, OpenUiError,
-    MAX_OPENUI_BYTES,
+pub use json_render::{
+    json_render_component_catalog, parse_json_render, JsonRenderDocument, JsonRenderError,
+    JsonRenderField, MAX_JSON_RENDER_BYTES,
 };
 pub use pointer::{
     decode_pointer, get_at_pointer, is_value_path_scope_compatible,

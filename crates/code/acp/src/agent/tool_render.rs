@@ -39,7 +39,7 @@ pub(super) fn task_to_plan_entry(task: &a3s_code_core::planning::Task) -> acp::P
 pub(super) fn tool_kind_for(name: &str) -> acp::ToolKind {
     match name {
         "bash" | "shell" | "execute" | "git" => acp::ToolKind::Execute,
-        "read" => acp::ToolKind::Read,
+        "read" | "office_read" => acp::ToolKind::Read,
         "write" | "edit" | "patch" | "office_file" => acp::ToolKind::Edit,
         "grep" | "glob" | "search" | "semantic" | "hybrid" | "bm25" | "code_symbols"
         | "code_navigation" | "code_diagnostics" | "web_search" => acp::ToolKind::Search,
@@ -164,6 +164,39 @@ pub(super) fn streaming_bash_delta(delta: &str) -> serde_json::Value {
         "total_bytes": delta.len(),
         "output_delta": delta,
     })
+}
+
+/// Publication metadata must survive independently of the bounded text preview.
+pub(super) fn tool_publication_output(
+    name: &str,
+    metadata: Option<&serde_json::Value>,
+    exit_code: i32,
+) -> Option<serde_json::Value> {
+    if name != "office_file" || exit_code != 0 {
+        return None;
+    }
+    let metadata = metadata?;
+    if metadata.get("validated")?.as_bool()? != true
+        || metadata.get("artifact_relative_path")?.as_str()?.is_empty()
+    {
+        return None;
+    }
+    let mut publication = serde_json::Map::new();
+    for key in [
+        "artifact_relative_path",
+        "artifact_requested_path",
+        "artifact_content_digest",
+        "file_path",
+        "files",
+        "kind",
+        "bytes",
+        "validated",
+    ] {
+        if let Some(value) = metadata.get(key) {
+            publication.insert(key.to_owned(), value.clone());
+        }
+    }
+    Some(serde_json::Value::Object(publication))
 }
 
 pub(super) fn tool_raw_output(

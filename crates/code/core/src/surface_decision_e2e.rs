@@ -1,8 +1,8 @@
-//! Gateway decision through OpenUI projection.
+//! Gateway decision through JSON Render projection.
 //!
 //! Each case posts the same body the agent loop posts, against a local
 //! stand-in for `POST /v1/systemone`. The returned trace is what the `apofasi`
-//! tool row shows, and `form.openui` is what Studio compiles.
+//! tool row shows, and `form.spec` is what Studio compiles.
 
 use super::decide_tool_surface;
 use crate::llm::GatewayDecisionAuth;
@@ -13,31 +13,18 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 const LEAVE: &str =
     r#"{"root":"leave_card","state":{"form":{"cm_content":"去医院","cm_type":"病假","days":2}}}"#;
 
-const LEAVE_FORM: &str = r#"n0 = Input("cm_content", "cm_content", "去医院", "text")
-n1 = Input("cm_type", "cm_type", "病假", "text")
-n2 = Input("days", "days", 2, "number")
-submit = Button("submit", "提交")
-root = Card("leave_card", [n0, n1, n2, submit])"#;
+const LEAVE_FORM: &str = r#"{"root":"root","elements":{"n0":{"type":"Input","props":{"label":"cm_content","type":"text","value":{"$bindState":"/form/cm_content"}}},"n1":{"type":"Input","props":{"label":"cm_type","type":"text","value":{"$bindState":"/form/cm_type"}}},"n2":{"type":"Input","props":{"label":"days","type":"number","value":{"$bindState":"/form/days"}}},"submit":{"type":"Button","props":{"action":"submit","label":"提交"}},"root":{"type":"Card","props":{"title":"leave_card"},"children":["n0","n1","n2","submit"]}},"state":{"form":{"cm_content":"去医院","cm_type":"病假","days":2}}}"#;
 
 const CHART: &str = r#"{"title":"本周","labels":["一","二"],"values":[1,2],"note":"已汇总完成"}"#;
 
 /// No `state.form`. The gateway chooses the surface.
 const BUDGET: &str = r#"{"title":"预算","note":"请确认金额","days":5,"daily":300}"#;
 
-const BUDGET_VIEW: &str = r#"n0 = Metric("daily", 300, "")
-n1 = Metric("days", 5, "")
-n2 = Text("note: 请确认金额")
-root = Card("预算", [n0, n1, n2])"#;
+const BUDGET_VIEW: &str = r#"{"root":"root","elements":{"n0":{"type":"Metric","props":{"label":"daily","value":300,"unit":""}},"n1":{"type":"Metric","props":{"label":"days","value":5,"unit":""}},"n2":{"type":"Text","props":{"content":"note: 请确认金额"}},"root":{"type":"Card","props":{"title":"预算"},"children":["n0","n1","n2"]}}}"#;
 
-const BUDGET_FORM: &str = r#"n0 = Input("daily", "daily", 300, "number")
-n1 = Input("days", "days", 5, "number")
-n2 = Input("note", "note", "请确认金额", "text")
-submit = Button("submit", "提交")
-root = Card("预算", [n0, n1, n2, submit])"#;
+const BUDGET_FORM: &str = r#"{"root":"root","elements":{"n0":{"type":"Input","props":{"label":"daily","type":"number","value":{"$bindState":"/form/daily"}}},"n1":{"type":"Input","props":{"label":"days","type":"number","value":{"$bindState":"/form/days"}}},"n2":{"type":"Input","props":{"label":"note","type":"text","value":{"$bindState":"/form/note"}}},"submit":{"type":"Button","props":{"action":"submit","label":"提交"}},"root":{"type":"Card","props":{"title":"预算"},"children":["n0","n1","n2","submit"]}},"state":{"form":{"daily":300,"days":5,"note":"请确认金额"}}}"#;
 
-const CHART_VIEW: &str = r#"n0 = BarChart(["一", "二"], [1, 2])
-n1 = Text("note: 已汇总完成")
-root = Card("本周", [n0, n1])"#;
+const CHART_VIEW: &str = r#"{"root":"root","elements":{"n0":{"type":"BarChart","props":{"labels":["一","二"],"values":[1,2]}},"n1":{"type":"Text","props":{"content":"note: 已汇总完成"}},"root":{"type":"Card","props":{"title":"本周"},"children":["n0","n1"]}}}"#;
 
 fn auth(base: &str) -> GatewayDecisionAuth {
     GatewayDecisionAuth {
@@ -94,7 +81,7 @@ async fn a_declared_form_renders_without_asking_the_gateway() {
     assert_eq!(trace.output, "declared=form");
     let form = trace.form.expect("surface");
     assert!(form.interactive);
-    assert_eq!(form.openui, LEAVE_FORM);
+    assert_render_eq(&form.spec, LEAVE_FORM);
     assert_eq!(
         form.model_note,
         "Structured data is on screen as Intelligent UI. Do not repeat its JSON."
@@ -105,7 +92,7 @@ async fn a_declared_form_renders_without_asking_the_gateway() {
         .await
         .expect("trace");
     assert_eq!(trace.output, "declared=form");
-    assert!(trace.form.expect("surface").openui.contains("leave-card"));
+    assert!(trace.form.expect("surface").spec.contains("leave-card"));
 }
 
 const WEEK_VIEW: &str = r#"{"root":"week","title":"本周","state":{"view":{"labels":["一","二"],"values":[1,2],"note":"已汇总完成"}}}"#;
@@ -124,7 +111,7 @@ async fn a_wrapped_declaration_stays_declared_when_the_envelope_has_siblings() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -144,7 +131,7 @@ async fn a_later_form_declaration_outranks_an_earlier_envelope_document() {
         .await
         .expect("trace");
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 
     let output = json!({
         "answer": serde_json::from_str::<Value>(WEEK_VIEW).expect("week"),
@@ -156,7 +143,7 @@ async fn a_later_form_declaration_outranks_an_earlier_envelope_document() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -178,7 +165,7 @@ async fn a_small_form_outranks_richer_view_declarations() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -188,7 +175,7 @@ async fn a_declared_view_renders_without_a_credential() {
     assert_eq!(trace.output, "declared=view");
     let form = trace.form.expect("surface");
     assert!(!form.interactive);
-    assert_eq!(form.openui, CHART_VIEW);
+    assert_render_eq(&form.spec, CHART_VIEW);
 }
 
 #[tokio::test]
@@ -207,8 +194,8 @@ async fn a_declared_form_wins_when_a_view_is_also_present() {
     assert_eq!(trace.output, "declared=form");
     let form = trace.form.expect("surface");
     assert!(form.interactive);
-    assert_eq!(form.openui, LEAVE_FORM);
-    assert!(!form.openui.contains("BarChart"));
+    assert_render_eq(&form.spec, LEAVE_FORM);
+    assert!(!form.spec.contains("BarChart"));
 }
 
 #[tokio::test]
@@ -298,7 +285,7 @@ async fn a_small_declared_form_outranks_a_larger_undeclared_document() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -317,7 +304,7 @@ async fn an_unprojectable_declaration_does_not_hide_a_projectable_one() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -340,7 +327,7 @@ async fn unprojectable_declarations_do_not_fill_the_cap_ahead_of_a_form() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -366,7 +353,7 @@ async fn braces_inside_one_value_do_not_hide_a_later_declaration() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -384,7 +371,7 @@ async fn earlier_json_values_do_not_hide_a_later_declaration() {
         .await
         .expect("trace");
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -409,7 +396,7 @@ async fn a_scan_cap_inside_a_multibyte_character_still_projects() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "declared=form");
-    assert_eq!(trace.form.expect("surface").openui, LEAVE_FORM);
+    assert_render_eq(&trace.form.expect("surface").spec, LEAVE_FORM);
 }
 
 #[tokio::test]
@@ -430,11 +417,11 @@ async fn braces_inside_one_value_do_not_hide_a_later_document() {
         .expect("trace");
     server.verify().await;
     assert_eq!(trace.output, "choice=view\nmodel=apofasi-lexical-9");
-    assert_eq!(trace.form.expect("surface").openui, BUDGET_VIEW);
+    assert_render_eq(&trace.form.expect("surface").spec, BUDGET_VIEW);
 }
 
 #[tokio::test]
-async fn a_lexical_view_projects_openui_and_records_the_model() {
+async fn a_lexical_view_projects_json_render_and_records_the_model() {
     let server = gateway(lexical("view")).await;
     let trace = decide_tool_surface(BUDGET, Some(auth(&server.uri())))
         .await
@@ -445,7 +432,7 @@ async fn a_lexical_view_projects_openui_and_records_the_model() {
     assert_eq!(trace.output, "choice=view\nmodel=apofasi-lexical-9");
     let form = trace.form.expect("surface");
     assert!(!form.interactive);
-    assert_eq!(form.openui, BUDGET_VIEW);
+    assert_render_eq(&form.spec, BUDGET_VIEW);
 
     let body = posted_body(&server).await;
     assert!(body.get("model").is_none());
@@ -470,7 +457,7 @@ async fn a_lexical_form_projects_a_submittable_card() {
     assert!(trace.output.starts_with("choice=form\n"));
     let form = trace.form.expect("surface");
     assert!(form.interactive);
-    assert_eq!(form.openui, BUDGET_FORM);
+    assert_render_eq(&form.spec, BUDGET_FORM);
 }
 
 #[tokio::test]
@@ -482,7 +469,7 @@ async fn a_chart_document_becomes_a_bar_chart_view() {
     server.verify().await;
     let form = trace.form.expect("surface");
     assert!(!form.interactive);
-    assert_eq!(form.openui, CHART_VIEW);
+    assert_render_eq(&form.spec, CHART_VIEW);
 }
 
 #[tokio::test]
@@ -581,4 +568,13 @@ async fn an_unreachable_gateway_is_named_in_the_trace() {
     assert_eq!(trace.exit_code, 1);
     assert_eq!(trace.output, "unavailable: gateway timed out");
     assert!(trace.form.is_none());
+}
+
+fn assert_render_eq(actual: &str, expected: &str) {
+    let actual: Value = serde_json::from_str(actual).unwrap();
+    let mut expected: Value = serde_json::from_str(expected).unwrap();
+    if expected.get("state").is_none() {
+        expected["state"] = json!({"form":{}});
+    }
+    assert_eq!(actual, expected);
 }

@@ -34,7 +34,7 @@ pub(super) struct ExecutionLoopState {
     workspace_head: Option<String>,
     workspace_stamps: Vec<crate::porcelain::ContentStamp>,
     execution_start: Instant,
-    /// A platform card was handed to an OpenUI form. The loop stops before
+    /// A platform card was handed to a JSON Render form. The loop stops before
     /// the generative model can echo the card JSON.
     pub(super) surface_form_parked: bool,
 }

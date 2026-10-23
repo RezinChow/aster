@@ -602,8 +602,8 @@
             "sessionId": "sess-unknown",
             "formId": "form-1",
             "prompt": "Name",
-            "format": "openui",
-            "spec": "root = Input(\"name\", \"Name\")",
+            "format": "json-render",
+            "spec": "{\"root\":\"root\",\"elements\":{\"root\":{\"type\":\"Input\",\"props\":{\"label\":\"Name\",\"value\":{\"$bindState\":\"/form/name\"}}}},\"state\":{\"form\":{\"name\":\"\"}}}",
         })).unwrap();
         let changed = handle(AcpClientMessage::ExtMethod(a3s_acp_lib::AcpArgs {
             request: acp::ExtRequest::new("a3s/form/request", raw.into()),

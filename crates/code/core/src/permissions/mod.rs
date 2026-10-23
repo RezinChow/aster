@@ -22,6 +22,12 @@ mod tests;
 #[cfg(test)]
 mod batch_read_tests;
 
+#[cfg(test)]
+mod office_read_tests;
+
+#[cfg(test)]
+mod heredoc_tests;
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

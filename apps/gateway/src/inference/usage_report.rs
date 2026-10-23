@@ -7,8 +7,9 @@
 
 use super::token_reconcile::UsageAttribution;
 use serde::Serialize;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use uuid::Uuid;
 
 const ATTEMPTS: usize = 3;
 
@@ -25,16 +26,46 @@ pub(crate) struct UsageFactBody {
     occurred_at: i64,
 }
 
+/// Resolve the principal to the member UUID the API ledger keys usage by.
+///
+/// A shared deployment token carries no member identity of its own. It is
+/// attributed to the platform account named by `A3S_GATEWAY_SHARED_SUBJECT_ID`,
+/// so the call is still metered even though that account is not charged.
+fn platform_attribution(attribution: &UsageAttribution) -> Option<UsageAttribution> {
+    let subject = attribution.subject.subject.trim();
+    if Uuid::parse_str(subject).is_ok() {
+        return Some(attribution.clone());
+    }
+    let mapped = std::env::var("A3S_GATEWAY_SHARED_SUBJECT_ID").ok()?;
+    let mapped = mapped.trim();
+    if Uuid::parse_str(mapped).is_err() {
+        return None;
+    }
+    let mut resolved = attribution.clone();
+    resolved.subject.subject = Arc::from(mapped);
+    Some(resolved)
+}
+
 pub(crate) fn report_principal_usage(
     attribution: &UsageAttribution,
     total_tokens: u64,
     status: u16,
 ) {
+    let Some(attribution) = platform_attribution(attribution) else {
+        static LOGGED: OnceLock<()> = OnceLock::new();
+        if LOGGED.set(()).is_ok() {
+            tracing::warn!(
+                "usage ingest skipped: the principal subject is not a member id and \
+                 A3S_GATEWAY_SHARED_SUBJECT_ID is unset"
+            );
+        }
+        return;
+    };
     let occurred_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or(0);
-    let body = usage_fact_body(attribution, total_tokens, status, occurred_at);
+    let body = usage_fact_body(&attribution, total_tokens, status, occurred_at);
     let url = std::env::var("A3S_USAGE_INGEST_URL").unwrap_or_default();
     let token = std::env::var("A3S_GATEWAY_ADMIN_TOKEN").unwrap_or_default();
     submit_usage_fact(url.trim(), token.trim(), body);
@@ -192,6 +223,31 @@ mod tests {
         assert!(!retryable(400));
         assert!(!retryable(401));
         assert!(!retryable(404));
+    }
+
+    #[test]
+    fn the_platform_account_receives_shared_usage() {
+        let platform = "22222222-2222-2222-2222-222222222222";
+
+        // A member id passes through untouched.
+        let member = attribution(None);
+        let resolved = platform_attribution(&member).expect("member id resolves");
+        assert_eq!(
+            &*resolved.subject.subject,
+            "11111111-1111-1111-1111-111111111111"
+        );
+
+        // A shared token is attributed to the platform account when configured.
+        let mut shared = attribution(None);
+        shared.subject.subject = std::sync::Arc::from("shared");
+        std::env::set_var("A3S_GATEWAY_SHARED_SUBJECT_ID", platform);
+        let resolved = platform_attribution(&shared).expect("shared subject resolves");
+        assert_eq!(&*resolved.subject.subject, platform);
+
+        // Without a configured account the fact is dropped rather than sent
+        // with a subject the ledger cannot key on.
+        std::env::remove_var("A3S_GATEWAY_SHARED_SUBJECT_ID");
+        assert!(platform_attribution(&shared).is_none());
     }
 
     #[test]

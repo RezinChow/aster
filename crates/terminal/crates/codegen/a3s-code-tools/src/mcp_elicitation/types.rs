@@ -45,7 +45,7 @@ pub struct McpElicitExtRequest {
     pub tool_call_id: String,
     pub server_name: String,
     pub message: String,
-    /// OpenUI required fields reject whitespace-only text and unchecked toggles.
+    /// JSON Render required fields reject whitespace-only text and unchecked toggles.
     #[serde(default, skip_serializing_if = "is_false")]
     pub require_nonempty: bool,
     #[serde(flatten)]

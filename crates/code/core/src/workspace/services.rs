@@ -3,7 +3,7 @@
 #[allow(unused_imports)]
 use super::{CommandRequest, WorkspaceError, WorkspaceVersionConflict};
 use super::{
-    DirectWriteGuard, LocalWorkspaceBackend, ManifestWorkspaceBackend, VirtualPathResolver,
+    DirectFileGuard, LocalWorkspaceBackend, ManifestWorkspaceBackend, VirtualPathResolver,
     WorkspaceCapabilities, WorkspaceChunkCatalog, WorkspaceCommandRunner, WorkspaceFileSystem,
     WorkspaceFileSystemExt, WorkspaceGit, WorkspaceGitStashProvider, WorkspaceGitWorktreeProvider,
     WorkspacePath, WorkspacePathResolver, WorkspacePersistentIndex, WorkspaceRef, WorkspaceResult,
@@ -47,7 +47,7 @@ pub struct WorkspaceServices {
     /// `None` means no enforced timeout — appropriate for the local backend.
     operation_timeout: Option<std::time::Duration>,
     local_root: Option<PathBuf>,
-    direct_write_guard: Option<Arc<dyn DirectWriteGuard>>,
+    direct_file_guard: Option<Arc<dyn DirectFileGuard>>,
 }
 
 impl std::fmt::Debug for WorkspaceServices {
@@ -111,7 +111,7 @@ impl WorkspaceServices {
             git_worktree: None,
             operation_timeout: None,
             local_root: None,
-            direct_write_guard: None,
+            direct_file_guard: None,
         }
     }
 
@@ -156,7 +156,7 @@ impl WorkspaceServices {
             git_worktree: Some(git_worktree),
             operation_timeout: None,
             local_root: Some(backend.root.clone()),
-            direct_write_guard: Some(backend),
+            direct_file_guard: Some(backend),
         })
     }
 
@@ -315,7 +315,7 @@ impl WorkspaceServices {
             git_worktree: Some(git_worktree),
             operation_timeout: None,
             local_root: Some(backend.local_root().to_path_buf()),
-            direct_write_guard: Some(backend),
+            direct_file_guard: Some(backend),
         })
     }
 
@@ -545,7 +545,7 @@ impl WorkspaceServices {
             git_worktree: self.git_worktree.clone(),
             operation_timeout: self.operation_timeout,
             local_root: self.local_root.clone(),
-            direct_write_guard: self.direct_write_guard.clone(),
+            direct_file_guard: self.direct_file_guard.clone(),
         }))
     }
 
@@ -588,7 +588,7 @@ impl WorkspaceServices {
             git_worktree: self.git_worktree.clone(),
             operation_timeout: self.operation_timeout,
             local_root: self.local_root.clone(),
-            direct_write_guard: self.direct_write_guard.clone(),
+            direct_file_guard: self.direct_file_guard.clone(),
         })
     }
 
@@ -620,7 +620,7 @@ impl WorkspaceServices {
             git_worktree: self.git_worktree.clone(),
             operation_timeout: self.operation_timeout,
             local_root: self.local_root.clone(),
-            direct_write_guard: self.direct_write_guard.clone(),
+            direct_file_guard: self.direct_file_guard.clone(),
         })
     }
 
@@ -679,7 +679,7 @@ impl WorkspaceServices {
             git_worktree: None,
             operation_timeout: self.operation_timeout,
             local_root: self.local_root.clone(),
-            direct_write_guard: self.direct_write_guard.clone(),
+            direct_file_guard: self.direct_file_guard.clone(),
         })
     }
 
@@ -689,9 +689,17 @@ impl WorkspaceServices {
     /// boundary is not bypassed. A backend without a local guard does not invent
     /// a second policy.
     pub fn refuse_direct_write(&self, path: &WorkspacePath) -> Result<()> {
-        match &self.direct_write_guard {
+        match &self.direct_file_guard {
             Some(guard) => guard.refuse_direct_write(path),
             None => Ok(()),
+        }
+    }
+
+    /// Apply the selected local read policy to the actual opened file before native parsing.
+    pub fn refuse_direct_read(&self, path: &WorkspacePath, file: &std::fs::File) -> Result<()> {
+        match &self.direct_file_guard {
+            Some(guard) => guard.refuse_direct_read(path, file),
+            None => anyhow::bail!("workspace backend does not grant direct file reads"),
         }
     }
 

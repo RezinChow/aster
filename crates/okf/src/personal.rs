@@ -19,6 +19,14 @@ use crate::{
 
 const CONCEPTS_DIR: &str = "concepts";
 
+mod maintenance;
+pub use maintenance::{
+    abandon_knowledge_maintenance, begin_knowledge_maintenance, fail_knowledge_maintenance,
+    finish_knowledge_maintenance, knowledge_change, knowledge_maintenance_job,
+    knowledge_maintenance_plan, review_knowledge_change, KnowledgeChangeDetail, KnowledgeJob,
+    KnowledgePlan, MaintenanceOperation,
+};
+
 /// `wiki/local` is the only directory the personal compile command accepts.
 pub fn is_personal_vault(root: &Path) -> bool {
     let Some(name) = root.file_name().and_then(|item| item.to_str()) else {

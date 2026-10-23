@@ -8,6 +8,9 @@ mod approval_deadline;
 #[path = "agent/count_limit_tests.rs"]
 mod count_limits;
 
+#[path = "agent/tool_publication_tests.rs"]
+mod tool_publication;
+
 #[test]
 fn cc_switch_picker_label_includes_other_profiles() {
     assert_eq!(
@@ -182,6 +185,16 @@ fn empty_registry_still_states_the_product_boundary() {
     assert!(text.contains("Do not read or explain the product implementation"));
     assert!(text.contains("aster sessions list"));
     assert!(text.contains("Finish the user's outcome in this turn."));
+    for rule in [
+        "prefer office_read when exposed",
+        "check every factual and numerical claim against source locations",
+        "Structural file validation does not prove semantic correctness",
+        "explicit endpoint-counting convention",
+        "every adjacent step",
+        "explain the conflict and ask which takes priority",
+    ] {
+        assert!(text.contains(rule), "missing session guidance: {rule}");
+    }
 }
 
 #[test]
@@ -2508,7 +2521,7 @@ async fn user_question_with_form_round_trips_the_submitted_values() {
                 "{request_frame}"
             );
             assert_eq!(request_frame["params"]["spec"], spec);
-            assert_eq!(request_frame["params"]["format"], "openui");
+            assert_eq!(request_frame["params"]["format"], "json-render");
             let reply = serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": request_frame["id"],

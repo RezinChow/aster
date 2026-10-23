@@ -201,7 +201,7 @@ impl PermissionRule {
                     .unwrap_or("")
                     .to_string()
             }
-            "read" | "write" | "edit" | "download" | "office_file" => {
+            "read" | "office_read" | "write" | "edit" | "download" | "office_file" => {
                 if let Some(path) = args.get("file_path").and_then(|v| v.as_str()) {
                     return path.to_string();
                 }

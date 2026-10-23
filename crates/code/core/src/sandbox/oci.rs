@@ -22,6 +22,9 @@ mod bundle;
 mod output;
 mod version;
 
+#[cfg(test)]
+mod metadata_tests;
+
 pub(crate) use version::{guest_agent_hello, host_runtime_version};
 
 /// Explicit asset-directory override for installed or development companions.
@@ -160,6 +163,10 @@ impl Drop for OciBashSandbox {
 impl BashSandbox for OciBashSandbox {
     fn execution_target(&self) -> super::ShellExecutionTarget {
         super::ShellExecutionTarget::LinuxGuestBash
+    }
+
+    fn shell_note(&self) -> Option<String> {
+        Some("Each Bash invocation starts a fresh Linux guest. /tmp and guest rootfs changes are discarded after that call; only files written in the mounted workspace persist across calls. Keep scripts, handoff files and outputs in the workspace when another call needs them. Guest optional-tool and Python-package availability is unreported; host-installed tools and packages do not establish guest availability.".into())
     }
 
     fn validate_execution_available(&self) -> Result<()> {

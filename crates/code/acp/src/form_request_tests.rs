@@ -12,7 +12,7 @@ fn refuses_non_object_answers_and_preserves_typed_values() {
 }
 
 #[tokio::test]
-async fn openui_request_round_trips_without_a_core_session() {
+async fn json_render_request_round_trips_without_a_core_session() {
     use std::rc::Rc;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -40,7 +40,7 @@ async fn openui_request_round_trips_without_a_core_session() {
             );
             let io_task = tokio::task::spawn_local(io);
             let connection = Rc::new(connection);
-            let spec = "form = Stack([Input(name=reason), Button(action=submit)])";
+            let spec = r#"{"root":"root","elements":{"root":{"type":"Card","props":{"title":"请填写原因"},"children":["reason","count","ready","submit"]},"reason":{"type":"Input","props":{"label":"原因","value":{"$bindState":"/form/reason"}}},"count":{"type":"Input","props":{"label":"数量","type":"number","value":{"$bindState":"/form/count"}}},"ready":{"type":"Checkbox","props":{"label":"确认","checked":{"$bindState":"/form/ready"}}},"submit":{"type":"Button","props":{"label":"提交","action":"submit"}}},"state":{"form":{"reason":"","count":3,"ready":false}}}"#;
             let exchange = async {
                 let raw_reply = async {
                     let (read, mut write) = tokio::io::split(raw_client);
@@ -54,7 +54,7 @@ async fn openui_request_round_trips_without_a_core_session() {
                     assert_eq!(frame["params"]["sessionId"], "session-1");
                     assert_eq!(
                         frame["params"],
-                        json!({"sessionId":"session-1","formId":"form-1","prompt":"请填写原因","spec":spec,"format":"openui"})
+                        json!({"sessionId":"session-1","formId":"form-1","prompt":"请填写原因","spec":spec,"format":"json-render"})
                     );
                     let reply = json!({
                         "jsonrpc":"2.0",

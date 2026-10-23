@@ -80,7 +80,3 @@ ring = "0.17"
 tar.workspace = true
 tempfile.workspace = true
 zip.workspace = true
-
-[patch.crates-io]
-a3s-use-core = { path = "core" }
-
