@@ -565,3 +565,149 @@ mod phase4_tests {
         }
     }
 }
+
+/// Phase 4 definition boost: a chunk whose text contains the definition of
+/// the queried symbol (a `def`/`fn`/`struct`/`class` keyword adjacent to the
+/// identifier) outranks chunks that merely reference it. The structural
+/// channel's exact_identifier gate already segments symbol-like queries; this
+/// prior refines within that tier.
+pub(crate) const DEFINITION_BOOST: f64 = 0.15;
+
+const DEFINITION_KEYWORDS: [&str; 10] = [
+    "fn ",
+    "func ",
+    "def ",
+    "struct ",
+    "class ",
+    "interface ",
+    "type ",
+    "enum ",
+    "impl ",
+    "const ",
+];
+
+/// True when the chunk text contains a definition-site pattern for the
+/// identifier — a definition keyword immediately before it on the same line,
+/// after zero or more common visibility/qualifier words.
+pub(crate) fn defines_identifier(text: &str, identifier: &str) -> bool {
+    if identifier.is_empty() {
+        return false;
+    }
+    for line in text.lines() {
+        let mut rest = line.trim_start();
+        // Strip visibility/qualifier words repeatedly — "pub", "pub(crate)",
+        // "async", "unsafe", "export", "public", "static", "final", ...
+        loop {
+            let stripped = QUALIFIER_WORDS.iter().find_map(|word| {
+                rest.strip_prefix(word)
+                    .filter(|tail| tail.starts_with(char::is_whitespace) || tail.starts_with('('))
+                    .map(|tail| tail.trim_start_matches(|c: char| c.is_whitespace() || c == '('))
+            });
+            match stripped {
+                Some(tail) => rest = tail,
+                None => break,
+            }
+        }
+        for keyword in DEFINITION_KEYWORDS {
+            if let Some(after_kw) = rest.strip_prefix(keyword) {
+                let rest = after_kw
+                    .trim_start_matches(|c: char| c.is_whitespace() || c == ':' || c == '(');
+                if rest.starts_with(identifier) {
+                    let after = &rest[identifier.len()..];
+                    if after.is_empty()
+                        || after.starts_with(|c: char| !c.is_alphanumeric() && c != '_')
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+const QUALIFIER_WORDS: [&str; 10] = [
+    "pub",
+    "pub(crate)",
+    "pub(super)",
+    "async",
+    "unsafe",
+    "extern",
+    "static",
+    "export",
+    "public",
+    "final",
+];
+
+/// Apply the definition boost to one hit. Only exact-identifier hits are
+/// eligible — a fuzzy match never gets definition credit.
+pub(crate) fn apply_definition_boost(hit: &mut WorkspaceHybridSearchHit, query: &str) {
+    if hit.exact_identifier && defines_identifier(&hit.chunk.text, query) {
+        hit.rerank_score += DEFINITION_BOOST;
+    }
+}
+
+#[cfg(test)]
+mod definition_boost_tests {
+    use super::*;
+    use crate::workspace::retrieval::{WorkspaceChunk, WorkspaceChunkId};
+
+    #[test]
+    fn definition_patterns_match_across_languages() {
+        assert!(defines_identifier(
+            "pub fn apply_boost(x: i32) {}",
+            "apply_boost"
+        ));
+        assert!(defines_identifier("def apply_boost(self):", "apply_boost"));
+        assert!(defines_identifier("struct Widget {", "Widget"));
+        assert!(defines_identifier("class Foo::Bar", "Foo"));
+        assert!(defines_identifier("interface Handler {", "Handler"));
+        assert!(defines_identifier("  fn helper()", "helper"));
+    }
+
+    #[test]
+    fn references_do_not_match() {
+        assert!(!defines_identifier(
+            "let result = apply_boost(1);",
+            "apply_boost"
+        ));
+        assert!(!defines_identifier(
+            "// TODO: call apply_boost later",
+            "apply_boost"
+        ));
+        assert!(!defines_identifier("fn apply_boost_v2() {}", "apply_boost"));
+        assert!(!defines_identifier("the widget struct is here", "Widget"));
+    }
+
+    #[test]
+    fn only_exact_identifier_hits_get_the_boost() {
+        let mut definition = fixture_hit("src/lib.rs", "fn target() {}", true);
+        let mut reference = fixture_hit("src/call.rs", "target();", true);
+        apply_definition_boost(&mut definition, "target");
+        apply_definition_boost(&mut reference, "target");
+        assert!((definition.rerank_score - 1.15).abs() < 1e-9);
+        assert!((reference.rerank_score - 1.0).abs() < 1e-9);
+    }
+
+    fn fixture_hit(path: &str, text: &'static str, exact: bool) -> WorkspaceHybridSearchHit {
+        WorkspaceHybridSearchHit {
+            chunk: Arc::new(WorkspaceChunk {
+                id: WorkspaceChunkId::new(format!("{path}:1")),
+                path: Arc::from(path),
+                language: Some(Arc::from("rs")),
+                start_line: 1,
+                end_line: 1,
+                start_byte: 0,
+                end_byte: text.len(),
+                content_digest: Arc::from("d"),
+                source_revision: 1,
+                text: Arc::from(text),
+            }),
+            fused_score: 1.0,
+            rerank_score: 1.0,
+            redundancy_score: 0.0,
+            exact_identifier: exact,
+            channels: Vec::new(),
+        }
+    }
+}
