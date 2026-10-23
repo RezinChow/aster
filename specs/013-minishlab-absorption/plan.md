@@ -3,8 +3,11 @@
 **Created**: 2026-10-23 · **Status**: Draft for review
 **Directive**: One executable program absorbing Semble, Model2Vec, SemHash,
 and Vicinity concepts into a3s-code. **Pure-Rust first**: no Python, no
-torch, no model-server process anywhere in the product path. The existing
-ONNX BGE stack stays as the *heavy tier*; everything new is Rust.
+torch, no model-server process anywhere in the product path. **Amended
+2026-10-23 (owner directive): the product ships NO embedding model and NO
+ONNX dependency.** The only in-tree engine is the pure-Rust light tier;
+any heavier model is a host-supplied BYO implementation of the provider
+trait.
 
 ## 0. Design axiom: one embed, three consumers
 
@@ -14,26 +17,33 @@ function — feeding one of three consumers:
 ```
                     ┌────────────────────────────────┐
                     │   EmbeddingProvider (trait)    │
-                    │  ┌──────────┐  ┌────────────┐  │
-                    │  │ LightTier│  │ HeavyTier  │  │
-                    │  │ potion-  │  │ bge-m3     │  │
-                    │  │ code-16M │  │ (ONNX,     │  │
-                    │  │ (pure    │  │  existing) │  │
-                    │  │ Rust)    │  │            │  │
-                    │  └────┬─────┘  └─────┬──────┘  │
-                    └───────┼──────────────┼─────────┘
-                            │              │
-        consumer A          │   consumer B │        consumer C
-  retrieval semantic channel│ memory dedup │ memory ANN recall
-  (replaces nothing; adds   │ (write-time  │ (Linear|HNSW backend
-   a startup-instant tier)  │  merge+repr) │  auto-selected)
+                    │  ┌───────────────────────────┐ │
+                    │  │ LightTier (in-tree)       │ │
+                    │  │ potion-code-16M, pure     │ │
+                    │  │ Rust, from_bytes embedded │ │
+                    │  └────────────┬──────────────┘ │
+                    └───────────────┼────────────────┘
+                                    │
+              consumer A            │   consumer B      consumer C
+        retrieval semantic channel  │   memory dedup    memory ANN recall
+        (startup-instant)           │  (write-merge)    (Linear|HNSW)
+                                    │
+                        ┌───────────┴────────────┐
+                        │ BYO heavy tier (host)  │  ← the product ships no
+                        │ implements the same    │    engine; a host (or a
+                        │ trait, registered via   │    user crate) registers
+                        │ register_embedding_     │    a factory at launch
+                        │ provider (acp)          │
 ```
 
-The trait is the architecture. Tiers are **policy, not privilege**: the
-light tier is embeddable (~30MB, `from_bytes`, zero install chain — the
-`use.bge.*` manifest error family never fires for it); the heavy tier
-keeps cross-encoder reranking and 100-language depth. Which tier serves a
-session is a **measured decision** (Phase 5), never an assumption.
+The trait is the only contract. The light tier is embeddable (~30MB,
+`from_bytes`, zero install chain — no manifest error family can fire for
+it). A host wanting bge-m3-class quality implements the same trait and
+registers its factory through `register_embedding_provider` (acp) before
+the first session; without a registration the trusted `local_cpu` opt-in
+refuses with the named `unregistered` reason. The `a3s-use-bge` edge is
+REMOVED from acp; `crates/bge` remains a standalone user-side crate for
+hosts that choose it.
 
 ## Phase table (dependency-ordered)
 
