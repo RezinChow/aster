@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 mod features;
-use features::{candidate_features, scratch_bytes, CandidateFeatures};
+use features::{CandidateFeatures, candidate_features, scratch_bytes};
 
 const MAX_CANDIDATES: usize = 100;
 const MAX_FEATURE_BYTES_PER_CANDIDATE: usize = 4 * 1024;
@@ -454,4 +454,114 @@ fn fingerprint_jaccard(left: &[u64], right: &[u64]) -> f64 {
         .saturating_add(right.len())
         .saturating_sub(intersection);
     intersection as f64 / union as f64
+}
+
+/// Phase 4 noise penalty: path-classified down-weight for non-product
+/// trees. An explicit path include in the query neutralizes the penalty
+/// (fail-closed: the class guess never overrides a user's explicit ask).
+pub(crate) const NOISE_PENALTY: f64 = 0.25;
+
+pub(crate) fn noise_class(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    let segments: Vec<&str> = lower.split('/').collect();
+    segments.iter().any(|segment| {
+        matches!(
+            *segment,
+            "tests"
+                | "test"
+                | "examples"
+                | "example"
+                | "compat"
+                | "fixtures"
+                | "benches"
+                | "benchmark"
+        )
+    }) || lower.ends_with(".d.ts")
+        || lower.ends_with("_test.go")
+        || lower.ends_with(".test.ts")
+        || lower.ends_with(".test.tsx")
+        || lower.ends_with(".spec.ts")
+}
+
+/// True when the query names the path or a path segment explicitly — the
+/// neutralizer for the noise penalty.
+pub(crate) fn query_names_path(query: &str, path: &str) -> bool {
+    let needle = path.rsplit('/').next().unwrap_or(path);
+    let stem = needle.split('.').next().unwrap_or(needle);
+    stem.len() >= 3
+        && query
+            .to_ascii_lowercase()
+            .contains(&stem.to_ascii_lowercase())
+}
+
+/// Apply the noise penalty to one hit's rerank score. A query that names
+/// the file leaves the score untouched.
+pub(crate) fn apply_noise_penalty(hit: &mut WorkspaceHybridSearchHit, query: &str) {
+    if noise_class(&hit.chunk.path) && !query_names_path(query, &hit.chunk.path) {
+        hit.rerank_score *= 1.0 - NOISE_PENALTY;
+    }
+}
+
+#[cfg(test)]
+mod phase4_tests {
+    use super::*;
+    use crate::workspace::retrieval::{WorkspaceChunk, WorkspaceChunkId};
+
+    #[test]
+    fn test_and_compat_paths_classify_as_noise() {
+        assert!(noise_class("src/tests/unit.rs"));
+        assert!(noise_class("examples/demo.ts"));
+        assert!(noise_class("packages/compat/shim.js"));
+        assert!(noise_class("src/types/global.d.ts"));
+        assert!(!noise_class("src/main.rs"));
+        assert!(!noise_class("src/lib.rs"));
+    }
+
+    #[test]
+    fn a_query_naming_the_file_neutralizes_the_penalty() {
+        assert!(query_names_path("how does demo work", "examples/demo.ts"));
+        assert!(!query_names_path("parse the config", "examples/demo.ts"));
+        // Short stems (e.g. "a.ts") never neutralize — too easy to match.
+        assert!(!query_names_path("parse a file", "tests/a.rs"));
+    }
+
+    #[test]
+    fn noise_hits_drop_a_quarter_unless_named() {
+        let chunk = Arc::new(fixture_chunk("examples/demo.ts"));
+        let mut noisy = WorkspaceHybridSearchHit {
+            chunk: Arc::clone(&chunk),
+            fused_score: 1.0,
+            rerank_score: 1.0,
+            redundancy_score: 0.0,
+            exact_identifier: false,
+            channels: Vec::new(),
+        };
+        apply_noise_penalty(&mut noisy, "unrelated query");
+        assert!((noisy.rerank_score - 0.75).abs() < 1e-9);
+        let mut named = WorkspaceHybridSearchHit {
+            chunk,
+            fused_score: 1.0,
+            rerank_score: 1.0,
+            redundancy_score: 0.0,
+            exact_identifier: false,
+            channels: Vec::new(),
+        };
+        apply_noise_penalty(&mut named, "how does demo work");
+        assert!((named.rerank_score - 1.0).abs() < 1e-9);
+    }
+
+    fn fixture_chunk(path: &str) -> WorkspaceChunk {
+        WorkspaceChunk {
+            id: WorkspaceChunkId::new(format!("{path}:1")),
+            path: Arc::from(path),
+            language: Some(Arc::from("ts")),
+            start_line: 1,
+            end_line: 1,
+            start_byte: 0,
+            end_byte: 1,
+            content_digest: Arc::from("d"),
+            source_revision: 1,
+            text: Arc::from("x"),
+        }
+    }
 }
