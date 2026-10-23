@@ -69,11 +69,11 @@ impl OpenAiRequestProfile {
             ModelStandard::OpenaiChat => Self::ChatCompletions,
             ModelStandard::OpenaiCompletions => Self::Completions,
             ModelStandard::OpenaiEmbeddings => Self::Embeddings,
+            ModelStandard::Rerank => Self::Rerank,
             ModelStandard::Ocr => Self::Ocr,
             ModelStandard::DecisionSystemOne => Self::SystemOne,
             ModelStandard::OpenaiResponses
             | ModelStandard::AnthropicMessages
-            | ModelStandard::Rerank
             | ModelStandard::GeminiGenerate
             | ModelStandard::GeminiEmbed
             | ModelStandard::OpenaiImages
@@ -772,12 +772,15 @@ mod tests {
             (Method::POST, "/v1/responses"),
             (Method::POST, "/v1/messages"),
             (Method::POST, "/v1/messages/count_tokens"),
-            (Method::POST, "/v1/rerank"),
             (Method::POST, "/v1/mcp"),
             (Method::POST, "/v1/service"),
         ] {
             assert_eq!(OpenAiRequestProfile::match_request(&method, path), None);
         }
+        assert_eq!(
+            OpenAiRequestProfile::match_request(&Method::POST, "/v1/rerank"),
+            Some(OpenAiRequestProfile::Rerank)
+        );
         assert!(OpenAiRequestProfile::is_reserved_route(
             &Method::POST,
             "/v1/responses"

@@ -203,10 +203,9 @@ impl ModelStandard {
             // standard only lifts the reserved-path 404; the backend registered
             // for the route owns authentication for these multipart calls.
             | Self::OpenaiAudio => StandardAdmission::Admitted,
-            Self::Ocr | Self::DecisionSystemOne => StandardAdmission::Platform,
+            Self::Ocr | Self::DecisionSystemOne | Self::Rerank => StandardAdmission::Platform,
             Self::OpenaiResponses
             | Self::AnthropicMessages
-            | Self::Rerank
             | Self::GeminiGenerate
             | Self::GeminiEmbed
             | Self::OpenaiImages
