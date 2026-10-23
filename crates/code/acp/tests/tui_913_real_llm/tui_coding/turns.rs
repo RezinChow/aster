@@ -141,7 +141,7 @@ pub(crate) fn drive_prompt(
     session.pty.type_text(prompt);
     session.pty.wait_for(prompt, Duration::from_secs(5));
     session.pty.enter();
-    let deadline = Instant::now() + Duration::from_secs(300);
+    let deadline = Instant::now() + Duration::from_secs(420);
     loop {
         let screen = session.pty.screen();
         if answer_dialog(&mut session.pty, &screen) {

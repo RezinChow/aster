@@ -55,7 +55,7 @@ hosts that choose it.
 | 4 | **Retrieval quality features** | semble rerank | none | ~½ lane | definition-boost, noise-penalty, adaptive query weighting — each behind its own measured default |
 | 5 | **ANN backend (vicinity-in-Rust)** | vicinity | `hnsw_rs` (pure Rust) behind a Backend trait | ~1 lane | auto-switch by collection size; exact Linear stays the small-N default; recall@k parity test |
 | 6 | **Evaluated promotion + light tier GA** | all | none | ~½ lane | specs/012 matrix: potion vs bge-m3 on frozen labels; promotion bar = NDCG@10 within 3% AND index ≥10× faster |
-| 7 | (deferred) own-corpus distillation | tokenlearn | out of repo (training) | — | only after #6 shows the ceiling matters |
+| 7 | ~~own-corpus distillation~~ **PERMANENTLY out of scope** | tokenlearn | requires Python/PyTorch GPU training; this is a pure-Rust workspace per constitution. Not deferred — permanently architectural. If the embedding ceiling matters after #6, it ships as a trained model file, not a training pipeline. | — | N/A |
 
 ## Phase 2 — EmbeddingProvider (the keystone)
 
