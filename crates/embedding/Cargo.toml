@@ -1,0 +1,15 @@
+[package]
+name = "a3s-embedding"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+model2vec-rs = "0.3.0"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

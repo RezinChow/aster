@@ -298,13 +298,13 @@ dependencies = [
  "a3s-code-mermaid",
  "a3s-office",
  "a3s-okf",
- "a3s-use-bge",
  "a3s-use-reconcile",
  "agent-client-protocol",
  "anyhow",
  "async-trait",
  "cap-fs-ext",
  "cap-std",
+ "chrono",
  "portable-pty",
  "quick-xml 0.38.4",
  "rusqlite",
@@ -2184,6 +2184,18 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "a3s-embedding"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "model2vec-rs",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
 ]
 
 [[package]]
@@ -10848,6 +10860,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hf-hub"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "629d8f3bbeda9d148036d6b0de0a3ab947abd08ce90626327fc3547a49d59d97"
+dependencies = [
+ "dirs 6.0.0",
+ "http 1.4.0",
+ "indicatif 0.17.11",
+ "libc",
+ "log",
+ "rand 0.9.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "ureq 2.12.1",
+ "windows-sys 0.60.2",
+]
+
+[[package]]
 name = "hickory-net"
 version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13400,6 +13431,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "model2vec-rs"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ca11a52a52721b3305bd03ee42d66d8026f54f00235b81746662f2b25a743f1"
+dependencies = [
+ "anyhow",
+ "half",
+ "hf-hub",
+ "ndarray 0.15.6",
+ "safetensors 0.5.3",
+ "serde",
+ "serde_json",
+ "tokenizers",
+ "ureq 2.12.1",
+]
+
+[[package]]
 name = "moka"
 version = "0.12.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13541,6 +13589,19 @@ dependencies = [
  "security-framework 2.11.1",
  "security-framework-sys",
  "tempfile",
+]
+
+[[package]]
+name = "ndarray"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adb12d4e967ec485a5f71c6311fe28158e9d6f4bc4a447b474184d0f91a8fa32"
+dependencies = [
+ "matrixmultiply",
+ "num-complex",
+ "num-integer",
+ "num-traits",
+ "rawpointer",
 ]
 
 [[package]]
@@ -14813,7 +14874,7 @@ version = "2.0.0-rc.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fa7e49bd669d32d7bc2a15ec540a527e7764aec722a45467814005725bcd721"
 dependencies = [
- "ndarray",
+ "ndarray 0.16.1",
  "ort-sys",
  "smallvec 2.0.0-alpha.10",
  "tracing",
@@ -17791,6 +17852,16 @@ name = "safetensors"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44560c11236a6130a46ce36c836a62936dc81ebf8c36a37947423571be0e55b6"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "safetensors"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc0cdb7198d738a111f6df8fef42cb175412c311d0c4ac9126ff4e550ad1a0e8"
 dependencies = [
  "serde",
  "serde_json",
@@ -21702,6 +21773,7 @@ dependencies = [
  "rustls-pki-types",
  "serde",
  "serde_json",
+ "socks",
  "url",
  "webpki-roots 0.26.11",
 ]
