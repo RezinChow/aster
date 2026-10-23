@@ -171,6 +171,22 @@ fn principal_token(headers: &HeaderMap) -> Result<&str, InferenceAccessError> {
     Ok(token)
 }
 
+/// Whether the presented credential is the deployment-wide shared token.
+///
+/// Middleware outside the managed-inference path (for example the audio proxy
+/// route) uses this to admit a call without a `verify_url` round trip, so a
+/// single key works across every capability.
+pub(crate) fn shared_token_admits(headers: &HeaderMap) -> bool {
+    let Ok(token) = principal_token(headers) else {
+        return false;
+    };
+    let Ok(expected) = std::env::var("A3S_GATEWAY_SHARED_TOKEN") else {
+        return false;
+    };
+    let expected = expected.trim();
+    !expected.is_empty() && tokens_match(token, expected)
+}
+
 fn shared_subject(route_id: Uuid, token: &str) -> Option<PrincipalSubject> {
     let Ok(expected) = std::env::var("A3S_GATEWAY_SHARED_TOKEN") else {
         return None;
@@ -280,6 +296,11 @@ async fn call_verify(
 mod tests {
     use super::*;
     use http::HeaderValue;
+    use std::sync::Mutex;
+
+    /// Serializes tests that mutate `A3S_GATEWAY_SHARED_TOKEN`; the variable is
+    /// process-wide, so parallel tests would otherwise observe each other.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn headers(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
         let mut headers = HeaderMap::new();
@@ -357,6 +378,7 @@ mod tests {
 
     #[test]
     fn shared_token_skips_verify() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
         let token = "a3s_gw_testtoken";
         std::env::set_var("A3S_GATEWAY_SHARED_TOKEN", token);
         let verifier = PrincipalVerifier::new(None);
@@ -387,5 +409,28 @@ mod tests {
             .unwrap();
         std::env::remove_var("A3S_GATEWAY_SHARED_TOKEN");
         assert_eq!(&*subject.subject, "shared");
+    }
+
+    #[test]
+    fn shared_token_admits_matches_the_configured_token() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+        let token = "a3s_gw_testtoken";
+        std::env::set_var("A3S_GATEWAY_SHARED_TOKEN", token);
+
+        assert!(shared_token_admits(&headers(&[(
+            "authorization",
+            "Bearer a3s_gw_testtoken"
+        )])));
+        assert!(shared_token_admits(&headers(&[(
+            "x-api-key",
+            "a3s_gw_testtoken"
+        )])));
+        assert!(!shared_token_admits(&headers(&[(
+            "authorization",
+            "Bearer other-token"
+        )])));
+        assert!(!shared_token_admits(&headers(&[])));
+
+        std::env::remove_var("A3S_GATEWAY_SHARED_TOKEN");
     }
 }

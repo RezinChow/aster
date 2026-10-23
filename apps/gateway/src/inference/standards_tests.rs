@@ -158,7 +158,7 @@ fn companion_routes_stay_on_their_standard() {
 }
 
 #[test]
-fn admission_keeps_only_the_openai_core_and_platform_models() {
+fn admission_admits_openai_core_and_audio() {
     let admitted: Vec<_> = ModelStandard::ALL
         .into_iter()
         .filter(|standard| standard.admission() == StandardAdmission::Admitted)
@@ -171,6 +171,9 @@ fn admission_keeps_only_the_openai_core_and_platform_models() {
             "openai.chat",
             "openai.completions",
             "openai.embeddings",
+            // Audio carries no managed-inference profile, so admitting it only
+            // lifts the reserved-path 404; the ACL proxy route serves it.
+            "openai.audio",
         ]
     );
     assert_eq!(ModelStandard::Ocr.admission(), StandardAdmission::Platform);
