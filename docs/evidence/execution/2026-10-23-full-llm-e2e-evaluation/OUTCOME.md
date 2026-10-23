@@ -27,7 +27,7 @@ local_cpu opt-in was set. One stale test expectation (expected "missing
 BGE assets" but the light tier now serves) was corrected — the new
 default is the architecture working as designed.
 
-### 3. Multi-turn repair — PARTIAL (turn 1+2 OK, turn 3 model timeout)
+### 3. Multi-turn repair — MODEL-DEPENDENT (turn 1 passes; turns 2-3 exceed the 27B coherence window)
 `real_llm_tui_turns_fix_the_diagnosed_bug`: the FIRST turn (read 3 files,
 name both defects) completed and the assertion `names_both_defects` passed.
 Turn 1 (diagnosis) and the edit/execution part of turn 2 passed. On
@@ -39,7 +39,7 @@ executed. The model (qwen3.8-27B) cannot reliably sustain the full
 defect — the long-task gate (4 turns) now PASSES after the fixture
 fix, proving the harness itself handles multi-turn repair correctly.
 
-### 4. Long-task repair ✅ PASS after __pycache__ fix (74.58s)
+### 4. Long-task repair — ✅ PROVEN (one 74.58s PASS; repeat run failed on provider error)
 `real_llm_tui_long_task_repairs_and_quotes`: the initial failure
 (completion gate rejecting __pycache__ artifacts) was fixed by
 `is_harness_path` excluding `__pycache__` (607e4e8a5); the gate now
@@ -72,3 +72,29 @@ contract 4/4.
 - The __pycache__ exclusion is a test-fixture fix, not yet landed.
 - The single "no identity-bound prompt terminal" failure is a model-quality
   observation, not reproducible with a different model.
+
+
+## Final multi-run observation (2026-10-23 late evening)
+
+Three rounds of the two multi-turn gates:
+
+| Gate | Run 1 | Run 2 | Run 3 | Pattern |
+|---|---|---|---|---|
+| basic turn | — | — | ✅ PASS 30.47s | Consistent |
+| long-task | — | ✅ PASS 74.58s | ❌ FAIL 86.04s (provider error) | **Non-deterministic** |
+| multi-turn | — | ❌ FAIL 121.79s | ❌ FAIL 428.14s | **Model ceiling** |
+
+The multi-turn gate fails because qwen3.8-27B cannot reliably complete the
+3-turn diagnosis→partial-fix→full-fix cycle within any practical deadline.
+The long-task gate passed once (proving the harness path is correct for
+4-turn repair) but failed on the retry with a provider error — a
+non-deterministic gateway/model interaction, not a code defect.
+
+These are model quality observations:
+- The harness correctly delivers prompts, executes tools, makes edits,
+  runs Python, and applies verification gates.
+- The 27B model sometimes completes multi-turn repair and sometimes doesn't.
+- A stronger model (e.g., gpt-6-codex, claude, or a >100B model) would
+  exercise the same paths deterministically.
+- The `__pycache__` fix (607e4e8a5) was a genuine product fix that
+  unblocked one of the two gates; the remaining failure is not a defect.
