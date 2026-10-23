@@ -9,7 +9,10 @@ pub(super) struct CandidateFeatures {
     pub feature_bytes: usize,
 }
 
-pub(super) fn candidate_features(text: &str, options: WorkspaceRerankOptions) -> CandidateFeatures {
+pub(super) fn candidate_features(
+    text: &str,
+    options: &WorkspaceRerankOptions,
+) -> CandidateFeatures {
     let mut fingerprints = Vec::with_capacity(options.max_fingerprints_per_candidate);
     let mut feature_bytes = 0usize;
     for segment in sample_segments(text, options.max_feature_bytes_per_candidate) {
@@ -109,7 +112,7 @@ fn stable_hash(bytes: &[u8]) -> u64 {
     })
 }
 
-pub(super) fn scratch_bytes(candidate_count: usize, options: WorkspaceRerankOptions) -> usize {
+pub(super) fn scratch_bytes(candidate_count: usize, options: &WorkspaceRerankOptions) -> usize {
     let fingerprints = options
         .max_fingerprints_per_candidate
         .saturating_mul(size_of::<u64>());

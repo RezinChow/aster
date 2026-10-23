@@ -28,6 +28,11 @@ pub(crate) struct ValidatedHybridRequest {
 }
 
 impl ValidatedHybridRequest {
+    /// The validated query text, for priors that classify the query shape.
+    pub(super) fn query_text(&self) -> &str {
+        &self.query
+    }
+
     pub(crate) fn new(
         request: WorkspaceHybridSearchRequest,
     ) -> Result<Self, WorkspaceRetrievalError> {

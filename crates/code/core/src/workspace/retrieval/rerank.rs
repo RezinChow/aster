@@ -54,7 +54,7 @@ impl WorkspaceRerankOptions {
     ///
     /// Hosts and language bindings can call this before catalog work or
     /// provider execution so invalid settings cause no source egress.
-    pub fn validate(self) -> WorkspaceRetrievalResult<Self> {
+    pub fn validate(&self) -> WorkspaceRetrievalResult<()> {
         validate_range(
             self.max_candidates,
             1,
@@ -79,7 +79,7 @@ impl WorkspaceRerankOptions {
             MAX_SCRATCH_BYTES,
             "rerank.max_scratch_bytes",
         )?;
-        Ok(self)
+        Ok(())
     }
 }
 
@@ -105,6 +105,22 @@ pub(super) fn rerank_fused_candidates(
 ) -> RerankOutcome {
     candidates.sort_by(compare_fused);
     let input_candidates = candidates.len();
+    // Phase 4 priors (specs/013): apply only when the mode re-ranks; the
+    // RrfOnly contract preserves deterministic fused ordering.
+    if options.mode != WorkspaceRerankMode::RrfOnly {
+        if let Some(query) = options.query.as_deref() {
+            let shape = classify_query(query);
+            for hit in candidates.iter_mut() {
+                apply_noise_penalty(hit, query);
+                apply_definition_boost(hit, query);
+                let lexical = channel_lean(shape, "lexical");
+                let semantic = channel_lean(shape, "semantic");
+                let structural = channel_lean(shape, "structural");
+                let lean = 1.0 + (lexical - 1.0) + (semantic - 1.0) + (structural - 1.0);
+                hit.rerank_score *= lean.max(0.5);
+            }
+        }
+    }
     if options.mode == WorkspaceRerankMode::RrfOnly {
         return rrf_only(
             candidates,
@@ -130,7 +146,7 @@ pub(super) fn rerank_fused_candidates(
 
     let candidate_truncated = candidates.len() > options.max_candidates;
     let evaluated_candidates = candidates.len().min(options.max_candidates);
-    let accounted_scratch_bytes = scratch_bytes(evaluated_candidates, options);
+    let accounted_scratch_bytes = scratch_bytes(evaluated_candidates, &options);
     if accounted_scratch_bytes > options.max_scratch_bytes {
         return rrf_only(
             candidates,
@@ -146,7 +162,7 @@ pub(super) fn rerank_fused_candidates(
 
     let features = candidates
         .iter()
-        .map(|candidate| candidate_features(&candidate.chunk.text, options))
+        .map(|candidate| candidate_features(&candidate.chunk.text, &options))
         .collect::<Vec<_>>();
     let feature_bytes = features.iter().fold(0usize, |total, features| {
         total.saturating_add(features.feature_bytes)

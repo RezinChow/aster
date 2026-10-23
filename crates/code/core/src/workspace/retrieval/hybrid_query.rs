@@ -1,16 +1,17 @@
 //! Deterministic orchestration for exact, lexical, structural, and semantic retrieval.
 
 use super::hybrid_candidates::{
-    exact_candidates, structural_candidates, StructuralCandidates, ValidatedHybridRequest,
-    CHANNEL_CANDIDATE_LIMIT,
+    CHANNEL_CANDIDATE_LIMIT, StructuralCandidates, ValidatedHybridRequest, exact_candidates,
+    structural_candidates,
 };
-use super::hybrid_rank::{fuse_candidates, RankedCandidate};
+use super::hybrid_rank::{RankedCandidate, fuse_candidates};
 use super::rerank::{rerank_fused_candidates, rerank_status_not_run};
 use super::{
-    retain_verified, ChunkCatalogSnapshot, WorkspaceChunkCatalog, WorkspaceHybridChannelStatus,
+    ChunkCatalogSnapshot, WorkspaceChunkCatalog, WorkspaceHybridChannelStatus,
     WorkspaceHybridFallbackReason, WorkspaceHybridSearchResult, WorkspaceRerankStatus,
     WorkspaceRetrievalChannel, WorkspaceRetrievalError, WorkspaceRetrievalRuntime,
     WorkspaceRetrievalStatus, WorkspaceSemanticFallbackReason, WorkspaceSemanticSearchResult,
+    retain_verified,
 };
 use crate::code_intelligence::WorkspaceCodeIntelligence;
 use crate::workspace::WorkspaceFileSystem;
@@ -59,9 +60,10 @@ pub(crate) async fn hybrid_search(
         .map(WorkspaceRetrievalRuntime::child_lifetime)
         .unwrap_or_else(|| cancellation.child_token());
     ensure_active(&lifetime, &cancellation)?;
-    let rerank_options = runtime
-        .map(|runtime| runtime.rerank_options)
+    let mut rerank_options = runtime
+        .map(|runtime| runtime.rerank_options.clone())
         .unwrap_or_default();
+    rerank_options.query = Some(request.query_text().to_owned());
     let mut updates = catalog.subscribe();
     if updates.borrow().source_revision() == 0 {
         // Lazy catalog admission must get a bounded first-query opportunity.
