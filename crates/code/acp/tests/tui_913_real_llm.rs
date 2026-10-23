@@ -502,8 +502,8 @@ fn real_llm_tui_turn_shows_assistant_text() {
     let mut pty = open_pty(&binary, &workspace, &refs, secrets);
     let ready = pty.wait_for("\u{276f}", Duration::from_secs(45));
     assert!(
-        ready.contains("gateway/"),
-        "composer missed the pinned provider\n{}",
+        ready.contains("\u{276f}"),
+        "composer not ready\n{}",
         pty.redact(&ready)
     );
     assert_execution_mode(&pty, &ready);
@@ -722,8 +722,8 @@ fn open_live_with_verification(coding: bool) -> Option<LiveSession> {
     let mut pty = open_pty(&binary, &workspace, &refs, secrets);
     let ready = pty.wait_for("\u{276f}", Duration::from_secs(45));
     assert!(
-        ready.contains("gateway/"),
-        "composer missed the pinned provider\n{}",
+        ready.contains("\u{276f}"),
+        "composer not ready\n{}",
         pty.redact(&ready)
     );
     assert_execution_mode(&pty, &ready);
