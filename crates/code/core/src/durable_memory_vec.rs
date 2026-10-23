@@ -86,10 +86,31 @@ pub struct MemoryRecord {
     pub meta: String,
 }
 
+impl VecMemoryStore {
+    /// True when the exact text digest is already known — a write is a
+    /// duplicate and is skipped. Callers absorb the digest on every real
+    /// insert so the guard stays complete without a collection re-scan.
+    fn admit_digest(&self, digest: [u8; 32]) -> bool {
+        match self.hygiene.lock() {
+            Ok(mut known) => {
+                if known.contains(&digest) {
+                    false
+                } else {
+                    known.push(digest);
+                    true
+                }
+            }
+            Err(_) => true, // poisoned lock admits — the engine insert still holds its own contract
+        }
+    }
+}
+
 /// An a3s-vec collection holding durable memory items, opened at a fixed path.
 pub struct VecMemoryStore {
     collection: Collection,
     path: PathBuf,
+    /// Write-time exact-duplicate guard (specs/013 P3 wiring).
+    hygiene: std::sync::Mutex<Vec<[u8; 32]>>,
     /// Set when an existing collection already has one non-null fp32
     /// `embedding` column. Inserts fill it with zeros and recall stays FTS.
     embedding_dimension: Option<usize>,
@@ -263,6 +284,7 @@ impl VecMemoryStore {
         Ok(Self {
             collection,
             path: collection_path.into(),
+            hygiene: std::sync::Mutex::new(Vec::new()),
             embedding_dimension,
             read_only,
             _open_lease: open_lease,
@@ -276,6 +298,18 @@ impl VecMemoryStore {
                 "memory store is read-only: another Aster session holds the collection lock; \
                  the write is skipped and can be retried in an exclusive session"
             ));
+        }
+        // Write-time hygiene (specs/013 P3): an exact text duplicate of a
+        // known memory is skipped rather than re-stored — the caller sees a
+        // successful no-op, the same dedup contract ClusterState pins.
+        let digest = <sha2::Sha256 as sha2::Digest>::digest(record.content.trim().as_bytes());
+        let known = <[u8; 32]>::from(digest);
+        if !self.admit_digest(known) {
+            tracing::debug!(
+                id = %record.id,
+                "memory write skipped: exact text duplicate of an existing record"
+            );
+            return Ok(());
         }
         let mut doc = record_to_doc(record)?;
         if let Some(dimension) = self.embedding_dimension {
