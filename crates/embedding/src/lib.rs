@@ -12,6 +12,7 @@
 //! - No implicit download source; every byte is in this repository.
 
 pub mod assets;
+pub mod hygiene;
 pub mod provider;
 
 pub use provider::StaticEmbeddingProvider;
