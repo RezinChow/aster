@@ -500,7 +500,7 @@ fn real_llm_tui_turn_shows_assistant_text() {
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
     let mut pty = open_pty(&binary, &workspace, &refs, secrets);
-    let ready = pty.wait_for("Prism", Duration::from_secs(45));
+    let ready = pty.wait_for("\u{276f}", Duration::from_secs(45));
     assert!(
         ready.contains("gateway/"),
         "composer missed the pinned provider\n{}",
@@ -720,7 +720,7 @@ fn open_live_with_verification(coding: bool) -> Option<LiveSession> {
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
     let mut pty = open_pty(&binary, &workspace, &refs, secrets);
-    let ready = pty.wait_for("Prism", Duration::from_secs(45));
+    let ready = pty.wait_for("\u{276f}", Duration::from_secs(45));
     assert!(
         ready.contains("gateway/"),
         "composer missed the pinned provider\n{}",
