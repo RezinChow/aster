@@ -1693,11 +1693,15 @@ fn source_paths(mut paths: Vec<String>) -> Vec<String> {
 pub(crate) fn is_harness_path(path: &str) -> bool {
     // Separators belong to the host filesystem. A Unix backslash is a literal
     // byte in the name, so `.a3s\\file` is not the `.a3s` directory.
+    // `__pycache__` is Python's own bytecode side effect, not a user edit.
     Path::new(path).components().any(|component| {
         matches!(
             component,
             std::path::Component::Normal(name)
-                if name == ".a3s" || name == ".a3s-code" || name == ".git"
+                if name == ".a3s"
+                    || name == ".a3s-code"
+                    || name == ".git"
+                    || name == "__pycache__"
         )
     })
 }
