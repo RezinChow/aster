@@ -84,10 +84,13 @@ impl WorkspaceRerankAlgorithm {
 ///
 /// RRF-only remains the compatibility default until the locked `WSR-EVAL2`
 /// strategy matrix proves that deterministic reranking should be promoted.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct WorkspaceRerankOptions {
     pub mode: WorkspaceRerankMode,
+    /// The raw query, present when the caller opts into the Phase 4
+    /// priors; None keeps the pre-prior behavior exactly.
+    pub query: Option<String>,
     pub max_candidates: usize,
     pub max_feature_bytes_per_candidate: usize,
     pub max_fingerprints_per_candidate: usize,
@@ -131,6 +134,7 @@ impl WorkspaceRerankOptions {
 impl Default for WorkspaceRerankOptions {
     fn default() -> Self {
         Self {
+            query: None,
             mode: WorkspaceRerankMode::RrfOnly,
             max_candidates: DEFAULT_RERANK_MAX_CANDIDATES,
             max_feature_bytes_per_candidate: DEFAULT_RERANK_MAX_FEATURE_BYTES,

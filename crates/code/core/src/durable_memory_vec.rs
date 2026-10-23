@@ -13,7 +13,7 @@
 
 use a3s_memory::{MemoryItem, MemoryStore, MemoryType};
 use a3s_vec::{Collection, CollectionSchema, DataType, Doc, FieldSchema, IndexParams, SearchQuery};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, Weak};
@@ -32,6 +32,46 @@ fn display_error(error: impl std::fmt::Display) -> anyhow::Error {
     anyhow!(error.to_string())
 }
 
+/// True when the engine error is the cross-process exclusive lock holding
+/// the collection (the multi-session recall stall of #17).
+fn is_collection_lock_held(error: &a3s_vec::Error) -> bool {
+    let text = error.to_string();
+    text.contains("collection is locked by another process")
+}
+
+/// Fast refusal when a live peer holds the collection's exclusive lock.
+/// Uses the engine's own lock file directly so the check precedes the
+/// engine initialization entirely.
+fn probe_collection_lock(root: &Path) -> Result<()> {
+    let lock_path = root.join(COLLECTION_NAME).join(".a3s-vec.lock");
+    let Ok(file) = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+    else {
+        return Ok(()); // first use or unreadable — the normal open path names it
+    };
+    match fs2::FileExt::try_lock_exclusive(&file) {
+        Ok(()) => {
+            drop(file); // probe only; the real open takes it for the lifetime
+            Ok(())
+        }
+        Err(_) => Err(anyhow!(
+            "memory collection is locked by another Aster session; \
+             recall is skipped without stalling the first token (#17)"
+        )),
+    }
+}
+
+/// Open with a shared (read-only) lock so concurrent readers coexist./// Open with a shared (read-only) lock so concurrent readers coexist.
+fn open_read_only(collection_path: &str) -> Result<Collection> {
+    let mut options = a3s_vec::CollectionOptions::new().map_err(display_error)?;
+    options.set_read_only(true).map_err(display_error)?;
+    Collection::open(collection_path, Some(&options)).map_err(display_error)
+}
+
 /// One durable memory record as stored in the a3s-vec collection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MemoryRecord {
@@ -46,13 +86,37 @@ pub struct MemoryRecord {
     pub meta: String,
 }
 
+impl VecMemoryStore {
+    /// True when the exact text digest is already known — a write is a
+    /// duplicate and is skipped. Callers absorb the digest on every real
+    /// insert so the guard stays complete without a collection re-scan.
+    fn admit_digest(&self, digest: [u8; 32]) -> bool {
+        match self.hygiene.lock() {
+            Ok(mut known) => {
+                if known.contains(&digest) {
+                    false
+                } else {
+                    known.push(digest);
+                    true
+                }
+            }
+            Err(_) => true, // poisoned lock admits — the engine insert still holds its own contract
+        }
+    }
+}
+
 /// An a3s-vec collection holding durable memory items, opened at a fixed path.
 pub struct VecMemoryStore {
     collection: Collection,
     path: PathBuf,
+    /// Write-time exact-duplicate guard (specs/013 P3 wiring).
+    hygiene: std::sync::Mutex<Vec<[u8; 32]>>,
     /// Set when an existing collection already has one non-null fp32
     /// `embedding` column. Inserts fill it with zeros and recall stays FTS.
     embedding_dimension: Option<usize>,
+    /// True when the exclusive lock was held by a live peer and the store
+    /// opened with a shared (read-only) lock instead (#17).
+    read_only: bool,
     /// Same-process exclusion. The engine file lock does not stop a second open here.
     /// Held so `Drop` releases the directory; the field itself is not read.
     _open_lease: OpenLease,
@@ -169,7 +233,14 @@ fn memory_id(document: &Doc) -> Result<String> {
 
 impl VecMemoryStore {
     /// Open the memory collection at `root`, creating it on first use.
+    /// When another live process holds the exclusive lock, the store opens
+    /// read-only (shared lock) so concurrent sessions recall without the
+    /// first-token stall of a failed open (#17).
     pub fn open(root: &Path) -> Result<Self> {
+        // The lock probe costs microseconds; the engine init it precedes can
+        // cost seconds on a cold cache. On a locked collection (#17) the
+        // probe names the peer immediately instead of stalling the init.
+        probe_collection_lock(root)?;
         ensure_initialized().map_err(|error| anyhow!("a3s-vec engine init failed: {error}"))?;
         fs_err_create_dir_all(root)?;
         let canonical = root
@@ -182,26 +253,64 @@ impl VecMemoryStore {
         let collection_path = collection_path
             .to_str()
             .ok_or_else(|| anyhow!("memory collection path is not UTF-8"))?;
-        let (collection, embedding_dimension) = if collection_path_exists(collection_path) {
-            let collection = Collection::open(collection_path, None).map_err(display_error)?;
-            let embedding_dimension = accepted_embedding_dimension(&collection)?;
-            (collection, embedding_dimension)
-        } else {
-            let schema = memory_schema()?;
-            let collection = Collection::create_and_open(collection_path, &schema, None)
-                .map_err(display_error)?;
-            (collection, None)
-        };
+        let (collection, embedding_dimension, read_only) =
+            if collection_path_exists(collection_path) {
+                match Collection::open(collection_path, None) {
+                    Ok(collection) => {
+                        let embedding_dimension = accepted_embedding_dimension(&collection)?;
+                        (collection, embedding_dimension, false)
+                    }
+                    Err(error) if is_collection_lock_held(&error) => {
+                        let read_only = open_read_only(collection_path)?;
+                        let embedding_dimension = accepted_embedding_dimension(&read_only)?;
+                        (read_only, embedding_dimension, true)
+                    }
+                    Err(error) => return Err(display_error(error)),
+                }
+            } else {
+                let schema = memory_schema()?;
+                match Collection::create_and_open(collection_path, &schema, None) {
+                    Ok(collection) => (collection, None, false),
+                    // Both sessions raced the create; the winner holds the
+                    // exclusive lock and made the collection exist — read it.
+                    Err(error) if is_collection_lock_held(&error) => {
+                        let read_only = open_read_only(collection_path)?;
+                        let embedding_dimension = accepted_embedding_dimension(&read_only)?;
+                        (read_only, embedding_dimension, true)
+                    }
+                    Err(error) => return Err(display_error(error)),
+                }
+            };
         Ok(Self {
             collection,
             path: collection_path.into(),
+            hygiene: std::sync::Mutex::new(Vec::new()),
             embedding_dimension,
+            read_only,
             _open_lease: open_lease,
         })
     }
 
     /// Insert or replace one memory record by id.
     pub fn put(&self, record: &MemoryRecord) -> Result<()> {
+        if self.read_only {
+            return Err(anyhow!(
+                "memory store is read-only: another Aster session holds the collection lock; \
+                 the write is skipped and can be retried in an exclusive session"
+            ));
+        }
+        // Write-time hygiene (specs/013 P3): an exact text duplicate of a
+        // known memory is skipped rather than re-stored — the caller sees a
+        // successful no-op, the same dedup contract ClusterState pins.
+        let digest = <sha2::Sha256 as sha2::Digest>::digest(record.content.trim().as_bytes());
+        let known = <[u8; 32]>::from(digest);
+        if !self.admit_digest(known) {
+            tracing::debug!(
+                id = %record.id,
+                "memory write skipped: exact text duplicate of an existing record"
+            );
+            return Ok(());
+        }
         let mut doc = record_to_doc(record)?;
         if let Some(dimension) = self.embedding_dimension {
             let zeros = vec![0.0_f32; dimension];
@@ -678,5 +787,61 @@ impl MemoryStore for VecMemoryStore {
 
     async fn count(&self) -> Result<usize> {
         self.collection.count().map_err(display_error)
+    }
+}
+
+#[cfg(test)]
+mod multi_session_lock_tests {
+    use super::*;
+
+    #[test]
+    fn a_locked_collection_refuses_the_open_fast() {
+        let root = tempfile::tempdir().unwrap();
+        let memory_root = root.path().join("memory");
+        let first = VecMemoryStore::open(&memory_root).expect("first session opens exclusive");
+        assert!(!first.read_only);
+
+        // The exclusive lock is held (this process, via `first`): the probe
+        // must refuse before any engine work, naming the peer session.
+        let refused =
+            probe_collection_lock(&memory_root).expect_err("a locked collection refuses the probe");
+        assert!(
+            refused.to_string().contains("another Aster session"),
+            "the refusal names the peer: {refused}"
+        );
+        assert!(
+            refused.to_string().contains("#17"),
+            "the refusal cites its origin: {refused}"
+        );
+
+        // The exclusive owner still writes and recalls normally.
+        first
+            .put(&MemoryRecord {
+                id: "lock-probe".into(),
+                content: "probe".into(),
+                tags: Vec::new(),
+                importance: 0.5,
+                memory_type: "note".into(),
+                timestamp: "2026-10-23T00:00:00Z".into(),
+                meta: "{}".into(),
+            })
+            .expect("the exclusive owner still writes");
+        drop(first);
+        // After the owner releases, the probe succeeds again.
+        probe_collection_lock(&memory_root).expect("released lock probes clean");
+    }
+
+    #[test]
+    fn is_collection_lock_held_matches_the_engine_text() {
+        let error = a3s_vec::Error::new(
+            a3s_vec::ErrorCode::AlreadyExists,
+            "collection is locked by another process (recorded exclusive owner pid=1): x",
+        );
+        assert!(is_collection_lock_held(&error));
+        let other = a3s_vec::Error::new(
+            a3s_vec::ErrorCode::InternalError,
+            "unrelated engine failure",
+        );
+        assert!(!is_collection_lock_held(&other));
     }
 }

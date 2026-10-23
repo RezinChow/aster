@@ -1,7 +1,7 @@
 use super::memory_vector_adapter::MemoryVectorIndexAdapter;
 use super::semantic_batch::SemanticBatchFlushReason;
 use super::semantic_projection::{
-    project_pending_partitions, publish_progress, remove_stale_partition, ProjectionContext,
+    ProjectionContext, project_pending_partitions, publish_progress, remove_stale_partition,
 };
 use super::semantic_status::SemanticStatusCell;
 use super::vector_contract::{VectorIndexDescriptor, WorkspaceVectorIndex};
@@ -55,7 +55,8 @@ impl WorkspaceRetrievalRuntime {
         options.validate_semantic_readiness_timeout()?;
         options.validate_semantic_min_score()?;
         let limits = options.index_limits.validate()?;
-        let rerank_options = options.rerank.validate()?;
+        let rerank_options = options.rerank.clone();
+        options.rerank.validate()?;
         let semantic_readiness_timeout = options.semantic_readiness_timeout;
         let semantic_min_score = options.semantic_min_score;
         let executor = EmbeddingExecutor::new(options.provider, options.embedding)?;

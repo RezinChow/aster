@@ -117,7 +117,7 @@ fn rerank_is_deterministic_and_bounds_its_candidate_pool() {
     ];
     let mut options = WorkspaceRerankOptions::deterministic();
     options.max_candidates = 3;
-    let first = rerank_fused_candidates(candidates.clone(), 4, options);
+    let first = rerank_fused_candidates(candidates.clone(), 4, options.clone());
     let second = rerank_fused_candidates(candidates, 4, options);
 
     assert_eq!(ids(&first.hits), ids(&second.hits));
@@ -182,7 +182,7 @@ fn scratch_budget_failure_returns_the_original_rrf_order() {
         rerank_fused_candidates(candidates.clone(), 3, WorkspaceRerankOptions::default());
     let mut constrained = WorkspaceRerankOptions::deterministic();
     constrained.max_scratch_bytes = 1;
-    let fallback = rerank_fused_candidates(candidates, 3, constrained);
+    let fallback = rerank_fused_candidates(candidates, 3, constrained.clone());
 
     assert_eq!(ids(&fallback.hits), ids(&baseline.hits));
     assert_eq!(

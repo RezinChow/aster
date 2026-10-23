@@ -119,3 +119,21 @@ text visible in the pty, workspace sentinel intact, turn terminal.
 Operational note: a concurrent workspace `cargo check` had stalled at
 0% CPU holding the build lock; it was cleared to unblock the queued
 test (16 min lock wait, then 28 s to green).
+
+
+## BYO embedding refactor verification (2026-10-23, commit 85a811512)
+
+The product dropped its a3s-use-bge edge: the trusted local_cpu opt-in
+resolves through register_embedding_provider (host-supplied factory); an
+unregistered host gets the named refusal. Verification after the change:
+BYO factory contract tests 2/0, lane battery (local_embedding +
+session_open + retrieval_seam) 3/0, cargo check clean with chrono
+restored (a rebase-ordering artifact briefly unlinked it — caught by the
+first e2e attempt, fixed by the working-tree dep). **Real-LLM e2e on the
+BYO build: tui_913 vs the live prism-27b gateway, 1 passed / 0 failed in
+31.08 s** (assistant reply delivered end to end). The acp full-lib run
+showed 353/3 with the 3 failures isolated to plugin process-supervision
+tests that pass individually and on pristine HEAD (stash-probe 18/0) —
+they fail only in combination with the concurrent session's in-flight
+workspace-direct-file edits, which is that lane's integration point, not
+the BYO refactor.

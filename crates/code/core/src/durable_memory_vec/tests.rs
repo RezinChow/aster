@@ -115,7 +115,11 @@ fn a_second_open_is_refused_while_the_collection_is_already_open() {
         Ok(_) => panic!("second open succeeded"),
         Err(error) => error,
     };
-    assert!(error.to_string().contains("already open"), "{error}");
+    let text = error.to_string();
+    assert!(
+        text.contains("already open") || text.contains("another Aster session"),
+        "second open refuses with a named reason: {text}"
+    );
     drop(first);
     drop(VecMemoryStore::open(&memory_dir).unwrap());
 }

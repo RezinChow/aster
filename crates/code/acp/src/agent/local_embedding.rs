@@ -16,8 +16,10 @@ const PROVIDER: &str = "host";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum LocalEmbeddingSetupError {
+    #[allow(deadcode)]
     Unregistered,
     InvalidFactory,
+    LightTierLoad,
 }
 
 impl fmt::Display for LocalEmbeddingSetupError {
@@ -31,6 +33,7 @@ impl fmt::Display for LocalEmbeddingSetupError {
             Self::InvalidFactory => {
                 "the registered embedding provider factory returned no provider"
             }
+            Self::LightTierLoad => "the in-tree light tier failed to load from its embedded assets",
         })
     }
 }
@@ -50,10 +53,16 @@ pub fn register_embedding_provider(factory: Factory) -> Result<(), String> {
 pub(super) async fn local_embedding_provider(
     _cancellation: tokio_util::sync::CancellationToken,
 ) -> Result<Arc<dyn EmbeddingProvider>, LocalEmbeddingSetupError> {
-    let factory = FACTORY
-        .get()
-        .ok_or(LocalEmbeddingSetupError::Unregistered)?;
-    factory().ok_or(LocalEmbeddingSetupError::InvalidFactory)
+    // A registered host factory wins; otherwise the in-tree light tier
+    // serves the trusted local_cpu opt-in (specs/013 P2 wiring).
+    match FACTORY.get() {
+        Some(factory) => factory().ok_or(LocalEmbeddingSetupError::InvalidFactory),
+        None => {
+            let provider = a3s_embedding::LightTierProvider::load()
+                .map_err(|_| LocalEmbeddingSetupError::LightTierLoad)?;
+            Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
+        }
+    }
 }
 
 #[cfg(test)]
