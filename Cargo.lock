@@ -970,6 +970,7 @@ dependencies = [
  "a3s-dirs",
  "a3s-fast-worktree",
  "a3s-file-utils",
+ "a3s-form-core",
  "a3s-hooks-plugins-types",
  "a3s-interjection-core",
  "a3s-prompt-queue",
@@ -2191,6 +2192,7 @@ name = "a3s-embedding"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "hnsw_rs",
  "model2vec-rs",
  "serde",
  "serde_json",
@@ -2774,6 +2776,8 @@ dependencies = [
  "a3s-use-core",
  "lopdf",
  "pdf-inspector",
+ "serde",
+ "serde_json",
  "sha2 0.10.9",
  "zip 7.2.0",
 ]
@@ -2982,6 +2986,7 @@ dependencies = [
  "a3s-acl",
  "a3s-boot",
  "a3s-flow",
+ "a3s-form-core",
  "a3s-okf",
  "a3s-studio-data-sqlite",
  "a3s-use-core",
@@ -3722,6 +3727,23 @@ name = "anes"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
+
+[[package]]
+name = "anndists"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a8396b473aa0bceed68fb32462505387ea39fa47c7029417e0a49f10592b036"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "cpu-time",
+ "env_logger",
+ "lazy_static",
+ "log",
+ "num-traits",
+ "num_cpus",
+ "rayon",
+]
 
 [[package]]
 name = "ansi-to-tui"
@@ -6795,6 +6817,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2bb79cb74d735044c972aae58ed0aaa9a837e85b01106a54c39e42e97f62253"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "cpu-time"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9e393a7668fe1fad3075085b86c781883000b4ede868f43627b34a87c8b7ded"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
@@ -10982,6 +11014,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad6880c8d4a9ebf39c6e8b77007ce223f646a4d21ce29d99f70cb16420545425"
 
 [[package]]
+name = "hnsw_rs"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9b4dcb9840006fae9964e97dfdb354cd00b7a15d69d143caae7eeca0410af9f"
+dependencies = [
+ "anndists",
+ "anyhow",
+ "cfg-if",
+ "cpu-time",
+ "env_logger",
+ "hashbrown 0.15.5",
+ "indexmap 2.14.0",
+ "lazy_static",
+ "log",
+ "mmap-rs",
+ "num-traits",
+ "num_cpus",
+ "parking_lot",
+ "rand 0.10.3",
+ "rayon",
+ "serde",
+]
+
+[[package]]
 name = "home"
 version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13404,6 +13460,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "536bfad37a309d62069485248eeaba1e8d9853aaf951caaeaed0585a95346f08"
 dependencies = [
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mmap-rs"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ecce9d566cb9234ae3db9e249c8b55665feaaf32b0859ff1e27e310d2beb3d8"
+dependencies = [
+ "bitflags 2.13.0",
+ "combine",
+ "libc",
+ "mach2",
+ "nix 0.30.1",
+ "sysctl",
+ "thiserror 2.0.20",
+ "widestring",
+ "windows 0.48.0",
 ]
 
 [[package]]
@@ -22731,6 +22804,15 @@ dependencies = [
  "raw-window-handle",
  "windows-sys 0.61.2",
  "windows-version",
+]
+
+[[package]]
+name = "windows"
+version = "0.48.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e686886bc078bc1b0b600cac0147aadb815089b6e4da64016cbd754b6342700f"
+dependencies = [
+ "windows-targets 0.48.5",
 ]
 
 [[package]]

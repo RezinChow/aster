@@ -5,6 +5,7 @@
 //! caller's policy — this module never picks a backend by itself.
 
 pub mod backend;
+pub mod hnsw;
 pub mod linear;
 
 pub use backend::VectorBackend;
