@@ -10,6 +10,10 @@ members = [
     "apps/gateway",
     "apps/runtime",
     "crates/bge",
+    "crates/deepseek",
+    "crates/power",
+    "crates/third-party/serde-saphyr",
+    "crates/third-party/saphyr-parser-bw",
     "crates/sentry",
     "crates/updater",
     "crates/box/core",
@@ -394,6 +398,8 @@ useless_format = "allow"
 
 [patch.crates-io]
 oci-spec = { path = "crates/oci-runtime/vendor/oci-spec-0.10.0" }
+serde-saphyr = { path = "crates/third-party/serde-saphyr" }
+saphyr-parser-bw = { path = "crates/third-party/saphyr-parser-bw" }
 
 [patch.crates-io.async-openai]
 path = "crates/third-party/async-openai"

@@ -3,6 +3,235 @@
   "note": "Local source snapshots include working-tree changes. All members are maintained in this repository and cannot be published independently.",
   "packages": [
     {
+      "package": "a3s-deepseek",
+      "version": "0.1.0",
+      "path": "crates/deepseek",
+      "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/torch/mhc.py",
+      "revision": "c1cf914a82e6901c679445f872051ce44ac2cc63",
+      "adapted_source_sha256": "9f37ef9a1a7d99f14c2e878056b5f53a56932275e3ec0fc94de125e79953fd52",
+      "checkpoint_header_binding": {
+        "source": "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017/tree/1bae0e1088993b9b82de08f59de5be5a34e42170",
+        "revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+        "index_sha256": "74b0686a3d2891980d5e303251b075a3bccae2c2ff650747db2620a649b98fa8",
+        "fixture": "crates/deepseek/fixtures/official-text-layer-descriptors.json",
+        "fixture_sha256": "71ba7ec475bfab18ff37248b81613e08f6165fc3f942257c2958d3ea3cb7519b",
+        "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/official-layer-descriptor-audit.json",
+        "note": "40 base-text layers / 93415 tensor descriptors. Rust schema declares exact names, formats and owner-only compressor/index parameters. Header agreement is not full payload verification or native GPU execution."
+      },
+      "native_cuda": {
+        "implementation": "crates/deepseek/src/cuda/group32.cu",
+        "origin": "Original Aster implementation; no SM100 kernel or upstream CUDA source copied",
+        "abi": [
+          "aster-sm90-group32-mma-v1",
+          "aster-sm90-raw-f32-v1"
+        ],
+        "instruction_reference": "https://docs.nvidia.com/cuda/archive/12.6.0/parallel-thread-execution/index.html#warp-level-matrix-fragment-mma-16832",
+        "instruction_reference_version": "CUDA 12.6 / PTX ISA 8.5, section 9.7.15.4.10",
+        "bridge": "Candle 0.10.2 / its re-exported cudarc 0.19.9; NVRTC compute_90, FTZ=false, FMA contraction=false",
+        "qualification": "T008 incomplete: CPU dispatch/control and CUDA feature compilation pass; actual H200 numerical/Rust-adapter qualification remains required"
+      },
+      "adapted_sources": [
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/layers/tilelang_ops/compress.py",
+          "sha256": "18b72e2d1891c28512d9d70db13b21fc7952b9bef8ed73820c45f9e590fe38ee",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/FlashMLA/blob/2e5429fc5653bab6e081f09477126f731882a6a9/tests/ref.py",
+          "sha256": "696b87713465a958ec9540903e8a4876106f28638467468fa0070c96182de4f6",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/torch/engram.py",
+          "sha256": "db7b779e95885f7bd965ff3cb34d20818d013bd5a50be69994ef598da4fcb48c",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/engram_metadata.py",
+          "sha256": "22d694d7193fa66584320cb21bb57df913d1b98f0b771ab21cad664e5078f2db",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/layers/tilelang_ops/cuda/gather_engram_tokens_zos.py",
+          "sha256": "8a117c3d7721ba1ded8ba39f8fcea8e5a49bc4d8c4546bc158670f44d816f92a",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/norm.py",
+          "sha256": "8b8e9defe8b587a5574ded543512690b881420fa7488f8b552422a1976807562",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/layers/layernorm.py",
+          "sha256": "9d641bc03f21571c017e3e8873cd66d443a2bbd66efb8d31e554d9391e63b554",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/layers/rotary_embedding.py",
+          "sha256": "097f73da01d16b4a9fbb7e2dd0d43ec04a1d2033b063dd10986c93a3e0d0cd1d",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/index_attn.py",
+          "sha256": "e269196c3c8d2db7041f7f1073597b8023dc4ecd58b40303ebf392171c02d462",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/layers/tilelang_ops/cuda/candidate_blocks.py",
+          "sha256": "41fb2aab99ec0f8f4b2f1d7b49144ce7e1709a7e2e96b6f00797fe7b1d0e3fa2",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/quant/per_token_cast_cuda.py",
+          "sha256": "a6189a241f7aea79226cab306908f0e21018d1299a5c11f03dfa4b417405eb26",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/quant/per_token_cast_kernel.py",
+          "sha256": "7335b8371726fc089f4e335b756ab4d7bf81e36c6f2b1b6b454841ef4e8d966b",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/quant/common.py",
+          "sha256": "8fad63ecdfcc0c3e84aef1bb1edf8c63071da641f56e8744e88b3d5a9037998e",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/config.py",
+          "sha256": "d081ab35dec0d1e949425405ffbacb9ca4797bc07062011f664a64ef7f03920f",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/torch/cast.py",
+          "sha256": "41a49e4bc6d70eb328a05bea7d2c43178d3ec10f13c4f0b5e5c258567caddedf",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/hugging_face/config.py",
+          "sha256": "978c863928ece0e7f81c3e619c02d1287ade442f9282d7eb67bc739411595e49",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/cross_layer.py",
+          "sha256": "5a01c6d3c1166c2724eac92ac5706fc838423d7ae6479785ceabfd46c81855ea",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/layers/tilelang_ops/cache_common.py",
+          "sha256": "95835810dc6676704c7902ca6e9778d38b6f8137fb37320a245826992aed55d1",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/hc.py",
+          "sha256": "1dd2d2e880c28deaa77363f040c31b451d1aeedf4ea188ace6803798713e3701",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/hc_blocks.py",
+          "sha256": "d37962bb3c47ec541f62302054f16e1f21899c7fabc1fefce55caea405522cca",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/heads.py",
+          "sha256": "697439602617d53409fea41c8cc1d95b1002842823d7ccd824fb720b5111ae2e",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/yoco.py",
+          "sha256": "7dc8ad7b6ca4902bcef67b1cbc4804592995c5b6af9ebaa00b59cc338c1aa6ec",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/mhc_ops.py",
+          "sha256": "43c676593e8d1b865eddb4732aa185375be650b46cf17fa71074a0a942139f8d",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/mlp.py",
+          "sha256": "2541bcc83b178a9e2f18b387b301d60111d6d603e18e2d31df38196b03d290dd",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/moe.py",
+          "sha256": "4e154e1536e5926bf4e4b7b58d5ccc71a692b46c8d26d7edcc56827bfe540de3",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/torch/topk.py",
+          "sha256": "59add130a5c7facaddabf1ede33c9c2da484770f384036516b4056f17ed275d4",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/TileKernels/blob/c1cf914a82e6901c679445f872051ce44ac2cc63/tile_kernels/torch/swiglu.py",
+          "sha256": "9f0e10d8a3d24d40f1b47530ba402a50b59ebe35c513347d479dde601e95db60",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/layers/linear.py",
+          "sha256": "a8ca60074a1c868e87662240073c6c3648d66ceae953befa3b08772da2225967",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepEP/blob/f6aa38fe06cd4a0489e7730365d4e0114970a2f3/deep_ep/utils/refs.py",
+          "sha256": "c5f551b49e55b4481b68ba14d83fd5362a49e43e4ddf779a2c3c471482ff2fef",
+          "license": "MIT"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/attn.py",
+          "sha256": "cb228c8fd4c76200e2ec266c51872107cfe7b384fdc88458b3d1c0ff101f3116",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/compress.py",
+          "sha256": "11bd28990062349369890f274051873dba98152bd9224d8164495eb1fadc53f2",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/mla_attn.py",
+          "sha256": "7cf38a5bfa3800577c177a83e4cfecc1d0cf2b48b5bbadcfa1039b71ae882789",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/engram.py",
+          "sha256": "d2aa096a1f73177e2dd06f5a1fcd6746139c52af56c3bcfb77d5226a3deeae8f",
+          "license": "Apache-2.0"
+        },
+        {
+          "source": "https://github.com/deepseek-ai/DeepInfer/blob/9bd9cf243fc53ef9afbf8f04d391d989117d6ab9/deepinfer/model_executor/models/v4_modules/engram_parameters.py",
+          "sha256": "2b8bfb1d4b595dc337ceeac0fd574fff7549c9f2f6014cc672ad1bc9755ade53",
+          "license": "Apache-2.0"
+        }
+      ],
+      "note": "Model owner is Rust code. Pinned TileKernels/DeepInfer math covers shifted mHC, effective norms, explicit-cache RoPE, packed main/index KV, FP32-logit routing, MoE, compression and selected-state transactions. Complete controls now include Q/SWA and grouped Wv/Wo projections, shifted attention/FFN halves, index Q/K and compressed-KV projections, and sparse Power range-based FP8 Engram gather/projection/gating with carried-mix preservation. Checkpoint table scale zero preserves OCP semantics separately from live-cast padding. DeepGEMM epilogues and norm CUDA sources were audited for BF16-before-FP8 boundaries; no upstream CUDA/C++ source is imported, linked or run. DeepEP shared-first ordered F32 accumulation is adapted with grouped BF16 reductions disabled. HF disables shared SWA hidden states, extra query-head norm and exponential norm weights; relevant callers disable Hadamard. An FP32 frequency/cache factory, atomic 53-participant backbone owner, shifted decoder and exact 40-layer official descriptor schema are present. Bounded raw matrix upload, loaded official layer composition, per-step shared top-k/candidate control and forward_pending state staging complete the T007 hermetic layer/state scope; full model graph/token-loop/placement, GPU qualification and optimized SM90 GEMM remain incomplete. Public construction requires actual CUDA; CPU helpers are test-only. Static budgets are not full Power permits or measured GPU peaks. MIT/Apache notices remain in licenses/. No Xolotl source imported."
+    },
+    {
+      "package": "saphyr-parser-bw",
+      "version": "0.0.605",
+      "path": "crates/third-party/saphyr-parser-bw",
+      "source": "https://crates.io/api/v1/crates/saphyr-parser-bw/0.0.605/download",
+      "revision": "2fb34d06c69f093983eac30471af88b34c8e5934",
+      "source_archive_sha256": "5e1aee7486406df3541b5a657204a11be97175a467d77bc98e6d94a66289fb80",
+      "note": "Packaged licenses/source/tests retained; private SmallVec scanner stacks use stable SmallVec without changing public parser API or inline capacity. Missing recovered files restored from the retained original deployment snapshot; all maintained Rust source is formatted with the root pinned toolchain."
+    },
+    {
+      "package": "a3s-power",
+      "version": "0.10.0",
+      "path": "crates/power",
+      "source": "git@github.com:A3S-Lab/Power.git",
+      "revision": "c891f930bcbc06b52175ad4fe0247cc2c1f9b412",
+      "source_manifest_sha256": "ee7e386eeeb226d81a21fe846e91c203dd8d5b86f985d1f0feaa32288d97b865",
+      "note": "Published existing Power submodule branch codex/aster-h200-native-20261024. Root workspace owns the lockfile; ACL and Runtime resolve locally. Native storage, peer transfer, injectable model/auth hooks and strict streamed usage accounting are included."
+    },
+    {
+      "package": "serde-saphyr",
+      "version": "0.0.16",
+      "path": "crates/third-party/serde-saphyr",
+      "source": "https://crates.io/api/v1/crates/serde-saphyr/0.0.16/download",
+      "revision": "40501fbb8b5a64886ea26d66518128ac484ab3a8",
+      "source_archive_sha256": "4db5a4a562bcc0017c34cd0efbabf447be783f00576a2a516947f884e6a7ed57",
+      "note": "Original licenses and tests retained; internal SmallVec annotations adapted to stable 1.15.2 for compatibility with the pinned ONNX Runtime dependency. Missing recovered files restored from the retained original deployment snapshot; all maintained Rust source is formatted with the root pinned toolchain."
+    },
+    {
       "package": "aster",
       "version": "0.1.0",
       "path": "apps/aster",
@@ -1224,5 +1453,1713 @@
     "retired_source_revision": "d02674726be5267e38d579d775444cab21483078",
     "retirement_receipt": "docs/evidence/desktop/2026-10-21-default-aster/work-retirement.json",
     "office_relocation_receipt": "docs/evidence/desktop/2026-10-21-default-aster/office-relocation-source.json"
+  },
+  "native_xq_layouts_20261023": {
+    "owner": "crates/deepseek",
+    "upstream": "https://github.com/Indras-Mirror/Xolotl",
+    "revision": "b3452666e07a6374d06bb8c2185dffa271e8f65f",
+    "reference_files": [
+      "tools/v41/v41_formats.py",
+      "include/strata/kernels/cpu/ptq1_0.hpp",
+      "src/kernels/cpu/ptq1_0.cpp",
+      "tools/v41/v41_gguf.py"
+    ],
+    "adaptation": "Bounded Rust codecs, pinned GGUF storage/ranges, exact expert partitions, packed CUDA projection/gather controls, XQ F32 RMS/shifted mHC/embedding/head, mixed routed/shared MoE and shifted FFN, F32 division-based activation codecs, F32 RoPE, F16-KV sparse attention, Q8 main/grouped-output, F16/F32 C1/C2 compression, group-start compressed RoPE, F16 index projections and F32 index selection with typed transactional state, exact exported Engram token-map/hash binding, original sparse table F32 decode, F16 fused projection and normalize-first F32 gate preserving images and carried mHC state. Whole resident stacks own borrowed expert rows; route weights follow down projection and routed lanes sum before the shared branch. NVRTC/SM90 assembly and adapter builds pass; H200 execution, complete XQ model and performance remain unqualified. The next slice binds a separate immutable XQ identity/config and packed kernel inventory, typed 53-participant F32 backbone state, complete shifted attention and callable source/consumer decoder-layer control with atomic publication, aggregate admission and F32 GEMM precision refusal. Complete 40-layer/peer/service/hardware/stress qualification remains open.",
+    "moe_component_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-moe-components-acceptance.json",
+    "attention_component_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-attention-components-acceptance.json",
+    "compressed_index_component_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-compressor-index-components-acceptance.json",
+    "runtime_reference_manifest": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-runtime-reference-manifest.json",
+    "source_hashes": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-codec-reference-manifest.json",
+    "license": "crates/deepseek/licenses/Xolotl-MIT.txt",
+    "fixture": "crates/deepseek/fixtures/xq-codec-golden.json",
+    "fixture_sha256": "feb2bbc4c07befda07c77f5374d87a4c625abd6c0d6d320464c9721dfc0c8c21",
+    "engram_component_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-engram-components-acceptance.json",
+    "engram_metadata_fixture": "crates/deepseek/fixtures/xq-engram-token-map.u32le",
+    "engram_metadata_fixture_sha256": "c60a86322ec17b4142bfef3c57a8d81fb428550cdf487f88a4320cb59fe46481",
+    "loaded_pipeline_component_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-loaded-pipeline-components-acceptance.json",
+    "loaded_pipeline_source_audit": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-loaded-pipeline-source-audit.json",
+    "model_metadata_fixture": "crates/deepseek/fixtures/xq-model-config.json",
+    "model_metadata_fixture_sha256": "d7637228d27528f6bd259781b5a27258068f50bf637c9c83aab784d81579669d"
+  },
+  "native_xq_serving_20261024": {
+    "owner": "crates/deepseek",
+    "official_encoder_repository": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    "official_encoder_revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+    "official_encoder_file": "encoding/encoding.py",
+    "official_encoder_sha256": "13231c592e958fb39e2af6001dae69d90e7a36b265702b9b390236fb387599e2",
+    "license": "crates/deepseek/licenses/DeepSeek-MIT.txt",
+    "text_fixture": "crates/deepseek/fixtures/xq-text-prompts-golden.json",
+    "text_fixture_sha256": "5a10f85af7e4623d750d6d1dacab8b8012732299d68ebd713abaa46cb965d469",
+    "adaptation": "Bounded system/user/assistant text prompt rendering with chat/thinking profiles; 24 independent official-encoder cases. Explicit device maps and complete native replica pool preserve request-scoped state and bounded cancellation. Native Power chat composition and file-backed absolute credential leases are being qualified; no tool/image adapter, cross-request KV reuse, model quality or performance qualification is claimed.",
+    "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/native-complete-replicas-acceptance.json"
+  },
+  "native_xq_cuda_fusion_20261024": {
+    "owner": "crates/deepseek",
+    "implementation": "Original Aster CUDA; MIT AND Apache-2.0; no external kernel source copied",
+    "sinkhorn_source": "crates/deepseek/src/cuda/sinkhorn.cu",
+    "sinkhorn_source_sha256": "1516af7836f3551f0840f306859f453f754a5a96cd20aea51393cfe430018635",
+    "finite_source": "crates/deepseek/src/cuda/finite.cu",
+    "finite_source_sha256": "82cc9c50ef7708fd7c20c05d9130107b0a3510208677db5cadd1d03061b63c97",
+    "profiles": [
+      "xq-fused-sinkhorn",
+      "xq-fused-validation"
+    ],
+    "default_enabled": false,
+    "sinkhorn_h200_controls_passed": 443,
+    "sinkhorn_h200_component_cases_passed": 7,
+    "finite_h200_qualified": true,
+    "full_model_promoted": false,
+    "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-fused-sinkhorn-v22",
+    "combined_h200_controls_passed": 444,
+    "combined_h200_invocations_passed": 18,
+    "combined_h200_unique_cases_passed": 15,
+    "combined_hardware_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-fused-validation-v24-h200-qualification/qualification-result.json",
+    "observed_short_full_model_improvement_not_isolated": "docs/evidence/power/2026-10-22-native-deepseek-h200/native-v24-single-api/measurements/result.json"
+  },
+  "native_xq_token_clock_20261024": {
+    "owner": "crates/deepseek",
+    "implementation": "Original Aster Rust; no external source copied",
+    "source": "crates/deepseek/src/execution/greedy.rs",
+    "boundary": "Monotonic selected token ID after complete model step/cache commit, before callback; later intervals include callback backpressure",
+    "privacy_envelope": "prism_upstream.timings.native_generation; existing Power suppress_token_metrics removes timings",
+    "operator_profile": "scripts/h200_native/native_profile.py",
+    "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/OUTCOME.md",
+    "single_request_1000_qualified": false
+  },
+  "native_xq_validation_cache_20261024": {
+    "owner": "crates/deepseek",
+    "implementation": "Original Aster Rust; no external source copied",
+    "source": "crates/deepseek/src/execution/validation_cache.rs",
+    "source_sha256": "8182799c991beecd9a5f4fff12f2e4a5d60ccc82d706d5d007474124a62d9099",
+    "feature": "xq-validation-cache",
+    "default_enabled": false,
+    "scope": "One private immutable native model step; synchronous first check; no arbitrary caller-owned tensors",
+    "metadata_entries": 8192,
+    "windows_controls_passed": 449,
+    "h200_controls_passed": 451,
+    "h200_gpu_invocations_passed": 19,
+    "h200_unique_cases_passed": 16,
+    "full_model_benefit_qualified": false,
+    "single_request_1000_qualified": false,
+    "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/xq-validation-cache-v29-h200-qualification/qualification-result.json"
+  },
+  "native_xq_activation_codecs_20261024": {
+    "owner": "crates/deepseek",
+    "implementation": "Original Aster CUDA/Rust; MIT AND Apache-2.0; no external kernel source copied",
+    "source": "crates/deepseek/src/cuda/activation.cu",
+    "source_sha256": "d4b01876888cc240f4a2326d456038a588b3afc6d866f3d8aeea73d1e328999a",
+    "abi": "aster-activation-codecs-f32-v1",
+    "feature": "xq-fused-activation-codecs",
+    "default_enabled": false,
+    "numerics": "Original E4M3 seven bisection steps and E2M1 thresholds, RNE ties, reciprocal sign and signed zero; strict F32 SM90",
+    "tensor_controls_retained": true,
+    "windows_controls_passed": 450,
+    "strict_nvrtc_compiled": true,
+    "h200_numeric_qualified": false,
+    "full_model_benefit_qualified": false,
+    "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/native-activation-codecs-v33-build-pair/same-source-comparison.json"
+  },
+  "native_xq_borrowed_inputs_20261024": {
+    "owner": "crates/deepseek",
+    "implementation": "Original Aster Rust; no external source copied",
+    "source": "crates/deepseek/src/cuda/input.rs",
+    "source_sha256": "5675c67dd9a36f3cf0b06ff73ec6a4d7fdf0da1da1a8152c5dfe4661c0017b2f",
+    "feature": "xq-borrowed-kernel-inputs",
+    "default_enabled": false,
+    "boundary": "Read-only custom-kernel input views; preserve owning weight/KV snapshots and synchronous validation boundaries",
+    "windows_controls_passed": 452,
+    "h200_numeric_qualified": false,
+    "full_model_benefit_qualified": false,
+    "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/native-readonly-input-v35-build-pair"
+  },
+  "original_xolotl_h200_20261024": {
+    "source": "https://github.com/Indras-Mirror/Xolotl",
+    "baseline_revision": "b3452666e07a6374d06bb8c2185dffa271e8f65f",
+    "current_revision": "e9d0826d71c59072cbff77d2a31dd51f27ab7a12",
+    "ggml_repository": "https://github.com/ggml-org/llama.cpp",
+    "ggml_revision": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
+    "license": "MIT",
+    "license_notice": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/Xolotl-MIT-LICENSE.txt",
+    "source_imported_into_product": false,
+    "changes": "Aster-authored default-off bounded CPU pass-graph metadata budget and same-backend attn-router asynchronous compute before existing readback fence; dynamic CUDA linking for deployment image",
+    "patch_sha256": "026c79f0c5b77af2d143d96d5ebcf41798db52867d1e1efe636714b12c241f3d",
+    "engine_binary_sha256": "8ca001dd79ad347eba8ad5524ce0fce5e43699588accf770a9145a36edc103c7",
+    "h200_quant_and_hcmix_bitwise_controls": true,
+    "default_promoted": false,
+    "single_h200_500_tok_s_qualified": false,
+    "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200",
+    "decode_once_candidate": {
+      "license": "MIT",
+      "derived_from": [
+        "src/kernels/cuda/fork/fork_vecdot.cuh",
+        "src/kernels/cuda/iq_kernels.cu",
+        "src/kernels/iq_multi_parity.cpp"
+      ],
+      "patch_sha256": "04d402b60751fe31ca742b2402e4b5ffbecda7d91af9f7e106c0b7692fccffeb",
+      "engine_binary_sha256": "e943305094fd8612718cf817985cf232ee457e31d434c0512b32a8097e7f30b8",
+      "runtime_flag": "ASTER_XQ_SPLIT_MMVQ",
+      "runtime_closed_set": [
+        "0",
+        "143",
+        "11",
+        "both"
+      ],
+      "default": "off",
+      "hardware": "NVIDIA H200 SM90, visible ordinal0",
+      "direct_bitwise_cases_passed": 12,
+      "control_seed": 18,
+      "geometry": [
+        5120,
+        2304
+      ],
+      "edge_cases": "0..11 entries per group; unused grid rows; scattered destination rows; small 1024x512 geometry",
+      "full_model_speed_qualified": true,
+      "single_h200_500_tok_s_qualified": false,
+      "full_model_qualification_scope": "Four short prompts, nine measured requests per case across three process pairs; actual ctx4096; one request at a time; prefix reuse; no completion reuse",
+      "selected_profile": "PTQ1_0 R4 plus Q3_K decode once",
+      "alternating_pairs": 3,
+      "paired_request_id_matches": 51,
+      "observed_mixed_gain_percent": 11.491692350942317
+    },
+    "dense_q8_candidate": {
+      "upstream": "https://github.com/ggml-org/llama.cpp",
+      "ggml_revision": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
+      "license": "MIT",
+      "default": "off",
+      "source_imported_into_product": false,
+      "scope": "SM90 Q8_0 dense dispatch at two measured large shapes; MMVQ fp16 activation scale rounding retained in new MMQ path",
+      "v2_numerical_gate_passed": false,
+      "v3_build_phase": "built",
+      "patch_sha256": "2a8839a1d867106771cb8c1edf97d7542d11bdf3126fc9003db081b5efb546c0",
+      "full_model_qualified": false,
+      "single_h200_500_tok_s_qualified": false,
+      "engine_binary_sha256": "860c23449c843a67cb34534725a908bbba5323f8a58e9153f6e4ef6b91f1bbe4",
+      "v3_numerical_gate_passed": true,
+      "v3_full_model_phase": "complete",
+      "adopted": false,
+      "control_mixed_tok_s": 90.26348683806856,
+      "candidate_mixed_tok_s": 85.87206882685805,
+      "delta_percent": -4.865110096055392,
+      "paired_request_token_ids_identical": false,
+      "single_h200_300_tok_s_qualified": false
+    },
+    "current_milestone": {
+      "target_single_gpu_single_request_decode_tok_s": 300,
+      "achieved": false,
+      "user_instruction": "先做到单卡300 token/s",
+      "basis": "93.417856 pooled serial tok/s for the qualified expert hybrid; no aggregate substitution"
+    },
+    "lower_draft_confidence_candidate": {
+      "default": "off",
+      "control_confidence": 0.45,
+      "candidate_confidence": 0.2,
+      "control_mixed_tok_s": 92.07139494193243,
+      "candidate_mixed_tok_s": 79.48042211696364,
+      "delta_percent": -13.675227613212183,
+      "paired_request_token_ids_identical": false,
+      "adopted": false
+    },
+    "device_verify_candidate": {
+      "upstream": "https://github.com/Indras-Mirror/Xolotl",
+      "license": "MIT",
+      "default": "off",
+      "source_imported_into_product": false,
+      "patch_sha256": "74911ed775b2002b6f303a1a705041084ad4db6cd143ff79d646714ba2211658",
+      "engine_binary_sha256": "6c6ae00cf26236f6e6aa6c9c3f20261e6e35313a4f498f056bf4f6354d4b1811",
+      "full_model_token_id_pairs_equal": 17,
+      "cpu_fallback_token_id_pairs_equal": 4,
+      "real_cpu_fallback_experts_per_decode": 41,
+      "control_mixed_tok_s": 94.99748615090984,
+      "candidate_mixed_tok_s": 96.26501970404489,
+      "one_pair_delta_percent": 1.334281152578587,
+      "adopted": false,
+      "stable_speedup_qualified": false,
+      "single_h200_300_tok_s_qualified": false,
+      "scope": "One actual single-H200 allocation, short repeated prompts, ctx4096, 17 broad and4 deliberate CPU-fallback requests per profile; no broad-quality or long-context claim"
+    },
+    "split_rows_candidate": {
+      "upstream": "https://github.com/Indras-Mirror/Xolotl",
+      "license": "MIT",
+      "default": "off",
+      "patch_sha256": "62d9c9e7f7a80a0a21aa602d4758d5be221e65e44b35d24cd167251a4e8b5099",
+      "build_phase": "built",
+      "hardware_qualified": true,
+      "full_model_speed_qualified": false,
+      "single_h200_300_tok_s_qualified": false,
+      "full_model_phase": "complete",
+      "paired_request_ids_equal": true,
+      "paired_requests": 17,
+      "control_mixed_tok_s": 94.77734265718685,
+      "row2_mixed_tok_s": 85.51605607112458,
+      "delta_percent": -9.77162508085997,
+      "adopted": false,
+      "row4_full_model_tested": false
+    },
+    "ptq_mma_research": {
+      "upstream": "https://github.com/Indras-Mirror/Xolotl",
+      "ggml_revision": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
+      "license": "MIT",
+      "reference": "https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#matrix-multiply-accumulate-operation-using-mma-instruction",
+      "scope": "Standalone SM90 PTQ1_0 gate/up phase1; FP16 or INT8 encodes exact integer codes, original FP32 scales and reduction order retained; V6+ reports auxiliary code-cache bytes/preparation separately from warm timing",
+      "versions": [
+        "prototype",
+        "v2",
+        "v3",
+        "v4",
+        "v5",
+        "v6",
+        "v7",
+        "v8",
+        "v9",
+        "v10",
+        "v11",
+        "v12",
+        "v13",
+        "v14",
+        "v15"
+      ],
+      "strict_hardware_cases_passed": 84,
+      "integrated_into_model_engine": false,
+      "adopted": false,
+      "single_h200_300_tok_s_qualified": false,
+      "single_h200_500_tok_s_qualified": false
+    },
+    "ptq_mma_integrated_experiment": {
+      "upstream": "https://github.com/Indras-Mirror/Xolotl",
+      "license": "MIT",
+      "parent_archive_sha256": "92867ada2ab31266c43d1afd855d99a7c7349039c5b20fae417a4abadbf10287",
+      "binary": {
+        "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c1-6b73b6a04019/xolotl-ptq-mma-integrated/ds41_generate",
+        "bytes": 249111560,
+        "sha256": "fc958d782461c3d87747da94cb5c394de6b672c596429cc52dcc876c8c513443"
+      },
+      "patched_iq_source_sha256": "b19bc0f0533207af26a6c798173fb9ebc94fde27bd07b7e846d7b444bd611e6c",
+      "header_sha256": "e570e5636da05944fc333e65e237d2dd61954633734cbc52e482c80ae146c18c",
+      "default_flag": "ASTER_XQ_PTQ_MMA=0",
+      "candidate_flag": "ASTER_XQ_PTQ_MMA=1",
+      "shape": {
+        "gu_type": 143,
+        "n_embd": 5120,
+        "n_ff": 2304,
+        "group_entries_threshold": 4
+      },
+      "no_auxiliary_weight_cache": true,
+      "existing_small_group_kernel_retained": true,
+      "controls_passed": true,
+      "strict_control_cases": 12,
+      "integrated_into_experimental_binary": true,
+      "adopted": false,
+      "single_request_model_speed_qualified": false,
+      "target_300_met": false,
+      "target_500_met": false,
+      "full_model_pair": {
+        "control_tok_s": 94.69195317878155,
+        "candidate_tok_s": 94.21070982330436,
+        "gain_percent": -0.5082199060448045,
+        "all_17_pairs_ids_equal": true,
+        "all_34_requests_exited_zero_and_reaped": true,
+        "stable_speed_qualified": false
+      }
+    },
+    "ptq_mma_merged_experiment": {
+      "upstream": "https://github.com/Indras-Mirror/Xolotl",
+      "license": "MIT",
+      "binary": {
+        "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c2-89d8aa99c375/xolotl-ptq-mma-integrated-v2/ds41_generate",
+        "bytes": 249161000,
+        "sha256": "a61f784c6c5185d53c9a3319d2ed17cff41e9c322c6b157fb954f245ad69a773"
+      },
+      "parent_iq_sha256": "230d47355c244f5d9b0a4a75b08c902579601f6da8391112761275d4b3d9a46a",
+      "patched_iq_sha256": "a3f3d8a00883c9bf485fbfac04a829b4b97c2a1e90170ef7e6a33408745de809",
+      "header_sha256": "7cfa487b0492654a1943a04f011e8142fec961c27f62e55f248e7d6513094b99",
+      "default_flag": "ASTER_XQ_PTQ_MMA=0",
+      "candidate_flag": "ASTER_XQ_PTQ_MMA=1",
+      "diagnostic_flag": "ASTER_XQ_PTQ_MMA_DIAGNOSTICS=1",
+      "single_uniform_group_kernel": true,
+      "original_weight_format_and_scale_arithmetic_preserved": true,
+      "no_auxiliary_weight_cache": true,
+      "controls_passed": true,
+      "strict_control_cases": 18,
+      "fixture_gpu_histogram": {
+        "groups": [
+          32,
+          288,
+          32,
+          256,
+          32,
+          256,
+          0,
+          0,
+          288
+        ],
+        "entries": 4928
+      },
+      "adopted": false,
+      "stable_model_speed_qualified": false,
+      "target_300_met": false,
+      "target_500_met": false,
+      "full_model_pair": {
+        "control_tok_s": 94.4705974318793,
+        "candidate_tok_s": 93.2140435458065,
+        "gain_percent": -1.33010049711908,
+        "all_17_pairs_ids_equal": true,
+        "all_34_requests_exited_zero_and_reaped": true
+      },
+      "v2_serve_histogram_available": false,
+      "v2_missing_histogram_cause": "native serve deliberately uses std::_Exit(0), bypassing atexit; absence was not evidence of a missed kernel gate"
+    },
+    "ptq_group_diagnostic_v3": {
+      "binary": {
+        "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c2-89d8aa99c375/xolotl-ptq-mma-integrated-v3/ds41_generate",
+        "bytes": 249161048,
+        "sha256": "21fc29f1b31e033daecc4b9aab6cab05b867dc3ce44b938ac05a71067c27a442"
+      },
+      "original_main_sha256": "057a0000312bf0f8aa8c2ec5699abf53a52ad8aeb88c30dbaf7248831f95e6ad",
+      "patched_main_sha256": "b95e6b4060f02e460c4c51f0b036147fbac88d0b79c6303f20e851b9faac89b0",
+      "header_sha256": "e166a2068418439547ce5f506ba8d9019fce9f560ef7ac06ed5c365f5f999b08",
+      "strict_control_cases": 18,
+      "controls_passed": true,
+      "explicit_dump_before_tier_close_and_exit": true,
+      "process_wide_eligible_ptq_groups": {
+        "unix": 1792830184.6923785,
+        "scope": "process-wide actual GPU execution of eligible type143,5120x2304,R4,no-LoRA groups; includes startup/prompt/decode; bin8 means8or more, not exclusive decode distribution",
+        "diagnostic_only": true,
+        "performance_claimed": false,
+        "binary": "21fc29f1b31e033daecc4b9aab6cab05b867dc3ce44b938ac05a71067c27a442",
+        "groups": [
+          0,
+          102227,
+          27622,
+          11347,
+          5254,
+          2294,
+          1609,
+          252,
+          194
+        ],
+        "entries": 237338,
+        "total_logical_groups": 150799,
+        "groups_below4": 141196,
+        "groups_below4_percent": 93.63192063607849,
+        "entries_in_groups_below4": 191512,
+        "entries_in_groups_below4_percent": 80.69167179297037,
+        "all_17_output_pairs_equal": true,
+        "no_target_300_or_500_claim": true
+      },
+      "performance_claimed": false,
+      "adopted": false
+    },
+    "original_mtp_verified_experiment": {
+      "revision": "c66fada630aba9123bd6011731fa83c267027122",
+      "bytes": 8421868640,
+      "sha256": "6f3d5b8611ddb3954bb89c09e8890806225715fea90868a6d7ec0ffee5c72082",
+      "windows_verified": true,
+      "server_verified": true,
+      "server_path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/assets/original-mtp-6f3d5b8611dd/V41-MTP-Vision-1017.gguf",
+      "same_binary_control_tok_s": 94.4705974318793,
+      "candidate_tok_s": 91.44345299760394,
+      "gain_percent": -3.2043244316922737,
+      "all_17_pairs_ids_equal": false,
+      "adopted": false,
+      "target_300_met": false,
+      "target_500_met": false
+    },
+    "host_thread_screens": {
+      "threads16_control_tok_s": 94.4705974318793,
+      "threads4_tok_s": 92.96715571269887,
+      "threads4_gain_percent": -1.5914387757148818,
+      "threads4_all_17_ids_equal": true,
+      "threads1_phase": "failed",
+      "threads1_requests": 0,
+      "threads1_engine_reaped": true,
+      "threads1_engine_exit": -15,
+      "threads1_decode_rate_qualified": false,
+      "selected_threads": 16
+    },
+    "ptq_activation_sum_experiments": {
+      "flag": "ASTER_XQ_PTQ_QSUM=0|gu|both",
+      "default_off": true,
+      "model_precision_unchanged": true,
+      "parent_iq_sha256": "230d47355c244f5d9b0a4a75b08c902579601f6da8391112761275d4b3d9a46a",
+      "v1": "Exact int32 activation sums once per entry in temporary float-h scratch; extra launch per enabled GU/Down; no LoRA; 5120x2304, PTQ143, R4 only",
+      "v2": "Exact sums per group entry in640 bytes of shared memory inside the original R4 launch; no extra launch, weight cache or scratch lifetime change; same strict geometry/no-LoRA gate",
+      "builds": {
+        "v1": {
+          "phase": "qualified",
+          "passed": true,
+          "strict_cases": 39,
+          "binaries": {
+            "ds41_generate": {
+              "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c3-749432932b47/xolotl-ptq-qsum/ds41_generate",
+              "bytes": 249119344,
+              "sha256": "8b5f706f4adcc567f8f27cbf7ccb86ee29604640686b7d06874e4f11ed8d84ea"
+            },
+            "aster_xq_split_parity": {
+              "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c3-749432932b47/xolotl-ptq-qsum/aster_xq_split_parity",
+              "bytes": 21639976,
+              "sha256": "38cb9d64e23d8f34bd0f4f1ed35a74733e0aac8a3cf74eab054d48154b17b56e"
+            }
+          },
+          "finished_unix": 1792832745.1855488
+        },
+        "v2": {
+          "phase": "qualified",
+          "passed": true,
+          "strict_cases": 39,
+          "binaries": {
+            "ds41_generate": {
+              "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c3-749432932b47/xolotl-ptq-qsum-v2/ds41_generate",
+              "bytes": 249102896,
+              "sha256": "c9ee4d491cfc6e237f85a7737a6e9b0fc09f6d16c6f948f4e726b890382b6dfc"
+            },
+            "aster_xq_split_parity": {
+              "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c3-749432932b47/xolotl-ptq-qsum-v2/aster_xq_split_parity",
+              "bytes": 21627624,
+              "sha256": "fd475d1af486c625a7ac24e6c810a1ecb66d79ebbbab2faefa81d970ffc300f5"
+            }
+          },
+          "finished_unix": 1792833294.1501224
+        }
+      },
+      "comparisons": {
+        "xolotl-qsum-gu-model-comparison.json": {
+          "control_tok_s": 94.42285242005,
+          "candidate_tok_s": 91.62376863820975,
+          "gain_percent": -2.9644134974743497,
+          "all17_ids_equal": true,
+          "adopted": false
+        },
+        "xolotl-qsum-both-model-comparison.json": {
+          "control_tok_s": 94.42285242005,
+          "candidate_tok_s": 91.28310049565683,
+          "gain_percent": -3.325203426841694,
+          "all17_ids_equal": true,
+          "adopted": false
+        },
+        "xolotl-qsum-v2-gu-model-comparison.json": {
+          "control_tok_s": 92.10527735704709,
+          "candidate_tok_s": 93.34455085715726,
+          "gain_percent": 1.3454967355519987,
+          "all17_ids_equal": true,
+          "adopted": false
+        },
+        "xolotl-qsum-v2-both-model-comparison.json": {
+          "control_tok_s": 92.10527735704709,
+          "candidate_tok_s": 93.66906035707552,
+          "gain_percent": 1.6978212811481042,
+          "all17_ids_equal": true,
+          "adopted": false
+        }
+      },
+      "adopted": false,
+      "target300_met": false,
+      "target500_met": false,
+      "repeat_comparison": {
+        "unix": 1792834266.2230654,
+        "binary": "c9ee4d491cfc6e237f85a7737a6e9b0fc09f6d16c6f948f4e726b890382b6dfc",
+        "order": [
+          "single-current-qsum-v2-control",
+          "single-current-qsum-v2-gu",
+          "single-current-qsum-v2-gu-b2",
+          "single-current-qsum-v2-control-b2",
+          "single-current-qsum-v2-control-b3",
+          "single-current-qsum-v2-gu-b3"
+        ],
+        "pairs": [
+          {
+            "modes": [
+              "single-current-qsum-v2-control",
+              "single-current-qsum-v2-gu"
+            ],
+            "control_tok_s": 92.10527735704709,
+            "candidate_tok_s": 93.34455085715726,
+            "gain_percent": 1.3454967355519987,
+            "all17_ids_equal": true
+          },
+          {
+            "modes": [
+              "single-current-qsum-v2-control-b2",
+              "single-current-qsum-v2-gu-b2"
+            ],
+            "control_tok_s": 92.24083875298848,
+            "candidate_tok_s": 91.57684326007183,
+            "gain_percent": -0.719849799604233,
+            "all17_ids_equal": true
+          },
+          {
+            "modes": [
+              "single-current-qsum-v2-control-b3",
+              "single-current-qsum-v2-gu-b3"
+            ],
+            "control_tok_s": 92.49980467606441,
+            "candidate_tok_s": 91.8053088612475,
+            "gain_percent": -0.7508078717020528,
+            "all17_ids_equal": true
+          }
+        ],
+        "pooled_control_tok_s": 92.28168349656063,
+        "pooled_candidate_tok_s": 92.23559096764887,
+        "pooled_gain_percent": -0.049947646342485275,
+        "all51_paired_ids_equal": true,
+        "requests": 102,
+        "engines_cleanly_reaped": 6,
+        "predeclared_stability_gate": {
+          "three_complete_pairs": true,
+          "requests_per_trial": 17,
+          "all51_paired_output_sequences_equal": true,
+          "every_pair_mixed_gain_positive": true,
+          "pooled_gain_at_least_percent": 2.0
+        },
+        "stability_gate_passed": false,
+        "adopted": false,
+        "milestone300_met": false,
+        "goal500_met": false
+      }
+    },
+    "current_profile_v3_findings": {
+      "unix": 1792834776.6721098,
+      "milestone300_met": false,
+      "goal500_met": false,
+      "qsum_direction_rejected": true,
+      "repeat_gain_percent": -0.049947646342485275,
+      "profile": {
+        "trace_bytes": 14206044,
+        "trace_sha256": "7fb4df56b43862e98ef57270782333db7a51d92c96d00469d43696903f382862",
+        "exact_symbols": {
+          "q3_gu": {
+            "symbol": "void strata::kernels::<unnamed>::native_gu_multi_kernel<(int)11, (bool)0, (bool)0>(const unsigned long long *, const int *, const int *, const int *, const block_q8_1 *, strata::kernels::NativeExpertLayout, float *, float *)",
+            "count": 1736,
+            "time_ns": 127754771
+          },
+          "q3_down": {
+            "symbol": "void strata::kernels::<unnamed>::native_down_multi_kernel<(int)11, (bool)0>(const unsigned long long *, const int *, const int *, const int *, const block_q8_1 *, strata::kernels::NativeExpertLayout, float *)",
+            "count": 1606,
+            "time_ns": 76006168
+          },
+          "ptq_gu": {
+            "symbol": "void strata::kernels::native_gu_amd_kernel<(int)143, (int)4>(const unsigned long long *, const int *, const int *, const int *, const block_q8_1 *, strata::kernels::NativeExpertLayout, float *, float *)",
+            "count": 2794,
+            "time_ns": 102330224
+          },
+          "ptq_down": {
+            "symbol": "void strata::kernels::native_down_amd_kernel<(int)143, (int)4>(const unsigned long long *, const int *, const int *, const int *, const block_q8_1 *, strata::kernels::NativeExpertLayout, float *)",
+            "count": 1689,
+            "time_ns": 44741083
+          }
+        },
+        "q3_gu_down_ns": 203760939,
+        "ptq_gu_down_ns": 147071307,
+        "q3_share_of_recorded_kernel_sum_percent": 16.23699161175427,
+        "ptq_share_of_recorded_kernel_sum_percent": 11.719594490525669,
+        "recorded_kernel_count": 188813,
+        "recorded_memcpy_count": 45919,
+        "recorded_gpu_busy_fraction": 0.6400345967232991,
+        "stream_synchronize_calls": "9561",
+        "limits": "Recorded events only; Nsight/driver warnings apply. API waits overlap GPU work and must not be added to GPU time. Capture overhead is included; busy fraction is not exact hardware utilization or a single-H200 speed ceiling."
+      },
+      "next_research": {
+        "direction": "Profile-based Q3_K expert work plus dense/host-synchronization execution path; stop further PTQ sum variants",
+        "isolated_q3_row_experiment_written": false,
+        "isolated_q3_row_experiment_built": false,
+        "isolated_q3_row_experiment_tested": false,
+        "available_existing_binary": "c9ee4d491cfc6e237f85a7737a6e9b0fc09f6d16c6f948f4e726b890382b6dfc",
+        "hypothesis": "The old row-interleave round simultaneously replaced PTQ R4 with PTQ decode-once. It did not isolate Q3_K row layout. Keep STRATA_EXP_MODE_T143=4, T11=0, ASTER_XQ_SPLIT_MMVQ=11 and PTQ_QSUM=0 while independently screening ASTER_XQ_SPLIT_ROWS=2/4.",
+        "required_gates": "Run the current exact13-case GPU fixture with rows2/4, qsum0, PTQ R4 and Q3 split11 first, preserving bitwise GU/Down, q8 and sentinels. Only then same-binary full-model comparisons; repeat any small positive result before adopting. No existing evidence establishes a Q3-only gain.",
+        "broader_required_work": "Q3-only kernel work cannot by itself establish300. Investigate dense execution and layer-wise CPU/GPU synchronization with source-linked evidence; do not add API wait time to GPU kernel time."
+      },
+      "selected_baseline": "D:\\code\\aster\\target\\h200-native\\qualified-xolotl-single-h200-baseline.json",
+      "next_allocation_rule": "Use the current cont3 only while fresh exact UID/replica ownership and sufficient immutable lease hold. Any replacement needs exact terminal predecessor proof; do not overlap allocations."
+    },
+    "q3_only_row_screen": {
+      "fixed_ptq_mode": 4,
+      "fixed_q3_mode": 0,
+      "fixed_split_mmvq": "11",
+      "qsum_off": true,
+      "strict_cases": 39,
+      "passed": true,
+      "full_model_gain_claimed": false,
+      "adopted": false
+    },
+    "dense_async_chain_experiment": {
+      "parent_source_sha256": "1773c49096f1634258e5c04ad48042d9db2d8d0353f1a749de2d169859250096",
+      "v2_source_sha256": "0bf3d796de8bbbd4949de47aa03a673c930f2e611b070453a3e31b30f707b23b",
+      "v3_source_sha256": "ed100ea357855f319d40728efd7b8822ad9ea3f66764f0457d1626d6f18e3435",
+      "flag": "ASTER_XQ_DENSE_ASYNC_CHAIN=0|1",
+      "default_off": true,
+      "changes_model_math": false,
+      "builds": {
+        "q3-only": {
+          "phase": "qualified",
+          "passed": true,
+          "host_fence_tests_passed": null,
+          "strict_gpu_cases": 39,
+          "binary": null,
+          "performance_claimed": false
+        },
+        "v1": {
+          "phase": "built",
+          "passed": true,
+          "host_fence_tests_passed": true,
+          "strict_gpu_cases": null,
+          "binary": {
+            "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c3-749432932b47/xolotl-dense-async-chain/ds41_generate",
+            "bytes": 251978288,
+            "sha256": "74257619e6fc8eb5b0c20caf2de5b00fa0ccbd3826e3404e4ff1bb04e1c5a3ad"
+          },
+          "performance_claimed": false
+        },
+        "v2": {
+          "phase": "built",
+          "passed": true,
+          "host_fence_tests_passed": true,
+          "strict_gpu_cases": null,
+          "binary": {
+            "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c4-f1a3cf85b099/xolotl-dense-async-chain-v2/ds41_generate",
+            "bytes": 251978288,
+            "sha256": "42d19f46d2026d2307f4e5f5415cec1b789ba8fdbdd7297e01ebfd3d54b27b9e"
+          },
+          "performance_claimed": false
+        },
+        "v3": {
+          "phase": "built",
+          "passed": true,
+          "host_fence_tests_passed": true,
+          "strict_gpu_cases": null,
+          "binary": {
+            "path": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c4-f1a3cf85b099/xolotl-dense-async-chain-v3/ds41_generate",
+            "bytes": 251982384,
+            "sha256": "7c9ede2b6654cda749c00b7f65132d0c4eb76939f9f104ec47095f6879e61846"
+          },
+          "performance_claimed": false
+        }
+      },
+      "trials": {
+        "single-current-dense-chain-control": {
+          "phase": "complete",
+          "requests": 17,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-candidate": {
+          "phase": "complete",
+          "requests": 17,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-v3-control": {
+          "phase": "complete",
+          "requests": 17,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-v3-candidate": {
+          "phase": "complete",
+          "requests": 17,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-v3-stress-control": {
+          "phase": "complete",
+          "requests": 9,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-v3-stress-candidate": {
+          "phase": "complete",
+          "requests": 9,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-v3-candidate-b2": {
+          "phase": "complete",
+          "requests": 17,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-v3-control-b2": {
+          "phase": "complete",
+          "requests": 17,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-v3-control-b3": {
+          "phase": "complete",
+          "requests": 17,
+          "engine_exit": 0,
+          "engine_reaped": true
+        },
+        "single-current-dense-chain-v3-candidate-b3": {
+          "phase": "complete",
+          "requests": 17,
+          "engine_exit": 0,
+          "engine_reaped": true
+        }
+      },
+      "comparisons": {
+        "normal": {
+          "unix": 1792837309.3156981,
+          "scope": "single physical H200, one sequential request; actual first-to-last generated-ID arrival span; same binary with dense-chain0/1; normal, one paired round",
+          "binary": "42d19f46d2026d2307f4e5f5415cec1b789ba8fdbdd7297e01ebfd3d54b27b9e",
+          "control": {
+            "mixed_tok_s": 95.13636309345739,
+            "per_case": {
+              "matched-count-32": {
+                "tok_s": 129.675758395132,
+                "min_tok_s": 128.7800909564522,
+                "samples": 3
+              },
+              "code-128": {
+                "tok_s": 115.28039672908011,
+                "min_tok_s": 108.57001745353972,
+                "samples": 3
+              },
+              "prose-128": {
+                "tok_s": 79.23228364863678,
+                "min_tok_s": 76.227394264681,
+                "samples": 3
+              },
+              "chinese-128": {
+                "tok_s": 91.56291503400173,
+                "min_tok_s": 89.00521360095797,
+                "samples": 3
+              }
+            },
+            "all_measured_at_least_300": false,
+            "all_measured_at_least_500": false
+          },
+          "candidate": {
+            "mixed_tok_s": 86.69981995374393,
+            "per_case": {
+              "matched-count-32": {
+                "tok_s": 130.10251701310642,
+                "min_tok_s": 128.75761492906443,
+                "samples": 3
+              },
+              "code-128": {
+                "tok_s": 102.62854572959617,
+                "min_tok_s": 92.60288711823776,
+                "samples": 3
+              },
+              "prose-128": {
+                "tok_s": 67.85260859753717,
+                "min_tok_s": 60.413284798197175,
+                "samples": 3
+              },
+              "chinese-128": {
+                "tok_s": 90.41860402745266,
+                "min_tok_s": 89.18754654411656,
+                "samples": 3
+              }
+            },
+            "all_measured_at_least_300": false,
+            "all_measured_at_least_500": false
+          },
+          "mixed_rate_gain_percent": -8.867842815712656,
+          "all_paired_ids_equal": false,
+          "paired_output_count": 17,
+          "runtime_proofs": [
+            {
+              "mode": "single-current-dense-chain-control",
+              "phase": "complete",
+              "requests": 17,
+              "async_chain": false,
+              "first_deferred_finish_logs": 0,
+              "pass_cache_resets": 0,
+              "stderr_sha256": "917250558680e01e0736e3b79529943a72c0dbec5a2fe05e5effa44a9f474a90",
+              "stderr_bytes": 15298,
+              "passed": true
+            },
+            {
+              "mode": "single-current-dense-chain-candidate",
+              "phase": "complete",
+              "requests": 17,
+              "async_chain": true,
+              "first_deferred_finish_logs": 1,
+              "pass_cache_resets": 0,
+              "stderr_sha256": "00913fe9a3726d02fbaef70b3fa0161bc78816d68497f7768e6bb96f9093ef1f",
+              "stderr_bytes": 15368,
+              "passed": true
+            }
+          ],
+          "diagnostic_only": false,
+          "stable_speed_qualified": false,
+          "adopted": false,
+          "target_300_met": false,
+          "target_500_met": false
+        },
+        "v3-normal": {
+          "unix": 1792838276.1506062,
+          "scope": "single physical H200, one sequential request; actual first-to-last generated-ID arrival span; same binary with dense-chain0/1; normal, one paired round",
+          "binary": "7c9ede2b6654cda749c00b7f65132d0c4eb76939f9f104ec47095f6879e61846",
+          "control": {
+            "mixed_tok_s": 93.41203635039021,
+            "per_case": {
+              "matched-count-32": {
+                "tok_s": 128.60512614486333,
+                "min_tok_s": 127.3780549646046,
+                "samples": 3
+              },
+              "code-128": {
+                "tok_s": 113.8842350145461,
+                "min_tok_s": 107.30266635573794,
+                "samples": 3
+              },
+              "prose-128": {
+                "tok_s": 78.01920634952928,
+                "min_tok_s": 74.8843331257851,
+                "samples": 3
+              },
+              "chinese-128": {
+                "tok_s": 89.02617403101922,
+                "min_tok_s": 86.82329293253845,
+                "samples": 3
+              }
+            },
+            "all_measured_at_least_300": false,
+            "all_measured_at_least_500": false
+          },
+          "candidate": {
+            "mixed_tok_s": 94.86549533647286,
+            "per_case": {
+              "matched-count-32": {
+                "tok_s": 129.57419885709908,
+                "min_tok_s": 128.2844936135004,
+                "samples": 3
+              },
+              "code-128": {
+                "tok_s": 115.04635096771396,
+                "min_tok_s": 107.77338111363186,
+                "samples": 3
+              },
+              "prose-128": {
+                "tok_s": 79.37459414848036,
+                "min_tok_s": 76.4539488353106,
+                "samples": 3
+              },
+              "chinese-128": {
+                "tok_s": 90.72498853401103,
+                "min_tok_s": 88.20989079510858,
+                "samples": 3
+              }
+            },
+            "all_measured_at_least_300": false,
+            "all_measured_at_least_500": false
+          },
+          "mixed_rate_gain_percent": 1.5559654225186792,
+          "all_paired_ids_equal": true,
+          "paired_output_count": 17,
+          "runtime_proofs": [
+            {
+              "mode": "single-current-dense-chain-v3-control",
+              "phase": "complete",
+              "requests": 17,
+              "async_chain": false,
+              "first_deferred_finish_logs": 0,
+              "pass_cache_resets": 0,
+              "stderr_sha256": "3b37903b2b1b3452b94f236027d608ca3a7a122fc45bf5631f461c586cce3406",
+              "stderr_bytes": 15302,
+              "passed": true
+            },
+            {
+              "mode": "single-current-dense-chain-v3-candidate",
+              "phase": "complete",
+              "requests": 17,
+              "async_chain": true,
+              "first_deferred_finish_logs": 1,
+              "pass_cache_resets": 0,
+              "stderr_sha256": "4e0a1f246e31f021a491dcc0a869781a683729f8d7e3080bb1b83ecc7282432b",
+              "stderr_bytes": 15368,
+              "passed": true
+            }
+          ],
+          "diagnostic_only": false,
+          "stable_speed_qualified": false,
+          "adopted": false,
+          "target_300_met": false,
+          "target_500_met": false
+        },
+        "v3-stress": {
+          "unix": 1792839180.4872618,
+          "scope": "single physical H200, one sequential request; actual first-to-last generated-ID arrival span; same binary with dense-chain0/1; stress, one paired round",
+          "binary": "7c9ede2b6654cda749c00b7f65132d0c4eb76939f9f104ec47095f6879e61846",
+          "control": {
+            "mixed_tok_s": 86.12348694680362,
+            "per_case": {
+              "code-128": {
+                "tok_s": 111.25589696580818,
+                "min_tok_s": 106.4016018855878,
+                "samples": 3
+              },
+              "prose-128": {
+                "tok_s": 70.25342569254612,
+                "min_tok_s": 63.2137381088243,
+                "samples": 3
+              }
+            },
+            "all_measured_at_least_300": false,
+            "all_measured_at_least_500": false
+          },
+          "candidate": {
+            "mixed_tok_s": 86.38397300469633,
+            "per_case": {
+              "code-128": {
+                "tok_s": 110.13937235608572,
+                "min_tok_s": 105.03431388491911,
+                "samples": 3
+              },
+              "prose-128": {
+                "tok_s": 71.0578646726289,
+                "min_tok_s": 64.82802572819135,
+                "samples": 3
+              }
+            },
+            "all_measured_at_least_300": false,
+            "all_measured_at_least_500": false
+          },
+          "mixed_rate_gain_percent": 0.3024564693410614,
+          "all_paired_ids_equal": true,
+          "paired_output_count": 9,
+          "runtime_proofs": [
+            {
+              "mode": "single-current-dense-chain-v3-stress-control",
+              "phase": "complete",
+              "requests": 9,
+              "async_chain": false,
+              "first_deferred_finish_logs": 0,
+              "pass_cache_resets": 2,
+              "stderr_sha256": "d8d1fdafe5555cf71c91d814d55a3d2efd1e270807773a468ab06a208d9a46e4",
+              "stderr_bytes": 8622,
+              "passed": true
+            },
+            {
+              "mode": "single-current-dense-chain-v3-stress-candidate",
+              "phase": "complete",
+              "requests": 9,
+              "async_chain": true,
+              "first_deferred_finish_logs": 1,
+              "pass_cache_resets": 2,
+              "stderr_sha256": "b7d2143a243dd564c768f1e19819179f3fc70dd58fe2b06962a76e2ac4e81086",
+              "stderr_bytes": 8688,
+              "passed": true
+            }
+          ],
+          "diagnostic_only": true,
+          "stable_speed_qualified": false,
+          "adopted": false,
+          "target_300_met": false,
+          "target_500_met": false
+        },
+        "v3-repeat": {
+          "unix": 1792839928.5449357,
+          "binary": "7c9ede2b6654cda749c00b7f65132d0c4eb76939f9f104ec47095f6879e61846",
+          "order": [
+            "single-current-dense-chain-v3-control",
+            "single-current-dense-chain-v3-candidate",
+            "single-current-dense-chain-v3-candidate-b2",
+            "single-current-dense-chain-v3-control-b2",
+            "single-current-dense-chain-v3-control-b3",
+            "single-current-dense-chain-v3-candidate-b3"
+          ],
+          "pairs": [
+            {
+              "modes": [
+                "single-current-dense-chain-v3-control",
+                "single-current-dense-chain-v3-candidate"
+              ],
+              "control_tok_s": 93.41203635039021,
+              "candidate_tok_s": 94.86549533647286,
+              "gain_percent": 1.5559654225186792,
+              "all17_ids_equal": true
+            },
+            {
+              "modes": [
+                "single-current-dense-chain-v3-control-b2",
+                "single-current-dense-chain-v3-candidate-b2"
+              ],
+              "control_tok_s": 93.3227611944843,
+              "candidate_tok_s": 94.80596261470158,
+              "gain_percent": 1.5893244062145762,
+              "all17_ids_equal": true
+            },
+            {
+              "modes": [
+                "single-current-dense-chain-v3-control-b3",
+                "single-current-dense-chain-v3-candidate-b3"
+              ],
+              "control_tok_s": 93.39882420489582,
+              "candidate_tok_s": 96.45197319174524,
+              "gain_percent": 3.268937283569562,
+              "all17_ids_equal": true
+            }
+          ],
+          "pooled_control_tok_s": 93.37785733640865,
+          "pooled_candidate_tok_s": 95.36841841389291,
+          "pooled_gain_percent": 2.1317270863401294,
+          "all51_paired_ids_equal": true,
+          "requests": 102,
+          "engines_cleanly_reaped": 6,
+          "predeclared_stability_gate": {
+            "three_complete_pairs": true,
+            "requests_per_trial": 17,
+            "all51_paired_output_sequences_equal": true,
+            "every_pair_mixed_gain_positive": true,
+            "pooled_gain_at_least_percent": 2.0
+          },
+          "stability_gate_passed": true,
+          "adopted": false,
+          "milestone300_met": false,
+          "goal500_met": false
+        }
+      },
+      "runtime_proofs": {
+        "single-current-dense-chain-control": {
+          "mode": "single-current-dense-chain-control",
+          "phase": "complete",
+          "requests": 17,
+          "async_chain": false,
+          "first_deferred_finish_logs": 0,
+          "pass_cache_resets": 0,
+          "stderr_sha256": "917250558680e01e0736e3b79529943a72c0dbec5a2fe05e5effa44a9f474a90",
+          "stderr_bytes": 15298,
+          "passed": true
+        },
+        "single-current-dense-chain-candidate": {
+          "mode": "single-current-dense-chain-candidate",
+          "phase": "complete",
+          "requests": 17,
+          "async_chain": true,
+          "first_deferred_finish_logs": 1,
+          "pass_cache_resets": 0,
+          "stderr_sha256": "00913fe9a3726d02fbaef70b3fa0161bc78816d68497f7768e6bb96f9093ef1f",
+          "stderr_bytes": 15368,
+          "passed": true
+        },
+        "single-current-dense-chain-v3-control": {
+          "mode": "single-current-dense-chain-v3-control",
+          "phase": "complete",
+          "requests": 17,
+          "async_chain": false,
+          "first_deferred_finish_logs": 0,
+          "pass_cache_resets": 0,
+          "stderr_sha256": "3b37903b2b1b3452b94f236027d608ca3a7a122fc45bf5631f461c586cce3406",
+          "stderr_bytes": 15302,
+          "passed": true
+        },
+        "single-current-dense-chain-v3-candidate": {
+          "mode": "single-current-dense-chain-v3-candidate",
+          "phase": "complete",
+          "requests": 17,
+          "async_chain": true,
+          "first_deferred_finish_logs": 1,
+          "pass_cache_resets": 0,
+          "stderr_sha256": "4e0a1f246e31f021a491dcc0a869781a683729f8d7e3080bb1b83ecc7282432b",
+          "stderr_bytes": 15368,
+          "passed": true
+        },
+        "single-current-dense-chain-v3-stress-control": {
+          "mode": "single-current-dense-chain-v3-stress-control",
+          "phase": "complete",
+          "requests": 9,
+          "async_chain": false,
+          "first_deferred_finish_logs": 0,
+          "pass_cache_resets": 2,
+          "stderr_sha256": "d8d1fdafe5555cf71c91d814d55a3d2efd1e270807773a468ab06a208d9a46e4",
+          "stderr_bytes": 8622,
+          "passed": true
+        },
+        "single-current-dense-chain-v3-stress-candidate": {
+          "mode": "single-current-dense-chain-v3-stress-candidate",
+          "phase": "complete",
+          "requests": 9,
+          "async_chain": true,
+          "first_deferred_finish_logs": 1,
+          "pass_cache_resets": 2,
+          "stderr_sha256": "b7d2143a243dd564c768f1e19819179f3fc70dd58fe2b06962a76e2ac4e81086",
+          "stderr_bytes": 8688,
+          "passed": true
+        },
+        "single-current-dense-chain-v3-candidate-b2": {
+          "mode": "single-current-dense-chain-v3-candidate-b2",
+          "phase": "complete",
+          "requests": 17,
+          "async_chain": true,
+          "first_deferred_finish_logs": 1,
+          "pass_cache_resets": 0,
+          "stderr_sha256": "2cf0ee97ee7a835aa509a3ff31917c3d521c2238eef8a11e2cf1383111f1b0d5",
+          "stderr_bytes": 15370,
+          "passed": true
+        },
+        "single-current-dense-chain-v3-control-b2": {
+          "mode": "single-current-dense-chain-v3-control-b2",
+          "phase": "complete",
+          "requests": 17,
+          "async_chain": false,
+          "first_deferred_finish_logs": 0,
+          "pass_cache_resets": 0,
+          "stderr_sha256": "6cc2383bd4d710cb3e4062c33205e6c75d6aac5a7d28dc729ad0cd0717367dcc",
+          "stderr_bytes": 15302,
+          "passed": true
+        },
+        "single-current-dense-chain-v3-control-b3": {
+          "mode": "single-current-dense-chain-v3-control-b3",
+          "phase": "complete",
+          "requests": 17,
+          "async_chain": false,
+          "first_deferred_finish_logs": 0,
+          "pass_cache_resets": 0,
+          "stderr_sha256": "20a36e8e191349b7e231c55416651f4f870e57cf6f6cba7eea500c5f44305f08",
+          "stderr_bytes": 15302,
+          "passed": true
+        },
+        "single-current-dense-chain-v3-candidate-b3": {
+          "mode": "single-current-dense-chain-v3-candidate-b3",
+          "phase": "complete",
+          "requests": 17,
+          "async_chain": true,
+          "first_deferred_finish_logs": 1,
+          "pass_cache_resets": 0,
+          "stderr_sha256": "c6c3eb24781f8f29f23b804d40b7c65bb79447390f1db0910b70bb69c1f6ea90",
+          "stderr_bytes": 15368,
+          "passed": true
+        }
+      },
+      "adopted": false,
+      "gpu_quality_passed": true,
+      "performance_claimed": false,
+      "target300_met": false,
+      "target500_met": false,
+      "qualified_prototype_version": 3,
+      "adopted_as_optimization_baseline": true,
+      "serving_promoted": false,
+      "qualified_optimization_baseline": {
+        "schema": "aster-xolotl-qualified-optimization-baseline-v2",
+        "unix": 1792840076.5575895,
+        "profile": "PTQ R4/Q3 split11 plus V3 asynchronous dense chain with external state/lifetime fences",
+        "plan": {
+          "engine_revision": "e9d0826d71c59072cbff77d2a31dd51f27ab7a12",
+          "binary": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-500c4-f1a3cf85b099/xolotl-dense-async-chain-v3/ds41_generate",
+          "binary_sha256": "7c9ede2b6654cda749c00b7f65132d0c4eb76939f9f104ec47095f6879e61846",
+          "model": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/native-payload-73df1934302f/V41-XQ-1017-v3.gguf",
+          "model_sha256": "73df1934302f867601dd27f7fca59109d9b11674f50cc60526ec2a1cd4f3d389",
+          "rank": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/assets/v3/rank-1017-v3.bin",
+          "sidecar": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/assets/V41-MTP-Vision-1017.Q2_K.gguf",
+          "engram": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-pair-1fab10648af3/xolotl-b345/engram",
+          "visible_devices": "0",
+          "dspark": true,
+          "lease_ends_unix": 1792840251.4691286,
+          "cases": [
+            {
+              "name": "matched-count-32",
+              "prompt": "按顺序列出从1到20的整数，用逗号分隔，不要解释。",
+              "rendered": "<｜begin▁of▁sentence｜><｜User｜>按顺序列出从1到20的整数，用逗号分隔，不要解释。<｜Assistant｜></think>",
+              "ids": [
+                0,
+                128803,
+                2635,
+                18143,
+                52271,
+                1255,
+                19,
+                621,
+                397,
+                301,
+                27342,
+                303,
+                642,
+                33347,
+                2449,
+                74534,
+                303,
+                4916,
+                9068,
+                320,
+                128804,
+                128822
+              ],
+              "max_new_tokens": 32
+            },
+            {
+              "name": "arithmetic",
+              "prompt": "Calculate 17 + 25. Reply with only the integer answer.",
+              "rendered": "<｜begin▁of▁sentence｜><｜User｜>Calculate 17 + 25. Reply with only the integer answer.<｜Assistant｜></think>",
+              "ids": [
+                0,
+                128803,
+                22616,
+                223,
+                1002,
+                940,
+                223,
+                1069,
+                16,
+                19414,
+                418,
+                1353,
+                270,
+                9132,
+                3287,
+                16,
+                128804,
+                128822
+              ],
+              "max_new_tokens": 16
+            },
+            {
+              "name": "code-128",
+              "prompt": "Write a Python function that returns the first n Fibonacci numbers. Include a short explanation.",
+              "rendered": "<｜begin▁of▁sentence｜><｜User｜>Write a Python function that returns the first n Fibonacci numbers. Include a short explanation.<｜Assistant｜></think>",
+              "ids": [
+                0,
+                128803,
+                21750,
+                260,
+                15255,
+                2019,
+                396,
+                10340,
+                270,
+                1257,
+                313,
+                26509,
+                3737,
+                16,
+                52480,
+                260,
+                3107,
+                11394,
+                16,
+                128804,
+                128822
+              ],
+              "max_new_tokens": 128
+            },
+            {
+              "name": "prose-128",
+              "prompt": "Explain how an LRU cache works, including a concrete example and its time complexity.",
+              "rendered": "<｜begin▁of▁sentence｜><｜User｜>Explain how an LRU cache works, including a concrete example and its time complexity.<｜Assistant｜></think>",
+              "ids": [
+                0,
+                128803,
+                65106,
+                1192,
+                411,
+                46360,
+                55,
+                23809,
+                2984,
+                14,
+                2622,
+                260,
+                15360,
+                2511,
+                305,
+                1009,
+                1014,
+                15599,
+                16,
+                128804,
+                128822
+              ],
+              "max_new_tokens": 128
+            },
+            {
+              "name": "chinese-128",
+              "prompt": "用中文解释大语言模型推理中的 KV Cache，说明它保存什么、如何加速生成，以及长上下文的内存代价。",
+              "rendered": "<｜begin▁of▁sentence｜><｜User｜>用中文解释大语言模型推理中的 KV Cache，说明它保存什么、如何加速生成，以及长上下文的内存代价。<｜Assistant｜></think>",
+              "ids": [
+                0,
+                128803,
+                642,
+                21134,
+                9068,
+                547,
+                7831,
+                8842,
+                36101,
+                2543,
+                126664,
+                69717,
+                303,
+                6977,
+                1877,
+                16514,
+                1710,
+                410,
+                4382,
+                18617,
+                14171,
+                303,
+                3515,
+                1122,
+                82600,
+                124356,
+                33884,
+                320,
+                128804,
+                128822
+              ],
+              "max_new_tokens": 128
+            }
+          ],
+          "arena_gib": 160,
+          "campaign": "broad-warm-v1",
+          "draft_depth": 5,
+          "d3_prefetch": 0,
+          "draft_confidence": 0.45,
+          "graph_metadata_mib": 1024,
+          "async_attn_readback": false,
+          "split_mmvq": "11",
+          "ptq_rows_per_warp": 4,
+          "max_trial_seconds": 300,
+          "device_verify": false,
+          "split_rows": 0,
+          "diagnostic_only": false,
+          "ptq_mma": false,
+          "ptq_mma_diagnostics": false,
+          "original_mtp": false,
+          "ptq_qsum": "0",
+          "dense_async_chain": true,
+          "chain_stress": false
+        },
+        "source_sha256": "ed100ea357855f319d40728efd7b8822ad9ea3f66764f0457d1626d6f18e3435",
+        "binary_sha256": "7c9ede2b6654cda749c00b7f65132d0c4eb76939f9f104ec47095f6879e61846",
+        "same_binary_control_tok_s": 93.37785733640865,
+        "qualified_mixed_tok_s": 95.36841841389291,
+        "paired_gain_percent": 2.1317270863401294,
+        "three_pair_gate": {
+          "three_complete_pairs": true,
+          "requests_per_trial": 17,
+          "all51_paired_output_sequences_equal": true,
+          "every_pair_mixed_gain_positive": true,
+          "pooled_gain_at_least_percent": 2.0
+        },
+        "all51_normal_paired_ids_equal": true,
+        "all9_cache_stress_paired_ids_equal": true,
+        "actual_cache_resets": [
+          2,
+          2
+        ],
+        "engines_cleanly_reaped": 8,
+        "normal_requests": 102,
+        "cache_stress_requests": 18,
+        "cuda_negative_readback_controls": 6,
+        "cuda_guarded_readback_controls": 6,
+        "adopted_as_optimization_baseline": true,
+        "serving_promoted": false,
+        "serving_qualified_baseline": "qualified-xolotl-single-h200-baseline.json",
+        "source_default_flag_promoted": false,
+        "scope": "One visible physical H200, one sequential request, ctx4096, DSpark depth5/conf0.45, four short prompts max32/128 tokens; temperature0. Not long-context, multi-slot or long-soak qualification. Future allocation must supply a fresh immutable lease proof instead of reusing the frozen plan deadline.",
+        "target300_met": false,
+        "target500_met": false
+      }
+    },
+    "stable_serving": {
+      "source_revision": "e9d0826d71c59072cbff77d2a31dd51f27ab7a12",
+      "binary_sha256": "e943305094fd8612718cf817985cf232ee457e31d434c0512b32a8097e7f30b8",
+      "allocation_uid": "ea86cb78-5efd-472c-a4f7-d97c38a95637",
+      "gpu_uuid": "GPU-0349ad96-57f8-0001-128d-3ac22f864c3e",
+      "separate_optimization_gpu_uuid": "GPU-bf4265db-79f3-4e51-0136-e499aa863c62",
+      "bundle_manifest": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/stable-serving/xolotl-serving-bundle-manifest.json",
+      "public_artifacts_sha256": "0873f4c2f605498eee0a904d53c44a92fb527862eb6619134bee6a16a17e0426",
+      "api_template_tokenizer_controls_passed": true,
+      "windows_end_to_end_qualification_passed": true,
+      "windows_load_summary": {
+        "phase": "complete",
+        "passed": true,
+        "measured_requests": 64,
+        "warmup_requests": 4,
+        "levels": [
+          {
+            "concurrency": 1,
+            "phase": "complete",
+            "successes": 16,
+            "failures": 0,
+            "elapsed_seconds": 18.483999999705702,
+            "completion_tokens": 1664,
+            "aggregate_end_to_end_completion_tok_s": 90.02380437278153,
+            "requests_per_second": 0.8656135035844378,
+            "request_p50_seconds": 1.2970000002533197,
+            "request_p95_seconds": 1.6477500001201406,
+            "ttft_p50_seconds": 0.125,
+            "ttft_p95_seconds": 0.18375000020023435,
+            "cached_prompt_tokens": 0
+          },
+          {
+            "concurrency": 2,
+            "phase": "complete",
+            "successes": 16,
+            "failures": 0,
+            "elapsed_seconds": 18.109000000171363,
+            "completion_tokens": 1664,
+            "aggregate_end_to_end_completion_tok_s": 91.88801148513191,
+            "requests_per_second": 0.8835385719724222,
+            "request_p50_seconds": 1.906999999890104,
+            "request_p95_seconds": 3.0827499999431893,
+            "ttft_p50_seconds": 1.2185000001918525,
+            "ttft_p95_seconds": 1.769750000210479,
+            "cached_prompt_tokens": 0
+          },
+          {
+            "concurrency": 4,
+            "phase": "complete",
+            "successes": 16,
+            "failures": 0,
+            "elapsed_seconds": 18.016000000294298,
+            "completion_tokens": 1664,
+            "aggregate_end_to_end_completion_tok_s": 92.36234458108447,
+            "requests_per_second": 0.8880994671258123,
+            "request_p50_seconds": 4.507499999832362,
+            "request_p95_seconds": 4.54700000025332,
+            "ttft_p50_seconds": 3.0625,
+            "ttft_p95_seconds": 4.300250000087544,
+            "cached_prompt_tokens": 22
+          },
+          {
+            "concurrency": 8,
+            "phase": "complete",
+            "successes": 16,
+            "failures": 0,
+            "elapsed_seconds": 18.092999999877065,
+            "completion_tokens": 1664,
+            "aggregate_end_to_end_completion_tok_s": 91.9692698840052,
+            "requests_per_second": 0.8843199027308193,
+            "request_p50_seconds": 7.936999999918044,
+            "request_p95_seconds": 9.08974999981001,
+            "ttft_p50_seconds": 6.96100000012666,
+            "ttft_p95_seconds": 8.066249999916181,
+            "cached_prompt_tokens": 0
+          }
+        ],
+        "soak_test_claimed": false
+      },
+      "secret_retained": false,
+      "implementation": "Original Xolotl; not a3s-power Rust native",
+      "lease_ends_unix": 1792859870.529365,
+      "target300_met": false,
+      "target500_met": false
+    },
+    "current_serving_optimization_roles": {
+      "unix": 1792849999.9257133,
+      "goal_turn_classification": "PROGRESS",
+      "goal_objective": "深度优化单卡 1M 上下文 部署的正确性和速度",
+      "goal_met": false,
+      "previous_500_tok_s_goal_superseded": true,
+      "active_service": {
+        "base_url": "http://10.102.93.68/v1",
+        "intent": "xolotl-stable-service-v8-intent.json",
+        "allocation_uid": "ea86cb78-5efd-472c-a4f7-d97c38a95637",
+        "gpu_uuid": "GPU-0349ad96-57f8-0001-128d-3ac22f864c3e",
+        "context_tokens": 1048576,
+        "prefill_batch_tokens": 8192,
+        "conversation_cache_mib": 8192,
+        "conversation_cache_slots": 8,
+        "STRATA_SERVE_BATCH_TAIL": "0",
+        "lease_ends_unix": 1792859870.529365,
+        "windows_forwarding": false,
+        "actual_prompt_tokens_qualified": 131073,
+        "full_1m_length_qualified": false,
+        "tool_call_end_to_end_passed": false,
+        "workbuddy_gui_end_to_end_passed": false,
+        "cleanup": "xolotl-server-vip-cleanup-v8-intent.json"
+      },
+      "optimization": {
+        "allocation_uid": "81f6b9d4-409d-4ec2-98cf-cd402e6a380b",
+        "gpu_uuid": "GPU-117aafbe-8432-d158-0666-42464fe5ff49",
+        "no_active_model_worker": true,
+        "lease_ends_unix": 1792862381.5974355
+      },
+      "maximum_allocated_h200": 2,
+      "workbuddy": {
+        "actual_models_json_metadata_verified": true,
+        "bundled_client_two_new_sessions_received_hi": true,
+        "new_session_first_output_seconds": [
+          60.7737557888031,
+          41.960718631744385
+        ],
+        "gui_test_passed": false,
+        "gui_automation_error": "node_repl initialization twice failed to write kernel assets: Windows path not found (os error3)",
+        "latency_acceptance_passed": false,
+        "tool_call_acceptance_passed": false,
+        "known_tool_defect": "Production V4 still returns empty tool arguments for JSON-inside-DSML. V6b strict overlay is deployed only on validation GPU: cold/cache controls pass, but forced native tool stream has no finish/usage. Do not promote; exact failure remains unresolved.",
+        "bundled_same_process_two_turns_passed": true,
+        "same_process_first_output_seconds": [
+          42.4554,
+          6.77186
+        ],
+        "same_process_result": "workbuddy-stream-e2e-v2-result.json",
+        "strict_json_overlay_cpu_tests_passed": true,
+        "strict_json_overlay_gpu_qualification_passed": false
+      },
+      "prior_131k_short_load": {
+        "file": "xolotl-server-v4-131k-windows-loadtest.json",
+        "passed": true,
+        "measured_requests": 64,
+        "warmup_requests": 4,
+        "completion_tokens": 6656,
+        "context_tokens": 131072,
+        "concurrency_levels": [
+          {
+            "concurrency": 1,
+            "successes": 16,
+            "failures": 0,
+            "aggregate_end_to_end_completion_tok_s": 68.22188512073808,
+            "ttft_p95_seconds": 0.2820000001229346,
+            "request_p95_seconds": 2.2224999997997656
+          },
+          {
+            "concurrency": 2,
+            "successes": 16,
+            "failures": 0,
+            "aggregate_end_to_end_completion_tok_s": 69.87779784127464,
+            "ttft_p95_seconds": 2.4137499999487773,
+            "request_p95_seconds": 3.995750000118278
+          },
+          {
+            "concurrency": 4,
+            "successes": 16,
+            "failures": 0,
+            "aggregate_end_to_end_completion_tok_s": 71.52067394533896,
+            "ttft_p95_seconds": 5.55475000012666,
+            "request_p95_seconds": 5.909999999916181
+          },
+          {
+            "concurrency": 8,
+            "successes": 16,
+            "failures": 0,
+            "aggregate_end_to_end_completion_tok_s": 70.57426414390594,
+            "ttft_p95_seconds": 17.691250000032596,
+            "request_p95_seconds": 19.035250000073574
+          }
+        ],
+        "scope": "Direct Windows -> server VIP; four short public prompts,32/128 output tokens,16 requests per level. Not long-context concurrency or soak. API wall throughput, not isolated decode.",
+        "improved_over_historical_4k": false,
+        "regression_cause_proven": false
+      },
+      "publication": {
+        "integration_worktree": "D:\\code\\aster\\.wt-h200-native-integration",
+        "branch": "codex/h200-native-ready-20261024",
+        "power_revision": "c891f930bcbc06b52175ad4fe0247cc2c1f9b412",
+        "parent_commit_pending": true
+      },
+      "next_action": "Finish explicit commit/merge/push in integration worktree; Power dependency is already published. Keep public1M service onGPU0349 with guarded reservation; optimization is idleGPU117a, use current-optimization-lease. Qualify full1M-length public input with an adequate bounded client timeout, plus long-context correctness, cache and tool/client roundtrips. V7 fails batch DSpark seed; V8 explicit upstream batch-tail0 passes exact same131073-token input and WindowsVIP actual generation. Do not report a full1M/quality/latency acceptance from this smoke test. Keep two GPUs maximum. Prior500tok/s goal was replaced by user; current goal is1M correctness/speed."
+    },
+    "server_access_131k": {
+      "base_url": "http://10.102.93.68/v1",
+      "active_service": {
+        "base_url": "http://10.102.93.68/v1",
+        "intent": "xolotl-stable-service-v4-intent.json",
+        "allocation_uid": "81f6b9d4-409d-4ec2-98cf-cd402e6a380b",
+        "replica_uid": "1c0e6d7d-05d5-49b8-80da-32455a3e4225",
+        "gpu_uuid": "GPU-117aafbe-8432-d158-0666-42464fe5ff49",
+        "context_tokens": 131072,
+        "prefill_batch_tokens": 8192,
+        "prefill_chunk_tokens": 128,
+        "conversation_cache_mib": 8192,
+        "conversation_cache_slots": 8,
+        "lease_ends_unix": 1792862381.5974355,
+        "windows_forwarding": false,
+        "service_uid": "1f968a8d-4ddc-4cee-b32a-390cd44210c7",
+        "server_side_expiry_cleanup": "xolotl-server-vip-cleanup-v4-intent.json"
+      },
+      "workbuddy_acceptance": {
+        "actual_models_json_metadata_verified": true,
+        "bundled_client_two_new_sessions_received_hi": true,
+        "new_session_first_output_seconds": [
+          60.7737557888031,
+          41.960718631744385
+        ],
+        "gui_test_passed": false,
+        "gui_automation_error": "node_repl initialization twice failed to write kernel assets: Windows path not found (os error3)",
+        "latency_acceptance_passed": false,
+        "tool_call_acceptance_passed": false,
+        "known_tool_defect": "Production V4 still returns empty tool arguments for JSON-inside-DSML. V6b strict overlay is deployed only on validation GPU: cold/cache controls pass, but forced native tool stream has no finish/usage. Do not promote; exact failure remains unresolved.",
+        "bundled_same_process_two_turns_passed": true,
+        "same_process_first_output_seconds": [
+          42.4554,
+          6.77186
+        ],
+        "same_process_result": "workbuddy-stream-e2e-v2-result.json",
+        "strict_json_overlay_cpu_tests_passed": true,
+        "strict_json_overlay_gpu_qualification_passed": false
+      },
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/server-access-131k",
+      "secret_retained": false,
+      "current_short_load": {
+        "file": "xolotl-server-v4-131k-windows-loadtest.json",
+        "passed": true,
+        "measured_requests": 64,
+        "warmup_requests": 4,
+        "completion_tokens": 6656,
+        "context_tokens": 131072,
+        "concurrency_levels": [
+          {
+            "concurrency": 1,
+            "successes": 16,
+            "failures": 0,
+            "aggregate_end_to_end_completion_tok_s": 68.22188512073808,
+            "ttft_p95_seconds": 0.2820000001229346,
+            "request_p95_seconds": 2.2224999997997656
+          },
+          {
+            "concurrency": 2,
+            "successes": 16,
+            "failures": 0,
+            "aggregate_end_to_end_completion_tok_s": 69.87779784127464,
+            "ttft_p95_seconds": 2.4137499999487773,
+            "request_p95_seconds": 3.995750000118278
+          },
+          {
+            "concurrency": 4,
+            "successes": 16,
+            "failures": 0,
+            "aggregate_end_to_end_completion_tok_s": 71.52067394533896,
+            "ttft_p95_seconds": 5.55475000012666,
+            "request_p95_seconds": 5.909999999916181
+          },
+          {
+            "concurrency": 8,
+            "successes": 16,
+            "failures": 0,
+            "aggregate_end_to_end_completion_tok_s": 70.57426414390594,
+            "ttft_p95_seconds": 17.691250000032596,
+            "request_p95_seconds": 19.035250000073574
+          }
+        ],
+        "scope": "Direct Windows -> server VIP; four short public prompts,32/128 output tokens,16 requests per level. Not long-context concurrency or soak. API wall throughput, not isolated decode.",
+        "improved_over_historical_4k": false,
+        "regression_cause_proven": false
+      },
+      "strict_tool_json_overlay": {
+        "original_sha256": "5180c184d1a421dd5b56e799360fe6306b96d41da2d443d0bb68dae6714f2e5d",
+        "candidate_sha256": "b204c4af684f771a13b5889f62d9fe38b029f9f5af05e78747df10f406758b75",
+        "cpu_tests_passed": true,
+        "gpu_tool_qualification_passed": false,
+        "promoted": false
+      }
+    },
+    "server_access_1m": {
+      "active_service": {
+        "base_url": "http://10.102.93.68/v1",
+        "intent": "xolotl-stable-service-v8-intent.json",
+        "allocation_uid": "ea86cb78-5efd-472c-a4f7-d97c38a95637",
+        "gpu_uuid": "GPU-0349ad96-57f8-0001-128d-3ac22f864c3e",
+        "context_tokens": 1048576,
+        "prefill_batch_tokens": 8192,
+        "conversation_cache_mib": 8192,
+        "conversation_cache_slots": 8,
+        "STRATA_SERVE_BATCH_TAIL": "0",
+        "lease_ends_unix": 1792859870.529365,
+        "windows_forwarding": false,
+        "actual_prompt_tokens_qualified": 131073,
+        "full_1m_length_qualified": false,
+        "tool_call_end_to_end_passed": false,
+        "workbuddy_gui_end_to_end_passed": false,
+        "cleanup": "xolotl-server-vip-cleanup-v8-intent.json"
+      },
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/server-access-1m",
+      "full_1m_length_qualified": false,
+      "current_short_load_file": "xolotl-server-v8-1m-windows-single-loadtest.json",
+      "ttft_optimization_required": true
+    }
   }
 }

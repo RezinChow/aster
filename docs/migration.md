@@ -1,5 +1,82 @@
 # Harness migration
 
+## Native Power integration, 2026-10-22
+
+The existing `crates/power` submodule is integrated into the root Cargo
+workspace for the native DeepSeek optimization work in
+`specs/009-power-native-deepseek-h200`. Its source ownership remains in that
+submodule; the parent tracks the gitlink. Power uses local ACL and Runtime,
+and the model-owned `a3s-deepseek` crate depends on local Power without
+enabling an external inference backend by default. The nested Power lockfile
+is reconciled into the root lockfile rather than retained as a second lock.
+
+The pinned ONNX Runtime 2.0.0-rc.10 remains aligned with BGE/OCR. Its SmallVec
+2 alpha.10 pin conflicts with the optional Mistral backend's serde-saphyr
+0.0.16 and saphyr-parser-bw 0.0.605 dependencies on SmallVec 2 alpha.12.
+Both published sources are retained locally with their licenses and packaged
+tests; private container annotations use the stable SmallVec 1.x API
+(minimum 1.15.2). Parser logic, inline capacities and public APIs are preserved.
+The resolver selects compatible annotate-snippets 0.12.5 without changing
+the terminal's unicode-width pin. This is dependency reconciliation,
+not a new product configuration format. Provenance is in
+`source-manifest.json` and the native H200 evidence directory.
+
+Existing uncommitted Cargo/BGE/Power changes were snapshotted before this
+integration and remain separate from the native work. Build and test evidence
+is recorded as it completes; workspace membership alone does not establish
+DeepSeek model support or GPU performance.
+
+The model owner also contains effective-weight RMSNorm and an explicit-cache
+rotary tensor transform following the pinned DeepInfer contract. The rotary
+source's Apache/vLLM notices are retained in
+`crates/deepseek/licenses/Rotary-Apache-NOTICE.txt`. No upstream Python runtime
+is imported. The resumed implementation adds an FP32 cache-frequency factory;
+complete model/runtime integration and CUDA numerical qualification remain
+unfinished obligations.
+
+The resumed 2026-10-23 implementation retains the interrupted 281-test
+decoder/state checkpoint and adds exact official base-text weight bindings.
+All 40 layers' 93,415 declared tensor descriptors match independently audited
+official headers. Small effective BF16/F32 parameters use bounded Power-owned
+reads; FP8/MXFP4/Engram matrices retain explicit raw/scale layouts and row
+loading. The fixture is metadata only, not product configuration. Complete
+model composition, CUDA qualification and native deployment remain unfinished;
+the native H200 evidence records 287 passing CPU tests and existing workspace
+gate failures separately.
+
+The next T007 slice adds raw matrix upload in independently bounded,
+scale-block-aligned reads, actual official layer composition, sequential
+cross-layer top-k/candidate sharing and `forward_pending` execution through
+the complete backbone transaction. Model values remain on the selected
+device; bounded integer selection metadata is explicit host control. A
+failed layer poisons both the step plan and the uncommitted transaction.
+The 302-test CPU acceptance closes the task's operator/layer/state scope;
+SM90 kernels and GPU qualification remain T008, and the complete model
+loop, capacity placement and H200 model validation remain T009.
+
+T008 now adds original model-owned CUDA implementations for group-32 FP8
+MMA and a separately selected raw-quantized FP32 scalar control. The latter
+retains extreme checkpoint exponents without a BF16 intermediate. MXFP4
+nibbles convert losslessly to E4M3 only in registers. No SM100 kernel source
+was transplanted. The fragment coordinates follow CUDA 12.6 PTX ISA 8.5,
+section 9.7.15.4.10. Candle 0.10.2 and its existing cudarc/NVRTC dependency
+provide the stream/storage bridge; Power's F32 API and dependencies stay
+unchanged. Receipts identify the selected profile, source/PTX, compile flags
+and actual driver allocation attributes. Unsupported architecture, scale
+envelope or workspace refuses rather than selecting another profile.
+The 305 CPU tests, CUDA feature check, and SM90 assembly checks do not close
+T008's actual H200 numerical and adapter qualification. No native service
+or performance result is claimed from those checks.
+
+The sparse-index tensor control and packed group-32 FP4 encoder/decoder also
+remain model-owned Rust code. Scale rounding and E2M1 RNE/packing follow the
+fixed TileKernels contract; candidate selection follows DeepInfer. The index
+packed-scale boundary refuses zero/padding and nonfinite bytes, and does not
+change the general checkpoint E8M0 decoder. DeepSelect/DeepGEMM sources were
+audited without importing their kernels; GPU and complete-model proof remain
+unfinished. Exact references and format distinctions are retained in the
+native H200 evidence directory.
+
 The 2026-10-18 import copies the required Rust source snapshots from
 `../a3s` into a standalone Aster workspace. The OS/backend checkout remains separate; the later Desktop cleanup is
 recorded below. Package-level provenance is recorded in
@@ -306,6 +383,32 @@ Canonical asset hashes and original source paths are retained in
 The imported upstream README is kept under `docs/provenance`.
 Licenses stay with each component.
 
+The model-owned mHC tensor composition under `crates/deepseek/src/layers/mhc.rs`
+adapts the TileKernels Torch reference at revision
+`c1cf914a82e6901c679445f872051ce44ac2cc63` to Rust/Candle operations. It retains
+DeepSeek's MIT notice in `crates/deepseek/licenses/TileKernels-MIT.txt`.
+This is an unfused correctness path, not a GPU performance qualification or
+complete model import. Checkpoint metadata and shard identities are separately
+pinned and do not imply their payloads have already been verified.
+
+The subsequent model-owned Engram slice adds exact tokenizer compression,
+hash tables, image-boundary n-gram gathering/history and a tensor gate. The
+normalization/gathering semantics adapt DeepInfer revision
+`9bd9cf243fc53ef9afbf8f04d391d989117d6ab9`; its Apache-2.0 license is retained
+in `crates/deepseek/licenses/DeepInfer-Apache-2.0.txt`. The MIT TileKernels
+reference also informs Engram math and stable MoE selection/weighted SwiGLU.
+Public tokenizer/hash data, complete-map agreement and retained source hashes
+are documented in the model crate's fixture README. No user data, runtime
+credentials, external model server, or Xolotl implementation was imported.
+
+The pre-norm C1/C2 tensor state adapts the same DeepInfer compression reference.
+It snapshots proposals and keeps only one unmatched C2 row, with accepted-prefix
+commit and cancellation. The decoded sparse MQA control follows FlashMLA's
+reference attention/sink math at revision
+`2e5429fc5653bab6e081f09477126f731882a6a9`; its original MIT notice is retained
+in `crates/deepseek/licenses/FlashMLA-MIT.txt`. These are model components,
+not a complete KV cache, packed-cache CUDA implementation or deployed model.
+
 ## 2026-10-21 本地产品合并
 
 桌面宿主统一位于 `apps/studio`。`aster` 构建保留 AsterDream 原本地版的
@@ -329,3 +432,121 @@ Licenses stay with each component.
 ## 私有桌面子仓库边界
 
 用户授权将 `apps/studio` 改为 `git@github.com:kense-labs/studio.git` 的私有子仓库，父仓库仅锁定提交引用。`apps/work` 与 `apps/desktop` 已退出目录与构建。早期完整桌面源码及源码补丁从父仓库分支和标签历史清理；原始证据在私有子仓库保留。构建仍使用根 Cargo 工作区和锁文件，CI 需配置 `STUDIO_READ_TOKEN`。
+
+## 2026-10-23 原生 XQ 格式
+
+`crates/deepseek/src/weights/xq/` 与 `xq.rs` 按固定 Xolotl revision
+`b3452666e07a6374d06bb8c2185dffa271e8f65f` 实现 PTQ1_0、Q2_0、Q3_K、
+Q8_0、F16/F32 的有界行解码、I32 元数据读取和固定 XQ V3 GGUF 头解析。
+MIT 许可证保留于 `crates/deepseek/licenses/Xolotl-MIT.txt`，来源及哈希见
+`docs/evidence/power/2026-10-22-native-deepseek-h200/xq-codec-reference-manifest.json`。
+固定参考向量和真实头部描述对照不构成完整模型、CUDA dispatch、H200 性能、
+访问地址或 Key 的交付证明。没有新增 SDK、语言绑定或工作区。
+
+后续存储切片在 Power 增加模型中立的 `VerifiedRawWeightFile`：同一文件句柄
+执行完整 SHA256 校验并保留分块散列，后续范围读取验证被触及的完整块。
+模型所有者通过该公开边界绑定完整 XQ 身份、GGUF 行和独立 Gate/Up、Down
+专家分区。`cuda/xq.cu` 为原始混合量化字节增加显式 F32 warp 数学对照，
+保留上述格式来源及许可证；不常驻展开后的浮点权重，不注册完整推理后端。
+CUDA 12.6 的 NVRTC/SM90 编译和 Rust adapter 检查已通过，实际 H200 数值、
+完整生成、八卡效率及压力验收仍须单独完成。详细范围见实施证据。
+
+XQ 后续组件按同一固定版本的 `ds41_dense.cpp`、`ds41_ops.hpp` 与 GGUF
+导出 schema 区分官方 BF16/FP8 路径：F16 embedding/mHC 矩阵、F32 norm 与
+四路 shifted mHC trunk、carried pre mix、head reduction、Q8_0 output。
+新增 SM90 原始行 gather 对照，参数只通过 Power 已验证范围加载；没有将
+整个权重展开为 F32 或注册完整 XQ 生成后端。运行时源码 Git blob/SHA256
+清单见 `xq-runtime-reference-manifest.json`，许可证保持原样。组件 tests 和
+编译结果不构成真实 H200 执行或八卡服务交付。
+
+XQ Engram 后续切片按同版 `ds41_dense.cpp` / `ds41_engram.cpp` 核对并绑定
+完整导出 U32 token map 与官方压缩词表、精确层/表长/primes/multipliers。
+原始 sparse E4M3/E8M0 表仍由 Power 校验读取，F16 fused-KV 投影后执行先
+归一化的 F32 门控，保留图像位与 shifted mHC carry，不套用官方 BF16 gate。
+公开 token-map 小夹具、源散列及测试范围见 `xq-engram-*-audit.json` 和
+`xq-engram-components-acceptance.json`；无上游 CUDA/C++ 引擎依赖或完整
+原生服务的完成声明。
+
+XQ 后续逐层切片增加独立模型/config SHA 与原始 packed kernel 要求，
+从已验证 metadata 将 F32 数值绑定到 40 层及完整 53 参与者请求状态。
+`layers/xq/attention/sublayer.rs` 和 `weights/xq/load.rs` 组合原始投影、
+压缩/index/KV、共享选择与 FFN；失败会 poison 全部 pending state。
+该接线保留同版 Xolotl 数学来源和既有 DeepInfer topology/transaction
+Rust 适配的许可证。公开配置小夹具、来源及范围见
+`xq-loaded-pipeline-source-audit.json` / `xq-loaded-pipeline-components-acceptance.json`。
+尚未注册或交付完整原生推理服务，未将逐层硬件夹具称为整模或八卡验收。
+
+同一固定运行时的 MoE/FFN 组合现由 `layers/xq/moe.rs` 实现：F32 路由、
+原始混合 Q2_0/Q3_K/PTQ1_0 专家、Q8_0 共享分支，以及完整 shifted FFN
+子层。专家行投影借用完整常驻栈，驻留字节仍由完整所有者核算；路由权重在
+Down 投影后乘入，路由 lane 累加后再加共享分支，全程保留 F32 激活。
+数值来源仍为清单中固定的 `ds41_dense.cpp`/`ds41_moe.cpp`，许可证不变。
+组件、失败日志和编译证据见 `xq-moe-components-acceptance.json`；尚未完成
+H200 数值、attention/Engram/state、完整生成、服务或性能验收。
+
+XQ attention 后续增加原始 Q8_0 Q-A/Q-B/window/grouped-output 投影、独立
+F32 RoPE 入口和保留 F16 KV 边界的 F32 sparse MQA 对照。`layers/xq/quant.rs`
+按固定 `ds41_ops.hpp` 的 F32 除法实现三种激活编码，显式保留 window
+FP8/group32、compressed KV FP4/E4M3/group16 和 index FP4/pow2/group32。
+既有官方 BF16 编码及 RoPE/attention API 保持原合同；XQ F32 attention
+拒绝已开启的全局 TF32/reduced-precision GEMM 模式，不修改进程的设置。
+新组件的参数形状、整栈行借用、缓存快照及聚合预算都有明确边界；没有新增
+格式猜测、绑定、SDK 或工作区。仍须完成 compressor/indexer/Engram 与事务
+状态的整模接线和真实 H200/服务/性能验收。来源、范围和未验收项见
+`xq-attention-components-acceptance.json`。
+
+XQ 压缩/indexer 组件继续采用同一固定运行时：原始 F16 A/Gate/Q/K/head
+矩阵与 F32 激活、C1/C2 状态、norm 和分数。`CompressionNumerics` 明确区分
+默认官方 BF16 与 XQ F32，F32 接受前缀按 4 字节计费，C1 峰值和位置元数据
+单独有界；事务所有权、lease、取消及原子提交保持原机制。C2 的可见位置为
+pair end，RoPE 为 group start，两者分别传递；index K 使用归一化但尚未
+RoPE/量化的主 latent。XQ head 权重只缩放一次 `1/sqrt(128*heads)`，top-k
+前保留 F32 分数，候选末块按实际最大值加有限 `1e30`，不套用默认 BF16
+profile 的数值边界。来源 Git blob/SHA256 复核见 `xq-compressor-index-source-audit.json`。
+组件 CPU/构建证据不关闭真实 H200、完整 XQ Engram/backbone/model/service
+及性能验收；没有导入凭据或用户状态。
+
+2026-10-24 的原生 XQ 延续已完成真实 H200 组件资格验证，以及四个完整双卡
+副本同时驻留后的固定原始 token 生成。该结果仅覆盖有界冒烟，不代表通用
+文本质量或性能验收。新增进程 CUDA ordinal 与模型本地 rank 的显式映射，
+以及保持独立状态所有者、有界队列和取消的完整副本池；Power chat Backend
+通过类型化 composition 注入，默认引擎关闭。服务入口与限时凭据仍在验收。
+文本提示编码改编自官方 `encoding/encoding.py`，revision
+`1bae0e1088993b9b82de08f59de5be5a34e42170`，SHA-256
+`13231c592e958fb39e2af6001dae69d90e7a36b265702b9b390236fb387599e2`；
+保留 `crates/deepseek/licenses/DeepSeek-MIT.txt`，24 组独立官方编码器对照数据
+位于 `xq-text-prompts-golden.json`。当前仅支持明确的文本角色，工具、图像、
+跨请求缓存和长上下文不由这组对照宣称通过。
+
+2026-10-24 的原生 XQ 实例进一步通过实际 Windows 客户端的鉴权、文本与
+流式冒烟。新 CUDA Sinkhorn 是 Aster 原创的固定 4x4/20 迭代实现，保留
+XQ 的 FP32、epsilon 与归一化轴顺序；通过显式构建 feature 作为实验候选，
+原有 tensor control 保留。真实 H200 的独立标量与组件数值资格已通过，
+微内核提速不代表完整模型收益。另一个有限值标志融合候选仍待 H200 资格。
+用户明确的最终门槛为单个请求 1000 token/s，当前基本服务及短基线不能
+关闭该目标。来源、构建、逐项结果和未声明范围见原生部署 OUTCOME。
+
+后续有限值融合通过 H200 全套组件验证；短单请求端到端实测有改善，
+但冷暖差异与历史基线顺序尚未排除，不将全部差值归因于融合。新增原生
+单调时钟按实际生成 ID、整模步和副本记录 decode 边界，EOS 口径单列。
+该 Rust 计时和 Nsight 实验 operator 为 Aster 原创，未复制外部源码；
+指标放入 Power 已有受隐私开关保护的 `timings` 信封。中间 v25/v26
+隐私布局在部署前被否决并保留记录。单请求 1000 token/s 仍未通过。
+
+原生 XQ 的 v29 实验增加 Aster 原创、默认关闭的单模型步不可变 TensorId
+校验复用。首次有限/非负校验仍在原边界同步执行，失败阻止事务提交；
+固定容量元数据计入预算，离开模型步立即销毁，不保留 tensor/GPU 存储。
+范围仅覆盖不接受外部 tensor、无原地写入的私有原生执行图。Windows 449
+控制测试及 H200 451 控制/19 次 GPU 调用通过。重复校验微测试约快 29–33 倍，
+整模收益尚待四副本预热后的同源码 v29/v30 对照；不据此声称达到性能门槛。
+
+随后新增默认关闭的 Aster 原创 SM90 E4M3/E2M1 编解码融合实验，保留原 tensor
+对照、RNE 中点、负零、原 F32 归一化除法及拥有者预算/错误边界。450 项本地
+控制测试通过；初稿运行时编译头文件问题及修复记录均保留，修正源码已通过
+严格 NVRTC 编译。同源码 v33/v34 已构建并暂存，真实 GPU 数值及整模收益仍待验收。
+
+
+2026-10-24 的原生实验另保留默认关闭的只读 CUDA 输入视图复用；拥有者权重/KV 快照仍复制，原同步校验边界不变。452 项本地控制、20 项 operator、六项依赖守卫及同源码 v35/v36 Linux 构建通过，GPU 数值与整模收益未验证。用户另行要求的原版 Xolotl 试跑与原生实现分开记录，原生部署目标保持未完成。
+
+
+2026-10-24 按用户要求增补原版 Xolotl 单 H200 试跑，与 Rust 原生执行分开。外部源码仅在隔离部署工件中构建，未导入产品；MIT 通知、上游/ggml 提交、Aster 默认关闭的有界图元数据与保留读回 fence 的异步实验补丁及实机对照均已留证。当前用户门槛改为单 H200 单请求至少 500 token/s，尚未完成；没有凭据或用户会话导入。

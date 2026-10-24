@@ -1,5 +1,5 @@
-name: Check out private desktop sources
-description: Check out the desktop revision pinned by the parent gitlink.
+name: Check out pinned workspace submodules
+description: Check out the desktop and Power revisions pinned by the parent gitlinks.
 inputs:
   token:
     description: Read-only token for kense-labs/studio.
@@ -22,10 +22,19 @@ runs:
       run: |
         test "$(git ls-tree HEAD apps/studio | cut -d ' ' -f 1)" = 160000
         echo "sha=$(git rev-parse HEAD:apps/studio)" >> "$GITHUB_OUTPUT"
+        test "$(git ls-tree HEAD crates/power | cut -d ' ' -f 1)" = 160000
+        echo "power_sha=$(git rev-parse HEAD:crates/power)" >> "$GITHUB_OUTPUT"
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         repository: kense-labs/studio
         ref: ${{ steps.revision.outputs.sha }}
         path: apps/studio
         token: ${{ inputs.token }}
+        persist-credentials: false
+    - name: Check out public Power sources
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: A3S-Lab/Power
+        ref: ${{ steps.revision.outputs.power_sha }}
+        path: crates/power
         persist-credentials: false

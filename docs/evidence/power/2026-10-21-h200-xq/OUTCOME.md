@@ -74,13 +74,15 @@ continues. Its IP below is historical; no inference endpoint is currently ready.
   patched ggml, FQ_OP and HC_MIX enabled. The image lacks static cuBLAS archives;
   an explicit build-only option selects shared CUDA dependencies. Upstream's
   default static-link setting is preserved when the option is not supplied.
-- Operator helper tests: 42 passed in one combined run, 0 failed on the jump
+- Operator helper tests: 48 passed in one combined run, 0 failed on the jump
   host. Eighteen cover fetch integrity/resumption, network recovery and CDN reuse, two cover download destination
   boundaries, eight cover activation/process ownership/batch/readiness gates, three
   cover benchmark accounting, four cover sparse-file progress accounting, and
-  two prevent early/duplicate GPU reservation, and three cover separate winner
+  three prevent early/duplicate GPU reservation, and three cover separate winner
   qualification and reject incomplete long-context benchmark runs. Two check
   private download credentials and prevent sending them to unrelated proxies.
+  Five check nonweight preparation, corruption refusal, and replacement of a
+  previously successful readiness report after a failed check.
 - Three additional Windows Node proxy checks passed: anonymous access is
   rejected, invalid passwords are rejected, and authenticated clients cannot
   connect to an unlisted destination. They use synthetic credentials.
@@ -410,6 +412,129 @@ remain pending until all weights are available.
   live. This was a software upgrade, not a restart based on an observation
   timeout. See `network-retry-upgrade.json` for before/after byte counters and
   the exact source identity. Deferred GPU launcher PID 87716 was not restarted.
+- A subsequent 182.195-second observation confirmed those three exact PIDs
+  remained live and both download commands included `--retry-network`. Main
+  transferred counters advanced by 154237463 bytes and sidecar counters by
+  16969043 bytes; main completed-range counters also increased by one 32 MiB
+  range. Four authenticated tunnel probes passed, with 128 main and 16 sidecar
+  range workers observed. All 27 operator source hashes matched the local
+  manifest. See `network-retry-observation-summary.json` and the retained JSONL.
+  This verifies normal resumed transfer, not recovery from an injected live
+  outage; outage recovery is currently established by hermetic tests. No full
+  model part was published in this observation, and GPU inference is pending.
+
+## Exact-revision mirror probe
+
+- Following the endpoint substitution documented by [HF-Mirror](https://hf-mirror.com/),
+  checked the same pinned revision without credentials or global setting changes.
+  The Windows request returned the 1686-byte checksum manifest with its exact
+  pinned SHA-256, after 59.406 seconds. A separate 65536-byte model-prefix range
+  returned 206 after 75.781 seconds; its hash matched the corresponding bytes
+  already staged by the existing downloader.
+- The large-file probe redirected to `us.aws.cdn.hf.co`, the same CDN hostname
+  already used by the active downloader. Direct jump-host manifest and range
+  probes both hit their ten-second connection limits with HTTP 000 and zero
+  bytes. These measurements establish no faster alternative transfer path, so
+  no downloader or relay destination change was promoted. They do not prove
+  that every mirror path is unavailable. Full-part SHA-256 remains required.
+- Retained `hf-mirror-manifest-probe.json`, `hf-mirror-local-range-probe.json`
+  and `hf-mirror-jump-probe.json`. The active main and sidecar PIDs remained
+  217634 and 217779; deferred launcher 87716 was live, and all four authenticated
+  tunnels passed at the continuation snapshot.
+- A subsequent exact-path recheck of the documented public HF cache found no
+  directory for this repository and no pinned-revision parts. It cannot replace
+  the live download. The bounded lookup is retained in `shared-cache-recheck.json`;
+  it does not establish absence from every possible storage location.
+
+## Longer alternate-exit retest
+
+- The original five-second candidate scan retained no failure reasons. Retested
+  the same 88 explicitly configured proxy entries with the documented
+  [per-proxy delay API](https://wiki.metacubex.one/api/#proxiesproxies_namedelay),
+  allowing 30000 ms per request and 35 seconds at the controller client.
+  No provider configuration or credentials were copied into this repository.
+- All 88 requests returned HTTP 503 from the temporary core, with observed
+  durations 4.750 to 5.016 seconds; the full scan took 55.312 seconds. This
+  supplies no usable alternative exit. Increasing the outer timeout did not
+  change these responses; their timing alone does not establish the underlying
+  network or provider failure. Numeric records are retained in
+  `proxy-candidates-extended-summary.json`.
+- No selector update was needed. The owned temporary core PID 171772 exited
+  and was subsequently confirmed absent. The existing download relay and
+  remote download parents were not restarted. An optional request for an
+  already available faster exit was sent while resumable downloading continues.
+
+## HTTP/2 connection-reuse comparison
+
+- The default `/usr/local/bin/curl` 8.17.0 lacks HTTP/2. The system curl 7.81.0
+  initially loaded that same replacement library; selecting its system library
+  directory in only the test subprocess restored its matching libcurl 7.81.0
+  and nghttp2 1.43.0. No global loader or downloader setting was changed.
+- A real CDN range returned HTTP/2, status 206, and the exact expected 65536-byte
+  prefix. Used the [documented curl parallel mode](https://curl.se/docs/manpage.html)
+  to compare eight 256 KiB ranges in 45-second windows, with the same system
+  binary, proxy, signed URL and pinned model prefix. Signed URLs and credentials
+  stayed outside argv and evidence. Existing model downloaders stayed active,
+  so this is not an isolated full-model throughput comparison.
+- HTTP/1.1 opened eight connections and received 1673869 matching prefix bytes
+  in 45.016 seconds. HTTP/2 reused one connection and received 217996 matching
+  bytes in 45.008 seconds. Both bounded probes ended at their time limits; no
+  requested range completed and no model artifact was published. Reduced
+  connection count supplied no observed transfer improvement, so this candidate
+  was not promoted. This does not establish a universal HTTP/2 performance result.
+- Retained `http2-prefix-probe.json` and `http2-multiplex-comparison.json`.
+  Main and sidecar PIDs 217634 and 217779 remained live after the comparison.
+
+## Nonweight preparation readiness, 2026-10-22
+
+At 10:19 CST the jump-host launcher passed the new nonweight preflight and
+returned to waiting for weights without reserving GPUs. The deployment bundle
+is prepared in `/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq`.
+This is preparation readiness; model loading and real inference remain pending.
+
+- `remote_install.py --preflight` verifies eleven pinned archives, metadata and
+  small auxiliary files, decompresses and hashes the compatible Power binary,
+  checks both source revisions, verifies all 1376 ggml files by Git blob identity,
+  and checks all 28 operator files against `operator-files.json`. It reads no
+  GGUF weights and needs no GPU. See `nonweight-preflight.json`.
+- The prepared engine is the previously built H200 `sm_90` Release archive;
+  Power is the previously validated glibc 2.35 binary. The new installer still
+  rebuilds the engine and recreates or verifies Engram tables on the selected
+  node. Sources and build flags are staged, so these steps need no Internet
+  download. Engram data itself is weight data, sourced from the pinned public
+  snapshot mounted by the RJob.
+- The complete Linux operator run passed 48 tests, including corruption cases
+  and refusal to reserve GPUs when preparation is missing. See
+  `operator-tests-nonweight-preflight.log`. A failed preflight replaces a prior
+  successful readiness report rather than leaving a stale ready flag.
+- The exact eight-H200 submission command passed the installed RJob CLI with
+  `--dry-run=true`, exit code zero. No GPU reservation was requested by this
+  check. The command includes both shared mounts, host NVMe, the H200 tag,
+  resource requests and the validated container image; see
+  `nonweight-rjob-dry-run.json`. Actual resource availability is checked by the
+  scheduler when the weights are ready.
+- Generated 28 non-DSpark configurations across eight-stage, four two-card and
+  eight single-card layouts, checking KV packing, cache preservation, direct or
+  buffered reads, and one through sixteen slots per single-card replica. This
+  was configuration validation only, not GPU execution. The 21 baseline tuning
+  cases, optional DSpark profiles and draft depths 2/4/8/12 are prepared in the
+  campaign. DSpark still requires its sidecar's pinned SHA-256. See
+  `nonweight-config-check.json`.
+- Deliberately upgraded the owned deferred launcher from PID 87716 to 244040,
+  checking its old command, start identity and lock before terminating it. The
+  new process passed preflight and logged `WAITING_WITHOUT_GPU_RESERVATION`.
+  It rechecks preparation after all sixteen published parts appear and before
+  submission; the GPU installer checks again on entry. Main PID 217634 and
+  sidecar PID 217779 remained live with unchanged start identities. There was
+  no deployment submission record. See `deferred-preflight-upgrade.json`.
+
+Weight completion will trigger the prepared sequence: recheck preparation,
+submit one eight-H200 RJob, check actual hardware/NVMe, prepare engine and
+Engram data, check Power authentication, join and verify GGUF, start inference,
+then run correctness checks and compare throughput profiles. The authenticated
+Power endpoint uses port 30002 and the loopback Xolotl upstream uses 8150.
+Single-request and aggregate throughput have separate qualification and target
+flags. No 1000 tokens/s result has been measured.
 
 ## Validation to retain
 
@@ -428,7 +553,9 @@ remain pending until all weights are available.
 Operator helpers on the jump host:
 
 ```sh
-python3 -m unittest -v test_prepare_assets test_download_proxy test_service test_benchmark test_status test_deferred_launch test_autotune test_download_auth
+cd /mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq
+python3 remote_install.py --preflight
+python3 -m unittest -v test_prepare_assets test_download_proxy test_service test_benchmark test_status test_deferred_launch test_autotune test_download_auth test_remote_install
 python3 status.py --root /mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq
 ```
 

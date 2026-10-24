@@ -17,7 +17,7 @@
   },
   {
     "file": "deferred_launch.py",
-    "sha256": "4834b6541e4d40c2fab8cc5e371e55bde7c5041da11bbea452238653f51650d1"
+    "sha256": "40e2cdc38fa2dfda9d9ce8ac334ae839423b8b3706fecfa3d3f66a4d85ff9073"
   },
   {
     "file": "download_auth.py",
@@ -53,7 +53,7 @@
   },
   {
     "file": "remote_install.py",
-    "sha256": "60ae8d7e6cafa46d06da95b1f37927733712ac95b098e9683e20f3b072f43860"
+    "sha256": "df6e49c30cf89f820070478b32af6a675460491524e80cebe5b83d6ee4a03b78"
   },
   {
     "file": "service.py",
@@ -77,7 +77,7 @@
   },
   {
     "file": "test_deferred_launch.py",
-    "sha256": "8a825b8b18db6fd4819b5c0e2b04531b22552198ae3a5b8b63aafdda0b9577b7"
+    "sha256": "55003d19feabd2a905ec1722a67bf336762a6f9bd824e61dacf720ddecf93808"
   },
   {
     "file": "test_download_auth.py",
@@ -94,6 +94,10 @@
   {
     "file": "test_prepare_assets.py",
     "sha256": "f4add03ea333f2d22b74952897417dadae18b471e84b7e78ee64157dae275416"
+  },
+  {
+    "file": "test_remote_install.py",
+    "sha256": "a3eaadcb2bc85ccda5bbd1de3b3cb9d5133ca51241b0604dad3970d6665b600c"
   },
   {
     "file": "test_service.py",
