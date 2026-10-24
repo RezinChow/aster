@@ -13,8 +13,8 @@ use tower_http_cors_lite::CorsLayer;
 
 use crate::auth::authenticate;
 use crate::entitlement::{
-    is_entitled_api, is_entitled_model, spend_cap_usd, ENTITLED_API_SKUS, ENTITLED_MODEL_IDS,
-    ENTITLED_TOOL_SKUS,
+    entitled_apis, entitled_models, entitled_tools, is_entitled_api, is_entitled_model,
+    spend_cap_usd,
 };
 use crate::envelope::{err_envelope, ok_envelope, request_id_from, ApiEnvelope};
 use crate::providers::platform::deliver_platform_model;
@@ -179,9 +179,9 @@ async fn health(State(state): State<AppState>, headers: HeaderMap) -> Response {
         json!({
             "service": "a3s-runtime",
             "role": "data-plane-runtime",
-            "entitled_tools": ENTITLED_TOOL_SKUS.len(),
-            "entitled_apis": ENTITLED_API_SKUS.len(),
-            "entitled_models": ENTITLED_MODEL_IDS.len(),
+            "entitled_tools": entitled_tools().len(),
+            "entitled_apis": entitled_apis().len(),
+            "entitled_models": entitled_models().len(),
             "boyue_vault": vault.get_credential(VaultProviderId::Boyue, None).is_some(),
             "siliconflow_vault": vault.get_credential(VaultProviderId::Siliconflow, None).is_some(),
             "vault": vault.status(None),
@@ -196,8 +196,8 @@ async fn models(State(_state): State<AppState>, headers: HeaderMap) -> Response 
     if let Err(res) = require_auth(&headers, &request_id) {
         return res;
     }
-    let data: Vec<Value> = ENTITLED_MODEL_IDS
-        .iter()
+    let data: Vec<Value> = entitled_models()
+        .into_iter()
         .map(|id| {
             json!({
                 "id": id,
@@ -232,9 +232,9 @@ async fn usage(State(state): State<AppState>, headers: HeaderMap) -> Response {
                 "items": items,
                 "spend_usd": (spend * 1_000_000.0).round() / 1_000_000.0,
                 "spend_cap_usd": spend_cap_usd(),
-                "entitled_tools": ENTITLED_TOOL_SKUS,
-                "entitled_apis": ENTITLED_API_SKUS,
-                "entitled_models": ENTITLED_MODEL_IDS,
+                "entitled_tools": entitled_tools(),
+                "entitled_apis": entitled_apis(),
+                "entitled_models": entitled_models(),
             }),
             &request_id,
         ),
