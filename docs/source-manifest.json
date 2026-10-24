@@ -2941,7 +2941,7 @@
       "superseded_by": "server_access_1m"
     },
     "current_serving_optimization_roles": {
-      "unix": 1792865873.0148864,
+      "unix": 1792870784.1725898,
       "goal_objective": "深度完成单卡H200 DeepSeek v4.1 Flash 1M上下文 三值量化版本模型推理速度优化",
       "goal_met": false,
       "active_service": {
@@ -2979,18 +2979,21 @@
         "allocation_uid": "08538623-2284-45f9-b98a-7733bb70f32d",
         "gpu_uuid": "GPU-355373e1-1013-8629-4bee-c64f810da5a4",
         "lease_ends_unix": 1792884595.778009,
-        "current_profile": "v35_packed",
-        "binary_sha256": "fedf3b4199ec2c34915ca86b40f53656e27282763f34fa5eb0883b42e649eedd",
+        "current_profile": "indexer_mask_v44",
+        "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
         "production_promoted": false,
         "finite_basic_comparison_completed": true,
-        "full1m_candidate_qualified": false
+        "full1m_candidate_qualified": false,
+        "basic28_passed": true,
+        "qualified_v35_full1m_baseline": true,
+        "exact_live_fullwindow_suite": "qualification-suite-v45"
       },
       "maximum_allocated_h200": 2,
       "publication": {
         "parent_head_before_r3": "691564b0bbce7d5dfc3bf51bb0ec6585700a1e7e",
-        "evidence_revision": "ttft-1m-20261025/r3"
+        "evidence_revision": "ttft-1m-20261025/r4"
       },
-      "next_action": "Observe the exact packed V38 remainder/fullwindow clients; keep formal V31 unchanged until actual full-window correctness and speed qualification. Profile dense/indexer GPU work next; shorter35k prefill does not prove full1M speed or faster decode. Tool arguments and WorkBuddy acceptance remain open."
+      "next_action": "Observe exact live V45 client; compare completed actual1M against same-GPU V35. CPU-only V46 adapter is prepared, not GPU-qualified. Profile dense GPU work and compare attention sub-batches after the current suite finishes; keep formal V31 unchanged until qualification."
     },
     "server_access_131k": {
       "base_url": "http://10.102.93.68/v1",
@@ -3435,7 +3438,59 @@
           "three_position_retrieval_passed": true
         }
       ],
-      "full1m_candidate_qualified": false
+      "full1m_candidate_qualified": true,
+      "actual_full1m_prompt_tokens": 1048504,
+      "full1m_cache_restore_passed": true,
+      "full1m_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r4",
+      "same_gpu_full1m_cold_ttft_seconds": 2078.5043493108824,
+      "fullwindow_fixed_cache_load": [
+        {
+          "concurrency": 1,
+          "requests": 16,
+          "completion_tokens": 272,
+          "wall_seconds": 31.697999191004783,
+          "aggregate_end_to_end_completion_tok_s": 8.580983246323882,
+          "ttft_p50_seconds": 1.5445452337153256,
+          "ttft_p95_seconds": 1.573262416291982,
+          "request_p95_seconds": 2.0183987960917875,
+          "per_stream_interval_tok_s_estimate": 38.963203417281086
+        },
+        {
+          "concurrency": 2,
+          "requests": 16,
+          "completion_tokens": 272,
+          "wall_seconds": 25.926741359755397,
+          "aggregate_end_to_end_completion_tok_s": 10.491098600698432,
+          "ttft_p50_seconds": 2.3153983128722757,
+          "ttft_p95_seconds": 5.158946580020711,
+          "request_p95_seconds": 6.126490488997661,
+          "per_stream_interval_tok_s_estimate": 33.2319316143357
+        }
+      ]
+    },
+    "latest_masked_indexer_candidate": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r4",
+      "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
+      "basic28_passed": true,
+      "full1m_qualified": false,
+      "numerical_cases": 144,
+      "actual_graphs": 360,
+      "full_scores_byte_identical": true,
+      "memcheck_errors": 0,
+      "speed_gain_proven": false,
+      "production_promoted": false,
+      "current_suite_phase": "running"
+    },
+    "latest_combined_api_candidate": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r4",
+      "cpu_preflight_passed": true,
+      "exact_memo_mode_default": "0",
+      "complete_stream_cases": 64,
+      "actual_full1m_token_ids_identical": true,
+      "cpu_only_encode_baseline_median_seconds": 1.1792060369625688,
+      "cpu_only_encode_memo_hit_median_seconds": 0.026364211924374104,
+      "gpu_qualified": false,
+      "production_promoted": false
     }
   }
 }
