@@ -2941,7 +2941,7 @@
       "superseded_by": "server_access_1m"
     },
     "current_serving_optimization_roles": {
-      "unix": 1792880772.2164912,
+      "unix": 1792884496.2719736,
       "goal_objective": "深度完成单卡H200 DeepSeek v4.1 Flash 1M上下文 三值量化版本模型推理速度优化",
       "goal_met": false,
       "active_service": {
@@ -2979,7 +2979,7 @@
         "allocation_uid": "08538623-2284-45f9-b98a-7733bb70f32d",
         "gpu_uuid": "GPU-355373e1-1013-8629-4bee-c64f810da5a4",
         "lease_ends_unix": 1792884595.778009,
-        "current_profile": "off_repeat34f/S512/f062",
+        "current_profile": "native34f/S512/f062/memo1/local Engram; repeated original control",
         "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
         "production_promoted": false,
         "finite_basic_comparison_completed": true,
@@ -2989,14 +2989,18 @@
         "exact_live_fullwindow_suite": "qualification-suite-v45",
         "actual1m_plus1024_single_qualified": true,
         "full_concurrency_suite_passed": false,
-        "current_fullwindow_client_terminal": true
+        "current_fullwindow_client_terminal": true,
+        "actual1m_input_tested_this_round": false,
+        "latest_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r6",
+        "local_path_api_gain_observed": true,
+        "fp8_lut_adopted": false
       },
       "maximum_allocated_h200": 2,
       "publication": {
         "parent_head_before_r3": "691564b0bbce7d5dfc3bf51bb0ec6585700a1e7e",
-        "evidence_revision": "ttft-1m-20261025/r5"
+        "evidence_revision": "ttft-1m-20261025/r6"
       },
-      "next_action": "Diagnose concurrent-path continuation drift; test real English/WorkBuddy prefill with the exact local Engram tables; profile dense GPU/host routing for the unmet300 milestone. Preserve formal c016 and same VIP/key.",
+      "next_action": "Keep formal c016 unchanged. Rejected LUT has no isolated API gain; profile GPU/host execution and investigate exact concurrent-path outputs. New actual1M natural-input and full-window local-table tests remain required; any resource replacement follows exact terminal predecessor proof and max2 GPUs.",
       "serving": {
         "allocation_job": "aster-xolotl-1mc8-d1480eb0e2fd-90999078",
         "allocation_uid": "c016efa8-6e71-4501-8aff-08f7335d0b27",
@@ -3626,7 +3630,7 @@
       "speed300_met": false
     },
     "latest_engram_storage_candidate": {
-      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5",
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r6",
       "full_original_and_local_sha256_passed": true,
       "bytes": 203073077576,
       "sampled_blocks": 12,
@@ -3667,8 +3671,58 @@
           "sha256": "4348ae77716edf28744ad81434156b3a9ecccadc3c02277409033ca3572dd393"
         }
       ],
+      "model_api_gain_proven": true,
+      "production_promoted": false,
+      "model_api_gain_scope": "One finite same-GPU fresh-process GPFS/local/GPFS block; actual8244/25671 natural technical tokens; no shared OS-cache eviction",
+      "actual1m_input_tested": false,
+      "natural_and_tool_long_requests": 57,
+      "observed_gains": [
+        {
+          "case": "technical8244",
+          "local_ttft": 11.10151925496757,
+          "gpfs_controls": [
+            17.470967046916485,
+            15.061001709662378
+          ],
+          "observed_ttft_reduction_percent": [
+            36.457328176765586,
+            26.28963551710245
+          ]
+        },
+        {
+          "case": "technical25671",
+          "local_ttft": 21.91649690736085,
+          "gpfs_controls": [
+            29.255494167096913,
+            26.934768266044557
+          ],
+          "observed_ttft_reduction_percent": [
+            25.08587692218882,
+            18.63120302026141
+          ]
+        }
+      ]
+    },
+    "latest_engram_fp8_candidate": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r6",
+      "native_sha256": "1a1b3b902381770b108cb5177ad3e2880e1289be339d4587631c23158e680137",
+      "exact_cpu_scaled_cases": 262144,
+      "original_and_default_object_reproduced": true,
+      "native_control_reproduced": true,
+      "real_model_requests": 19,
+      "gpu_correctness_qualified": true,
       "model_api_gain_proven": false,
+      "repeat_control_rejected_speed_claim": true,
       "production_promoted": false
+    },
+    "latest_short_concurrency_probe": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r6",
+      "phase": "failed",
+      "requests": 8,
+      "concurrent_reference_matched": false,
+      "serial_post_matched": false,
+      "full1m_qualified": false,
+      "cause_proven": false
     }
   }
 }
