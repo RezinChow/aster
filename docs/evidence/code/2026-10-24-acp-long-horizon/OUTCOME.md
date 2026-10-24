@@ -1,6 +1,18 @@
-# ACP 长程任务执行记录（进行中）
+# ACP 长程任务执行记录（架构目标未完成）
 
-## Result
+## Current published checkpoint
+
+Aster CLI0.1.3 / Core+ACP9.1.5 is published at https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.3, from frozen source220562fe9912d72d7dedafb8b36b5655e1394d8f. The tag and public latest channel were independently checked. Exactly three platform archives and latest.json have matching uploaded server digests. Linux uses x86_64/glibc2.31; there is no special Kylin CLI archive or alias.
+
+The selected macOS release archive passed actual ACP20 (13 product workflows+7 auxiliary), protocol10, controlled compiler-VM H1 with19 independent checks, five real installer/version/updater/reinstall checks, and a real public-network updater check. H1 took25,266ms for the controlled workflow, with8 tools/7 original approval requests; its18 synthetic tokens are not real-model billing. Whole-test times include binary identity verification. Binary/manifest/tester and5681-source-file fences stayed unchanged. Windows CI passed two native install/rollback controls; Linux binaries both pass the glibc ceiling and depend only on base runtime libraries. These are stated component scopes, not130 fully qualified cases or real-model performance results.
+
+Mac CI was cancelled after over2h without an archive. The shipped Mac pair was built locally from the same pinned source and Rust1.97.1, using locked offline release/default features, in951.835s. Linux and Windows reuse successful run40110868267 archives. Local compiler features are retained; optional workflow features remain off. `release915three-qualification.json` binds this exact chosen subject. The first installer script assertion used the wrong JSON field spelling; its command log/red record is retained. Correct camelCase checks passed in a fresh isolated prefix without changing product code.
+
+The broader architecture objective is unfinished (goal-tool status blocked). Arbitrary never-returning persistence/export callbacks, complete crash/recovery and changing-argument/model-derived-output loops, full cross-platform/GUI/soak and real-model speed/token results remain unproved. Studio baseline gaps still block whole-workspace CI; the chat-exposed read-only token still needs restriction and rotation.
+
+## Historical checkpoints retained
+
+## Earlier result
 
 目标 active。规划已完成（120 个产品 case + 10 个测试系统自证、12 条主旅程、17 项任务）。T001–T003 基础设施部分已实现，尚未完成长程 ACP E2E 资格。未将基础测试或 provider 健康探针计为这些产品用例已通过。
 
@@ -304,3 +316,9 @@ scoped格式/差异、依赖6项、配对交付10项通过。全workspace format
 ## Explicitly not claimed
 
 130 项运行覆盖率、原 Rust 长程主旅程通过、完整 GUI/多平台/soak 资格、发布可靠性、ACP 行/分支覆盖率、完整传递源码冻结、全 workspace 已绿、生产优化已全部落地、部署或提交。旧真实上游原始 usage 未完整证明，相应原始 tokens 保持 unknown；人工脚本已观测数字不替真实模型背书。用户目标尚未完成；执行阶段继续推进。
+
+## Paired 9.1.5 release checkpoint
+
+The final isolated CLI0.1.3/ACP9.1.5 pair `3c601c086ffef3b3e86a13c0f71d19b49abc3dae` passed controlled actualACP20 (13 workflows plus7 auxiliary), protocol10 and H1 with19 independent checks. Core741 passed with2 existing ignored; all10 original admitted Goal slices settled (4 goals completed,2 intentionally stopped). See `../2026-10-24-v9.1.5/OUTCOME.md` and `final-qualification.json`. These are controlled-model/debug-pair results, not real-model performance or final multi-platform release bytes.
+
+`STUDIO_READ_TOKEN` was saved and metadata verified; no credential value was written to files. Run40101228548 proved private checkout on macOS/Linux/Windows but Kylin failed on Git ownership. The common resolver now trusts only the declared checkout for its two read commands; one hermetic red/green test also rejects the wrong workspace and preserves global Git settings. The glibc probe explicitly selects Bash. Unified source411c2ca8f is building in run40102189209. Public release and credential narrowing/rotation remain unfinished; the broader architecture goal is not complete.

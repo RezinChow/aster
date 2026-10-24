@@ -37,13 +37,32 @@
     "a3s-code-acp": "9.1.5"
   },
   "actual_acp_current_release": {
-    "qualified": false,
-    "reason": "user-directed compiled updater/platform changes require a fresh three-platform pair",
+    "qualified": true,
+    "reference": "../2026-10-24-acp-long-horizon/release915three-qualification.json",
+    "build_id": "aster-cli-pair-v1:2e83fbdba371677ab3ae7dad42b1a81bbde22010:aarch64-apple-darwin",
+    "acp": 20,
+    "protocol": 10,
+    "h1_independent_checks": 19,
+    "native_mac_smoke": 5,
+    "public_channel_updater": true,
     "core_source_unchanged": true,
-    "core_regression_passed": 741
+    "core_regression_passed": 741,
+    "core_existing_ignored": 2,
+    "scope": "Selected local release Mac bytes; original successful Linux/Windows CI archives separately checked; no real-model performance or full130-case claim"
   },
-  "public_release": "not yet published",
-  "remaining_goal": "active",
+  "public_release": {
+    "state": "published",
+    "url": "https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.3",
+    "source_commit": "220562fe9912d72d7dedafb8b36b5655e1394d8f",
+    "published_at": "2026-10-24T18:44:10Z",
+    "assets": 4,
+    "platforms": [
+      "macos",
+      "linux",
+      "windows"
+    ]
+  },
+  "remaining_goal": "incomplete; goal-tool status blocked",
   "public_log_normalization": [
     {
       "public_copy": "docs/evidence/code/2026-10-24-v9.1.5/core-confirmation.log",
@@ -158,9 +177,11 @@
     }
   ],
   "ci_current_run": {
-    "id": 40101228548,
-    "source_commit": "65ab9bb908ccc84663873c99e0d0425bad0cf874",
-    "status": "macOS/Linux/Windows private checkout passed and builds started; Kylin hit Git dubious-ownership before compilation; exact-workspace-only resolver fix passes the retained red/green control"
+    "id": 40110868267,
+    "source_commit": "220562fe9912d72d7dedafb8b36b5655e1394d8f",
+    "status": "cancelled intentionally for prolonged Mac compilation; Linux and Windows succeeded",
+    "macos_origin": "local pinned locked release fallback; not CI-built",
+    "macos_build_seconds": 951.835
   },
   "studio_checkout_ownership": {
     "passed": 1,
@@ -242,11 +263,32 @@
     "updater_tests": 2,
     "linux_contract_tests": 13,
     "pair_delivery_tests": 10,
-    "release_assembly_tests": 2,
+    "release_assembly_tests": 4,
     "linter": "actionlint1.7.12 passed; shellcheck and pyflakes not run",
     "linux_build_jobs": 2,
     "preflight_before_compile": true,
     "reuse_complete_artifacts_without_compile": true,
-    "report": "unified-linux-plan-and-checks.json"
+    "report": "unified-linux-plan-and-checks.json",
+    "archive_and_server_digest_checks": "all three archives plus latest.json verified"
+  },
+  "historical_ci_current_run": {
+    "id": 40101228548,
+    "source_commit": "65ab9bb908ccc84663873c99e0d0425bad0cf874",
+    "status": "macOS/Linux/Windows private checkout passed and builds started; Kylin hit Git dubious-ownership before compilation; exact-workspace-only resolver fix passes the retained red/green control"
+  },
+  "draft_lookup": {
+    "red": "draft-source-red.log",
+    "green": "draft-source-green.log",
+    "passed": 4,
+    "issue": "unpublished draft tag REST lookup returned404 even though draft existed; use gh release view targetCommitish, preserving draft/source refusal"
+  },
+  "integrated_main_ci": {
+    "id": 40113626695,
+    "status": "failure",
+    "reasons": [
+      "pinned Studio missing app_updater/os_feed_tests.rs",
+      "pinned Studio renderer imports absent knowledge modules"
+    ],
+    "checks_after_format": "not run"
   }
 }
