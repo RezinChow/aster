@@ -4,7 +4,7 @@ use super::native_response::{
     error_bytes_response, finish_native_response, BufferedResponsePipeline,
 };
 use super::protocol::{self, WsContext};
-use super::{GatewayState, ResponseBody, UpgradedSessionSender};
+use super::{healthy_backend_count, GatewayState, ResponseBody, UpgradedSessionSender};
 use crate::middleware::{Pipeline, RequestContext};
 use crate::observability::access_log::RequestAccessLog;
 use crate::observability::metrics::ServiceRequestGuard;
@@ -225,7 +225,11 @@ pub(super) async fn dispatch(
             if error.permits_pre_response_fallback() {
                 pipeline.observe_upstream_failure_with_request(request.extensions());
                 if let Some(passive_health) = state.passive_health.get(&route.service_name) {
-                    passive_health.record_error(&backend, status);
+                    passive_health.record_error_with_peers(
+                        &backend,
+                        status,
+                        healthy_backend_count(Some(&load_balancer)),
+                    );
                 }
             }
             tracing::warn!(
@@ -252,7 +256,11 @@ pub(super) async fn dispatch(
                 http::StatusCode::SWITCHING_PROTOCOLS,
             );
             if let Some(passive_health) = state.passive_health.get(&route.service_name) {
-                passive_health.record_response(&backend, 101);
+                passive_health.record_response_with_peers(
+                    &backend,
+                    101,
+                    healthy_backend_count(Some(&load_balancer)),
+                );
             }
             prepared
         }
@@ -261,7 +269,11 @@ pub(super) async fn dispatch(
             pipeline
                 .observe_upstream_response_with_request(request.extensions(), rejection.status());
             if let Some(passive_health) = state.passive_health.get(&route.service_name) {
-                passive_health.record_response(&backend, status);
+                passive_health.record_response_with_peers(
+                    &backend,
+                    status,
+                    healthy_backend_count(Some(&load_balancer)),
+                );
             }
             let mut response =
                 error_bytes_response(status, "WebSocket upstream rejected the handshake");

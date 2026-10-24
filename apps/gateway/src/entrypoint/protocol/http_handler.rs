@@ -134,7 +134,13 @@ pub async fn handle_http_dispatch(ctx: ProtocolContext) -> Response<ResponseBody
                             response.status,
                         );
                         if let Some(phc) = state.passive_health.get(&service_name) {
-                            phc.record_response(&backend, response.status.as_u16());
+                            phc.record_response_with_peers(
+                                &backend,
+                                response.status.as_u16(),
+                                crate::entrypoint::healthy_backend_count(
+                                    state.service_registry.get(&service_name).as_ref(),
+                                ),
+                            );
                         }
                         if allow_backend_reselection {
                             if let Some(next) = crate::entrypoint::select_retry_backend(
@@ -153,7 +159,13 @@ pub async fn handle_http_dispatch(ctx: ProtocolContext) -> Response<ResponseBody
                         let backend = observer_backend.load_full();
                         pipeline.observe_upstream_failure_with_request(&req_parts.extensions);
                         if let Some(phc) = state.passive_health.get(&service_name) {
-                            phc.record_error(&backend, proxy_error_status(error));
+                            phc.record_error_with_peers(
+                                &backend,
+                                proxy_error_status(error),
+                                crate::entrypoint::healthy_backend_count(
+                                    state.service_registry.get(&service_name).as_ref(),
+                                ),
+                            );
                         }
                         if allow_backend_reselection {
                             if let Some(next) = crate::entrypoint::select_retry_backend(
@@ -200,7 +212,13 @@ pub async fn handle_http_dispatch(ctx: ProtocolContext) -> Response<ResponseBody
                 );
 
                 if let Some(phc) = state.passive_health.get(&route.service_name) {
-                    phc.record_response(&backend, status_code);
+                    phc.record_response_with_peers(
+                                &backend,
+                                status_code,
+                                crate::entrypoint::healthy_backend_count(
+                                    state.service_registry.get(&route.service_name).as_ref(),
+                                ),
+                            );
                 }
 
                 let mut upstream_response = http::Response::new(proxy_resp.body);
@@ -757,7 +775,13 @@ pub async fn handle_http_dispatch(ctx: ProtocolContext) -> Response<ResponseBody
                 if error.permits_pre_response_fallback() {
                     pipeline.observe_upstream_failure_with_request(&req_parts.extensions);
                     if let Some(phc) = state.passive_health.get(&route.service_name) {
-                        phc.record_error(&backend, error_status);
+                        phc.record_error_with_peers(
+                                &backend,
+                                error_status,
+                                crate::entrypoint::healthy_backend_count(
+                                    state.service_registry.get(&route.service_name).as_ref(),
+                                ),
+                            );
                     }
                 }
 

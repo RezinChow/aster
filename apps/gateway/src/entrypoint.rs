@@ -399,6 +399,20 @@ impl AgentWakePlane {
     }
 }
 
+/// Healthy backend count for a service, as the passive health checker needs it.
+///
+/// A route without a load balancer fronts exactly one backend, so the answer
+/// is 1 — the checker then keeps it in rotation instead of ejecting the only
+/// upstream (Envoy `max_ejection_percent` semantics).
+///
+/// Every application-level response goes through this, including the protocol
+/// handlers. Pre-response dial failures keep calling the unguarded
+/// `record_error`: an unreachable upstream genuinely is unfit for traffic, and
+/// the request would have failed either way.
+pub(crate) fn healthy_backend_count(load_balancer: Option<&Arc<LoadBalancer>>) -> usize {
+    load_balancer.map_or(1, |balancer| balancer.healthy_count())
+}
+
 pub struct GatewayState {
     pub router_table: Arc<RouterTable>,
     /// SNI (`HostSNI`) routes used by TCP entrypoints.
@@ -899,7 +913,11 @@ async fn handle_direct_http_request(
                 .passive_health
                 .as_ref()
                 .expect("proxy routes bind passive health")
-                .record_response(backend, proxy_response.status.as_u16());
+                .record_response_with_peers(
+                    backend,
+                    proxy_response.status.as_u16(),
+                    healthy_backend_count(route_plan.load_balancer.as_ref()),
+                );
             if let Err(error) = agent_billing::settle(
                 state.agent_billing.as_ref(),
                 service_name,
@@ -931,7 +949,11 @@ async fn handle_direct_http_request(
                     .passive_health
                     .as_ref()
                     .expect("proxy routes bind passive health")
-                    .record_error(backend, status);
+                    .record_error_with_peers(
+                        backend,
+                        status,
+                        healthy_backend_count(route_plan.load_balancer.as_ref()),
+                    );
             }
             tracing::error!(error = %error, backend = backend.url, "Proxy error");
             let mut response = hyper::Response::new(ResponseBody::full(Bytes::from(
@@ -1290,7 +1312,11 @@ async fn run_idempotent_agent_request(
         }
     };
     if let Some(health) = state.passive_health.get(&route.service_name) {
-        health.record_response(&backend, proxy_response.status.as_u16());
+        health.record_response_with_peers(
+            &backend,
+            proxy_response.status.as_u16(),
+            healthy_backend_count(state.service_registry.get(&route.service_name).as_ref()),
+        );
     }
     let status = proxy_response.status;
     let mut headers = proxy_response.headers;

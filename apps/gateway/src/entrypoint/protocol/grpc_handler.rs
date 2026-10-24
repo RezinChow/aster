@@ -69,7 +69,13 @@ pub async fn handle_grpc_dispatch(
             );
 
             if let Some(phc) = state.passive_health.get(&route.service_name) {
-                phc.record_response(&backend, status_code);
+                phc.record_response_with_peers(
+                &backend,
+                status_code,
+                crate::entrypoint::healthy_backend_count(
+                    state.service_registry.get(&route.service_name).as_ref(),
+                ),
+            );
             }
 
             let mut resp_builder = http::Response::builder().status(grpc_resp.http_status);
@@ -171,7 +177,13 @@ pub async fn handle_grpc_dispatch(
             tracing::error!(error = %e, backend = backend.url, "gRPC proxy error");
             if e.permits_pre_response_fallback() {
                 if let Some(phc) = state.passive_health.get(&route.service_name) {
-                    phc.record_error(&backend, error_status);
+                    phc.record_error_with_peers(
+                &backend,
+                error_status,
+                crate::entrypoint::healthy_backend_count(
+                    state.service_registry.get(&route.service_name).as_ref(),
+                ),
+            );
                 }
             }
 

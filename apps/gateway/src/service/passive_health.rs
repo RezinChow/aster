@@ -135,8 +135,54 @@ impl PassiveHealthCheck {
         }
     }
 
-    /// Record an error response for a backend
+    /// Record one completed upstream response, knowing how many of the
+    /// service's backends are still healthy.
+    ///
+    /// This is the Envoy `max_ejection_percent` guard: the checker refuses to
+    /// eject the last healthy backend. With a single-backend service there is
+    /// nothing to fail over to, so ejection cannot improve availability — it
+    /// only turns one failing endpoint into a total outage for the whole
+    /// `recovery_time`. One panel returning 500 must not take every route down.
+    pub fn record_response_with_peers(
+        &self,
+        backend: &Arc<Backend>,
+        status_code: u16,
+        healthy_backends: usize,
+    ) {
+        if self.is_error_status(status_code) {
+            self.record_error_inner(backend, status_code, Some(healthy_backends));
+        } else if !backend.is_healthy() {
+            self.record_success(backend);
+        }
+    }
+
+    /// Record an error response for a backend.
+    ///
+    /// Callers that know the service's health should use
+    /// [`Self::record_error_with_peers`]; this entry point keeps the
+    /// unguarded behaviour for call sites without peer information.
     pub fn record_error(&self, backend: &Arc<Backend>, status_code: u16) {
+        self.record_error_inner(backend, status_code, None);
+    }
+
+    /// Record an error response for a backend, knowing how many of the
+    /// service's backends are still healthy. See
+    /// [`Self::record_response_with_peers`].
+    pub fn record_error_with_peers(
+        &self,
+        backend: &Arc<Backend>,
+        status_code: u16,
+        healthy_backends: usize,
+    ) {
+        self.record_error_inner(backend, status_code, Some(healthy_backends));
+    }
+
+    fn record_error_inner(
+        &self,
+        backend: &Arc<Backend>,
+        status_code: u16,
+        healthy_backends: Option<usize>,
+    ) {
         if !self.config.error_status_codes.contains(&status_code) {
             return;
         }
@@ -164,6 +210,15 @@ impl PassiveHealthCheck {
 
         // Check threshold
         if entry.errors.len() >= self.config.error_threshold as usize {
+            // Envoy-style guard against ejecting the last healthy backend.
+            if healthy_backends.is_some_and(|healthy| healthy <= 1) {
+                tracing::warn!(
+                    backend = backend.url,
+                    errors = entry.errors.len(),
+                    "Backend kept in rotation: last healthy backend (passive health check)"
+                );
+                return;
+            }
             backend.set_healthy(false);
             entry.marked_unhealthy_at = Some(now);
             tracing::warn!(
@@ -648,6 +703,62 @@ mod tests {
         assert!(
             !backend.is_healthy(),
             "threshold errors after half-open must re-mark the backend unhealthy"
+        );
+    }
+
+    // --- max-ejection guard (Envoy `max_ejection_percent` semantics) ---
+
+    #[test]
+    fn last_healthy_backend_is_never_ejected() {
+        let phc = PassiveHealthCheck::new(quick_config(2));
+        let backend = make_backend("http://127.0.0.1:8021");
+
+        // The service has this one backend and nothing to fail over to.
+        for _ in 0..10 {
+            phc.record_error_with_peers(&backend, 503, 1);
+        }
+        assert!(
+            backend.is_healthy(),
+            "ejecting the only healthy backend turns one bad endpoint into a total outage"
+        );
+    }
+
+    #[test]
+    fn ejection_is_allowed_while_a_peer_remains() {
+        let phc = PassiveHealthCheck::new(quick_config(2));
+        let backend = make_backend("http://127.0.0.1:8022");
+
+        phc.record_error_with_peers(&backend, 503, 2);
+        phc.record_error_with_peers(&backend, 503, 2);
+        assert!(
+            !backend.is_healthy(),
+            "with a peer still healthy the failing backend should leave rotation"
+        );
+    }
+
+    #[test]
+    fn response_entry_point_honours_the_guard() {
+        let phc = PassiveHealthCheck::new(quick_config(2));
+        let backend = make_backend("http://127.0.0.1:8023");
+
+        phc.record_response_with_peers(&backend, 500, 1);
+        phc.record_response_with_peers(&backend, 500, 1);
+        assert!(
+            backend.is_healthy(),
+            "record_response must apply the same guard as record_error"
+        );
+    }
+
+    #[test]
+    fn unguarded_entry_point_keeps_legacy_behaviour() {
+        let phc = PassiveHealthCheck::new(quick_config(2));
+        let backend = make_backend("http://127.0.0.1:8024");
+
+        phc.record_error(&backend, 503);
+        phc.record_error(&backend, 503);
+        assert!(
+            !backend.is_healthy(),
+            "callers without peer information keep the previous ejection behaviour"
         );
     }
 }
