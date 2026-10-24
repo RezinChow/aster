@@ -268,6 +268,11 @@ async fn call_verify(
             InferenceAccessError::Unavailable
         })?;
     let status = response.status();
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Err(InferenceAccessError::SpendLimited {
+            retry_after_secs: 1,
+        });
+    }
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
         return Err(InferenceAccessError::Unauthorized);
     }
