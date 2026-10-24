@@ -106,8 +106,8 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            build-essential ca-certificates curl git pkg-config protobuf-compiler \
-            python3 libssl-dev
+            build-essential ca-certificates cmake curl git pkg-config \
+            python3 libssl-dev unzip
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Check out pinned desktop sources
         uses: ./.github/actions/checkout-studio
@@ -123,6 +123,17 @@ jobs:
             2.31) ;;
             *) echo "error: this job must build on glibc 2.31, found ${version}" >&2; exit 1 ;;
           esac
+      - name: Install pinned protoc
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/protoc-29.3-linux-x86_64.zip"
+          protoc_dir="${RUNNER_TEMP}/protoc-29.3"
+          curl -fsSL --retry 3 "https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-linux-x86_64.zip" -o "$archive"
+          printf '%s  %s\n' '3e866620c5be27664f3d2fa2d656b5f3e09b5152b42f1bedbf427b333e90021a' "$archive" | sha256sum --check -
+          unzip -q "$archive" -d "$protoc_dir"
+          "$protoc_dir/bin/protoc" --version
+          echo "$protoc_dir/bin" >> "$GITHUB_PATH"
       - name: Install pinned toolchain
         shell: bash
         run: |

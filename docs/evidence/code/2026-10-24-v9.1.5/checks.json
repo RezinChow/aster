@@ -140,6 +140,12 @@
       "raw_sha256": "cbf0054a7b922908843a620138ba48fe142dd241b598b0008dfc782e82a5958c",
       "normalized_sha256": "cbf0054a7b922908843a620138ba48fe142dd241b598b0008dfc782e82a5958c",
       "scope": "line-end and excess final blank whitespace removed; original log retained"
+    },
+    {
+      "public_copy": "kylin-protoc-red.log",
+      "raw_sha256": "e6c0275406ad1ed52c1584b350640ddc67c08387dec142c324e8866570d63e69",
+      "normalized_sha256": "8f300c25b27bfe55c6f06eeb26ad5871c1784e9cf02f13e20ba156a74aa18923",
+      "scope": "line-end and excess final blank whitespace removed from the bounded failure excerpt; full original CI log and raw fragment retained"
     }
   ],
   "ci_current_run": {
@@ -167,5 +173,20 @@
     "result": "command-line safe.directory still rejected in the Ubuntu20 container; later source-identity build scripts also need trusted Git reads",
     "log": "studio-checkout-old-git-ci.log",
     "raw_log_sha256": "fcf8809db2aba340c620111873155a9ae0f5436ea9d8ca9b86955eb6418aff56"
+  },
+  "workflow_validation": {
+    "tool": "actionlint1.7.12",
+    "upstream_binary_sha256": "aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f",
+    "old_rust_workflow_red": true,
+    "current_ci_and_release_passed": true,
+    "shellcheck_and_pyflakes": "not run"
+  },
+  "kylin_protoc": {
+    "old_run": 40103045893,
+    "old_failure": "Ubuntu20 protoc refuses existing proto3 optional fields",
+    "pinned_version": "29.3",
+    "archive_sha256": "3e866620c5be27664f3d2fa2d656b5f3e09b5152b42f1bedbf427b333e90021a",
+    "prebuilt_elf_glibc_ceiling": "2.31 passed with repository checker and LLVM readelf; actual container run pending",
+    "raw_old_ci_log_sha256": "eda87b2e9dca23009c9c13360bd8d2d1658109891c3fe15963e8cd453a8c6ef4"
   }
 }
