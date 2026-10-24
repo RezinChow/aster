@@ -3,7 +3,8 @@
 
 use super::*;
 use crate::unattended::result::{
-    classify_failure, persist_result, ExecutionPhase, RunProgress, TerminalReason,
+    classify_failure, persist_result, ExecutionDeadline, ExecutionPhase, RunProgress,
+    TerminalReason,
 };
 use crate::unattended::{
     bind_continuation, first_prompt, host_admission_step, host_verification_report,
@@ -119,7 +120,7 @@ impl A3sCodeAgent {
         };
         loop {
             if progress.duration_ms() >= unattended.max_execution_ms {
-                bail!("A3S Code execution deadline exceeded");
+                return Err(ExecutionDeadline.into());
             }
             progress.turns += 1;
             progress.phase = ExecutionPhase::Streaming;
@@ -369,7 +370,7 @@ impl A3sCodeAgent {
             self.emit_turn_outcome(session_id, outcome).await;
         }
         if expired {
-            bail!("A3S Code execution deadline exceeded");
+            return Err(ExecutionDeadline.into());
         }
         Ok(Attempt::Ended {
             turn_permit,

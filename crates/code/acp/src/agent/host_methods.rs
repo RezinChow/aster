@@ -14,6 +14,7 @@ pub(super) enum HostMethod {
     GoalCommand,
     Review,
     WikiSearch,
+    MemoryManage,
     CompactConversation,
     Interject,
     SessionInfo,
@@ -24,12 +25,13 @@ pub(super) enum HostMethod {
 
 impl HostMethod {
     #[cfg(test)]
-    pub(super) const ALL: [Self; 11] = [
+    pub(super) const ALL: [Self; 12] = [
         Self::GoalImport,
         Self::GoalImportPreview,
         Self::GoalCommand,
         Self::Review,
         Self::WikiSearch,
+        Self::MemoryManage,
         Self::CompactConversation,
         Self::Interject,
         Self::SessionInfo,
@@ -51,6 +53,7 @@ impl HostMethod {
             | "a3s/goal/state" => Self::GoalCommand,
             "a3s/review/target" | "a3s/review/admit" | "a3s/review/settle" => Self::Review,
             "a3s/wiki/search" => Self::WikiSearch,
+            "a3s/memory/manage" => Self::MemoryManage,
             "x.ai/session/info" => Self::SessionInfo,
             "x.ai/session/list" => Self::SessionList,
             "x.ai/session/delete" => Self::SessionDelete,
@@ -69,6 +72,7 @@ impl HostMethod {
             Self::GoalCommand => "a3s/goal/",
             Self::Review => "a3s/review/",
             Self::WikiSearch => "a3s/wiki/search",
+            Self::MemoryManage => "a3s/memory/manage",
             Self::CompactConversation => "x.ai/compact_conversation",
             Self::Interject => "x.ai/interject",
             Self::SessionInfo => "x.ai/session/info",
@@ -92,6 +96,7 @@ impl A3sCodeAgent {
             HostMethod::GoalCommand => self.handle_goal_command(args).await,
             HostMethod::Review => self.handle_review(args).await,
             HostMethod::WikiSearch => answer_wiki_search(args).await,
+            HostMethod::MemoryManage => self.handle_memory_management(args).await,
             HostMethod::CompactConversation => self.handle_compact_extension(args).await,
             HostMethod::Interject => self.handle_interject(args).await,
             HostMethod::SessionInfo => self.handle_session_info(args).await,

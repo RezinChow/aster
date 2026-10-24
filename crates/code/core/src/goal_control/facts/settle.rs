@@ -200,6 +200,7 @@ pub(super) fn fold_settle(
     session_id: &str,
     workspace: &WorkspaceRef,
     policy_digest: Option<&str>,
+    continuation: &mut run::ContinuationUsage,
 ) -> Result<(String, String, DurableGoalDefinitionV1, bool), GoalControlError> {
     let current = current.ok_or_else(|| refused(GoalRefusal::NotFound, "goal is absent"))?;
     let stored = SettledFact::deserialize(&fact.payload)
@@ -246,21 +247,41 @@ pub(super) fn fold_settle(
             "slice settlement differs from its original Run",
         ));
     }
-    let mutated = crate::fact_control::goal_slice_made_progress(
+    let (legacy_mutated, changes) = crate::fact_control::goal_slice_workspace_evidence(
         prefix,
         body.run_sequence,
         session_id,
         &body.run_id,
     );
-    // A slice with any nonzero turn dimension made progress even without a
-    // workspace mutation — the read-only task's lifeline (specs/010 P2).
-    // Facts predating the field carry None and stay mutation-only.
+    let admission = run::RunFact::deserialize(&slice.payload)
+        .map_err(|_| refused(GoalRefusal::Conflict, "invalid settled slice admission"))?;
+    let basis = admission
+        .body
+        .continuation
+        .as_ref()
+        .and_then(|source| source.progress_basis);
+    let strict = basis == Some(run::ProgressBasis::TurnProgressDeltaV3);
+    let net_progress = continuation.observe_workspace_changes(changes)?;
+    let mutated = if strict { net_progress } else { legacy_mutated };
+    let reduction_only = admission.body.continuation.as_ref().is_some_and(|source| {
+        matches!(
+            source.progress_basis,
+            Some(run::ProgressBasis::TurnProgressDeltaV2 | run::ProgressBasis::TurnProgressDeltaV3)
+        )
+    });
+    // Preserve historical admissions; new slices cannot earn retries by growing debt.
     let progressed = mutated
+        || (strict && body.step_sequence.is_some())
         || body.progress.is_some_and(|delta| {
+            let uncertainty_progress = if reduction_only {
+                delta.uncertainty_delta > 0
+            } else {
+                delta.uncertainty_delta != 0
+            };
             delta.information_delta > 0
-                || delta.mutation_delta > 0
-                || delta.uncertainty_delta != 0
-                || delta.plan_delta > 0
+                || (!strict && delta.mutation_delta > 0)
+                || uncertainty_progress
+                || (!strict && delta.plan_delta > 0)
         });
     Ok((
         stored.operation_id,

@@ -9,8 +9,8 @@
 //! Markdown report, writes it to `A3S_ACP_CONFORMANCE_REPORT` when that is
 //! set, and fails if any case fails.
 //!
-//! On macOS the guest backend points at a stub shim (as in
-//! `approval_rules_stdio.rs`), so a bash call reaches the permission ask.
+//! On macOS declaration-only OCI companions let rejected Bash calls reach
+//! approval; activation markers prove these cases never start a companion.
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
@@ -21,6 +21,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::{json, Value};
+#[path = "long_horizon/artifact.rs"]
+mod artifact;
+#[path = "long_horizon/candidate.rs"]
+mod candidate;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdin, ChildStdout};
 
@@ -222,6 +226,29 @@ impl Fixture {
             ),
         )
         .expect("config");
+        if cfg!(target_os = "macos") {
+            let assets = tmp.join("permission-assets");
+            std::fs::create_dir_all(assets.join("bundle/rootfs/bin")).expect("OCI fixture");
+            for path in ["system-image.json", "bundle/config.json"] {
+                std::fs::write(assets.join(path), "{}").expect("declaration-only OCI file");
+            }
+            std::fs::write(
+                assets.join("bundle/rootfs/bin/bash"),
+                "not an executable backend",
+            )
+            .expect("declaration-only Bash");
+            for name in ["a3s-oci", "a3s-oci-krun-shim"] {
+                let path = assets.join(name);
+                std::fs::write(
+                    &path,
+                    "#!/bin/sh\nprintf activated > \"$0.started\"\nexit 91\n",
+                )
+                .expect("activation sentinel");
+                use std::os::unix::fs::PermissionsExt as _;
+                std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+                    .expect("sentinel mode");
+            }
+        }
         Self {
             _root: root,
             workspace,
@@ -230,6 +257,22 @@ impl Fixture {
             tmp,
             config,
         }
+    }
+
+    fn no_companion_started(&self) -> Outcome {
+        for name in ["a3s-oci", "a3s-oci-krun-shim"] {
+            if self
+                .tmp
+                .join("permission-assets")
+                .join(format!("{name}.started"))
+                .exists()
+            {
+                return Err(format!(
+                    "rejected/cancelled protocol fixture activated {name}"
+                ));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -243,18 +286,13 @@ struct Wire {
 
 impl Wire {
     fn launch(fixture: &Fixture) -> Self {
-        let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_a3s-code-acp"));
+        let binary = candidate::Candidate::acp_binary(
+            env!("CARGO_BIN_EXE_a3s-code-acp"),
+            env!("ASTER_PAIR_BUILD_ID"),
+        );
+        let mut command = tokio::process::Command::new(binary);
         if cfg!(target_os = "macos") {
-            let image = fixture.tmp.join("guest-image.json");
-            let shim = fixture.tmp.join("guest-shim");
-            std::fs::write(&image, "{}").expect("stub image");
-            std::fs::write(&shim, "#!/bin/sh\nexit 1\n").expect("stub shim");
-            use std::os::unix::fs::PermissionsExt as _;
-            std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755))
-                .expect("shim mode");
-            command
-                .env("A3S_CODE_GUEST_SYSTEM_IMAGE", image)
-                .env("A3S_CODE_KRUN_SHIM", shim);
+            command.env("ASTER_SANDBOX_DIR", fixture.tmp.join("permission-assets"));
         }
         let mut child = command
             .arg("--cwd")
@@ -384,9 +422,13 @@ impl Wire {
         .await
     }
 
-    async fn stop(mut self) {
-        let _ = self.child.kill().await;
-        let _ = self.child.wait().await;
+    async fn stop(&mut self) -> Outcome {
+        let _ = self.child.start_kill();
+        tokio::time::timeout(Duration::from_secs(5), self.child.wait())
+            .await
+            .map_err(|_| "owned ACP process did not settle".to_string())?
+            .map(|_| ())
+            .map_err(|error| format!("reap owned ACP process: {error}"))
     }
 }
 
@@ -485,10 +527,18 @@ async fn run_case(id: &str, model: &Model) -> Outcome {
         "cancel-in-flight" => cancel_in_flight(&mut wire, &fixture, model).await,
         "permission-request-shape" => permission_request_shape(&mut wire, &fixture).await,
         "permission-cancelled" => permission_cancelled(&mut wire, &fixture).await,
-        "load-replays-history" => load_replays_history(wire, &fixture).await,
+        "load-replays-history" => load_replays_history(&mut wire, &fixture).await,
         other => Err(format!("no case {other}")),
     };
-    outcome
+    let failures = [outcome, wire.stop().await, fixture.no_companion_started()]
+        .into_iter()
+        .filter_map(Result::err)
+        .collect::<Vec<_>>();
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("; "))
+    }
 }
 
 async fn initialize_version(wire: &mut Wire, fixture: &Fixture) -> Outcome {
@@ -501,7 +551,7 @@ async fn initialize_version(wire: &mut Wire, fixture: &Fixture) -> Outcome {
             json!({"protocolVersion": 99, "clientCapabilities": {}}),
         )
         .await;
-    newer.stop().await;
+    newer.stop().await?;
     let response = response?;
     ensure!(
         result_of(&response)?["protocolVersion"] == 1,
@@ -678,15 +728,15 @@ async fn permission_cancelled(wire: &mut Wire, fixture: &Fixture) -> Outcome {
     Ok(())
 }
 
-async fn load_replays_history(mut wire: Wire, fixture: &Fixture) -> Outcome {
+async fn load_replays_history(wire: &mut Wire, fixture: &Fixture) -> Outcome {
     wire.initialize().await?;
     let session = wire.new_session(&fixture.workspace).await?;
     let id = wire.prompt(&session, "SAY: remembered reply").await?;
     let response = wire.response(id).await?;
     ensure!(stop_reason(&response)? == "end_turn", "{response}");
-    wire.stop().await;
+    wire.stop().await?;
 
-    let mut wire = Wire::launch(fixture);
+    *wire = Wire::launch(fixture);
     let outcome = async {
         let result = wire.initialize().await?;
         ensure!(
@@ -724,7 +774,6 @@ async fn load_replays_history(mut wire: Wire, fixture: &Fixture) -> Outcome {
         Ok(())
     }
     .await;
-    wire.stop().await;
     outcome
 }
 
@@ -732,10 +781,12 @@ async fn load_replays_history(mut wire: Wire, fixture: &Fixture) -> Outcome {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn acp_v1_conformance() {
+    let filter = std::env::var("A3S_ACP_CONFORMANCE_CASE").ok();
+    let cases = selected_cases(filter.as_deref()).expect("known exact conformance case required");
     let model = spawn_model();
     let mut rows = Vec::new();
     let mut failed = Vec::new();
-    for (id, requirement) in CASES {
+    for (id, requirement) in &cases {
         let outcome = run_case(id, &model).await;
         let cell = match &outcome {
             Ok(()) => "pass".to_string(),
@@ -749,8 +800,8 @@ async fn acp_v1_conformance() {
     let report = format!(
         "# a3s-code-acp {} ACP v1 conformance\n\n{} of {} cases pass. Client: raw JSON-RPC over stdio (`acp/tests/acp_conformance_stdio.rs`), scripted local model.\n\n| Case | ACP v1 requirement | Result |\n|---|---|---|\n{}\n",
         env!("CARGO_PKG_VERSION"),
-        CASES.len() - failed.len(),
-        CASES.len(),
+        cases.len() - failed.len(),
+        cases.len(),
         rows.join("\n")
     );
     println!("{report}");
@@ -766,4 +817,46 @@ async fn acp_v1_conformance() {
         "ACP conformance failures:\n{}",
         failed.join("\n")
     );
+}
+
+fn selected_cases(filter: Option<&str>) -> Result<Vec<(&'static str, &'static str)>, String> {
+    match filter {
+        None => Ok(CASES.to_vec()),
+        Some(id) => CASES
+            .iter()
+            .find(|(case, _)| *case == id)
+            .copied()
+            .map(|case| vec![case])
+            .ok_or_else(|| "unknown ACP conformance case filter".into()),
+    }
+}
+
+#[test]
+fn case_filter_selects_exactly_one_known_case_and_refuses_unknown_names() {
+    assert_eq!(selected_cases(None).unwrap().len(), CASES.len());
+    assert_eq!(
+        selected_cases(Some("permission-request-shape")).unwrap()[0].0,
+        "permission-request-shape"
+    );
+    for invalid in [
+        "",
+        "permission",
+        "permission-request-shape,permission-cancelled",
+    ] {
+        assert!(selected_cases(Some(invalid)).is_err());
+    }
+}
+
+#[test]
+fn activation_oracle_detects_a_started_companion_without_launching_one() {
+    let model = Model {
+        addr: "127.0.0.1:1".parse().unwrap(),
+        slow_seen: Arc::new(AtomicBool::new(false)),
+    };
+    let fixture = Fixture::new(&model);
+    assert!(fixture.no_companion_started().is_ok());
+    let assets = fixture.tmp.join("permission-assets");
+    std::fs::create_dir_all(&assets).unwrap();
+    std::fs::write(assets.join("a3s-oci.started"), "activation control").unwrap();
+    assert!(fixture.no_companion_started().is_err());
 }

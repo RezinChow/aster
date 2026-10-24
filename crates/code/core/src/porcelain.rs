@@ -67,6 +67,10 @@ pub(crate) struct Snapshot {
     /// This directory is a git worktree, including when `status` itself
     /// failed. A failed git read must not fall through to the file walk.
     git_worktree: bool,
+    /// The parent repository ignores this entire workspace root.
+    // shortcut: ignored descendants of an ordinary Git root need a separate coverage proof.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    ignored_root: bool,
 }
 
 impl Snapshot {
@@ -77,7 +81,7 @@ impl Snapshot {
     /// Digest, counts, and read flags. The prepared fact is bounded at 1 MiB.
     /// The status list and stamps stay in memory for the command delta.
     fn receipt_summary(&self) -> Value {
-        serde_json::json!({
+        let mut summary = serde_json::json!({
             "head": self.head,
             "git_worktree": self.git_worktree,
             "status_count": self.porcelain.as_ref().map(Vec::len),
@@ -90,7 +94,11 @@ impl Snapshot {
             "stamps_incomplete": self.stamps_incomplete,
             "stamp_read_failed": self.stamp_read_failed,
             "hidden_index_budget": self.hidden_index_budget,
-        })
+        });
+        if self.ignored_root {
+            summary["ignored_root"] = Value::Bool(true);
+        }
+        summary
     }
 }
 
@@ -134,12 +142,31 @@ impl Watch {
 
     pub(crate) async fn start(root: &Path) -> Self {
         let snapshot = snapshot(root).await;
-        let files = if snapshot.observes_git() {
+        let files = if snapshot.observes_git() && !snapshot.ignored_root {
             None
         } else {
             Some(index_files(root).with_content(root))
         };
         Self { snapshot, files }
+    }
+
+    fn child_baseline(&self, task_id: &str) -> ChildMarker {
+        // Git cannot reconstruct a file-index baseline after its owner is lost.
+        let nongit = self.files.is_some();
+        ChildMarker {
+            task_id: task_id.to_string(),
+            porcelain: if nongit {
+                None
+            } else {
+                self.snapshot.porcelain.clone()
+            },
+            head: if nongit {
+                None
+            } else {
+                self.snapshot.head.clone()
+            },
+            nongit,
+        }
     }
 
     pub(crate) async fn finish(self, root: &Path) -> Vec<String> {
@@ -368,6 +395,12 @@ pub(crate) async fn snapshot(root: &Path) -> Snapshot {
     let porcelain = status.records;
     let status_budget = status.budget;
     let git_worktree = porcelain.is_some() || status_budget || inside_work_tree(root).await;
+    let ignored = if git_worktree {
+        workspace_ignored(root).await
+    } else {
+        Some(false)
+    };
+    let ignored_root = ignored == Some(true);
     let mut byte_budget = OBSERVATION_BYTE_CAP;
     let mut path_budget = FILE_WALK_CAP;
     let (mut stamps, mut stamps_incomplete, stamp_failed) = match &porcelain {
@@ -379,8 +412,9 @@ pub(crate) async fn snapshot(root: &Path) -> Snapshot {
     // delta. Hitting the stamp budget on a fully read status list cannot
     // either be treated as a missed read: that froze every later mutating
     // call on a worktree that was already dirtier than FILE_WALK_CAP.
-    let mut stamp_read_failed =
-        stamp_failed || (porcelain.is_none() && !status_budget && git_worktree);
+    let mut stamp_read_failed = stamp_failed
+        || (porcelain.is_none() && !status_budget && git_worktree)
+        || ignored.is_none();
     let mut hidden_index_budget = false;
     if porcelain.is_some() {
         match hidden_index_paths(root).await {
@@ -416,6 +450,31 @@ pub(crate) async fn snapshot(root: &Path) -> Snapshot {
         hidden_index_budget,
         status_budget,
         git_worktree,
+        ignored_root,
+    }
+}
+
+async fn workspace_ignored(root: &Path) -> Option<bool> {
+    let status = tokio::time::timeout(
+        GIT_QUERY_TIMEOUT,
+        tokio::process::Command::new("git")
+            .args(["check-ignore", "--quiet", "--no-index", "."])
+            .env("GIT_OPTIONAL_LOCKS", "0")
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true)
+            .status(),
+    )
+    .await;
+    match status {
+        Ok(Ok(status)) => match status.code() {
+            Some(0) => Some(true),
+            Some(1) => Some(false),
+            _ => None,
+        },
+        _ => None,
     }
 }
 
@@ -561,7 +620,9 @@ async fn command_delta(root: &Path, before: &Snapshot, attribute_revision: bool)
     if matches!(names, RevisionNames::Budget) {
         observed.budget_exceeded = true;
     }
-    observed.incomplete |= before.stamp_read_failed || after.stamp_read_failed;
+    observed.incomplete |= before.stamp_read_failed
+        || after.stamp_read_failed
+        || before.ignored_root != after.ignored_root;
     // A stable status line needs both metadata stamps. New status paths are
     // already candidates; an unstamped existing dirty path is a real gap.
     let mut coverage_budget = before.hidden_index_budget || after.hidden_index_budget;
@@ -945,12 +1006,22 @@ pub(crate) struct RunWatch {
 impl RunWatch {
     pub(crate) async fn start(root: &Path) -> Self {
         let snapshot = snapshot(root).await;
-        let files = if snapshot.observes_git() {
+        let files = if snapshot.observes_git() && !snapshot.ignored_root {
             None
         } else {
             Some(index_files(root))
         };
         Self { snapshot, files }
+    }
+
+    pub(crate) async fn baseline_changes(&self, root: &Path) -> PathDelta {
+        let mut observed = command_delta(root, &self.snapshot, true).await;
+        if self.snapshot.ignored_root {
+            // The file index owns this root's paths; Git omits ignored files.
+            observed.paths.clear();
+        }
+        observed.paths = source_paths(observed.paths);
+        observed
     }
 
     pub(crate) fn porcelain(&self) -> Option<Vec<String>> {
@@ -2108,16 +2179,14 @@ pub(crate) struct ChildMarker {
 
 /// Attach a watch that already started, before the writer is spawned.
 pub(crate) fn install_workspace_child(task_id: &str, watch: Watch) {
-    let porcelain = watch.snapshot.porcelain.clone();
-    let head = watch.snapshot.head.clone();
-    let nongit = !watch.snapshot.observes_git();
+    let marker = watch.child_baseline(task_id);
     lock_slots().insert(
         task_id.to_string(),
         std::sync::Arc::new(ChildSlot {
             watch: std::sync::Mutex::new(Some(watch)),
-            porcelain: std::sync::Mutex::new(porcelain),
-            head: std::sync::Mutex::new(head),
-            nongit: std::sync::atomic::AtomicBool::new(nongit),
+            porcelain: std::sync::Mutex::new(marker.porcelain),
+            head: std::sync::Mutex::new(marker.head),
+            nongit: std::sync::atomic::AtomicBool::new(marker.nongit),
             settled: std::sync::Mutex::new(None),
             abandoned: std::sync::atomic::AtomicBool::new(false),
             notify: tokio::sync::Notify::new(),
@@ -2172,19 +2241,17 @@ pub(crate) async fn begin_workspace_child(task_id: &str, root: &Path) {
     let Some(slot) = lock_slots().get(task_id).cloned() else {
         return;
     };
-    let porcelain = watch.snapshot.porcelain.clone();
-    let head = watch.snapshot.head.clone();
-    let nongit = !watch.snapshot.observes_git();
+    let marker = watch.child_baseline(task_id);
     *slot
         .porcelain
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = porcelain;
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = marker.porcelain;
     *slot
         .head
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = head;
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = marker.head;
     slot.nongit
-        .store(nongit, std::sync::atomic::Ordering::SeqCst);
+        .store(marker.nongit, std::sync::atomic::Ordering::SeqCst);
     *slot
         .watch
         .lock()
@@ -2397,6 +2464,7 @@ pub(crate) fn snapshot_from_parts(
         hidden_index_budget: false,
         status_budget: false,
         git_worktree,
+        ignored_root: false,
     }
 }
 

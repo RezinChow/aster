@@ -18,7 +18,14 @@ pub(super) async fn owned_conversation_worker(
         OwnedConversationRequest::Prompt { goal_tick, .. } => goal_tick.take(),
         _ => None,
     };
-    let resolved: Result<_> = async {
+    let deadline = goal_tick
+        .as_deref()
+        .map(|(_, source)| source.policy.deadline_unix_ms.get());
+    let cancellation = captured.preparation.cancellation.clone();
+    let deadline_store = Arc::clone(&captured.finish.run_store);
+    let deadline_original = Arc::clone(&original);
+    let deadline_events = events.clone();
+    let mut execution = Box::pin(async {
         let request_inputs: Result<_> = async {
             let resolved = match request {
                 OwnedConversationRequest::Prompt {
@@ -299,8 +306,51 @@ pub(super) async fn owned_conversation_worker(
             events,
         )
         .await
-    }
-    .await;
+    });
+    let resolved: Result<_> = tokio::select! {
+        biased;
+        error = automatic_goal_deadline(deadline) => {
+            cancellation.cancel();
+            let expired = match &error {
+                CodeError::Internal(cause) => cause.chain().any(|cause| matches!(
+                    cause.downcast_ref::<crate::goal_control::GoalControlError>(),
+                    Some(crate::goal_control::GoalControlError::Refused {
+                        refusal: crate::goal_control::GoalRefusal::DeadlineExpired, ..
+                    })
+                )),
+                _ => false,
+            };
+            if expired {
+                if let (Some(deadline), Ok(run)) = (deadline, deadline_original.created_handle()) {
+                    // Report expiry without publishing a terminal before real settlement.
+                    let notice = AgentEvent::BudgetThresholdHit {
+                        resource: "goal_deadline_unix_ms".into(),
+                        kind: "hard".into(),
+                        consumed: deadline as f64,
+                        limit: deadline as f64,
+                        message: Some(format!("{error}; cancellation requested; original owner settlement is pending")),
+                    };
+                    deadline_store.record_event(run.id(), notice.clone()).await;
+                    let _ = deadline_events.try_send(notice);
+                }
+            }
+            // The original worker must prove settlement before its lease can retire.
+            let stopped = execution.as_mut().await;
+            if let Ok(run) = deadline_original.created_handle() {
+                let event = AgentEvent::Error { message: error.to_string() };
+                deadline_store.record_event(run.id(), event.clone()).await;
+                let _ = deadline_events.try_send(event);
+            }
+            Err(match stopped {
+                Ok(_) => error,
+                Err(stopped) => CodeError::Internal(
+                    anyhow::Error::new(error).context(format!("stopped Run: {stopped}")),
+                ),
+            })
+        }
+        resolved = execution.as_mut() => resolved,
+    };
+    drop(execution);
     match resolved {
         Ok(Some(answer)) => {
             let _ = result.send(Ok(answer));
@@ -314,6 +364,27 @@ pub(super) async fn owned_conversation_worker(
             }
         }
     }
+}
+
+async fn automatic_goal_deadline(deadline: Option<u64>) -> CodeError {
+    let Some(deadline) = deadline else {
+        return std::future::pending().await;
+    };
+    let now = match super::super::goal_facade::host_clock_unix_ms() {
+        Ok(now) => now,
+        Err(error) => return error,
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(
+        deadline.saturating_sub(now),
+    ))
+    .await;
+    CodeError::Internal(
+        crate::goal_control::GoalControlError::Refused {
+            refusal: crate::goal_control::GoalRefusal::DeadlineExpired,
+            reason: "automatic continuation deadline has expired",
+        }
+        .into(),
+    )
 }
 
 pub(super) struct OwnedFactExecution {

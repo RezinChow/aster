@@ -207,6 +207,7 @@ fn studio_host_keeps_the_budget_line_in_the_session_options() {
         guidelines: "每次都带上".to_string(),
         review_subagent: true,
         source_review: false,
+        office_tools: false,
         output_language: Some("zh-CN".to_string()),
         assets: None,
     };

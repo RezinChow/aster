@@ -522,11 +522,8 @@ description. Auxiliary helper protocols record an identity projection instead
 of pretending that the Session Profile governed their host-owned Tool list.
 The event is part of the existing `EventEnvelopeV1` journal and SDK catalogs.
 
-Node.js exposes a typed Profile object with a closed generated mode enum.
-Python exposes four static Profile constructors with read-only identity. Go
-exposes a named mode type, constants, and a Profile constructor. These SDK
-values all map to the same Rust type; no SDK accepts a primitive Profile name
-as the Session extension option.
+Rust hosts pass `ToolPresentationProfileV1` through typed Session options.
+The profile chooses presentation only; it does not grant execution authority.
 
 This cut deliberately does not consume an A3S Use cursor, publish a Code
 catalog generation, resolve a package, compute a Grant, install a Tool, or own
@@ -648,7 +645,7 @@ Validation snapshots compatibility Hook definitions and handlers in one fixed
 `hooks`-then-`handlers` lock order. A conflict with either map, an orphaned
 compatibility handler name, or a duplicate projected name fails before the
 catalog CAS. Equal-priority execution is canonical by Hook ID. The official
-Node.js, Python, and Go bridges publish and remove complete registrations
+Rust hosts publish and remove complete registrations
 through Core's atomic `register_hook_registration` and
 `unregister_hook_registration` methods; piecemeal Rust methods remain only for
 compatibility.
@@ -1055,7 +1052,7 @@ concerns and produce typed contributions.
 | `CAP-PROJ1` | Delivered | Closed typed runtime values, immutable projected catalogs, typestate contribution transactions, generation/digest CAS publication, and final-lease retirement | Failed prepare, validation, cancellation, dropped transaction, and commit-race paths leave the current generation unchanged and retain every prepared effect for reverse cleanup |
 | `CAP-DEP1` | Delivered | Bounded surface readiness DAG | Only published surface edges are ordered; Code does not resolve packages or become general DI |
 | `HOST-CAP1` | Delivered | Core exposes one atomic projection contract; the resident CLI publishes one exact Use managed MCP/Skill/reviewed Runtime Tool/Knowledge Surface/dependency-closed Flow/UI generation, while CLI/Work one-shot execution publishes its bounded managed-MCP/Skill/UI cut | Old Runs and host handles retain N and its exact Use lease, new admissions see N+1, every new Run/checkpoint records its catalog and ceiling identity, recovery rejects N/N+1 drift or bootstraps one exact historical batch on a fresh Session, failed preparation never advances the generation, immutable OKF readiness remains distinct from singular cognitive Knowledge, one-shot watchers stop before Run admission, scoped HTTP Runtime/Gateway composition is lazy and Session-owned, and Work requires exact Code/Use evidence |
-| `CAP-PROFILE1` | Delivered | Run-frozen typed Tool presentation over the same pinned executor values | Permission filtering precedes Profile projection; name/schema identity and deterministic order are preserved, code mode rephrases only the existing `program` definition, child runs cannot broaden, and exact Session resume plus Rust/Node.js/Python/Go parity pass |
+| `CAP-PROFILE1` | Delivered | Run-frozen typed Tool presentation over the same pinned executor values | Permission filtering precedes Profile projection; name/schema identity and deterministic order are preserved, code mode rephrases only the existing `program` definition, child runs cannot broaden, and exact Session resume plus Rust/ACP host projection checks pass |
 | `HOST-AGENT1` | Delivered | Core projects Agent definitions into one Run-frozen registry shared by automatic and Tool-driven delegation | Canonical alias conflicts fail before publication, compatibility registration cannot shadow a published Agent, N Runs delegate through N after an N+1 cutover, and the exact N Use lease remains held through foreground child completion |
 | `HOST-COMMAND1` | Delivered | Core dispatches blocking and streaming slash Commands through one Run-frozen registry | Built-in and compatibility conflicts fail before publication, legacy registration cannot shadow a published Command, N execution remains on N after an N+1 cutover, and the exact N Use lease remains held through Command execution |
 | `HOST-HOOK1` | Delivered | Core composes projected Hook bindings through one Run-frozen executor | Definition/handler pairs remain generation-exact, invalid Run event scopes and compatibility conflicts fail before publication, external `Skip` cannot bypass projected policy, and supervised observations retain the exact Use lease through bounded settlement |
@@ -1120,7 +1117,7 @@ behavior. The complete program requires:
 - failed transactions leaving no visible contribution or orphaned effect;
 - no retained task, process, socket, file lock, temporary file, or generation
   after bounded close and churn/soak;
-- Rust, Node.js, Python, and Go descriptor/snapshot parity; and
+- Rust descriptor/snapshot contract checks; and
 - Cloud contract fixtures and `compat/cloud-stack.acl` updates only when a
   cross-Cloud protocol changes.
 
@@ -1147,7 +1144,7 @@ unchanged. The new internal snapshot initially derives the existing v1 event.
 Once stable, Code may add a separately versioned `CapabilityScopeSnapshotV1`
 and event rather than appending fields to v1.
 
-Node.js, Python, and Go receive serializable descriptors, snapshot identities,
+Rust hosts receive serializable descriptors, snapshot identities,
 and explicit typed APIs. They do not receive a Rust capability map. Existing
 single-surface registration methods remain compatibility adapters for one major
 release and must delegate to the same transaction path before removal.

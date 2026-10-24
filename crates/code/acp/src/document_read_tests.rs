@@ -152,7 +152,7 @@ impl agent_client_protocol::Client for Host {
     }
 }
 fn observation(root: &Path) -> Value {
-    json!({"path":root.join("note.txt"),"released":true,"snapshot":{"documentId":"native-model","uri":url::Url::from_file_path(root.join("note.txt")).unwrap(),"version":2,"text":"unsaved text","dirty":true,"diskConflict":false}})
+    json!({"path":root.join("note.txt"),"released":true,"snapshot":{"documentId":"native-model","uri":url::Url::from_file_path(root.join("note.txt")).unwrap().to_string(),"version":2,"text":"unsaved text","dirty":true,"diskConflict":false}})
 }
 fn connect(bridge: &DocumentBridge, host: Rc<Host>) -> Vec<tokio::task::JoinHandle<()>> {
     let (left, right) = tokio::io::duplex(1024 * 1024);

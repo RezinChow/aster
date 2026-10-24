@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "a3s-code-acp"
-version = "9.1.4"
+version = "9.1.5"
 dependencies = [
  "a3s-acl",
  "a3s-code-core",
@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "a3s-code-core"
-version = "9.1.4"
+version = "9.1.5"
 dependencies = [
  "a3s-acl",
  "a3s-apofasi",
@@ -971,6 +971,7 @@ dependencies = [
  "a3s-dirs",
  "a3s-fast-worktree",
  "a3s-file-utils",
+ "a3s-form-core",
  "a3s-hooks-plugins-types",
  "a3s-interjection-core",
  "a3s-prompt-queue",
@@ -2781,6 +2782,8 @@ dependencies = [
  "a3s-use-core",
  "lopdf",
  "pdf-inspector",
+ "serde",
+ "serde_json",
  "sha2 0.10.9",
  "zip 7.2.0",
 ]
@@ -2989,6 +2992,7 @@ dependencies = [
  "a3s-acl",
  "a3s-boot",
  "a3s-flow",
+ "a3s-form-core",
  "a3s-okf",
  "a3s-studio-data-sqlite",
  "a3s-use-core",
@@ -4048,7 +4052,7 @@ checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
 
 [[package]]
 name = "aster"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "a3s-acp-lib",
  "a3s-code-config",

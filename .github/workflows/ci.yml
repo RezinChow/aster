@@ -33,6 +33,20 @@ jobs:
         run: python3 tests/just_work.py
       - name: Install pinned toolchain
         run: rustup show active-toolchain
+      - name: Install static guest targets
+        run: rustup target add aarch64-unknown-linux-musl x86_64-unknown-linux-musl
+      - name: Static guest linker hardening
+        run: python3 tests/musl_linker_flags.py
+      - name: Compile current static guest agents
+        run: |
+          rust_host="$(rustc -vV | sed -n 's/^host: //p')"
+          rust_lld="$(rustc --print sysroot)/lib/rustlib/$rust_host/bin/rust-lld"
+          test -x "$rust_lld"
+          for guest_target in aarch64-unknown-linux-musl x86_64-unknown-linux-musl; do
+            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$rust_lld" \
+            CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER="$rust_lld" \
+              cargo build --locked --release --target "$guest_target" -p a3s-oci-agent --bin a3s-oci-agent
+          done
       - name: Format
         run: cargo fmt --all -- --check
       - name: Internal dependency boundary
@@ -80,10 +94,23 @@ jobs:
         run: cargo test --locked -p a3s-studio-data-sqlite -p a3s-studio-desktop-contract
       - name: ACP integration
         run: cargo test --locked -p a3s-code-acp --test v912_seam
+      - name: Core long-task ownership and consent contracts
+        run: cargo test --locked -p a3s-code-core --lib -- agent_api::goal_facade::tests fact_control:: goal_control:: hitl:: tool_confirmation:: --test-threads=4
+      - name: ACP long-task foundation contracts
+        run: |
+          cargo test --locked -p a3s-code-acp --test long_horizon_contracts --test long_horizon_preflight --test long_horizon_real_llm --test long_horizon_rust_stdio
+          cargo test --locked -p a3s-code-acp --features headless-search --test long_horizon_contracts --test long_horizon_preflight --test long_horizon_real_llm --test long_horizon_rust_stdio
+      - name: macOS ACP wire conformance
+        if: runner.os == 'macOS'
+        run: cargo test --locked -p a3s-code-acp --test acp_conformance_stdio
+      - name: Search feature contracts
+        run: |
+          cargo test --locked -p a3s-code-core --lib tools::builtin::web_search::tests
+          cargo test --locked -p a3s-code-core --features headless-search --lib tools::builtin::web_search::tests
       - name: Workspace retrieval contracts
         run: |
           cargo test --locked -p a3s-code-core --lib -- tools::builtin::search workspace::retrieval::tests::hybrid_query agent_api::retrieval_tests permissions:: --test-threads=4
-          cargo test --locked -p a3s-code-acp --lib -- local_embedding retrieval_seam session_setup execution_capabilities --test-threads=4
+          cargo test --locked -p a3s-code-acp --lib -- local_embedding retrieval_seam session_setup execution_capabilities host_context registration_cleanup --test-threads=4
           cargo test --locked -p a3s-code-acp --test shipped_tui_e2e retrieval::shipped_retrieval_stdio -- --test-threads=1
       - name: Logo cache and rendering
         run: cargo test --locked -p a3s-code-pager --lib views::welcome

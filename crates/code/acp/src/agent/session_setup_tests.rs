@@ -445,7 +445,7 @@ async fn source_review_has_no_tools_even_after_a_yolo_mode_change() {
     let mut launch = super::test_launch(Some(root.path().join("sessions")));
     launch.workspace = root.path().into();
     let host = A3sCodeAgent::new(launch);
-    let meta = json!({"a3sHost":{"sourceReview":true}})
+    let meta = json!({"a3sHost":{"sourceReview":true,"officeTools":true}})
         .as_object()
         .unwrap()
         .clone();
@@ -505,13 +505,75 @@ async fn source_review_has_no_tools_even_after_a_yolo_mode_change() {
         .presented_tool_definitions("Read private.txt.")
         .unwrap()
         .is_empty());
-    for name in ["office_read", "office_file", "output_check"] {
-        assert!(ordinary
+    for name in ["office_read", "office_file"] {
+        assert!(!ordinary
             .tool_definitions()
             .iter()
             .any(|tool| tool.name == name));
     }
+    assert!(ordinary
+        .tool_definitions()
+        .iter()
+        .any(|tool| tool.name == "output_check"));
     ordinary.close().await;
+}
+
+#[tokio::test]
+async fn office_tools_follow_only_the_explicit_host_capability() {
+    let root = tempfile::tempdir().unwrap();
+    let mut launch = super::test_launch(Some(root.path().join("sessions")));
+    launch.workspace = root.path().into();
+    let agent = A3sCodeAgent::new(launch);
+    for (metadata, enabled) in [
+        (serde_json::json!({}), false),
+        (serde_json::json!({"a3sHost":{"officeTools":false}}), false),
+        (serde_json::json!({"a3sHost":{"officeTools":true}}), true),
+    ] {
+        let opened = agent
+            .new_session(
+                acp::NewSessionRequest::new(root.path())
+                    .meta(metadata.as_object().unwrap().clone()),
+            )
+            .await
+            .unwrap();
+        let session = agent
+            .sessions
+            .lock()
+            .await
+            .get(opened.session_id.0.as_ref())
+            .unwrap()
+            .session
+            .clone();
+        let tools = session
+            .presented_tool_definitions("Create an Office workbook.")
+            .unwrap();
+        for name in ["office_read", "office_file"] {
+            assert_eq!(
+                tools.iter().any(|tool| tool.name == name),
+                enabled,
+                "{name}"
+            );
+        }
+        assert!(tools.iter().any(|tool| tool.name == "output_check"));
+        session.close().await;
+    }
+}
+
+#[tokio::test]
+async fn malformed_office_capability_refuses_before_session_admission() {
+    let root = tempfile::tempdir().unwrap();
+    let mut launch = super::test_launch(Some(root.path().join("sessions")));
+    launch.workspace = root.path().into();
+    let agent = A3sCodeAgent::new(launch);
+    let metadata = serde_json::json!({"a3sHost":{"officeTools":"true"}});
+    let error = agent
+        .new_session(
+            acp::NewSessionRequest::new(root.path()).meta(metadata.as_object().unwrap().clone()),
+        )
+        .await
+        .unwrap_err();
+    assert!(format!("{error:?}").contains("officeTools must be a boolean"));
+    assert!(agent.sessions.lock().await.is_empty());
 }
 
 #[tokio::test]

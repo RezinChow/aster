@@ -1,0 +1,40 @@
+{
+  "core_confirmation": {
+    "passed": 84,
+    "failed": 0,
+    "log": "core-confirmation.log",
+    "scope": "same Core source and 9.1.5 manifests in primary workspace; exact release-worktree linked regression follows"
+  },
+  "locked_paired_check": {
+    "passed": true,
+    "log": "paired-check.log",
+    "scope": "isolated release source, both CLI and ACP"
+  },
+  "dependencies": {
+    "passed": 6
+  },
+  "cli_pair_delivery": {
+    "passed": 10
+  },
+  "musl_linker_flags": {
+    "passed": 2
+  },
+  "format": {
+    "whole_workspace_passed": true,
+    "scoped_passed": true,
+    "baseline_format_only_files": [
+      "apps/gateway/src/entrypoint/protocol/grpc_handler.rs",
+      "apps/gateway/src/entrypoint/protocol/http_handler.rs",
+      "apps/gateway/src/entrypoint/protocol/streaming_handler.rs"
+    ],
+    "foreign_primary_worktree_changes_untouched": true
+  },
+  "versions": {
+    "aster": "0.1.3",
+    "a3s-code-core": "9.1.5",
+    "a3s-code-acp": "9.1.5"
+  },
+  "actual_acp_current_release": "pending isolated candidate qualification",
+  "public_release": "not yet published",
+  "remaining_goal": "active"
+}

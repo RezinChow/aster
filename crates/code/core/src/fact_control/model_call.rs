@@ -2,6 +2,36 @@
 
 use super::*;
 
+pub(super) fn run_execution_cycle(
+    surface: &SessionSurface,
+    facts: &[a3s_effect::Fact],
+) -> Result<Option<receipts::ExecutionCycle>, ActorError> {
+    let threshold = surface.agent.duplicate_tool_threshold();
+    if surface.agent.is_child_run() {
+        return Ok(receipts::child_execution_cycle(facts, threshold));
+    }
+    let Some(run_id) = surface.run_id.as_deref() else {
+        return Ok(None);
+    };
+    let binding = surface
+        .agent
+        .checkpoint_capability_binding()
+        .ok_or_else(|| {
+            ActorError::Schema(
+                "tool_effect_admission_missing: original Run has no capability binding".into(),
+            )
+        })?;
+    let digest = crate::content_digest::digest_json("a3s.code.tool-admission-binding.v1", binding)
+        .map_err(|error| ActorError::Schema(error.to_string()))?;
+    Ok(receipts::execution_cycle(
+        facts,
+        &thread_for_session(&surface.session_id),
+        run_id,
+        &digest,
+        threshold,
+    ))
+}
+
 pub(super) fn interrupted_response() -> crate::llm::LlmResponse {
     crate::llm::LlmResponse {
         message: Message::assistant("(Response interrupted by the user.)"),

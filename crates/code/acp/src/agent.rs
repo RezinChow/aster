@@ -21,6 +21,7 @@ mod extensions;
 mod goal_ext;
 mod host_methods;
 mod local_embedding;
+mod memory_management;
 mod models;
 mod permission_ask;
 mod permission_state;
@@ -527,6 +528,7 @@ fn remember_denies(live: &mut LiveSession) {
 /// ACP agent that owns live [`AgentSession`] values keyed by ACP session id.
 pub struct A3sCodeAgent {
     launch: LaunchConfig,
+    managed_memory: Arc<a3s_code_core::durable_memory_vec::LazyFileMemoryStore>,
     /// Set once the stdio `AgentSideConnection` is built (chicken/egg with
     /// ACP ctor). `Rc`-shared so the sampling consent consumer (spawned on
     /// the same LocalSet) reads the live connection.
@@ -613,9 +615,13 @@ fn model_picker_description(provider_name: &str) -> String {
 impl A3sCodeAgent {
     pub fn new(launch: LaunchConfig) -> Self {
         let model_id = launch.model_id.clone();
+        let managed_memory = Arc::new(a3s_code_core::durable_memory_vec::LazyFileMemoryStore::new(
+            session_memory_dir(&launch.workspace, &launch.config),
+        ));
         let (consent_tx, consent_rx) = tokio::sync::mpsc::channel(16);
         Self {
             launch,
+            managed_memory,
             client: Rc::new(RefCell::new(None)),
             core_agent: Mutex::new(None),
             catalog_queries: Arc::new(tokio::sync::Semaphore::new(1)),

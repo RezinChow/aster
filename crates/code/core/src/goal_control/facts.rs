@@ -41,6 +41,7 @@ pub fn goal_fact_key(
 
 mod run;
 pub(super) use run::matches_tick_run;
+pub(crate) use run::MutationProgress;
 pub(crate) use run::{prepare_run, render_run_context, ContinuationSource, ProgressBasis};
 mod settle;
 pub(crate) use settle::{prepare_settlement, reconcile_slices};
@@ -335,6 +336,7 @@ fn fold_definitions(
                 session_id,
                 workspace,
                 policy_digest,
+                &mut folded.continuation,
             )
             .map(|(operation, digest, view, mutated)| {
                 if mutated {

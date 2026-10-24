@@ -29,6 +29,8 @@ pub struct StudioHost {
     pub review_subagent: bool,
     /// A fixed source snapshot is supplied by the host; no tool may be exposed.
     pub source_review: bool,
+    /// Explicit host capability; workspace permissions still apply.
+    pub office_tools: bool,
     pub output_language: Option<String>,
     /// Absolute roots the agent rescans. The catalog array in meta is ignored.
     pub assets: Option<crate::local_assets::AssetRoots>,
@@ -101,6 +103,11 @@ pub fn studio_host_from_meta(
         Some(serde_json::Value::Bool(enabled)) => *enabled,
         Some(_) => return Err("a3sHost.sourceReview must be a boolean".into()),
     };
+    let office_tools = match host.get("officeTools") {
+        None => false,
+        Some(serde_json::Value::Bool(enabled)) => *enabled,
+        Some(_) => return Err("a3sHost.officeTools must be a boolean".into()),
+    };
     let output_language = host
         .get("outputLanguage")
         .and_then(|value| value.as_str())
@@ -112,6 +119,7 @@ pub fn studio_host_from_meta(
         guidelines,
         review_subagent,
         source_review,
+        office_tools,
         output_language,
         assets: crate::local_assets::parse_roots(host.get("assets")),
     })
@@ -304,6 +312,22 @@ mod tests {
         ] {
             let parsed = meta(serde_json::json!({"a3sHost":{"completionAttestation":invalid}}));
             assert!(studio_host_from_meta(Some(&parsed)).is_err());
+        }
+    }
+
+    #[test]
+    fn office_tools_require_explicit_boolean_metadata() {
+        for invalid in [
+            serde_json::Value::Null,
+            serde_json::json!("true"),
+            serde_json::json!(1),
+            serde_json::json!({}),
+        ] {
+            let parsed = meta(serde_json::json!({"a3sHost":{"officeTools":invalid}}));
+            assert_eq!(
+                studio_host_from_meta(Some(&parsed)).unwrap_err(),
+                "a3sHost.officeTools must be a boolean"
+            );
         }
     }
 
