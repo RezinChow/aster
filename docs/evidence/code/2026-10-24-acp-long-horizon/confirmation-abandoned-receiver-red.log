@@ -16,7 +16,7 @@ warning: `a3s-code-core` (lib test) generated 2 warnings (run `cargo fix --lib -
      Running unittests src/lib.rs (target/qualification/net-progress-build/target/debug/deps/a3s_code_core-c4fa5c15df344c16)
 
 running 1 test
-test hitl::tests::an_abandoned_receiver_cannot_accept_or_publish_a_late_approval ... 
+test hitl::tests::an_abandoned_receiver_cannot_accept_or_publish_a_late_approval ...
 thread 'hitl::tests::an_abandoned_receiver_cannot_accept_or_publish_a_late_approval' (66391766) panicked at crates/code/core/src/hitl/tests.rs:212:5:
 a dropped original receiver owns no live consent
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

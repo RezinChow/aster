@@ -110,4 +110,3 @@ test tools::builtin::bash::tests::test_bash_request_network_grant_requires_confi
 test tools::task::tests::task_child_run_confirmation_auto_approve ... ok
 
 test result: ok. 84 passed; 0 failed; 0 ignored; 0 measured; 5371 filtered out; finished in 30.32s
-

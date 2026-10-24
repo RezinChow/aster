@@ -36,5 +36,19 @@
   },
   "actual_acp_current_release": "pending isolated candidate qualification",
   "public_release": "not yet published",
-  "remaining_goal": "active"
+  "remaining_goal": "active",
+  "public_log_normalization": [
+    {
+      "public_copy": "docs/evidence/code/2026-10-24-v9.1.5/core-confirmation.log",
+      "original_sha256": "5c418930104354c5800c9ddb5157b2f28b127e9f9f8dfc4dc67c10ea0161418b",
+      "normalized_sha256": "e43dbd842eb61cb70af270b561af652a440945316b2c779d18b339f5c7ef9c5b",
+      "normalization": "line-end whitespace and excess final blank lines removed; original primary-worktree logs retained unchanged"
+    },
+    {
+      "public_copy": "docs/evidence/code/2026-10-24-acp-long-horizon/confirmation-abandoned-receiver-red.log",
+      "original_sha256": "7ddce85f0846cb8dc4f088e59ef54db435f373c0ec943c734b99c9044576da5b",
+      "normalized_sha256": "cbd473c8fb7f4f834255ca06b6a068c5abd08d2c68040a61010e11332ac74e6a",
+      "normalization": "line-end whitespace and excess final blank lines removed; original primary-worktree logs retained unchanged"
+    }
+  ]
 }
