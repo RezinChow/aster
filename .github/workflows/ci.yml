@@ -51,6 +51,8 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Internal dependency boundary
         run: python3 tests/workspace_dependencies.py
+      - name: Pinned Studio checkout ownership
+        run: python3 tests/studio_checkout.py
       - name: CLI pair delivery
         run: python3 tests/cli_pair_delivery.py
       - name: Kylin CLI glibc baseline and channel selection

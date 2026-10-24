@@ -34,7 +34,23 @@
     "a3s-code-core": "9.1.5",
     "a3s-code-acp": "9.1.5"
   },
-  "actual_acp_current_release": "pending isolated candidate qualification",
+  "actual_acp_current_release": {
+    "qualified": true,
+    "unattended": {
+      "passed": 20,
+      "product_workflows": 13,
+      "auxiliary_tests": 7
+    },
+    "protocol": {
+      "passed": 10
+    },
+    "h1": {
+      "passed": true,
+      "independent_checks": 19,
+      "workflow_ms": 34453
+    },
+    "report": "final-qualification.json"
+  },
   "public_release": "not yet published",
   "remaining_goal": "active",
   "public_log_normalization": [
@@ -78,7 +94,9 @@
     "deploy_keys": "repository policy disables them; no deploy key created and no policy weakened",
     "method": "dedicated fine-grained PAT being configured through authenticated GitHub UI",
     "expiry": "one year, explicitly selected by user",
-    "secret_value_in_repository": false
+    "secret_value_in_repository": false,
+    "secret": "STUDIO_READ_TOKEN saved and API metadata verified; secret value absent from files and logs",
+    "scope": "generated token is organization-wide code/metadata read-only; narrowing to Studio and rotation after chat exposure remain required"
   },
   "normalized_operational_logs": [
     {
@@ -92,6 +110,41 @@
       "raw_sha256": "2e45f59c2d33f554e98763529f9e1781ce5e3789ab77ac19e3ce80e45ca2ec98",
       "normalized_sha256": "4025628f123f5337e2154a8738bca97cd9d0209d47c1e4aecf9d43e408c2b2e1",
       "scope": "line-end and excess final blank whitespace removed; raw source retained in primary worktree"
+    },
+    {
+      "public_copy": "final-acp.log",
+      "raw_sha256": "96baa226065282f35010690e408592daca451666c5bddcdde595dcf71efdb6c3",
+      "normalized_sha256": "5ebb6a4f9d6ec6d2775af55c863740dbff898f1d474dbe5859ba3239fa2be1be",
+      "scope": "line-end and excess final blank whitespace removed; original logs retained"
+    },
+    {
+      "public_copy": "final-protocol.log",
+      "raw_sha256": "af0fa806c4dc6f6f632da6e4ce28cd92775f6e41c782101a14c7510e190c1e68",
+      "normalized_sha256": "b0b6485fc3c9533aedeac4ca9ac44f061d1ecebe8b0964c0e464c9dd83da360b",
+      "scope": "line-end and excess final blank whitespace removed; original logs retained"
+    },
+    {
+      "public_copy": "studio-checkout-red.log",
+      "raw_sha256": "cfaabd063fdc797e60a68ee43e59c4a865eb88cd6399c873e8851457613b2de8",
+      "normalized_sha256": "cfaabd063fdc797e60a68ee43e59c4a865eb88cd6399c873e8851457613b2de8",
+      "scope": "line-end and excess final blank whitespace removed; original logs retained"
+    },
+    {
+      "public_copy": "studio-checkout-green.log",
+      "raw_sha256": "70e93564d0764ef0a87cb81eef0920beaaace971b28365ee0acd06f66cbe72d7",
+      "normalized_sha256": "70e93564d0764ef0a87cb81eef0920beaaace971b28365ee0acd06f66cbe72d7",
+      "scope": "line-end and excess final blank whitespace removed; original logs retained"
     }
-  ]
+  ],
+  "ci_current_run": {
+    "id": 40101228548,
+    "source_commit": "65ab9bb908ccc84663873c99e0d0425bad0cf874",
+    "status": "macOS/Linux/Windows private checkout passed and builds started; Kylin hit Git dubious-ownership before compilation; exact-workspace-only resolver fix passes the retained red/green control"
+  },
+  "studio_checkout_ownership": {
+    "passed": 1,
+    "baseline_red": true,
+    "negative_wrong_workspace": true,
+    "global_trust_unchanged": true
+  }
 }
