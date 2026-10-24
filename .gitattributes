@@ -3,3 +3,7 @@
 /docs/evidence/power/2026-10-22-native-deepseek-h200/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /docs/evidence/power/2026-10-22-h200-official/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /docs/evidence/power/2026-10-24-h200-submit/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Unified patch data uses a single space for blank context lines. Its complete
+# source snapshots retain the ordinary whitespace checks above.
+/docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r2/frozen-candidates/**/*.patch -text whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

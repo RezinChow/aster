@@ -2939,34 +2939,74 @@
       "target500_met": false
     },
     "current_serving_optimization_roles": {
-      "unix": 1792849999.9257133,
+      "unix": 1792861068.2788367,
       "goal_turn_classification": "PROGRESS",
-      "goal_objective": "深度优化单卡 1M 上下文 部署的正确性和速度",
+      "goal_objective": "深度完成单卡H200 DeepSeek v4.1 Flash 1M上下文 三值量化版本模型推理速度优化",
       "goal_met": false,
       "previous_500_tok_s_goal_superseded": true,
       "active_service": {
+        "unix": 1792860530.2251258,
+        "intent": "xolotl-stable-service-v15-intent.json",
         "base_url": "http://10.102.93.68/v1",
-        "intent": "xolotl-stable-service-v8-intent.json",
-        "allocation_uid": "ea86cb78-5efd-472c-a4f7-d97c38a95637",
-        "gpu_uuid": "GPU-0349ad96-57f8-0001-128d-3ac22f864c3e",
+        "model": "deepseek-v4.1-flash-1017-xq",
+        "allocation_uid": "81f6b9d4-409d-4ec2-98cf-cd402e6a380b",
+        "replica_uid": "1c0e6d7d-05d5-49b8-80da-32455a3e4225",
+        "gpu_uuid": "GPU-117aafbe-8432-d158-0666-42464fe5ff49",
         "context_tokens": 1048576,
+        "actual_prompt_tokens_qualified": 1048504,
+        "full_1m_length_qualified": true,
+        "full1m_cache_restore_passed": true,
+        "lease_ends_unix": 1792862381.5974355,
+        "binary_sha256": "b258617180a47af0a24524d9f3389d84be841a422fa1f864ae407351c49bb988",
+        "parallel": 2,
         "prefill_batch_tokens": 8192,
+        "prefill_chunk_tokens": 128,
         "conversation_cache_mib": 8192,
         "conversation_cache_slots": 8,
-        "STRATA_SERVE_BATCH_TAIL": "0",
-        "lease_ends_unix": 1792859870.529365,
         "windows_forwarding": false,
-        "actual_prompt_tokens_qualified": 131073,
-        "full_1m_length_qualified": false,
-        "tool_call_end_to_end_passed": false,
+        "credential_retained": false,
+        "native_tool_arguments_repaired": false,
         "workbuddy_gui_end_to_end_passed": false,
-        "cleanup": "xolotl-server-vip-cleanup-v8-intent.json"
+        "cold_fullwindow_ttft_seconds": 2226.691510024946,
+        "restored_fullwindow_ttft_seconds": 1.3957692538388073,
+        "fullwindow_cache_hit_load": [
+          {
+            "concurrency": 1,
+            "requests": 16,
+            "completion_tokens": 272,
+            "wall_seconds": 29.14881253382191,
+            "aggregate_end_to_end_completion_tok_s": 9.331426440936259,
+            "ttft_p50_seconds": 1.3740918948315084,
+            "ttft_p95_seconds": 1.4102468847995624,
+            "request_p95_seconds": 1.850867242901586,
+            "per_stream_interval_tok_s_estimate": 38.730046160853014
+          },
+          {
+            "concurrency": 2,
+            "requests": 16,
+            "completion_tokens": 272,
+            "wall_seconds": 22.401354540139437,
+            "aggregate_end_to_end_completion_tok_s": 12.14212290210496,
+            "ttft_p50_seconds": 1.8934809395577759,
+            "ttft_p95_seconds": 4.7155463102972135,
+            "request_p95_seconds": 5.749506727675907,
+            "per_stream_interval_tok_s_estimate": 33.96677460469925
+          }
+        ]
       },
       "optimization": {
-        "allocation_uid": "81f6b9d4-409d-4ec2-98cf-cd402e6a380b",
-        "gpu_uuid": "GPU-117aafbe-8432-d158-0666-42464fe5ff49",
-        "no_active_model_worker": true,
-        "lease_ends_unix": 1792862381.5974355
+        "allocation_uid": "04278df1-210a-4611-8bdc-bf7f5a848dde",
+        "gpu_uuid": "GPU-b8b277be-1edb-a43b-0942-c0054908f64c",
+        "phase": "v23_diagnostic_qualification_passed_but_slow",
+        "lease_ends_unix": 1792880432.7702465,
+        "no_active_model_worker": false,
+        "current_intent": "xolotl-cache-memo-v23-intent.json",
+        "current_build": "xolotl-mixed-keep-build-v19-latest.json",
+        "current_qualification": "xolotl-cache-memo-v25-qualification-intent.json",
+        "gpu_byte_gate_passed": true,
+        "tokenizer_cpu_bit_identity_passed": true,
+        "full_1m_candidate_qualified": false,
+        "qualification_passed_requests": 28
       },
       "maximum_allocated_h200": 2,
       "workbuddy": {
@@ -2980,7 +3020,7 @@
         "gui_automation_error": "node_repl initialization twice failed to write kernel assets: Windows path not found (os error3)",
         "latency_acceptance_passed": false,
         "tool_call_acceptance_passed": false,
-        "known_tool_defect": "Production V4 still returns empty tool arguments for JSON-inside-DSML. V6b strict overlay is deployed only on validation GPU: cold/cache controls pass, but forced native tool stream has no finish/usage. Do not promote; exact failure remains unresolved.",
+        "known_tool_defect": "CurrentV15 original adapter still returns empty arguments for JSON-inside-DSML; strictV6b CPU parsing passes but prior GPU stream failed ExtraData. No repair or GUI acceptance claimed.",
         "bundled_same_process_two_turns_passed": true,
         "same_process_first_output_seconds": [
           42.4554,
@@ -3036,12 +3076,10 @@
         "regression_cause_proven": false
       },
       "publication": {
-        "integration_worktree": "D:\\code\\aster\\.wt-h200-native-integration",
-        "branch": "codex/h200-native-ready-20261024",
-        "power_revision": "c891f930bcbc06b52175ad4fe0247cc2c1f9b412",
-        "parent_commit_pending": true
+        "parent_head_before_r2": "6d549b576fc5092d7054af0abcb71e1657da61fb",
+        "r2_commit_pending": true
       },
-      "next_action": "Finish explicit commit/merge/push in integration worktree; Power dependency is already published. Keep public1M service onGPU0349 with guarded reservation; optimization is idleGPU117a, use current-optimization-lease. Qualify full1M-length public input with an adequate bounded client timeout, plus long-context correctness, cache and tool/client roundtrips. V7 fails batch DSpark seed; V8 explicit upstream batch-tail0 passes exact same131073-token input and WindowsVIP actual generation. Do not report a full1M/quality/latency acceptance from this smoke test. Keep two GPUs maximum. Prior500tok/s goal was replaced by user; current goal is1M correctness/speed."
+      "next_action": "V23 diagnostic28requests passed but cold35700 109.915s and mixedshort31.115s regress; actual1151slot bytes0bad check/regrow54.901s. Do not promote V23. Public V15 remainsGPU117a finitelease01:19; urgently refresh its exact qualified V15 backend/profile on freshGPUb8 lease06:20 before retiring old117a, keeping sameVIP/key and max2GPUs, then renew the released optimization role. Token memo CPU actual1M IDs equal but no full1M API gain qualified. Next model optimization should separate byte-check overhead, and investigate resident expert MMQ path; cold1M dense1485.87s/experts701.55s are measured. Preserve fullwindow V17/V20 receipts and current completed V25 client; never restart live clients."
     },
     "server_access_131k": {
       "base_url": "http://10.102.93.68/v1",
@@ -3139,27 +3177,66 @@
     },
     "server_access_1m": {
       "active_service": {
+        "unix": 1792860530.2251258,
+        "intent": "xolotl-stable-service-v15-intent.json",
         "base_url": "http://10.102.93.68/v1",
-        "intent": "xolotl-stable-service-v8-intent.json",
-        "allocation_uid": "ea86cb78-5efd-472c-a4f7-d97c38a95637",
-        "gpu_uuid": "GPU-0349ad96-57f8-0001-128d-3ac22f864c3e",
+        "model": "deepseek-v4.1-flash-1017-xq",
+        "allocation_uid": "81f6b9d4-409d-4ec2-98cf-cd402e6a380b",
+        "replica_uid": "1c0e6d7d-05d5-49b8-80da-32455a3e4225",
+        "gpu_uuid": "GPU-117aafbe-8432-d158-0666-42464fe5ff49",
         "context_tokens": 1048576,
+        "actual_prompt_tokens_qualified": 1048504,
+        "full_1m_length_qualified": true,
+        "full1m_cache_restore_passed": true,
+        "lease_ends_unix": 1792862381.5974355,
+        "binary_sha256": "b258617180a47af0a24524d9f3389d84be841a422fa1f864ae407351c49bb988",
+        "parallel": 2,
         "prefill_batch_tokens": 8192,
+        "prefill_chunk_tokens": 128,
         "conversation_cache_mib": 8192,
         "conversation_cache_slots": 8,
-        "STRATA_SERVE_BATCH_TAIL": "0",
-        "lease_ends_unix": 1792859870.529365,
         "windows_forwarding": false,
-        "actual_prompt_tokens_qualified": 131073,
-        "full_1m_length_qualified": false,
-        "tool_call_end_to_end_passed": false,
+        "credential_retained": false,
+        "native_tool_arguments_repaired": false,
         "workbuddy_gui_end_to_end_passed": false,
-        "cleanup": "xolotl-server-vip-cleanup-v8-intent.json"
+        "cold_fullwindow_ttft_seconds": 2226.691510024946,
+        "restored_fullwindow_ttft_seconds": 1.3957692538388073,
+        "fullwindow_cache_hit_load": [
+          {
+            "concurrency": 1,
+            "requests": 16,
+            "completion_tokens": 272,
+            "wall_seconds": 29.14881253382191,
+            "aggregate_end_to_end_completion_tok_s": 9.331426440936259,
+            "ttft_p50_seconds": 1.3740918948315084,
+            "ttft_p95_seconds": 1.4102468847995624,
+            "request_p95_seconds": 1.850867242901586,
+            "per_stream_interval_tok_s_estimate": 38.730046160853014
+          },
+          {
+            "concurrency": 2,
+            "requests": 16,
+            "completion_tokens": 272,
+            "wall_seconds": 22.401354540139437,
+            "aggregate_end_to_end_completion_tok_s": 12.14212290210496,
+            "ttft_p50_seconds": 1.8934809395577759,
+            "ttft_p95_seconds": 4.7155463102972135,
+            "request_p95_seconds": 5.749506727675907,
+            "per_stream_interval_tok_s_estimate": 33.96677460469925
+          }
+        ]
       },
-      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/server-access-1m",
-      "full_1m_length_qualified": false,
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r2",
+      "full_1m_length_qualified": true,
       "current_short_load_file": "xolotl-server-v8-1m-windows-single-loadtest.json",
-      "ttft_optimization_required": true
+      "ttft_optimization_required": true,
+      "current_fullwindow_cache_hit_load_file": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r2/receipts/xolotl-fullwindow-reuse-load-v20-latest.json"
+    },
+    "latest_exact_tokenizer_candidate": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r2/receipts/xolotl-exact-tokenizer-v21-latest.json",
+      "production_promoted": false,
+      "fullwindow_id_sha256": "b9b006a173dc68f8da156b6bd01e0d90c3abdef62f24561475e8b4fa17e5374c",
+      "cpu_only": true
     }
   }
 }
