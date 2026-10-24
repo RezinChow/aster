@@ -1,5 +1,17 @@
 # Aster CLI 0.1.3 / Core and ACP 9.1.5
 
+## Current published outcome
+
+Published [Aster CLI0.1.3 / ACP9.1.5](https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.3) from source220562fe9. Exactly macOS/Linux/Windows archives plus latest.json are uploaded; all four server SHA256 digests, tag commit and real public latest/updater check match. Mac is a local locked release/default-feature build with pinned Rust1.97.1 (951.835s), selected after the remote job exceeded2h; Linux/Windows reuse their successful original CI archives. It is not described as a fully successful three-platform CI run.
+
+Current selected Mac bytes: ACP20 (13 product+7 auxiliary), protocol10, controlled compiler-VM H1 with19 independent audits, actual installer/update5 and public updater check pass. Relevant unchanged Core741 (two existing ignored) remains component evidence; Windows native install/rollback2 passes and Linux glibc2.31/base-library checks pass. Source, binary, manifest and tester fences are unchanged. `published-release.json` and the linked current qualification record bind the exact assets.
+
+A live draft lookup exposed a publisher rerun bug: the unpublished tag REST lookup returned404. The shared script now reads targetCommitish through gh release view. A retained SOLO red control and full green4 tests verify matching-draft reuse and refusal of published/different-source releases. Workflow lint passes with shellcheck/pyflakes disabled. No product source or binary was changed by that pipeline-only correction.
+
+Whole-workspace CI remains red on pinned Studio gaps. The architecture objective is unfinished: arbitrary non-returning callback ownership, full recovery faults and changing-argument/model-derived-output loops remain open, and no real-model Terminal Bench speed/token gain, full130-case, cross-platform long-task/GUI/soak or signed-binary claim is made. The chat-exposed read-only token still needs restriction/rotation.
+
+## Earlier checkpoints retained
+
 The user authorized the existing paired Aster CLI/ACP release channel. Rust SDK packages remain local and non-publishable. This source was prepared in an isolated worktree from bfdfb797de3dc373025c5469dded57be2acb0e91. Primary-worktree Studio, Gateway, Office and terminal feature changes are excluded. Three existing Gateway formatting errors are corrected as whitespace-only changes so the workspace format gate can run; no Gateway behavior is changed.
 
 Current checks: 84 confirmation-related Core tests passed, including four original SDK scenarios (cancelled, approved, rejected, and unconfirmed host cleanup), receiver abandonment and consent identity conversion. The latter two checks are included through explicit test filters. Both isolated CLI/ACP packages pass locked offline checking; dependency boundary 6, paired installer/rollback 10 and static guest-linker 2 tests pass. Scoped CLI/Core/ACP formatting checks pass. The earlier whole-workspace pass claim is corrected below: the exact pinned Studio source fails format traversal. `checks.json` and the retained logs record the completed scope.

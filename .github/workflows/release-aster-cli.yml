@@ -237,7 +237,7 @@ jobs:
           # A rerun may extend this draft, never replace published assets.
           if gh release view aster-cli-v0.1.3 >/dev/null 2>&1; then
             test "$(gh release view aster-cli-v0.1.3 --json isDraft --jq .isDraft)" = true
-            test "$(gh api "repos/${GH_REPO}/releases/tags/aster-cli-v0.1.3" --jq .target_commitish)" = "$built"
+            test "$(gh release view aster-cli-v0.1.3 --json targetCommitish --jq .targetCommitish)" = "$built"
             gh release upload aster-cli-v0.1.3 "${files[@]}" dist/latest.json --clobber
           else
             gh release create aster-cli-v0.1.3 \

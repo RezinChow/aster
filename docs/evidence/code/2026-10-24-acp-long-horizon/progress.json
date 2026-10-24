@@ -1,5 +1,5 @@
 {
-  "goal_status": "active",
+  "goal_status": "blocked",
   "planning": "130 cases / 12 journeys / 17 tasks; consistency analysis passed",
   "implementation": {
     "T001": "partial: explicit closed candidate selects exact paired bytes, five boundary controls and real frozen tester/CLI input pass; current paired artifacts/default features and actual PID/cwd proved. Full transitive/native/environment reproducibility remains unqualified.",
@@ -610,7 +610,7 @@
     "qualification": "Historical registration only; canonical root binaries were not the current tested input. Current paired/frozen subject is recorded separately under current_frozen_candidate."
   },
   "goal_objective": "继续深度完成a3s-code架构优化，特别是长程任务不可死循环",
-  "scope_note": "User explicitly replaced the previous goal. Existing 130-case/12-journey plan remains retained and unfinished; current priority is architecture/liveness, with no broad completion claim.",
+  "scope_note": "The broader architecture objective remains unfinished; goal-tool status is blocked. This scoped CLI/ACP publication does not close arbitrary persistence/export ownership, crash-recovery, or changing-argument/model-derived-output loop gaps.",
   "workflow_architecture_review": {
     "core_orchestration": "thin programmable AgentExecutor facade compiled into Core",
     "flow_engine": "optional dynamic-workflow / advanced-harness",
@@ -619,24 +619,25 @@
     "scope": "dependency/features and default ACP call-site inspection, not a full audit of all external Rust hosts"
   },
   "current_frozen_candidate": {
-    "reference": "reanchor-pair-candidate-reference.json",
-    "build_id": "aster-cli-pair-v1:15360782401578f163ae82cbf8e652d651c3d5da:aarch64-apple-darwin",
-    "manifest": "/Users/roylin/code/aster/target/qualification/net-progress-build/candidate-reanchor/candidate.json",
-    "manifest_sha256": "1b5f6c214e96de1c08da7f117032e7568eb7ef9f40c6d5c9892fd9dea6aa97b4",
-    "pair_matches_recorded_current_source": false,
-    "recorded_local_source_files": 5680,
+    "reference": "release915three-pair-candidate-reference.json",
+    "build_id": "aster-cli-pair-v1:2e83fbdba371677ab3ae7dad42b1a81bbde22010:aarch64-apple-darwin",
+    "manifest": "/Users/roylin/code/aster/target/qualification/net-progress-build/unpacked-release915three-local/macos/candidate.json",
+    "manifest_sha256": "bb9a7d8be303251c872c71f9dbeedb76554de921da3c6a893a26031cebf14ed3",
+    "pair_matches_recorded_release_source": true,
+    "pair_matches_primary_worktree": false,
+    "recorded_local_source_files": 5681,
     "aster": {
-      "path": "/Users/roylin/code/aster/target/qualification/net-progress-build/candidate-reanchor/aster",
-      "sha256": "5bad3bf18a3afda252701c182cb9b0090eea9a6deeae39460413358c4eb0c0f1",
-      "bytes": 810286568
+      "path": "/Users/roylin/code/aster/target/qualification/net-progress-build/unpacked-release915three-local/macos/aster",
+      "sha256": "32f66f4441aae9334d947de4cb9a9bdd4622a897fe2d0ac769d486cca57cbe93",
+      "bytes": 130259424
     },
     "acp": {
-      "path": "/Users/roylin/code/aster/target/qualification/net-progress-build/candidate-reanchor/a3s-code-acp",
-      "sha256": "767a5e872abd8032d41a7aca65954202930091bf4f41300228ff48e026098a00",
-      "bytes": 341932240
+      "path": "/Users/roylin/code/aster/target/qualification/net-progress-build/unpacked-release915three-local/macos/a3s-code-acp",
+      "sha256": "bded198cf581bd7b29dd7083f3872823756979c750167341b0dcfb2943b9b15c",
+      "bytes": 77233936
     },
-    "compiler_features": "reanchor-pair-feature-profile.json",
-    "qualification": "Historical15360782 stage retained; new actual SDK confirmation identity adversarial test under investigation, new candidate not yet built."
+    "qualification": "Actual selected macOS release archive: ACP20 (13 product+7 auxiliary), protocol10, controlled compiler-VM H1 with19 independent audits, local installer/update5 and real public-channel updater check. Linux/Windows archives checked separately; no full130-case or real-model performance claim.",
+    "build_origin": "local locked release fallback from220562fe9; Linux/Windows remain the original successful CI archives"
   },
   "historical_candidate_references": [
     "net-pair-candidate-reference.json",
@@ -646,7 +647,54 @@
     "child-policy-pair-candidate-reference.json",
     "child-policy-auth-pair-candidate-reference.json",
     "state-cycle-pair-candidate-reference.json",
-    "state-coherent-pair-candidate-reference.json"
+    "state-coherent-pair-candidate-reference.json",
+    "reanchor-pair-candidate-reference.json",
+    "release915final-pair-candidate-reference.json"
   ],
-  "last_goal_progress": "Progress: one external edit previously disabled cycle detection permanently, SDK parent/child reds18calls in3s; now9/9 stop with renewed original continuity. Four policy fields across Memory/File reopen retain cumulative counters/usage and original facts. NewCore10+ACP1, actual latest pair19/10 and controlled H1 qualified."
+  "last_goal_progress": "Published paired Aster CLI0.1.3 / Core+ACP9.1.5 from frozen source220562fe9. Exactly macOS/Linux/Windows; one Linux glibc2.31 archive, no Kylin variant. Selected release bytes passed ACP20/protocol10/controlled H1 audit19, actual Mac installer+update5 and public updater check; Windows native install/rollback2 and all archive/server digests pass. Mac is an explicitly recorded local release fallback after CI exceeded2h, not a CI artifact. The broader architecture objective remains unfinished and its goal-tool state remains blocked.",
+  "release_request": {
+    "authorized_channel": "Aster paired CLI/ACP release",
+    "aster_version": "0.1.3",
+    "core_acp_version": "9.1.5",
+    "branch": "release/aster-cli-v0.1.3",
+    "source_commit": "220562fe9912d72d7dedafb8b36b5655e1394d8f",
+    "isolated_worktree": "/Users/roylin/code/aster/target/worktrees/aster-cli-v0.1.3",
+    "workflow_run_id": 40110868267,
+    "workflow_url": "https://github.com/aster-ai-lab/aster/actions/runs/40110868267",
+    "last_workflow_status": "run40110868267 cancelled intentionally after successful Linux/Windows jobs; macOS exceeded2h and was replaced with a source-identical local locked release build",
+    "public_release": "published",
+    "root_core_confirmation_checks": 84,
+    "new_security_named_core_tests": 6,
+    "new_actual_acp_case": "reused_model_ids_keep_distinct_actual_acp_authorizations_and_rows",
+    "source_scope": "Code changes plus original guest mount/linker fixes and paired release; unrelated primary-worktree changes preserved",
+    "isolated_core_regression_passed": 741,
+    "actual_acp_passed": 20,
+    "protocol_passed": 10,
+    "h1_independent_checks": 19,
+    "ci_secret": "saved and API metadata verified; actual checkout succeeded on three native platforms",
+    "credential_followup": "supplied token is organization-wide read-only and appeared in chat; user handoff requested for Studio-only scope and regeneration; do not paste replacement in chat",
+    "workspace_ci_run_id": 40113626695,
+    "workspace_ci_status": "failure: integrated pinned Studio lacks updater test module and renderer knowledge modules; whole-workspace CI is not green",
+    "platforms": [
+      "macos",
+      "linux",
+      "windows"
+    ],
+    "independent_kylin_version": false,
+    "new_platform_tests": {
+      "rust_updater": 2,
+      "linux_contracts": 13,
+      "pair_delivery": 10,
+      "release_assembly": 2
+    },
+    "old_run": "40104259230 superseded and cancellation requested; old Linux runners ended143/137, old Mac/Windows binaries have retired routing and are not promoted",
+    "release_url": "https://github.com/aster-ai-lab/aster/releases/tag/aster-cli-v0.1.3",
+    "published_at": "2026-10-24T18:44:10Z",
+    "macos_build_seconds": 951.835,
+    "qualification": "release915three-qualification.json",
+    "native_windows_install_rollback": 2,
+    "native_mac_install_update_checks": 5,
+    "public_channel_check": true,
+    "all_four_server_asset_digests_match": true
+  }
 }
