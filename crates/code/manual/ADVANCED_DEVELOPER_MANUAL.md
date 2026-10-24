@@ -202,8 +202,8 @@ close every Run, and call `drain_capability_cleanup` when a host owns cleanup
 outside normal Session close.
 
 Use `register_hook_registration` and `unregister_hook_registration` when one
-host operation owns both Hook metadata and callback. The official Node.js,
-Python, and Go bridges use these atomic APIs; the older piecemeal Rust methods
+host operation owns both Hook metadata and callback. Rust hosts use these
+atomic APIs; the older piecemeal Rust methods
 remain compatibility surfaces. Observational Hook work is registered with the
 Run supervisor, including `async_execution` and timed-out blocking callback
 settlement, so the exact A3S Use lease remains owned while accepted work

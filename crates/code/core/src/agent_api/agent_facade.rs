@@ -82,8 +82,7 @@ impl Agent {
 
     /// Create from a config file path or inline ACL-compatible string.
     ///
-    /// Alias for [`Agent::new()`] — provides a consistent API with
-    /// the Python and Node.js SDKs.
+    /// Compatibility alias for [`Agent::new()`].
     pub async fn create(config_source: impl Into<String>) -> Result<Self> {
         Self::new(config_source).await
     }

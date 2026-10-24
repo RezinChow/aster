@@ -65,8 +65,8 @@ never Required CI. See `just layer-c-live-e2e`.
    model-visible `parallel_task`).
 4. Fail-closed defaults are negative cases: sandbox, mutation verify gate,
    Active-only memory, process-host opt-in, SSRF / Fake-IP.
-5. An official SDK claim is constructed through Node, Python, and Go
-   (`scripts/sdk_api_alignment_check.mjs`), not only Rust.
+5. A supported SDK claim is exercised through the public Rust API; ACP claims
+   also require protocol-boundary evidence.
 6. `#[ignore]`, Harbor, and soak are not counted as Required CI green.
 
 ## Capability inventory
@@ -141,7 +141,7 @@ Hermetic required path (does not run soak or live):
 ```bash
 just harness-convergence-check
 cargo test -p a3s-code-core --lib
-node scripts/sdk_api_alignment_check.mjs
+cargo test --locked -p a3s-code-core --lib sdk_capabilities
 ```
 
 Feature-gated hermetic: `advanced-harness`, `s3`, `telemetry`, `headless-search`,

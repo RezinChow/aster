@@ -299,18 +299,6 @@ fn cascade_controls(ctx: &ToolContext, metrics: Arc<Metrics>) -> CascadeControls
     }
 }
 
-/// Aborts provisioning the cascade never awaited, so a satisfied fast path
-/// never pays for the slow one.
-#[cfg(any(test, feature = "headless-search"))]
-struct AbortOnDrop(tokio::task::AbortHandle);
-
-#[cfg(any(test, feature = "headless-search"))]
-impl Drop for AbortOnDrop {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
-
 #[cfg(feature = "headless-search")]
 async fn prepare_moli(config: &HeadlessConfig) -> std::result::Result<PathBuf, String> {
     let timeout = Duration::from_secs(config.moli_download_timeout_secs.clamp(1, 600));
@@ -324,17 +312,12 @@ async fn prepare_moli(config: &HeadlessConfig) -> std::result::Result<PathBuf, S
     }
 }
 
-/// The browser backend and the runtime Code prepares for it. Moli
-/// provisioning starts now on its own budget and overlaps the earlier tiers.
+/// Moli preparation starts only when the browser tier polls this shared future.
 #[cfg(feature = "headless-search")]
 fn headless_runtime(
     config: HeadlessConfig,
     needed: bool,
-) -> (
-    HeadlessBrowser,
-    Option<PendingHeadlessRuntime>,
-    Option<AbortOnDrop>,
-) {
+) -> (HeadlessBrowser, Option<PendingHeadlessRuntime>) {
     use futures::FutureExt;
 
     let browser = match config.backend {
@@ -343,7 +326,7 @@ fn headless_runtime(
         BrowserBackend::Lightpanda => HeadlessBrowser::Lightpanda,
     };
     if !needed {
-        return (browser, None, None);
+        return (browser, None);
     }
     let max_tabs = Some(config.max_tabs);
     if !config.backend.is_moli() {
@@ -355,25 +338,19 @@ fn headless_runtime(
         return (
             browser,
             Some(futures::future::ready(Ok(runtime)).boxed().shared()),
-            None,
         );
     }
-    let task = tokio::spawn(async move { prepare_moli(&config).await });
-    let guard = AbortOnDrop(task.abort_handle());
     let pending = async move {
-        match task.await {
-            Ok(Ok(path)) => Ok(a3s_search::product::HeadlessRuntime {
-                executable: Some(path),
-                max_tabs,
-                launch_args: Vec::new(),
-            }),
-            Ok(Err(error)) => Err(error),
-            Err(error) => Err(format!("Moli provisioning task failed: {error}")),
-        }
+        let path = prepare_moli(&config).await?;
+        Ok(a3s_search::product::HeadlessRuntime {
+            executable: Some(path),
+            max_tabs,
+            launch_args: Vec::new(),
+        })
     }
     .boxed()
     .shared();
-    (browser, Some(pending), Some(guard))
+    (browser, Some(pending))
 }
 
 fn web_escalations() -> &'static std::sync::Mutex<std::collections::VecDeque<(String, String)>> {
@@ -728,14 +705,14 @@ impl Tool for WebSearchTool {
         #[cfg_attr(not(feature = "headless-search"), allow(unused_mut))]
         let mut controls = cascade_controls(ctx, Arc::clone(&search_metrics));
         #[cfg(feature = "headless-search")]
-        let (browser, _moli_provision) = {
+        let browser = {
             let headless = effective_headless_config(
                 config.and_then(|config| config.headless.as_ref()),
                 proxy_url.as_deref(),
             );
-            let (browser, runtime, guard) = headless_runtime(headless, !plan.headless().is_empty());
+            let (browser, runtime) = headless_runtime(headless, !plan.headless().is_empty());
             controls.headless_runtime = runtime;
-            (browser, guard)
+            browser
         };
         #[cfg(not(feature = "headless-search"))]
         let browser = HeadlessBrowser::default();

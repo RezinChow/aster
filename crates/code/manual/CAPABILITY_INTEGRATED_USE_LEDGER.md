@@ -1,5 +1,9 @@
 # Capability integrated-use ledger
 
+> Historical upstream record. Foreign-language SDK results and external publishing
+> references do not describe this repository's Rust/ACP delivery or qualify its current release.
+
+
 Snapshot for Core line `9.1.0` (fact-log control), recorded 2026-09-28.
 The 9.0.0 snapshot (2026-09-25) remains below as supporting history; the
 `9.1.0` delta carries no `sdk_capabilities()` id changes (inventory still

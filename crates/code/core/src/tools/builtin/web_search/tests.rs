@@ -1593,14 +1593,41 @@ async fn web_search_returns_saved_notes_without_searching_the_web() {
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
 
+#[cfg(feature = "headless-search")]
+#[test]
+fn moli_preparation_is_lazy_without_an_executor() {
+    let (browser, pending) = headless_runtime(HeadlessConfig::default(), true);
+    assert!(matches!(browser, HeadlessBrowser::Moli));
+    assert!(pending.is_some());
+}
+
+#[cfg(feature = "headless-search")]
 #[tokio::test]
-async fn unawaited_provisioning_is_aborted_on_drop() {
-    let task = tokio::spawn(async {
-        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-    });
-    drop(AbortOnDrop(task.abort_handle()));
-    let joined = tokio::time::timeout(std::time::Duration::from_secs(2), task)
+async fn deferred_moli_resolution_uses_the_configured_executable() {
+    let directory = tempfile::tempdir().unwrap();
+    let executable = directory.path().join("moli-fixture");
+    std::fs::write(&executable, b"fixture: never executed").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    let config = HeadlessConfig {
+        browser_path: Some(executable.to_string_lossy().into_owned()),
+        max_tabs: 3,
+        ..HeadlessConfig::default()
+    };
+    assert!(headless_runtime(config.clone(), false).1.is_none());
+    let pending = headless_runtime(config.clone(), true).1.unwrap();
+    let runtime = pending
         .await
-        .expect("an aborted prep must not block the fast path");
-    assert!(joined.unwrap_err().is_cancelled());
+        .expect("explicit runtime resolves without downloading");
+    assert_eq!(runtime.executable.as_ref(), Some(&executable));
+    assert_eq!(runtime.max_tabs, Some(3));
+    let pending = headless_runtime(config, true).1.unwrap();
+    std::fs::remove_file(&executable).unwrap();
+    assert!(pending
+        .await
+        .unwrap_err()
+        .contains("configured Moli executable"));
 }

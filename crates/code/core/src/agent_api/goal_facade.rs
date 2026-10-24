@@ -469,6 +469,8 @@ impl AgentSession {
     /// Admit at most one original Run for an automatic tick, named by its
     /// operation id. The original Run re-validates the same tick, trusted host
     /// bounds and host clock under its writer before any model call.
+    /// The absolute deadline also cancels an in-flight automatic Run, including
+    /// its goal assessment; the original worker still owns settlement and cleanup.
     pub async fn tick_goal(
         &self,
         command: &GoalControlCommandV1,
@@ -559,7 +561,7 @@ impl AgentSession {
             self.run_admission.is_active() || runs.iter().any(|run| !run.status.is_terminal()),
             source,
         )
-        .map_err(goal_error)
+        .map_err(|error| CodeError::Internal(error.into()))
     }
 
     fn configured_policy_digest(&self, facts: &[a3s_effect::Fact]) -> Result<Option<String>> {
@@ -642,7 +644,7 @@ fn append_goal(
     Ok(view)
 }
 
-fn host_clock_unix_ms() -> Result<u64> {
+pub(super) fn host_clock_unix_ms() -> Result<u64> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()

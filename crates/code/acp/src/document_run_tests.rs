@@ -71,7 +71,7 @@ impl Client for Host {
                     value
                 }
                 None => {
-                    json!({"path":self.root.join("note.txt"),"snapshot":{"documentId":"native-model","uri":url::Url::from_file_path(self.root.join("note.txt")).unwrap(),"version":1,"text":"clean text","dirty":false,"diskConflict":false},"runId":params["runId"],"released":false})
+                    json!({"path":self.root.join("note.txt"),"snapshot":{"documentId":"native-model","uri":url::Url::from_file_path(self.root.join("note.txt")).unwrap().to_string(),"version":1,"text":"clean text","dirty":false,"diskConflict":false},"runId":params["runId"],"released":false})
                 }
             }
         };

@@ -598,7 +598,12 @@ async fn open_case(workspace: &Path, arm: Arm) -> Case {
     .expect("initialize");
     let session = acp::Agent::new_session(
         agent.conn.as_ref(),
-        acp::NewSessionRequest::new(workspace.to_path_buf()),
+        acp::NewSessionRequest::new(workspace.to_path_buf()).meta(
+            serde_json::json!({"a3sHost": {"officeTools": true}})
+                .as_object()
+                .unwrap()
+                .clone(),
+        ),
     )
     .await
     .expect("new session")

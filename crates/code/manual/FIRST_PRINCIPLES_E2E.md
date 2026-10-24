@@ -15,7 +15,7 @@ S3 / telemetry / headless / Harbor / prod memory are explicit opt-in gates.
 | A1 | Thin default tree | `cargo check -p a3s-code-core` + tree free of evaluation/research/chromiumoxide/s3 |
 | A2 | local-code CI matrix | `cargo check/test --no-default-features --features local-code --lib` |
 | A3 | Dual-path removal | `parallel_task` unregistered; Active-only memory (`candidate_write_stays_inactive`) |
-| A4 | SDK alignment | `node scripts/sdk_api_alignment_check.mjs` |
+| A4 | SDK alignment | `cargo test --locked -p a3s-code-core --lib sdk_capabilities` |
 | A5 | Agent protocol / checkpoint / run control | `agent_protocol_*`, `*_checkpoint_*`, `run_control_runtime` integration tests |
 | A6 | Tools + permissions | lib tests for builtin tools, style specialty overlays, `update_plan` |
 | A7 | Events / evidence digests | `event_protocol_v1`, `content_digest`, durable-memory product eval hermetic |

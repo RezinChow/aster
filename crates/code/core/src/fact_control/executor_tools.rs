@@ -43,7 +43,12 @@ impl ExecutorTools {
             store.record_event(run_id, event.clone()).await;
         }
         if let Some(events) = &self.events {
-            let _ = events.send(event).await;
+            let cancellation = self.context.cancellation_token();
+            tokio::select! {
+                biased;
+                _ = events.send(event) => {},
+                _ = cancellation.cancelled() => {},
+            }
         }
     }
 
@@ -377,10 +382,14 @@ impl ToolRunner for ExecutorTools {
                             call.name
                         )
                     })?;
-                    let decision = agent
-                        .tool_safety_gate()
-                        .confirmation_decision(&call.name, &call.args, true)
-                        .await;
+                    let cancellation = tools.context.cancellation_token();
+                    let gate = agent.tool_safety_gate();
+                    let decision = tokio::select! {
+                        biased;
+                        _ = cancellation.cancelled() => return Err("Operation cancelled before confirmation policy resolved.".into()),
+                        _ = host_cancel.cancelled() => return Err("Operation cancelled before confirmation policy resolved.".into()),
+                        decision = gate.confirmation_decision(&call.name, &call.args, true) => decision,
+                    };
                     match decision {
                         crate::safety_gate::ToolGateDecision::Confirm {
                             timeout_ms,
@@ -419,7 +428,9 @@ impl ToolRunner for ExecutorTools {
                                 match tokio::time::timeout(timeout, settlement_future).await {
                                     Ok(resolution) => resolution,
                                     Err(_) => {
-                                        manager.cancel(&call.id).await;
+                                        if crate::tool_confirmation::cancel_confirmation(manager.as_ref(), &call.id).await.is_none() {
+                                            tools.emit(crate::tool_confirmation::cancellation_unresolved_event(&call.id)).await;
+                                        }
                                         crate::tool_confirmation::ToolConfirmationResolution::Rejected {
                                             output: format!(
                                                 "Tool '{}' confirmation timed out; execution rejected.",
@@ -620,6 +631,11 @@ impl ToolRunner for ExecutorTools {
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .observe_tool(&call.name, result.exit_code, metadata.as_ref());
             }
+            let observation_digest = crate::content_digest::digest_json(
+                "a3s.code.tool-observation.v1",
+                &super::tool_results::message_from_tool_observation("observation", &output, result.exit_code != 0,
+                    &result.images, Some(result.exit_code)),
+            ).map_err(|error| ActorError::Schema(format!("tool_observation_digest: {error}")))?;
             if let Some(note) = repeated_result_note(&tools.repeats, &call.name, &call.args, &output) {
                 output.push_str(&note);
             }
@@ -643,6 +659,7 @@ impl ToolRunner for ExecutorTools {
                 &result.images,
                 result.exit_code,
                 metadata.as_ref(),
+                Some(&observation_digest),
             ))
             }.await;
             // The turn stays open: a run-owned effect closes with the run,

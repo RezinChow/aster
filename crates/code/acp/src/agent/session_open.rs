@@ -337,20 +337,22 @@ impl A3sCodeAgent {
     ) -> acp::Result<LiveSession> {
         let result = async {
             if !live.host.source_review {
-                live.session
-                    .register_dynamic_tool(Arc::new(
-                        crate::office_read::OfficeReadTool::new(&live.workspace).map_err(
-                            |error| acp::Error::internal_error().data(error.to_string()),
-                        )?,
-                    ))
-                    .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
-                live.session
-                    .register_dynamic_tool(Arc::new(
-                        crate::office_file::OfficeFileTool::new(&live.workspace).map_err(
-                            |error| acp::Error::internal_error().data(error.to_string()),
-                        )?,
-                    ))
-                    .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+                if live.host.office_tools {
+                    live.session
+                        .register_dynamic_tool(Arc::new(
+                            crate::office_read::OfficeReadTool::new(&live.workspace).map_err(
+                                |error| acp::Error::internal_error().data(error.to_string()),
+                            )?,
+                        ))
+                        .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+                    live.session
+                        .register_dynamic_tool(Arc::new(
+                            crate::office_file::OfficeFileTool::new(&live.workspace).map_err(
+                                |error| acp::Error::internal_error().data(error.to_string()),
+                            )?,
+                        ))
+                        .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+                }
                 live.session
                     .register_dynamic_tool(Arc::new(crate::output_check::OutputCheckTool))
                     .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
