@@ -31,6 +31,15 @@ pub(crate) struct PrincipalSubject {
     pub(crate) credential_id: Uuid,
     pub(crate) subject: Arc<str>,
     pub(crate) org: Option<Arc<str>>,
+    /// Per-credential model allowlist; `None` means no restriction.
+    pub(crate) allowed_models: Option<Vec<Arc<str>>>,
+}
+
+pub(crate) struct VerifiedPrincipal {
+    subject: String,
+    org: Option<String>,
+    credential_id: Option<Uuid>,
+    allowed_models: Option<Vec<Arc<str>>>,
 }
 
 #[derive(Clone)]
@@ -78,6 +87,14 @@ impl PrincipalVerifier {
         subjects.insert(subject.credential_id, subject.clone());
     }
 
+    pub(super) fn allowed_models(&self, credential_id: Uuid) -> Option<Vec<Arc<str>>> {
+        self.subjects
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&credential_id)
+            .and_then(|subject| subject.allowed_models.clone())
+    }
+
     pub(super) async fn verify(
         &self,
         route_id: Uuid,
@@ -101,14 +118,17 @@ impl PrincipalVerifier {
             }
         }
 
-        let (subject, org) = call_verify(principal, token).await?;
+        let verified = call_verify(principal, token).await?;
         let subject = PrincipalSubject {
-            credential_id: Uuid::new_v5(
-                &PRINCIPAL_NAMESPACE,
-                format!("{route_id}/{subject}").as_bytes(),
-            ),
-            subject: Arc::from(subject),
-            org: org.map(Arc::from),
+            credential_id: verified.credential_id.unwrap_or_else(|| {
+                Uuid::new_v5(
+                    &PRINCIPAL_NAMESPACE,
+                    format!("{route_id}/{}", verified.subject).as_bytes(),
+                )
+            }),
+            subject: Arc::from(verified.subject),
+            org: verified.org.map(Arc::from),
+            allowed_models: verified.allowed_models,
         };
         let expires_at = Instant::now() + Duration::from_secs(principal.cache_ttl_secs);
         {
@@ -203,6 +223,7 @@ fn shared_subject(route_id: Uuid, token: &str) -> Option<PrincipalSubject> {
         ),
         subject: Arc::from(subject),
         org: None,
+        allowed_models: None,
     })
 }
 
@@ -256,7 +277,7 @@ fn client() -> Option<&'static reqwest::Client> {
 async fn call_verify(
     principal: &InferencePrincipalConfig,
     token: &str,
-) -> Result<(String, Option<String>), InferenceAccessError> {
+) -> Result<VerifiedPrincipal, InferenceAccessError> {
     let client = client().ok_or(InferenceAccessError::Unavailable)?;
     let response = client
         .get(&principal.verify_url)
@@ -294,7 +315,22 @@ async fn call_verify(
         InferenceAccessError::Unauthorized
     })?;
     let org = principal.org_header.as_deref().and_then(header);
-    Ok((subject, org))
+    let credential_id = header("x-a3s-credential-id")
+        .and_then(|value| Uuid::parse_str(&value).ok());
+    let allowed_models = header("x-a3s-models").map(|value| {
+        value
+            .split(',')
+            .map(str::trim)
+            .filter(|model| !model.is_empty())
+            .map(Arc::from)
+            .collect::<Vec<Arc<str>>>()
+    });
+    Ok(VerifiedPrincipal {
+        subject,
+        org,
+        credential_id,
+        allowed_models,
+    })
 }
 
 #[cfg(test)]
