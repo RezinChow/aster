@@ -2941,7 +2941,7 @@
       "superseded_by": "server_access_1m"
     },
     "current_serving_optimization_roles": {
-      "unix": 1792870784.1725898,
+      "unix": 1792880772.2164912,
       "goal_objective": "深度完成单卡H200 DeepSeek v4.1 Flash 1M上下文 三值量化版本模型推理速度优化",
       "goal_met": false,
       "active_service": {
@@ -2979,21 +2979,55 @@
         "allocation_uid": "08538623-2284-45f9-b98a-7733bb70f32d",
         "gpu_uuid": "GPU-355373e1-1013-8629-4bee-c64f810da5a4",
         "lease_ends_unix": 1792884595.778009,
-        "current_profile": "indexer_mask_v44",
+        "current_profile": "off_repeat34f/S512/f062",
         "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
         "production_promoted": false,
         "finite_basic_comparison_completed": true,
         "full1m_candidate_qualified": false,
         "basic28_passed": true,
         "qualified_v35_full1m_baseline": true,
-        "exact_live_fullwindow_suite": "qualification-suite-v45"
+        "exact_live_fullwindow_suite": "qualification-suite-v45",
+        "actual1m_plus1024_single_qualified": true,
+        "full_concurrency_suite_passed": false,
+        "current_fullwindow_client_terminal": true
       },
       "maximum_allocated_h200": 2,
       "publication": {
         "parent_head_before_r3": "691564b0bbce7d5dfc3bf51bb0ec6585700a1e7e",
-        "evidence_revision": "ttft-1m-20261025/r4"
+        "evidence_revision": "ttft-1m-20261025/r5"
       },
-      "next_action": "Observe exact live V45 client; compare completed actual1M against same-GPU V35. CPU-only V46 adapter is prepared, not GPU-qualified. Profile dense GPU work and compare attention sub-batches after the current suite finishes; keep formal V31 unchanged until qualification."
+      "next_action": "Diagnose concurrent-path continuation drift; test real English/WorkBuddy prefill with the exact local Engram tables; profile dense GPU/host routing for the unmet300 milestone. Preserve formal c016 and same VIP/key.",
+      "serving": {
+        "allocation_job": "aster-xolotl-1mc8-d1480eb0e2fd-90999078",
+        "allocation_uid": "c016efa8-6e71-4501-8aff-08f7335d0b27",
+        "replica": "aster-xolotl-1mc8-d1480eb0e2fd-90999078-n742l",
+        "replica_uid": "5bc10e6a-63e4-4f52-bdeb-8b1fd22dd67c",
+        "gpu_uuid": "GPU-5539f8f3-5b45-f092-dd75-39fcb99c10cf",
+        "pod_ip": "100.100.176.103",
+        "base_url": "http://10.102.93.68/v1",
+        "model": "deepseek-v4.1-flash-1017-xq",
+        "context_tokens": 1048576,
+        "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
+        "api_sha256": "f062d9d39131959da9c981b6704e2ec27f89d8e2806730062dcabc3eb27682ba",
+        "prefill_batch_tokens": 8192,
+        "prefill_chunk_tokens": 128,
+        "parallel": 2,
+        "conversation_cache_mib": 8192,
+        "conversation_cache_slots": 8,
+        "same_existing_key": true,
+        "credentials_retained": false,
+        "windows_forwarding": false,
+        "lease_ends_unix": 1792898988.8316312,
+        "instance_actual_prompt_tokens_qualified": 132097,
+        "actual_prompt_tokens_qualified": 132097,
+        "full_1m_length_qualified": false,
+        "instance_full_1m_execution_tested": false,
+        "engine_profile_full_1m_length_qualified": true,
+        "native_tool_roundtrip_passed": true,
+        "workbuddy_bundled_cli_e2e_passed": true,
+        "workbuddy_gui_e2e_passed": false,
+        "workbuddy_first_turn_latency_accepted": false
+      }
     },
     "server_access_131k": {
       "base_url": "http://10.102.93.68/v1",
@@ -3093,43 +3127,81 @@
     },
     "server_access_1m": {
       "active_service": {
-        "unix": 1792865871.9952364,
+        "allocation_job": "aster-xolotl-1mc8-d1480eb0e2fd-90999078",
+        "allocation_uid": "c016efa8-6e71-4501-8aff-08f7335d0b27",
+        "replica": "aster-xolotl-1mc8-d1480eb0e2fd-90999078-n742l",
+        "replica_uid": "5bc10e6a-63e4-4f52-bdeb-8b1fd22dd67c",
+        "gpu_uuid": "GPU-5539f8f3-5b45-f092-dd75-39fcb99c10cf",
+        "pod_ip": "100.100.176.103",
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
-        "allocation_uid": "04278df1-210a-4611-8bdc-bf7f5a848dde",
-        "replica_uid": "8d111540-5afb-4422-b464-b4bb48635182",
-        "gpu_uuid": "GPU-b8b277be-1edb-a43b-0942-c0054908f64c",
-        "binary_sha256": "b258617180a47af0a24524d9f3389d84be841a422fa1f864ae407351c49bb988",
         "context_tokens": 1048576,
+        "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
+        "api_sha256": "f062d9d39131959da9c981b6704e2ec27f89d8e2806730062dcabc3eb27682ba",
+        "prefill_batch_tokens": 8192,
+        "prefill_chunk_tokens": 128,
+        "parallel": 2,
+        "conversation_cache_mib": 8192,
+        "conversation_cache_slots": 8,
+        "same_existing_key": true,
+        "credentials_retained": false,
+        "windows_forwarding": false,
+        "lease_ends_unix": 1792898988.8316312,
+        "instance_actual_prompt_tokens_qualified": 132097,
         "actual_prompt_tokens_qualified": 132097,
         "full_1m_length_qualified": false,
         "instance_full_1m_execution_tested": false,
         "engine_profile_full_1m_length_qualified": true,
-        "engine_profile_full1m_evidence_gpu": "GPU-117aafbe-8432-d158-0666-42464fe5ff49",
-        "engine_profile_full1m_evidence": "../r2/receipts/xolotl-full-1m-qualification-v17-latest.json",
-        "lease_ends_unix": 1792880432.7702465,
-        "parallel": 2,
-        "prefill_batch_tokens": 8192,
-        "prefill_chunk_tokens": 128,
-        "conversation_cache_mib": 8192,
-        "conversation_cache_slots": 8,
-        "windows_forwarding": false,
-        "same_existing_key": true,
-        "credential_retained": false,
-        "native_tool_arguments_repaired": false,
-        "workbuddy_gui_end_to_end_passed": false,
-        "resident_mmq_promoted": false,
-        "exact_tokenizer_memo_enabled": false,
-        "backend_verified_by_unique_nonce_and_kv_reuse": true,
-        "endpoint_object_read_permitted": false
+        "native_tool_roundtrip_passed": true,
+        "workbuddy_bundled_cli_e2e_passed": true,
+        "workbuddy_gui_e2e_passed": false,
+        "workbuddy_first_turn_latency_accepted": false
       },
-      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r3",
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5",
       "full_1m_length_qualified": false,
-      "current_short_load_file": "xolotl-server-v8-1m-windows-single-loadtest.json",
+      "current_short_load_file": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5/receipts/xolotl-stable-recovery-v58-stable-qualification-latest.json",
       "ttft_optimization_required": true,
-      "current_fullwindow_cache_hit_load_file": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r2/receipts/xolotl-fullwindow-reuse-load-v20-latest.json",
+      "current_fullwindow_cache_hit_load_file": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5/receipts/xolotl-indexer-fullwindow-suite-v45-latest.json",
       "engine_profile_full_1m_length_qualified": true,
-      "instance_full_1m_execution_tested": false
+      "instance_full_1m_execution_tested": false,
+      "historical_service_snapshots": [
+        {
+          "unix": 1792865871.9952364,
+          "base_url": "http://10.102.93.68/v1",
+          "model": "deepseek-v4.1-flash-1017-xq",
+          "allocation_uid": "04278df1-210a-4611-8bdc-bf7f5a848dde",
+          "replica_uid": "8d111540-5afb-4422-b464-b4bb48635182",
+          "gpu_uuid": "GPU-b8b277be-1edb-a43b-0942-c0054908f64c",
+          "binary_sha256": "b258617180a47af0a24524d9f3389d84be841a422fa1f864ae407351c49bb988",
+          "context_tokens": 1048576,
+          "actual_prompt_tokens_qualified": 132097,
+          "full_1m_length_qualified": false,
+          "instance_full_1m_execution_tested": false,
+          "engine_profile_full_1m_length_qualified": true,
+          "engine_profile_full1m_evidence_gpu": "GPU-117aafbe-8432-d158-0666-42464fe5ff49",
+          "engine_profile_full1m_evidence": "../r2/receipts/xolotl-full-1m-qualification-v17-latest.json",
+          "lease_ends_unix": 1792880432.7702465,
+          "parallel": 2,
+          "prefill_batch_tokens": 8192,
+          "prefill_chunk_tokens": 128,
+          "conversation_cache_mib": 8192,
+          "conversation_cache_slots": 8,
+          "windows_forwarding": false,
+          "same_existing_key": true,
+          "credential_retained": false,
+          "native_tool_arguments_repaired": false,
+          "workbuddy_gui_end_to_end_passed": false,
+          "resident_mmq_promoted": false,
+          "exact_tokenizer_memo_enabled": false,
+          "backend_verified_by_unique_nonce_and_kv_reuse": true,
+          "endpoint_object_read_permitted": false,
+          "terminal_phase": "Stopped",
+          "terminal_time_cst": "2026-10-25T03:48:49+08:00",
+          "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5"
+        }
+      ],
+      "current_short_load_scope": "Fresh instance basic28 including16 short measurements from jump host; not Windows concurrent load.",
+      "fullwindow_load_scope": "Actual1M nativefa/S128 profile evidence onGPU355; not newGPU5539 formal-instance full-window execution."
     },
     "latest_exact_tokenizer_candidate": {
       "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r2/receipts/xolotl-exact-tokenizer-v21-latest.json",
@@ -3469,27 +3541,133 @@
       ]
     },
     "latest_masked_indexer_candidate": {
-      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r4",
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5",
       "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
       "basic28_passed": true,
-      "full1m_qualified": false,
+      "full1m_qualified": true,
       "numerical_cases": 144,
       "actual_graphs": 360,
       "full_scores_byte_identical": true,
       "memcheck_errors": 0,
-      "speed_gain_proven": false,
-      "production_promoted": false,
-      "current_suite_phase": "running"
+      "speed_gain_proven": true,
+      "production_promoted": true,
+      "current_suite_phase": "passed",
+      "speed_gain_scope": "one same-GPU cold1048504 block,7.411152% less TTFT",
+      "fullwindow_fixed_cache_hit_load": [
+        {
+          "concurrency": 1,
+          "requests": 16,
+          "completion_tokens": 272,
+          "wall_seconds": 30.872020170092583,
+          "aggregate_end_to_end_completion_tok_s": 8.81056693087747,
+          "ttft_p50_seconds": 1.5269450903870165,
+          "ttft_p95_seconds": 1.5682833495084196,
+          "request_p95_seconds": 1.96678283798974,
+          "per_stream_interval_tok_s_estimate": 42.974848144269025
+        },
+        {
+          "concurrency": 2,
+          "requests": 16,
+          "completion_tokens": 272,
+          "wall_seconds": 26.382286979351193,
+          "aggregate_end_to_end_completion_tok_s": 10.309947739287656,
+          "ttft_p50_seconds": 2.540757813025266,
+          "ttft_p95_seconds": 5.026529630762525,
+          "request_p95_seconds": 5.992129161488265,
+          "per_stream_interval_tok_s_estimate": 35.94949879326208
+        }
+      ]
     },
     "latest_combined_api_candidate": {
-      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r4",
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5",
       "cpu_preflight_passed": true,
       "exact_memo_mode_default": "0",
       "complete_stream_cases": 64,
       "actual_full1m_token_ids_identical": true,
       "cpu_only_encode_baseline_median_seconds": 1.1792060369625688,
       "cpu_only_encode_memo_hit_median_seconds": 0.026364211924374104,
-      "gpu_qualified": false,
+      "gpu_qualified": true,
+      "production_promoted": true,
+      "api_sha256": "f062d9d39131959da9c981b6704e2ec27f89d8e2806730062dcabc3eb27682ba",
+      "cpu_suites": 8,
+      "strict_single_native_parameter_close_suffix": true,
+      "installed_workbuddy_read_tool_passed": true
+    },
+    "latest_cumulative_draft_candidate": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5",
+      "native_sha256": "34f3c963304445e50c4ae398194f4b4745a0b1868a6b4a1d6668068aebcf96e6",
+      "positive_cutoff_010_qualified": false,
+      "failed_greedy_identity": true,
+      "cutoff025_gpu_tested": false,
+      "cutoff050_gpu_tested": false,
+      "original_native_control_reproduced": true,
+      "cpu_policy_cases": 240,
+      "production_promoted": false
+    },
+    "latest_actual1m_long_output": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5",
+      "original_suite_phase": "failed",
+      "actual_input_tokens": 1047544,
+      "actual_output_tokens": 1024,
+      "single_active_cache_hit": {
+        "concurrency": 1,
+        "requests": 8,
+        "completion_tokens": 8192,
+        "wall_seconds": 285.351937268395,
+        "aggregate_end_to_end_completion_tok_s": 28.70840856529671,
+        "ttft_p50_seconds": 0.7383813925553113,
+        "ttft_p95_seconds": 0.7837540036067366,
+        "request_p95_seconds": 35.727931831358,
+        "per_stream_interval_tok_s_estimate": 29.313314617569493
+      },
+      "full_restored_output_identical": true,
+      "concurrency2_exact_identity_passed": false,
+      "post_concurrency_single_identical": true,
+      "speed300_met": false
+    },
+    "latest_engram_storage_candidate": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r5",
+      "full_original_and_local_sha256_passed": true,
+      "bytes": 203073077576,
+      "sampled_blocks": 12,
+      "sampled_raw_bytes_identical": true,
+      "storage_component": [
+        {
+          "rows_per_table": 512,
+          "source_seconds": [
+            0.05984804918989539,
+            0.030791563913226128,
+            0.0315141249448061
+          ],
+          "local_seconds": [
+            0.03400247963145375,
+            0.02433272311463952,
+            0.021351535338908434
+          ],
+          "source_median_seconds": 0.0315141249448061,
+          "local_median_seconds": 0.02433272311463952,
+          "all_sampled_raw_bytes_identical": true,
+          "sha256": "eb95c3d0db0087314dcc80f9e4c8fee5e014bfd65de2384502bbe72c8037bd2a"
+        },
+        {
+          "rows_per_table": 4096,
+          "source_seconds": [
+            0.3779510520398617,
+            0.2392417648807168,
+            0.28858111007139087
+          ],
+          "local_seconds": [
+            0.30244271410629153,
+            0.2252603960223496,
+            0.16415961319580674
+          ],
+          "source_median_seconds": 0.28858111007139087,
+          "local_median_seconds": 0.2252603960223496,
+          "all_sampled_raw_bytes_identical": true,
+          "sha256": "4348ae77716edf28744ad81434156b3a9ecccadc3c02277409033ca3572dd393"
+        }
+      ],
+      "model_api_gain_proven": false,
       "production_promoted": false
     }
   }
