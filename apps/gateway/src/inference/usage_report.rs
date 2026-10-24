@@ -19,6 +19,8 @@ pub(crate) struct UsageFactBody {
     subject_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     org_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    credential_id: Option<String>,
     model_id: String,
     endpoint: String,
     tokens: u64,
@@ -88,6 +90,7 @@ pub(crate) fn usage_fact_body(
         transaction_id: attribution.request_id.to_string(),
         subject_id: attribution.subject.subject.to_string(),
         org_id,
+        credential_id: Some(attribution.subject.credential_id.to_string()),
         model_id: attribution.model.clone(),
         endpoint: attribution.endpoint.as_str().to_owned(),
         tokens: total_tokens,
