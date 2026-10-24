@@ -19,6 +19,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(8787);
     let addr: SocketAddr = format!("{host}:{port}").parse()?;
 
+    // An empty allowlist refuses every request, which looks exactly like an outage from the
+    // client side. Say so once at boot instead of letting callers decode 403s.
+    if a3s_gateway_runtime::entitlement::denies_everything() {
+        tracing::warn!(
+            "entitlement allowlists are empty: every model, tool and API request will be refused \
+             with entitlement.denied. Set A3S_ENTITLED_MODELS / A3S_ENTITLED_APIS / \
+             A3S_ENTITLED_TOOLS (comma separated, or * for all)."
+        );
+    }
+
     let data_dir = a3s_gateway_runtime::usage::data_dir();
     let mut state = a3s_gateway_runtime::AppState::new(data_dir);
     // Wire the metering event spine from the env; a missing origin keeps
