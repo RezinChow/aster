@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path('/nvme/a3s-power-xq-20261021')
@@ -20,6 +21,9 @@ MODEL_NAME = 'deepseek-v4.1-flash-1017-xq-v3'
 MODEL_SHA256 = '73df1934302f867601dd27f7fca59109d9b11674f50cc60526ec2a1cd4f3d389'
 SIDECAR_SHA256 = '5f92242e2ebed06e6831bbcae4e35e679c9138cdf6df0c8b36e8013c99c79a34'
 PROCESS_MARKER = 'A3S_POWER_OPERATOR_INSTANCE'
+POWER_SHA256 = '0076e2a46734b54a51c6aea7b3e56dedb5326c3ed4b32b0f0ead919122c45d76'
+POWER_PORT = 30002
+UPSTREAM_PORT = 8150
 PARALLEL_CHOICES = (1, 2, 4, 8, 16)
 PROFILES = {
     'exact': (False, False, False, False),
@@ -198,9 +202,147 @@ def wait_health(process, port, timeout, require_loaded=False):
     raise RuntimeError(f'port {port} did not become healthy within {timeout} seconds')
 
 
+def write_power_acl(concurrent, key_hash, exact_benchmark_usage=False):
+    if type(concurrent) is not int or not 1 <= concurrent <= 128:
+        raise ValueError('frontend concurrency must be an integer between 1 and 128')
+    if type(exact_benchmark_usage) is not bool:
+        raise ValueError('exact benchmark usage must be an explicit boolean')
+    if len(key_hash) != 64 or any(c not in '0123456789abcdef' for c in key_hash):
+        raise ValueError('frontend key digest must be SHA-256')
+    destination = PRIVATE/'power.acl'
+    temporary = PRIVATE/'power.acl.tmp'
+    temporary.write_text(
+        f'host = "0.0.0.0"\nport = {POWER_PORT}\ndata_dir = "{PRIVATE}/data"\n'
+        f'api_keys = ["{key_hash}"]\nredact_logs = {str(not exact_benchmark_usage).lower()}\nnum_parallel = 1\n'
+        f'max_concurrent_requests = {concurrent}\nmax_queued_requests = 64\nqueue_timeout_ms = 300000\n'
+        f'proxy_upstream "{MODEL_NAME}" {{\n    url = "http://127.0.0.1:{UPSTREAM_PORT}"\n}}\n')
+    temporary.chmod(0o600)
+    temporary.replace(destination)
+    return destination
+
+
+def frontend_is_idle():
+    required = {'power_active_requests', 'power_requests_waiting', 'power_requests_running'}
+    with urllib.request.urlopen(f'http://127.0.0.1:{POWER_PORT}/metrics', timeout=5) as response:
+        raw = response.read(256*1024+1)
+    if len(raw) > 256*1024:
+        raise RuntimeError('frontend metrics exceed their bound')
+    found = {}
+    for line in raw.decode().splitlines():
+        fields = line.split()
+        if len(fields) == 2 and fields[0] in required:
+            if fields[0] in found or not fields[1].isascii() or not fields[1].isdigit():
+                raise RuntimeError('frontend admission metrics are malformed')
+            found[fields[0]] = int(fields[1])
+    if set(found) != required:
+        raise RuntimeError('frontend admission metrics are incomplete')
+    return all(value == 0 for value in found.values())
+
+
+def assert_frontend_owned(record):
+    power = ROOT/'bin/a3s-power'
+    if hashlib.sha256(power.read_bytes()).hexdigest() != POWER_SHA256:
+        raise RuntimeError('frontend binary differs from the validated exact-usage build')
+    if record.get('power_acl_sha256') != hashlib.sha256((PRIVATE/'power.acl').read_bytes()).hexdigest():
+        raise RuntimeError('frontend ACL changed after its verified startup')
+    owner = json.loads((PRIVATE/'power.pid').read_text())
+    pid, marker = owner.get('pid'), owner.get('marker')
+    if (type(pid) is not int or pid <= 1 or record.get('power_pid') != pid
+            or not isinstance(marker, str) or len(marker) != 32
+            or any(c not in '0123456789abcdef' for c in marker)):
+        raise RuntimeError('frontend ownership record does not match the active profile')
+    arguments = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')
+    if os.fsencode(str(power)) not in arguments or pid not in owned_group_members(pid, marker):
+        raise RuntimeError('frontend process is not owned by this deployment')
+
+
+def _set_frontend_usage_mode(exact):
+    if type(exact) is not bool:
+        raise ValueError('frontend usage mode must be an explicit boolean')
+    profile_path = ROOT/'run/active-profile.json'
+    record = json.loads(profile_path.read_text())
+    previous = record.get('exact_benchmark_usage', False)
+    if (type(previous) is not bool or record.get('model') != MODEL_NAME
+            or record.get('port') != POWER_PORT or record.get('upstream_port') != UPSTREAM_PORT):
+        raise RuntimeError('active frontend profile identity is invalid')
+    assert_frontend_owned(record)
+    if not frontend_is_idle():
+        raise RuntimeError('owned frontend is busy; usage mode was not changed')
+    if previous == exact:
+        return record
+    key = (PRIVATE/'api.key').read_text().strip()
+    if len(key) != 64 or any(c not in '0123456789abcdef' for c in key):
+        raise RuntimeError('existing deployment API key has an invalid format')
+    key_hash = hashlib.sha256(key.encode()).hexdigest()
+    power = ROOT/'bin/a3s-power'
+
+    def activate(mode):
+        config = write_power_acl(record['max_concurrent'], key_hash, mode)
+        stop_owned('power', power)
+        environment = dict(os.environ)
+        environment['A3S_POWER_HOME'] = str(PRIVATE/'data')
+        environment[PROCESS_MARKER] = secrets.token_hex(16)
+        process = start_process('power', [str(power), 'serve', '--config', str(config)], environment)
+        try:
+            wait_health(process, POWER_PORT, 60)
+        except BaseException:
+            stop_owned('power', power)
+            raise
+        updated = {**record, 'power_pid': process.pid, 'exact_benchmark_usage': mode,
+                   'synthetic_requests_only': mode, 'power_sha256': POWER_SHA256,
+                   'power_acl_sha256': hashlib.sha256(config.read_bytes()).hexdigest(),
+                   'normal_privacy_restored': not mode, 'frontend_unavailable': False,
+                   'usage_mode_changed_unix': time.time()}
+        temporary = profile_path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(updated, indent=2))
+        temporary.replace(profile_path)
+        return updated
+
+    try:
+        return activate(exact)
+    except BaseException as error:
+        # A failed frontend start cannot silently leave normal privacy disabled.
+        if not exact:
+            stop_owned('power', power)
+            unavailable = {**record, 'frontend_unavailable': True,
+                           'normal_privacy_restored': False,
+                           'restoration_error_type': type(error).__name__}
+            temporary = profile_path.with_suffix('.tmp')
+            temporary.write_text(json.dumps(unavailable, indent=2))
+            temporary.replace(profile_path)
+            raise
+        activate(previous)
+        raise
+
+
+def set_frontend_usage_mode(exact):
+    import fcntl
+    with (PRIVATE/'frontend-mode.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return _set_frontend_usage_mode(exact)
+
+
+@contextmanager
+def synthetic_usage_mode(state):
+    state.update({'enabled': False, 'normal_privacy_restored': False})
+    try:
+        set_frontend_usage_mode(True)
+        state['enabled'] = True
+        yield
+    finally:
+        try:
+            set_frontend_usage_mode(False)
+            state['normal_privacy_restored'] = True
+        except BaseException as error:
+            state['restoration_error_type'] = type(error).__name__
+            raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['start', 'stop', 'configure'])
+    parser.add_argument('action', choices=['start', 'stop', 'configure', 'set-usage-mode'])
+    parser.add_argument('--exact-benchmark-usage', action='store_true',
+                        help='enable exact usage for fixed synthetic benchmark inputs only')
     parser.add_argument('--layout', choices=['split8', 'replica4x2', 'replica8x1'], default='split8')
     parser.add_argument('--profile', choices=list(PROFILES), default='exact')
     parser.add_argument('--context', type=int, default=131072)
@@ -211,6 +353,10 @@ def main():
         raise ValueError('context must be between 4096 and 1048576')
     PRIVATE.mkdir(mode=0o700, exist_ok=True)
     PRIVATE.chmod(0o700)
+    if args.action == 'set-usage-mode':
+        set_frontend_usage_mode(args.exact_benchmark_usage)
+        print('FRONTEND_USAGE_MODE_UPDATED', args.exact_benchmark_usage)
+        return
     engine = ROOT/'source/xolotl/tools/v41/serve/serve_ds41.py'
     power = ROOT/'bin/a3s-power'
     if args.action == 'stop':
@@ -234,14 +380,8 @@ def main():
         raise RuntimeError('existing deployment API key has an invalid format')
     key_hash = hashlib.sha256(key.encode()).hexdigest()
     concurrent = {'split8': 1, 'replica4x2': 4, 'replica8x1': 8}[args.layout] * args.parallel
-    power_path = PRIVATE/'power.acl'
-    power_path.write_text(
-        f'host = "0.0.0.0"\nport = 30002\ndata_dir = "{PRIVATE}/data"\n'
-        f'api_keys = ["{key_hash}"]\nredact_logs = true\nnum_parallel = 1\n'
-        f'max_concurrent_requests = {concurrent}\nmax_queued_requests = 64\nqueue_timeout_ms = 300000\n'
-        f'proxy_upstream "{MODEL_NAME}" {{\n    url = "http://127.0.0.1:8150"\n}}\n')
-    power_path.chmod(0o600)
     if args.action == 'configure':
+        write_power_acl(concurrent, key_hash, args.exact_benchmark_usage)
         print('CONFIGURED', args.layout, args.profile, args.context)
         return
     model = ROOT/'models/V41-XQ-1017-v3.gguf'
@@ -262,6 +402,7 @@ def main():
         if count != stat.st_size:
             raise RuntimeError('model size changed while warming its file cache')
         warmup = {'bytes': count, 'elapsed_s': time.monotonic()-started}
+    power_path = write_power_acl(concurrent, key_hash, args.exact_benchmark_usage)
     stop_owned('power', power)
     stop_owned('xolotl', engine)
     environment = dict(os.environ)
@@ -286,7 +427,10 @@ def main():
               'keep_cache_new_token_limit': args.context if PROFILES[args.profile][2] else None,
               'draft_depth': args.draft_depth if PROFILES[args.profile][1] else None,
               'model': MODEL_NAME, 'port': 30002, 'upstream_port': 8150,
-              'started_unix': time.time(), 'xolotl_pid': upstream.pid, 'power_pid': frontend.pid}
+              'started_unix': time.time(), 'xolotl_pid': upstream.pid, 'power_pid': frontend.pid,
+              'power_sha256': POWER_SHA256, 'exact_benchmark_usage': args.exact_benchmark_usage,
+              'power_acl_sha256': hashlib.sha256(power_path.read_bytes()).hexdigest(),
+              'synthetic_requests_only': args.exact_benchmark_usage}
     (ROOT/'run/active-profile.json').write_text(json.dumps(record, indent=2))
     print(json.dumps(record), flush=True)
 

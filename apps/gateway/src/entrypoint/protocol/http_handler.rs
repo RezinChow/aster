@@ -213,12 +213,12 @@ pub async fn handle_http_dispatch(ctx: ProtocolContext) -> Response<ResponseBody
 
                 if let Some(phc) = state.passive_health.get(&route.service_name) {
                     phc.record_response_with_peers(
-                                &backend,
-                                status_code,
-                                crate::entrypoint::healthy_backend_count(
-                                    state.service_registry.get(&route.service_name).as_ref(),
-                                ),
-                            );
+                        &backend,
+                        status_code,
+                        crate::entrypoint::healthy_backend_count(
+                            state.service_registry.get(&route.service_name).as_ref(),
+                        ),
+                    );
                 }
 
                 let mut upstream_response = http::Response::new(proxy_resp.body);
@@ -776,12 +776,12 @@ pub async fn handle_http_dispatch(ctx: ProtocolContext) -> Response<ResponseBody
                     pipeline.observe_upstream_failure_with_request(&req_parts.extensions);
                     if let Some(phc) = state.passive_health.get(&route.service_name) {
                         phc.record_error_with_peers(
-                                &backend,
-                                error_status,
-                                crate::entrypoint::healthy_backend_count(
-                                    state.service_registry.get(&route.service_name).as_ref(),
-                                ),
-                            );
+                            &backend,
+                            error_status,
+                            crate::entrypoint::healthy_backend_count(
+                                state.service_registry.get(&route.service_name).as_ref(),
+                            ),
+                        );
                     }
                 }
 

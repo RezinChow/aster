@@ -7,6 +7,7 @@ import statistics
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 from qualify import qualify, qualify_long_context
 from service import ROOT, STAGING, PROFILES
@@ -28,11 +29,27 @@ def main():
         run_campaign()
 
 
+def require_complete_benchmark(output):
+    with output.open('rb') as source:
+        raw = source.read(4*1024**2+1)
+    if len(raw) > 4*1024**2:
+        raise RuntimeError('benchmark report exceeds its qualification bound')
+    report = json.loads(raw)
+    if report.get('complete') is not True or report.get('normal_privacy_restored') is not True:
+        raise RuntimeError('incomplete benchmark or failed privacy restoration cannot qualify a candidate')
+    return report
+
+
 def qualify_long_candidate(candidate):
-    if candidate.get('long_context_qualification', {}).get('passed') and candidate.get('long_context_benchmark'):
-        return True
     if 'long_context_failure' in candidate:
         return False
+    if candidate.get('long_context_qualification', {}).get('passed') and candidate.get('long_context_benchmark'):
+        try:
+            require_complete_benchmark(Path(candidate['long_context_benchmark']))
+            return True
+        except Exception as error:
+            candidate['long_context_failure'] = type(error).__name__+': '+str(error)
+            return False
     case = tuple(candidate['case'])
     try:
         activate(case)
@@ -43,8 +60,10 @@ def qualify_long_candidate(candidate):
         capacity = {'split8': 1, 'replica4x2': 4, 'replica8x1': 8}[case[0]]*case[3]
         output = ROOT/('bench/'+'-'.join(map(str, case))+'-long.json')
         subprocess.run([sys.executable, str(STAGING/'benchmark.py'), '--rounds', '2',
+                        '--exact-benchmark-usage',
                         '--max-tokens', '512', '--prompt-lines', '512',
                         '--concurrency', '1', str(max(8, capacity)), '--output', str(output)], check=True)
+        require_complete_benchmark(output)
         candidate['long_context_benchmark'] = str(output)
         return True
     except Exception as error:
@@ -93,9 +112,10 @@ def run_campaign():
             capacity = {'split8': 1, 'replica4x2': 4, 'replica8x1': 8}[case[0]]*case[3]
             output = ROOT/f'bench/{tag}.json'
             subprocess.run([sys.executable, str(STAGING/'benchmark.py'), '--rounds', '3',
+                            '--exact-benchmark-usage',
                             '--max-tokens', '512', '--concurrency', '1', str(max(8, capacity)),
                             '--output', str(output)], check=True)
-            report = json.loads(output.read_text())
+            report = require_complete_benchmark(output)
             if PROFILES[case[1]][1]:
                 single = [row for row in report['rounds'] if row['concurrency'] == 1]
                 if not any((row.get('native_last_timings') or {}).get('draft_n', 0) > 0 for row in single):

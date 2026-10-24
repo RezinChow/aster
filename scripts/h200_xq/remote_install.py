@@ -1,26 +1,135 @@
 #!/usr/bin/env python3
 """Rebuild on an allocated H200 node, activate verified weights, and tune."""
 
+import argparse
 import gzip
+import hashlib
 import json
 import shutil
 import subprocess
 import sys
 import time
 import urllib.request
+from pathlib import Path
 
-from prepare_assets import XOLOTL_SHA256, digest
-from service import ROOT, STAGING, require_hardware
+from prepare_assets import (XOLOTL_SHA256, XOLOTL_REVISION, LLAMA_REVISION, digest,
+                           MODEL_MANIFEST_SHA256, MODEL_TREE_SHA256,
+                           MODEL_AUXILIARY_SHA256, TOKENIZER_SHA256)
+from service import ROOT, STAGING, POWER_SHA256, require_hardware
 
-POWER_SHA256 = '62c33ee45f97a62fe5b39571294b9b6dbb645754b04faba53aab4e4ba1a81e63'
 ENGRAM_SHA256 = {
     1: '5cc4ca3be6302a50597684d234dd47ae7ff7b3a5b42d386515b58f4ecd17662b',
     14: '35c6bb1c15139a691d530c4ea469d1983031074c1a84b4e7f7668fef2015b68b',
 }
 SNAPSHOT = '/mnt/shared-storage-gpfs2/gpfs2-shared-public/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash-1017/snapshots/1bae0e1088993b9b82de08f59de5be5a34e42170'
+STAGING_SHA256 = {
+    'source/xolotl.tar.gz': XOLOTL_SHA256,
+    'source/llama-tree.json': '615b8d6e6f8614a337b579f9ef9fa54482abe6ac7dbf5d2389d187d8350ad768',
+    'validated-h200-engine.tar.gz': 'c5574540f36a37deef52ec4f72acca894b738f97f72dfac2bef37c6becfb3c95',
+    'assets/v3/SHA256SUMS': MODEL_MANIFEST_SHA256,
+    'assets/v3-tree.json': MODEL_TREE_SHA256,
+    **{'assets/v3/'+name: checksum for name, checksum in MODEL_AUXILIARY_SHA256.items()},
+    **{'assets/tokenizer/'+name: checksum for name, checksum in TOKENIZER_SHA256.items()},
+}
+
+
+def checked_file(root, name, maximum=128*1024**2):
+    path = root/name
+    if (not path.resolve().is_relative_to(root.resolve()) or path.is_symlink()
+            or not path.is_file() or path.stat().st_size > maximum):
+        raise RuntimeError('missing, unsafe or oversized preparation artifact: '+name)
+    return path
+
+
+def verify_staging(root, software_root=None):
+    """Check software and small assets without requiring or reading GGUF weights."""
+    software_root = root if software_root is None else Path(software_root)
+    if software_root.is_symlink() or not software_root.resolve().is_relative_to(root.resolve()):
+        raise RuntimeError('prepared software must stay inside the owned staging root')
+    artifacts = []
+    for name, expected in STAGING_SHA256.items():
+        path = checked_file(root, name)
+        if digest(path) != expected:
+            raise RuntimeError('preparation artifact checksum mismatch: '+name)
+        artifacts.append({'file': name, 'bytes': path.stat().st_size, 'sha256': expected})
+    power = hashlib.sha256()
+    power_bytes = 0
+    with gzip.open(checked_file(software_root, 'a3s-power-glibc235.gz'), 'rb') as source:
+        for block in iter(lambda: source.read(8*1024**2), b''):
+            power_bytes += len(block)
+            if power_bytes > 128*1024**2:
+                raise RuntimeError('prepared Power binary exceeds its size limit')
+            power.update(block)
+    if power.hexdigest() != POWER_SHA256:
+        raise RuntimeError('prepared Power binary checksum mismatch')
+    ready = checked_file(root, 'source/SOURCES_READY', 1024)
+    if ready.read_text().splitlines() != [XOLOTL_REVISION, LLAMA_REVISION]:
+        raise RuntimeError('prepared source revisions do not match the pinned build')
+    metadata = checked_file(root, 'source/llama-tree.json', 4*1024**2)
+    tree = json.loads(metadata.read_text())
+    if tree.get('truncated') or tree.get('sha') != LLAMA_REVISION:
+        raise RuntimeError('prepared ggml tree is truncated or has the wrong identity')
+    blobs = [item for item in tree['tree'] if item['type'] == 'blob' and item['path'].startswith('ggml/')]
+    if not blobs or any(item['mode'] not in ('100644', '100755') for item in blobs):
+        raise RuntimeError('prepared ggml source list is empty or has unsupported modes')
+    for item in blobs:
+        path = checked_file(root, 'source/llama/'+item['path'], 64*1024**2)
+        size = path.stat().st_size
+        if size != item['size']:
+            raise RuntimeError('prepared ggml source size mismatch: '+item['path'])
+        checksum = hashlib.sha1(f'blob {size}\0'.encode())
+        with path.open('rb') as source:
+            for block in iter(lambda: source.read(8*1024**2), b''):
+                checksum.update(block)
+        if checksum.hexdigest() != item['sha']:
+            raise RuntimeError('prepared ggml Git blob mismatch: '+item['path'])
+    manifest = json.loads(checked_file(software_root, 'operator-files.json', 65536).read_text())
+    if not isinstance(manifest, list) or not 1 <= len(manifest) <= 64:
+        raise RuntimeError('prepared operator manifest has an invalid size')
+    names = set()
+    for item in manifest:
+        if (not isinstance(item, dict) or set(item) != {'file', 'sha256'}
+                or not isinstance(item['file'], str) or Path(item['file']).name != item['file']
+                or item['file'] in names):
+            raise RuntimeError('prepared operator manifest has an invalid or duplicate entry')
+        names.add(item['file'])
+        if digest(checked_file(software_root, item['file'], 1024**2)) != item['sha256']:
+            raise RuntimeError('prepared operator checksum mismatch: '+item['file'])
+    return {'unix': time.time(), 'nonweight_ready': True, 'artifacts': artifacts,
+            'power_binary_sha256': POWER_SHA256, 'power_binary_bytes': power_bytes,
+            'software_bundle': str(software_root.resolve().relative_to(root.resolve())),
+            'ggml_verified_files': len(blobs), 'operator_verified_files': len(names),
+            'main_weights_checked': False, 'gpu_inference_tested': False}
+
+
+def run_preflight():
+    destination = STAGING/'logs/nonweight-preflight.json'
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    def publish(record):
+        temporary = destination.with_suffix('.tmp')
+        temporary.write_text(json.dumps(record, indent=2))
+        temporary.replace(destination)
+    try:
+        record = verify_staging(STAGING)
+    except Exception as error:
+        publish({'unix': time.time(), 'nonweight_ready': False,
+                 'error_type': type(error).__name__, 'reason': str(error)})
+        raise
+    publish(record)
+    return record
+
+
+def run_autotune():
+    try:
+        subprocess.run([sys.executable, str(STAGING/'autotune.py')], check=True)
+    finally:
+        # Restore normal privacy even if the campaign process itself fails.
+        # This action never reloads the Xolotl model or changes its profile.
+        subprocess.run([sys.executable, str(STAGING/'service.py'), 'set-usage-mode'], check=True)
 
 
 def main():
+    run_preflight()
     require_hardware()
     mount = subprocess.check_output(['findmnt', '--target', '/nvme', '--noheadings', '--output', 'TARGET'], text=True).strip()
     if mount != '/nvme' or shutil.disk_usage('/nvme').free < 500 * 1024**3:
@@ -64,10 +173,13 @@ def main():
             raise RuntimeError('extracted Engram data failed its pinned SHA-256 gate')
     subprocess.run([sys.executable, str(STAGING/'frontend_smoke.py')], check=True)
     subprocess.run([sys.executable, str(STAGING/'bootstrap.py')], check=True)
-    subprocess.run([sys.executable, str(STAGING/'autotune.py')], check=True)
+    run_autotune()
     campaign = json.loads((ROOT/'bench/campaign.json').read_text())
-    if campaign['best_warm_median_output_tokens_per_second'] < 0:
+    if (campaign.get('complete') is not True or campaign.get('long_context_qualified') is not True
+            or campaign['best_warm_median_output_tokens_per_second'] < 0):
         raise RuntimeError('no inference profile passed qualification')
+    if json.loads((ROOT/'run/active-profile.json').read_text()).get('exact_benchmark_usage') is not False:
+        raise RuntimeError('qualified service has not restored normal privacy')
     for filename in ('campaign.json',):
         shutil.copy2(ROOT/'bench'/filename, STAGING/'logs'/filename)
     print('QUALIFIED_H200_SERVICE_RUNNING', flush=True)
@@ -82,4 +194,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--preflight', action='store_true', help='verify prepared nonweight artifacts without GPUs')
+    args = parser.parse_args()
+    if args.preflight:
+        print(json.dumps(run_preflight()), flush=True)
+    else:
+        main()

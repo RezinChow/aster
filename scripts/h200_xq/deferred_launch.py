@@ -8,6 +8,7 @@ import time
 import uuid
 
 from service import STAGING
+from remote_install import run_preflight
 
 NAMESPACE = 'ailab-hrprdduanyan'
 
@@ -22,7 +23,7 @@ def write_state(value):
 def submission_command(name):
     return ['rjob', 'submit', '--namespace', NAMESPACE, '--name', name,
                '--task-type=normal', '--gpu=8', '--cpu=160', '--memory=1802240',
-               '--charged-group=hrprda3s_gpu_pool', '--positive-tags', 'h200', 'feature/gpfs=yes',
+               '--charged-group=hrprda3s_gpu_pool', '--positive-tags', 'H200', 'feature/gpfs=yes',
                '--mount', 'gpfs://gpfs1/yangchao:/mnt/shared-storage-user/yangchao',
                'gpfs://gpfs2/gpfs2-shared-public:/mnt/shared-storage-gpfs2/gpfs2-shared-public',
                '--store-host-nvme=true', '--private-machine=group', '--preemptible=no',
@@ -34,6 +35,7 @@ def submission_command(name):
 def main():
     with (STAGING/'deferred-launch.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        run_preflight()
         launch_if_ready()
 
 
@@ -44,6 +46,9 @@ def launch_if_ready():
     while not all(path.is_file() for path in parts):
         print('WAITING_WITHOUT_GPU_RESERVATION', sum(path.is_file() for path in parts), 16, time.time(), flush=True)
         time.sleep(30)
+    # Staging may have changed during the long download. Refuse GPU reservation
+    # until the prepared software and auxiliary files pass again.
+    run_preflight()
     name = 'a3s-power-xq-h200-final-'+uuid.uuid4().hex[:12]
     record = {'phase': 'submitting', 'showname': name, 'created_unix': time.time()}
     write_state(record)
