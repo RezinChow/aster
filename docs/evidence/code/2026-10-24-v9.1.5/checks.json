@@ -146,5 +146,10 @@
     "baseline_red": true,
     "negative_wrong_workspace": true,
     "global_trust_unchanged": true
+  },
+  "release_workflow_preflight": {
+    "yaml_parsed": true,
+    "shell_scripts_bash_syntax_checked": 11,
+    "kylin_glibc_probe": "explicit Bash, because the container default is sh"
   }
 }

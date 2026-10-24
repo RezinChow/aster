@@ -114,6 +114,7 @@ jobs:
         with:
           token: ${{ secrets.STUDIO_READ_TOKEN }}
       - name: Confirm the container glibc
+        shell: bash
         run: |
           set -euo pipefail
           version="$(getconf GNU_LIBC_VERSION | awk '{print $2}')"
