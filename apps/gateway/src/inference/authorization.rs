@@ -618,6 +618,7 @@ impl InferenceAuthorizer {
                 models.push(alias.to_string());
             }
         }
+        models.retain(|alias| self.principal_allows_model(authenticated, alias));
         models.sort_unstable();
         models.dedup();
         Ok(models)

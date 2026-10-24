@@ -10,7 +10,7 @@ use crate::config::InferencePrincipalConfig;
 use http::header::AUTHORIZATION;
 use http::HeaderMap;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -33,6 +33,8 @@ pub(crate) struct PrincipalSubject {
     pub(crate) org: Option<Arc<str>>,
     /// Per-credential model allowlist; `None` means no restriction.
     pub(crate) allowed_models: Option<Vec<Arc<str>>>,
+    /// Per-credential requests-per-minute limit; `None` means no RPM limit.
+    pub(crate) rpm_limit: Option<u32>,
 }
 
 pub(crate) struct VerifiedPrincipal {
@@ -40,6 +42,7 @@ pub(crate) struct VerifiedPrincipal {
     org: Option<String>,
     credential_id: Option<Uuid>,
     allowed_models: Option<Vec<Arc<str>>>,
+    rpm_limit: Option<u32>,
 }
 
 #[derive(Clone)]
@@ -52,6 +55,7 @@ struct CachedPrincipal {
 pub(super) struct PrincipalVerifier {
     verified: Arc<Mutex<HashMap<[u8; 32], CachedPrincipal>>>,
     subjects: Arc<Mutex<HashMap<Uuid, PrincipalSubject>>>,
+    rpm_windows: Arc<Mutex<HashMap<Uuid, VecDeque<Instant>>>>,
 }
 
 impl PrincipalVerifier {
@@ -62,10 +66,12 @@ impl PrincipalVerifier {
             Some(previous) => Self {
                 verified: previous.verified.clone(),
                 subjects: previous.subjects.clone(),
+                rpm_windows: previous.rpm_windows.clone(),
             },
             None => Self {
                 verified: Arc::new(Mutex::new(HashMap::new())),
                 subjects: Arc::new(Mutex::new(HashMap::new())),
+                rpm_windows: Arc::new(Mutex::new(HashMap::new())),
             },
         }
     }
@@ -85,6 +91,28 @@ impl PrincipalVerifier {
             subjects.clear();
         }
         subjects.insert(subject.credential_id, subject.clone());
+    }
+
+    fn check_rpm(&self, subject: &PrincipalSubject) -> Result<(), InferenceAccessError> {
+        let Some(limit) = subject.rpm_limit else {
+            return Ok(());
+        };
+        let now = Instant::now();
+        let mut windows = self.rpm_windows.lock().unwrap_or_else(PoisonError::into_inner);
+        let window = windows.entry(subject.credential_id).or_default();
+        while window
+            .front()
+            .is_some_and(|at| now.duration_since(*at) > Duration::from_secs(60))
+        {
+            window.pop_front();
+        }
+        if window.len() >= limit as usize {
+            return Err(InferenceAccessError::RateLimited {
+                retry_after_secs: 1,
+            });
+        }
+        window.push_back(now);
+        Ok(())
     }
 
     pub(super) fn allowed_models(&self, credential_id: Uuid) -> Option<Vec<Arc<str>>> {
@@ -113,6 +141,7 @@ impl PrincipalVerifier {
             let cache = self.verified.lock().unwrap_or_else(PoisonError::into_inner);
             if let Some(cached) = cache.get(&digest) {
                 if cached.route_id == route_id && cached.expires_at > now {
+                    self.check_rpm(&cached.subject)?;
                     return Ok(cached.subject.clone());
                 }
             }
@@ -129,6 +158,7 @@ impl PrincipalVerifier {
             subject: Arc::from(verified.subject),
             org: verified.org.map(Arc::from),
             allowed_models: verified.allowed_models,
+            rpm_limit: verified.rpm_limit,
         };
         let expires_at = Instant::now() + Duration::from_secs(principal.cache_ttl_secs);
         {
@@ -156,6 +186,7 @@ impl PrincipalVerifier {
             }
             subjects.insert(subject.credential_id, subject.clone());
         }
+        self.check_rpm(&subject)?;
         Ok(subject)
     }
 }
@@ -224,6 +255,7 @@ fn shared_subject(route_id: Uuid, token: &str) -> Option<PrincipalSubject> {
         subject: Arc::from(subject),
         org: None,
         allowed_models: None,
+        rpm_limit: None,
     })
 }
 
@@ -325,11 +357,13 @@ async fn call_verify(
             .map(Arc::from)
             .collect::<Vec<Arc<str>>>()
     });
+    let rpm_limit = header("x-a3s-rpm").and_then(|value| value.parse::<u32>().ok());
     Ok(VerifiedPrincipal {
         subject,
         org,
         credential_id,
         allowed_models,
+        rpm_limit,
     })
 }
 
