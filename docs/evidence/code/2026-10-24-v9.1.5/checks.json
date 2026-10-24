@@ -37,21 +37,10 @@
     "a3s-code-acp": "9.1.5"
   },
   "actual_acp_current_release": {
-    "qualified": true,
-    "unattended": {
-      "passed": 20,
-      "product_workflows": 13,
-      "auxiliary_tests": 7
-    },
-    "protocol": {
-      "passed": 10
-    },
-    "h1": {
-      "passed": true,
-      "independent_checks": 19,
-      "workflow_ms": 34453
-    },
-    "report": "final-qualification.json"
+    "qualified": false,
+    "reason": "user-directed compiled updater/platform changes require a fresh three-platform pair",
+    "core_source_unchanged": true,
+    "core_regression_passed": 741
   },
   "public_release": "not yet published",
   "remaining_goal": "active",
@@ -225,5 +214,39 @@
       "baseline jsonRender.ts dependency mismatch in both desktop renderer builds"
     ],
     "limitations": "workspace checks after format did not run; these are not passing checks"
+  },
+  "historical_registered_pair_qualification": {
+    "qualified": true,
+    "unattended": {
+      "passed": 20,
+      "product_workflows": 13,
+      "auxiliary_tests": 7
+    },
+    "protocol": {
+      "passed": 10
+    },
+    "h1": {
+      "passed": true,
+      "independent_checks": 19,
+      "workflow_ms": 34453
+    },
+    "report": "final-qualification.json"
+  },
+  "standard_platform_release": {
+    "platforms": [
+      "macos",
+      "linux",
+      "windows"
+    ],
+    "independent_kylin_archive": false,
+    "updater_tests": 2,
+    "linux_contract_tests": 13,
+    "pair_delivery_tests": 10,
+    "release_assembly_tests": 2,
+    "linter": "actionlint1.7.12 passed; shellcheck and pyflakes not run",
+    "linux_build_jobs": 2,
+    "preflight_before_compile": true,
+    "reuse_complete_artifacts_without_compile": true,
+    "report": "unified-linux-plan-and-checks.json"
   }
 }

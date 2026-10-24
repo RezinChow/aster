@@ -10,7 +10,7 @@ on:
         default: ""
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 concurrency:
@@ -18,7 +18,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    if: ${{ inputs.artifact_run_id == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Check out pinned desktop sources
+        uses: ./.github/actions/checkout-studio
+        with:
+          token: ${{ secrets.STUDIO_READ_TOKEN }}
+      - name: Install pinned toolchain
+        run: rustup show active-toolchain
+      - name: Check product formatting and delivery contracts
+        run: |
+          cargo fmt -p aster -p a3s-code-core -p a3s-code-acp -- --check
+          python3 tests/workspace_dependencies.py
+          python3 tests/studio_checkout.py
+          python3 tests/cli_pair_delivery.py
+          python3 tests/aster_cli_linux.py
+          python3 tests/cli_release_workflow.py
+
   build:
+    needs: preflight
     if: ${{ inputs.artifact_run_id == '' }}
     name: ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
@@ -30,9 +51,6 @@ jobs:
           - os: macos-latest
             platform: macos
             asset: aster-cli-v0.1.3-macos.tar.gz
-          - os: ubuntu-latest
-            platform: linux
-            asset: aster-cli-v0.1.3-linux.tar.gz
           - os: windows-latest
             platform: windows
             asset: aster-cli-v0.1.3-windows.zip
@@ -45,9 +63,6 @@ jobs:
         uses: ./.github/actions/checkout-studio
         with:
           token: ${{ secrets.STUDIO_READ_TOKEN }}
-      - name: Install Linux build tools
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler cmake pkg-config libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
       - name: Install macOS build tools
         if: runner.os == 'macOS'
         run: brew install protobuf just
@@ -86,19 +101,17 @@ jobs:
           path: ${{ matrix.asset }}
           if-no-files-found: error
 
-  # The linux archive is built on ubuntu-latest, so its binaries need the glibc of
-  # that release. Kylin V10 SP1 runs glibc 2.31 and cannot start them, so this job
-  # builds the same pair inside the oldest still-supported glibc that Aster targets
-  # and refuses the archive if a newer symbol slips in (scripts/check-glibc-symbols.py
-  # runs from scripts/package-aster-cli.sh for the `kylin` platform).
-  build-kylin:
+  # One Linux archive covers the supported glibc 2.31 baseline and newer loaders.
+  build-linux:
+    needs: preflight
     if: ${{ inputs.artifact_run_id == '' }}
-    name: kylin
+    name: linux
     runs-on: ubuntu-latest
     timeout-minutes: 240
     container: ubuntu:20.04
     env:
       CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
       CARGO_TERM_COLOR: always
       DEBIAN_FRONTEND: noninteractive
     steps:
@@ -153,17 +166,20 @@ jobs:
           set -euo pipefail
           . "$HOME/.cargo/env"
           bin_dir="${CARGO_TARGET_DIR:-target}/release"
-          bash scripts/package-aster-cli.sh kylin "$bin_dir" "aster-cli-v0.1.3-kylin.tar.gz"
+          bash scripts/package-aster-cli.sh linux "$bin_dir" "aster-cli-v0.1.3-linux.tar.gz"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: aster-cli-kylin
-          path: aster-cli-v0.1.3-kylin.tar.gz
+          name: aster-cli-linux
+          path: aster-cli-v0.1.3-linux.tar.gz
           if-no-files-found: error
 
   publish:
     name: publish
-    needs: [build, build-kylin]
-    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kylin.result == 'success' || needs.build-kylin.result == 'skipped') }}
+    permissions:
+      contents: write
+      actions: read
+    needs: [preflight, build, build-linux]
+    if: ${{ !cancelled() && (needs.preflight.result == 'success' || inputs.artifact_run_id != '') && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-linux.result == 'success' || needs.build-linux.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -184,18 +200,17 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           files=(dist/*)
-          if [[ ${#files[@]} -ne 4 ]]; then
-            echo "expected 4 release archives, found ${#files[@]}" >&2
+          if [[ ${#files[@]} -ne 3 ]]; then
+            echo "expected 3 release archives, found ${#files[@]}" >&2
             printf '%s\n' "${files[@]:-}" >&2
             exit 1
           fi
           macos_sha="$(sha256sum -b dist/aster-cli-v0.1.3-macos.tar.gz | cut -d' ' -f1)"
           linux_sha="$(sha256sum -b dist/aster-cli-v0.1.3-linux.tar.gz | cut -d' ' -f1)"
-          kylin_sha="$(sha256sum -b dist/aster-cli-v0.1.3-kylin.tar.gz | cut -d' ' -f1)"
           windows_sha="$(sha256sum -b dist/aster-cli-v0.1.3-windows.zip | cut -d' ' -f1)"
           # Compact single-line manifest: scripts/install.sh parses this exact shape.
-          printf '{"version":"0.1.3","tag":"aster-cli-v0.1.3","assets":{"macos":{"name":"aster-cli-v0.1.3-macos.tar.gz","sha256":"%s"},"linux":{"name":"aster-cli-v0.1.3-linux.tar.gz","sha256":"%s"},"kylin":{"name":"aster-cli-v0.1.3-kylin.tar.gz","sha256":"%s"},"windows":{"name":"aster-cli-v0.1.3-windows.zip","sha256":"%s"}}}\n' \
-            "$macos_sha" "$linux_sha" "$kylin_sha" "$windows_sha" > dist/latest.json
+          printf '{"version":"0.1.3","tag":"aster-cli-v0.1.3","assets":{"macos":{"name":"aster-cli-v0.1.3-macos.tar.gz","sha256":"%s"},"linux":{"name":"aster-cli-v0.1.3-linux.tar.gz","sha256":"%s"},"windows":{"name":"aster-cli-v0.1.3-windows.zip","sha256":"%s"}}}\n' \
+            "$macos_sha" "$linux_sha" "$windows_sha" > dist/latest.json
           if [[ -n "$ARTIFACT_RUN_ID" ]]; then
             built="$(gh api "repos/${GH_REPO}/actions/runs/${ARTIFACT_RUN_ID}" --jq .head_sha)"
           else
@@ -212,8 +227,10 @@ jobs:
 
           Qualification uses controlled-model actual ACP and compiler-VM workflows. It does not establish real-model Terminal Bench speed or token savings. Arbitrary persistence/export callbacks still require actual return before their original owner can retire; broader recovery-fault and changed-argument-loop boundaries remain under investigation.
 
+          Whole-workspace CI is blocked by pre-existing pinned Studio test-module and renderer-dependency gaps; CLI/Core/ACP component checks are recorded separately.
+
           Each archive contains the locked release build of aster 0.1.3 and a3s-code-acp 9.1.5 from this repository, plus their shared BUILD_ID and SHA256SUMS. The binaries are unsigned.
-          The linux archive targets current glibc; the kylin archive targets glibc 2.31.
+          The Linux archive uses one x86_64, glibc 2.31 compatibility baseline.
           Update with `aster update`, or use `aster update --check` to inspect first. Installations predating the paired updater can use scripts/install.sh or scripts/install.ps1.
           EOF
           printf 'Built from %s.\n' "$built" >> notes.md

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Pack the two aster-cli release binaries into one archive.
-# Usage: scripts/package-aster-cli.sh <macos|linux|kylin|windows> <bin-dir> <out-file>
+# Usage: scripts/package-aster-cli.sh <macos|linux|windows> <bin-dir> <out-file>
 #
-# `kylin` is the Kylin V10 SP1 target: x86_64, glibc 2.31. It refuses binaries
-# that need a newer glibc, because the archive would fail on the target machine
+# `linux` targets x86_64, glibc 2.31. It refuses binaries that need a newer
+# glibc, because the archive would fail on the target machine
 # with a missing GLIBC_2.3x symbol rather than at packaging time.
 set -euo pipefail
 
 if [[ $# -ne 3 ]]; then
-  echo "Usage: scripts/package-aster-cli.sh <macos|linux|kylin|windows> <bin-dir> <out-file>" >&2
+  echo "Usage: scripts/package-aster-cli.sh <macos|linux|windows> <bin-dir> <out-file>" >&2
   exit 2
 fi
 
@@ -32,8 +32,8 @@ copy_file() {
 
 max_glibc=""
 case "$platform" in
-  macos|linux) suffix="" ;;
-  kylin)
+  macos) suffix="" ;;
+  linux)
     suffix=""
     max_glibc="2.31"
     ;;

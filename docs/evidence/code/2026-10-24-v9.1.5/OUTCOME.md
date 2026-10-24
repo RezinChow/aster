@@ -45,3 +45,11 @@ Actual Rust CI40104203537 compiled the static guest agents, then both native job
 Both desktop renderer jobs separately fail on the missing parent `packages/intelligent-ui/src/jsonRender.ts` imported by that Studio pin. `git diff` proves Studio, Office and intelligent-ui sources identical to basebfdfb797; the pinned alias points at a file absent in that baseline. No concurrent frontend work or private Studio source file is imported into the release. `workspace-limits.json` records the blocked scope. These failures are not waived or presented as passing; the CLI/ACP release has independent component tests and builds and contains no desktop renderer.
 
 Four-platform release run40104259230 remains on frozen sourcee2d2f6224; these evidence-only corrections do not change its product or dependency inputs. Final release archive checks and public publication remain pending.
+
+## User-directed standard-platform release
+
+The user explicitly removed a special Kylin CLI version and called out duplicate CI work. The release now has exactly macOS/Linux/Windows, with one Linux x86_64 glibc2.31 build. Installer and compiled updater select the standard Linux archive; the retired platform and direct URL are refused. There is no legacy Kylin alias or extra published archive. Published CLIv0.1.1 predates this paired updater module, so no published Kylin updater channel is being migrated.
+
+Checks:13 Linux packaging/installer contracts,10 pair delivery/rollback checks,2 actual draft-assembly shell controls,2 Rust updater tests and actionlint pass. The publisher controls bind reused artifacts to their original commit and refuse missing or retired extra archives before any release creation. Quick product preflight precedes native compilation; whole-workspace format now runs before expensive static-guest builds. The existing artifact_run_id path promotes completed archives without rebuilding them.
+
+Compiled updater behavior changed, so historical pair3c601c08 and run40104259230 cannot be presented as the final standard-platform binaries. A new three-platform build and actual archive qualification are required. Core production inputs are unchanged; its prior741-test regression remains scoped to that unchanged component. Whole-workspace Studio failures and credential rotation remain open.
