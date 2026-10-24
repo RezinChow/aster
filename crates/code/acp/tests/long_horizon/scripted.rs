@@ -38,6 +38,40 @@ fn tool(id: &str, name: &str, args: Value) -> Value {
     json!({"id":id,"type":"function","function":{"name":name,"arguments":args.to_string()}})
 }
 
+fn original_check_exit_code(request: &Value) -> Option<i32> {
+    let messages = request["messages"].as_array()?;
+    for (index, message) in messages.iter().enumerate() {
+        if message["role"] != "assistant" {
+            continue;
+        }
+        for call in message["tool_calls"].as_array().into_iter().flatten() {
+            if call["function"]["name"] != "bash" {
+                continue;
+            }
+            let args: Value = serde_json::from_str(call["function"]["arguments"].as_str()?).ok()?;
+            if args["command"] != super::fixture::LOCAL_CHECK {
+                continue;
+            }
+            let id = call["id"].as_str()?;
+            for result in messages[index + 1..]
+                .iter()
+                .take_while(|item| item["role"] == "tool")
+            {
+                if result["tool_call_id"] == id {
+                    return result["content"]
+                        .as_str()?
+                        .split_once('\n')?
+                        .0
+                        .strip_prefix("Tool exit code: ")?
+                        .parse()
+                        .ok();
+                }
+            }
+        }
+    }
+    None
+}
+
 fn decide(request: &Value, observations: &mut Observations) -> Result<Value, String> {
     observations.requests += 1;
     if request["model"] != MODEL || observations.requests > 24 {
@@ -76,22 +110,7 @@ fn decide(request: &Value, observations: &mut Observations) -> Result<Value, Str
             json!({"command":super::fixture::LOCAL_CHECK,"timeout":30000}),
         )],
         2 => {
-            observations.initial_exit_code = request["messages"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .find_map(|message| {
-                    if message["role"] != "tool" || message["tool_call_id"] != "initial-check" {
-                        return None;
-                    }
-                    message["content"]
-                        .as_str()?
-                        .split_once('\n')?
-                        .0
-                        .strip_prefix("Tool exit code: ")?
-                        .parse()
-                        .ok()
-                });
+            observations.initial_exit_code = original_check_exit_code(request);
             observations.saw_initial_exit_code =
                 observations.initial_exit_code.is_some_and(|code| code != 0);
             if !observations.saw_initial_exit_code {
@@ -192,6 +211,41 @@ fn scripted_json_and_sse_publish_the_same_explicit_usage() {
         .collect();
     assert_eq!(observed, vec![non_stream["usage"].clone()]);
     assert!(streamed.ends_with("data: [DONE]\n\n"));
+}
+
+#[test]
+fn initial_check_uses_the_original_pair_with_an_opaque_host_id() {
+    for id in ["initial-check", "host-issued-opaque-id"] {
+        let request = json!({"messages":[
+            {"role":"assistant","tool_calls":[tool(id,"bash",json!({"command":super::fixture::LOCAL_CHECK}))]},
+            {"role":"tool","tool_call_id":id,"content":"Tool exit code: 7\noriginal failure"}
+        ]});
+        assert_eq!(original_check_exit_code(&request), Some(7));
+    }
+}
+
+#[test]
+fn initial_check_refuses_unbound_foreign_or_masked_result_frames() {
+    let original = json!({"messages":[
+        {"role":"assistant","tool_calls":[tool("opaque","bash",json!({"command":super::fixture::LOCAL_CHECK}))]},
+        {"role":"tool","tool_call_id":"opaque","content":"Tool exit code: 1\noriginal failure"}
+    ]});
+    let mut wrong_id = original.clone();
+    wrong_id["messages"][1]["tool_call_id"] = "initial-check".into();
+    let mut wrong_command = original.clone();
+    wrong_command["messages"][0]["tool_calls"][0]["function"]["arguments"] =
+        json!({"command":format!("{}; echo exit=$?",super::fixture::LOCAL_CHECK)})
+            .to_string()
+            .into();
+    let mut wrong_role = original.clone();
+    wrong_role["messages"][1]["role"] = "user".into();
+    let mut no_status = original.clone();
+    no_status["messages"][1]["content"] = "stdout without an original exit code".into();
+    let mut reversed = original.clone();
+    reversed["messages"].as_array_mut().unwrap().reverse();
+    for frame in [wrong_id, wrong_command, wrong_role, no_status, reversed] {
+        assert_eq!(original_check_exit_code(&frame), None);
+    }
 }
 
 impl Scripted {

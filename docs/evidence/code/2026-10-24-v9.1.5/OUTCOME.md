@@ -8,6 +8,12 @@ Commands: `cargo test --locked --offline -p a3s-code-core --lib -- confirmation 
 
 An isolated paired candidate, actual ACP/conformance and compiler-VM qualification, four platform archives, and final publication are still pending. The workflow assembles a draft bound to its actual build commit; a later check publishes only the qualified release.
 
+## Subsequent qualification
+
+The isolated release source passed 741 relevant Core tests (two existing ignored), actual ACP20 (13 workflows plus7 auxiliary) and protocol10. Controlled H1 first failed before ACP launch because its owned artifact parent was absent; preparing that parent exposed a separate scripted-model assumption that the provider ID must remain `initial-check`. The model fixture now correlates the exact admitted command and its adjacent native result through their opaque IDs. Two positive/negative fixture tests pass. Production completion and verification gates are unchanged. A new paired build and actual qualification are required because the source identity includes fixture bytes.
+
+The first four-platform CI run40092859072 stopped before compilation because its required private-Studio token was missing. A single-job macOS rerun confirmed this prerequisite. Dedicated deploy-key creation was refused by the repository policy; no deployment key was created or policy changed. The user requested automatic configuration and explicitly selected one-year validity for a restricted Studio-read token. Credential configuration and publication remain pending.
+
 ## Explicitly not claimed
 
 The architecture goal remains active. Arbitrary unreturned store/export callbacks retain their original owner; their cancellation/settlement contract is unfinished. Crash/recovery faults, changed-argument or model-derived-output loops, complete 130-case coverage, GUI/multi-platform runtime/soak qualification and real-model Terminal Bench speed/token improvements are not proved. Current tests use controlled models and synthetic usage. No public release has been made at this checkpoint.
