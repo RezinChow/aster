@@ -20,14 +20,16 @@
     "passed": 2
   },
   "format": {
-    "whole_workspace_passed": true,
+    "whole_workspace_passed": false,
     "scoped_passed": true,
     "baseline_format_only_files": [
       "apps/gateway/src/entrypoint/protocol/grpc_handler.rs",
       "apps/gateway/src/entrypoint/protocol/http_handler.rs",
       "apps/gateway/src/entrypoint/protocol/streaming_handler.rs"
     ],
-    "foreign_primary_worktree_changes_untouched": true
+    "foreign_primary_worktree_changes_untouched": true,
+    "workspace_blocker": "same pinned Studio references absent os_feed_tests.rs; local SOLO reproduced and both CI platforms fail",
+    "earlier_global_pass_claim": "corrected by workspace-limits.json"
   },
   "versions": {
     "aster": "0.1.3",
@@ -146,6 +148,24 @@
       "raw_sha256": "e6c0275406ad1ed52c1584b350640ddc67c08387dec142c324e8866570d63e69",
       "normalized_sha256": "8f300c25b27bfe55c6f06eeb26ad5871c1784e9cf02f13e20ba156a74aa18923",
       "scope": "line-end and excess final blank whitespace removed from the bounded failure excerpt; full original CI log and raw fragment retained"
+    },
+    {
+      "public_copy": "workspace-fmt-red.log",
+      "raw_sha256": "28d70703d868bf6387e44d23db3cf281b2fd1d0fcb20c8ab9c08526aebf2cc53",
+      "normalized_sha256": "28d70703d868bf6387e44d23db3cf281b2fd1d0fcb20c8ab9c08526aebf2cc53",
+      "scope": "line-end/excess final blank whitespace normalized; complete raw command log retained in primary ignored build outputs"
+    },
+    {
+      "public_copy": "scoped-fmt.log",
+      "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "normalized_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "line-end/excess final blank whitespace normalized; complete raw command log retained in primary ignored build outputs"
+    },
+    {
+      "public_copy": "optional-features.log",
+      "raw_sha256": "6124ca657d822cdcda22393ef64ad08570d4cc167df5b7fe145cf04ee95330ba",
+      "normalized_sha256": "6124ca657d822cdcda22393ef64ad08570d4cc167df5b7fe145cf04ee95330ba",
+      "scope": "line-end/excess final blank whitespace normalized; complete raw command log retained in primary ignored build outputs"
     }
   ],
   "ci_current_run": {
@@ -188,5 +208,22 @@
     "archive_sha256": "3e866620c5be27664f3d2fa2d656b5f3e09b5152b42f1bedbf427b333e90021a",
     "prebuilt_elf_glibc_ceiling": "2.31 passed with repository checker and LLVM readelf; actual container run pending",
     "raw_old_ci_log_sha256": "eda87b2e9dca23009c9c13360bd8d2d1658109891c3fe15963e8cd453a8c6ef4"
+  },
+  "optional_feature_compile": {
+    "passed": true,
+    "features": [
+      "advanced-harness",
+      "deep-live"
+    ],
+    "log": "optional-features.log"
+  },
+  "workspace_ci": {
+    "run": 40104203537,
+    "status": "failure",
+    "reasons": [
+      "pinned Studio missing os_feed_tests.rs at format",
+      "baseline jsonRender.ts dependency mismatch in both desktop renderer builds"
+    ],
+    "limitations": "workspace checks after format did not run; these are not passing checks"
   }
 }
