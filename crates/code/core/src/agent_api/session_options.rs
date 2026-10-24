@@ -158,9 +158,7 @@ impl SessionOptions {
 
     /// Override the agent-level web-search configuration for this session.
     ///
-    /// The configuration is value-typed and therefore safe to pass through
-    /// the Node, Python, and Go SDK boundaries. `None` keeps the agent/global
-    /// configuration unchanged.
+    /// `None` keeps the agent-level configuration unchanged.
     pub fn with_search_config(mut self, config: crate::config::SearchConfig) -> Self {
         self.search_config = Some(config);
         self
@@ -238,7 +236,7 @@ impl SessionOptions {
     /// Set a confirmation policy for HITL
     ///
     /// The policy will be used to create a ConfirmationManager when the session is built.
-    /// This is the preferred way to configure HITL from the Node SDK.
+    /// Hosts can use this policy without constructing a confirmation provider.
     pub fn with_confirmation_policy(mut self, policy: crate::hitl::ConfirmationPolicy) -> Self {
         self.confirmation_policy = Some(policy);
         self

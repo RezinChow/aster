@@ -280,6 +280,8 @@ impl AgentSession {
 
     /// Resolve a pending HITL tool confirmation.
     ///
+    /// Use the opaque ID from the pending request or confirmation event, rather
+    /// than a model-supplied tool ID. Each original invocation owns its consent.
     /// Returns `Ok(true)` when a pending confirmation was found and completed,
     /// `Ok(false)` when the tool ID is not pending or HITL is not configured.
     pub async fn confirm_tool_use(
@@ -297,8 +299,8 @@ impl AgentSession {
                 return Ok(true);
             }
         }
-        // A stale answer cannot reopen a policy-bound Run through the legacy owner.
-        if self.config.work_policy.is_some() {
+        // A stale answer cannot reopen a bound Run through the legacy owner.
+        if self.config.work_policy.is_some() || self.goal_definition()?.is_some() {
             return Ok(false);
         }
         let run = super::conversation_runtime::FactSession::from(self).open()?;

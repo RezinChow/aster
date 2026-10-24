@@ -134,7 +134,7 @@ through the same Run-owned `ToolExecutor` and pinned `Arc<dyn Tool>` values.
 The Profile is persisted in the Session snapshot and an explicit different
 Profile is rejected during resume. Delegated child runs inherit the parent
 Profile exactly in this version; the public partial-order check also rejects a
-future child mode that would broaden its parent. Node.js, Python, and Go expose
+future child mode that would broaden its parent. Rust hosts expose
 typed Profile objects rather than a primitive backend selector.
 
 ## Model-input snapshot
@@ -221,10 +221,9 @@ that exact binding, and delegated children inherit the same session adapter.
 Without a configured adapter, standalone compatibility is unchanged: only
 lossy originals and compacted change sides use the bounded session-local
 `ArtifactStore`, which can be included in `SessionSnapshotV1`. That store is
-not a shared authorization, retention, or object-lifecycle authority. Node.js,
-Python, and Go intentionally do not accept a primitive backend name for this
-Rust host callback; an official managed-host surface requires a separately
-typed, authorized adapter contract.
+not a shared authorization, retention, or object-lifecycle authority. Rust
+hosts supply the typed callback; managed hosts need an explicitly authorized
+adapter contract, not a primitive backend name.
 
 The local fallback now has an explicit `ArtifactStore::put_content_addressed`
 operation for replay and research paths. It returns an idempotent replay for
@@ -424,7 +423,7 @@ observational, while cancellation can interrupt bounded-channel backpressure
 before any Tool side effect starts.
 
 Live streams, persisted runs, bounded event pages, and replay all use the same
-`EventEnvelopeV1` payload. Node.js, Python, and Go event catalogs are generated
+`EventEnvelopeV1` payload. Rust hosts event catalogs are generated
 from the Core catalog, so unknown future fields remain preservable without a
 second SDK event taxonomy. The Harness regression suite validates snapshot
 digests after persistence and requires replayed evidence to equal the original

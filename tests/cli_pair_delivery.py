@@ -38,8 +38,9 @@ class PairDelivery(unittest.TestCase):
         path.chmod(0o755)
 
     def package(self):
+        # Shell delivery fixtures use Unix packaging; Linux ELF checks have their own suite.
         result = subprocess.run(["bash", str(ROOT / "scripts/package-aster-cli.sh"),
-            PLATFORM, str(self.bins), str(self.archive)], capture_output=True, text=True, timeout=10)
+            "macos", str(self.bins), str(self.archive)], capture_output=True, text=True, timeout=10)
         if result.returncode == 0:
             self.write_manifest()
         return result

@@ -24,7 +24,7 @@ How to use, configure, and operate A3S Code.
 Contracts, designs, test plans, and the qualification gates they define.
 
 - [A3S Code Capability Verification and Performance Contract](CAPABILITY_VERIFICATION.md)
-- [Capability integrated-use ledger](CAPABILITY_INTEGRATED_USE_LEDGER.md)
+- [Historical upstream capability integrated-use ledger](CAPABILITY_INTEGRATED_USE_LEDGER.md)
 - [Cloud / Box Harness Conformance Checklist](CLOUD_HARNESS_CONFORMANCE.md)
 - [Code Intelligence Design](CODE_INTELLIGENCE_DESIGN.md)
 - [Durable Memory Semantic Refresh](DURABLE_MEMORY_SEMANTIC_REFRESH.md)
@@ -45,11 +45,11 @@ Contracts, designs, test plans, and the qualification gates they define.
 - [A3S Code SDK capability matrix](SDK_CAPABILITY_MATRIX.md)
 - [A3S Code TUI 端到端测试方案](TUI_E2E_SCHEME.md)
 - [Typed System-1 Decision E2E Plan](TYPED_DECISION_E2E_PLAN.md)
-- [a3s-code 9.0.0 completion roadmap](V9_0_0_COMPLETION_ROADMAP.md)
+- [Historical upstream 9.0.0 roadmap](V9_0_0_COMPLETION_ROADMAP.md)
 - [Workspace Retrieval Backends](WORKSPACE_RETRIEVAL_BACKENDS.md)
 - [Workspace Retrieval Baseline v1](WORKSPACE_RETRIEVAL_BASELINE.md)
 - [Workspace Retrieval Chunking](WORKSPACE_RETRIEVAL_CHUNKING.md)
-- [Workspace Retrieval Release Qualification](WORKSPACE_RETRIEVAL_QA.md)
+- [Historical upstream Workspace Retrieval Qualification](WORKSPACE_RETRIEVAL_QA.md)
 - [Workspace Search Production Qualification](WORKSPACE_SEARCH_PRODUCTION.md)
 - [Test cases](test-cases/README.md)
 - [2026-10-12 TUI E2E plan](tui-e2e/20261012/README.md)
@@ -59,9 +59,9 @@ Contracts, designs, test plans, and the qualification gates they define.
 Release contracts, procedures, and per-release notes.
 
 - [Agent Release Contract](AGENT_RELEASE_CONTRACT.md)
-- [Code npm publishing](NPM_TRUSTED_PUBLISHING.md)
 - [Release cadence](RELEASE_CADENCE.md)
 - [Release profiles (KRN-10)](RELEASE_PROFILES.md)
-- [9.1.3 candidate release disposition](RELEASE_9.1.3.md)
+- [Historical upstream 9.1.3 candidate disposition](RELEASE_9.1.3.md)
 - [9.1.4 release candidate](RELEASE_9.1.4.md)
-- [A3S Code 9.1.3 test contract](TEST_PLAN_9.1.3.md)
+- [9.1.5 / Aster CLI 0.1.3](RELEASE_9.1.5.md)
+- [Historical upstream 9.1.3 test contract](TEST_PLAN_9.1.3.md)

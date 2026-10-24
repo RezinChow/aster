@@ -1,5 +1,9 @@
 # A3S Code 9.1.3 test contract
 
+> Historical upstream record. Foreign-language SDK results and external publishing
+> references do not describe this repository's Rust/ACP delivery or qualify its current release.
+
+
 The candidate remains on hold. This contract defines the required test lanes;
 an inventory, a successful compile, or an ignored test does not establish a
 passing execution. Retain first failures, exact SOLO reproductions, source

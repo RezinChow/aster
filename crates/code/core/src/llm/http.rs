@@ -385,6 +385,17 @@ impl ReqwestHttpClient {
             request_timeout: Some(timeout),
         })
     }
+
+    /// Build a single-hop client for callers that admit one exact endpoint.
+    pub fn without_redirects() -> Result<Self> {
+        Ok(Self {
+            client: reqwest_client_builder(None, None)?
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .context("Failed to build single-hop HTTP client")?,
+            request_timeout: None,
+        })
+    }
 }
 
 impl Default for ReqwestHttpClient {
@@ -738,6 +749,15 @@ pub(crate) fn build_reqwest_client(
     timeout: Option<Duration>,
     default_headers: Option<reqwest::header::HeaderMap>,
 ) -> Result<reqwest::Client> {
+    reqwest_client_builder(timeout, default_headers)?
+        .build()
+        .context("Failed to build reqwest client")
+}
+
+fn reqwest_client_builder(
+    timeout: Option<Duration>,
+    default_headers: Option<reqwest::header::HeaderMap>,
+) -> Result<reqwest::ClientBuilder> {
     let mut builder = reqwest::Client::builder().no_proxy();
 
     // TCP+TLS connect only — no generation is involved, so a host (or proxy)
@@ -773,7 +793,7 @@ pub(crate) fn build_reqwest_client(
         );
     }
 
-    builder.build().context("Failed to build reqwest client")
+    Ok(builder)
 }
 
 fn explicit_proxy_config_from_env() -> ExplicitProxyConfig {
@@ -854,6 +874,9 @@ mod duplex_tests;
 
 #[cfg(test)]
 mod transport_error_tests;
+
+#[cfg(test)]
+mod redirect_tests;
 
 #[cfg(test)]
 mod tests {
@@ -956,12 +979,12 @@ mod tests {
         );
     }
 
-    fn proxy_env_lock() -> &'static Mutex<()> {
+    pub(super) fn proxy_env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
     }
 
-    fn clear_proxy_env() {
+    pub(super) fn clear_proxy_env() {
         for key in [
             "http_proxy",
             "HTTP_PROXY",

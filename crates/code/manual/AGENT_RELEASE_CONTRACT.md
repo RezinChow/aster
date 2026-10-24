@@ -146,9 +146,8 @@ tool/session setup failures therefore fail before activation.
 
 `ServeDaemonHandle::stop` cancels sleepers and in-flight schedule turns, closes
 daemon-owned sessions, and joins the task within a 30-second default deadline.
-Terminal failures expose stable `SERVE_*` codes. Node.js, Python, and Go SDK
-serve calls wait for readiness before returning and expose status through their
-serve handles.
+Terminal failures expose stable `SERVE_*` codes. Rust hosts must wait for
+readiness and inspect the returned daemon handle for lifecycle status.
 
 This is a lifecycle primitive, not the v1 release runtime. It does not read or
 bind `.a3s/asset.acl`, listen on the declared readiness/liveness paths, accept a

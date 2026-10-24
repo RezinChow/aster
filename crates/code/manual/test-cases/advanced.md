@@ -177,7 +177,7 @@ Feature: `advanced-harness`.
 - **Stimulus:** fork, patch the fork, diff twice.
 - **Oracle:** parent head unchanged; both diffs equal.
 - **Fail:** parent head moves, or diffs differ.
-- **Home:** `test_state_graph_integration.rs`; Go `sdk/go/state_graph_test.go`.
+- **Home:** `test_state_graph_integration.rs`.
 
 ### I-SG-01
 
@@ -212,12 +212,12 @@ Always compiled. Host owns publication.
 
 ### I-AR-01
 
-- **Invariant:** Node release-manifest script and Rust verify agree on the fixture.
+- **Invariant:** the Rust release validator accepts a valid fixture and rejects malformed variants.
 - **Pre:** shared fixture.
-- **Stimulus:** both verifiers.
-- **Oracle:** same accept/reject.
-- **Fail:** Node accepts what Rust rejects.
-- **Home:** `sdk/node/scripts/release-manifest.test.mjs`, `agent_release_manifest.rs`.
+- **Stimulus:** parse valid and invalid fixture variants.
+- **Oracle:** valid input is accepted; invalid values have named validation errors.
+- **Fail:** the validator accepts malformed input.
+- **Home:** `core/tests/agent_release_manifest.rs`.
 
 ## agent_protocol (AP)
 
@@ -308,7 +308,7 @@ Feature: `advanced-harness`.
 - **Fail:** cross-delete.
 - **Home:** `session_close_leaves_the_host_evaluation_digest` in `core/src/evaluation/result.rs` (`--features evaluation`). Host-owned result digest `record_digest` survives `session.close()`, and `SESSION-SURVIVOR-91` survives dropping the result store.
 
-SDK: `sdk/python/tests/test_evaluation_protocol.py`, `sdk/go/evaluation_protocol_v1_test.go`.
+Rust wire boundary: `core/src/evaluation/protocol.rs`.
 
 ## moli_runtime (MO)
 
@@ -453,7 +453,7 @@ review decisions. See [RESEARCH_CONTRACTS.md](../RESEARCH_CONTRACTS.md).
 - **Stimulus:** encode, decode, persist, read back.
 - **Oracle:** decoded value equals the original; digest unchanged.
 - **Fail:** a field dropped on the wire.
-- **Home:** `provenance_receipt_round_trips_after_reopen` in `core/tests/research_protocol_v1.rs` (`--features research`). `ResearchWireEnvelopeV1::from_provenance_receipt` is written, read back, and `receipt_digest` is unchanged. Go: `TestProvenanceReceiptEnvelopeSurvivesReopen` in `sdk/go/research_protocol_v1_test.go`. The Go projection keeps the payload opaque; the test persists the envelope and checks the digest bytes survive decode. Python: `sdk/python/tests/test_research_protocol.py`.
+- **Home:** `provenance_receipt_round_trips_after_reopen` in `core/tests/research_protocol_v1.rs` (`--features research`). `ResearchWireEnvelopeV1::from_provenance_receipt` is written, read back, and `receipt_digest` is unchanged.
 
 ### I-RX-02
 

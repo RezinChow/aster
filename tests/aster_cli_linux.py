@@ -1,9 +1,4 @@
-"""Hold the Kylin V10 CLI archive to its glibc 2.31 baseline.
-
-The acceptance question in issue #10 is whether an archive labelled for Kylin
-V10 SP1 actually starts there. glibc 2.31 is the ceiling on that system, so the
-packaging path has to prove it rather than trust the build host.
-"""
+"""One standard Linux archive, with a verified glibc 2.31 ceiling."""
 
 from __future__ import annotations
 
@@ -121,124 +116,91 @@ class GlibcCeilingTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 2, completed.stdout)
 
 
-class KylinPackagingTest(unittest.TestCase):
-    def test_packaging_accepts_the_kylin_platform(self):
-        source = PACKAGE.read_text()
-        self.assertIn("kylin", source)
-        # The baseline must be enforced by the kylin branch, not only documented.
-        self.assertIn('max_glibc="2.31"', source)
-        self.assertIn("check-glibc-symbols.py", source)
+class LinuxPackagingTest(unittest.TestCase):
+    def package_fixture(self, dump):
+        with tempfile.TemporaryDirectory(prefix="aster-linux-package-") as directory:
+            root = Path(directory)
+            bins, commands = root / "bins", root / "commands"
+            bins.mkdir()
+            commands.mkdir()
+            for name in NAMES:
+                path = bins / name
+                path.write_text(f"#!/bin/sh\nprintf '%s\\n' '{IDENTITY}'\n")
+                path.chmod(0o755)
+            reader = commands / "readelf"
+            reader.write_text('#!/bin/sh\nprintf "%s\\n" "$@" >> "$FAKE_READELF_LOG"\nprintf "%s\\n" "$FAKE_ABI_DUMP"\n')
+            reader.chmod(0o755)
+            trace = root / "readelf.log"
+            archive = root / "linux.tar.gz"
+            env = dict(os.environ, PATH=str(commands) + os.pathsep + os.environ["PATH"], FAKE_READELF_LOG=str(trace), FAKE_ABI_DUMP=dump)
+            result = subprocess.run(["bash", str(PACKAGE), "linux", str(bins), str(archive)], env=env, capture_output=True, text=True, timeout=10)
+            return result, archive.exists(), trace.read_text() if trace.exists() else ""
 
-    def test_packaging_still_rejects_an_unknown_platform(self):
-        completed = subprocess.run(
-            ["bash", str(PACKAGE), "plan9", "/tmp", "/tmp/out.tar.gz"],
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(completed.returncode, 1, completed.stdout)
-        self.assertIn("unsupported platform", completed.stderr)
+    def test_linux_packaging_checks_both_binaries_against_the_baseline(self):
+        result, exists, trace = self.package_fixture(DUMP_231)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(exists)
+        self.assertIn("--version-info", trace)
+        for name in NAMES:
+            self.assertIn("/" + name + "\n", trace)
+
+    def test_linux_packaging_refuses_a_newer_glibc_requirement(self):
+        result, exists, _ = self.package_fixture(DUMP_238)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("GLIBC_2.34", result.stderr)
+        self.assertFalse(exists)
+
+    def test_retired_and_unknown_platforms_are_refused(self):
+        for platform in ("kylin", "plan9"):
+            with self.subTest(platform=platform):
+                result = subprocess.run(["bash", str(PACKAGE), platform, "/missing", "/missing/out.tar.gz"], capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("unsupported platform", result.stderr)
 
 
-class KylinChannelSelectionTest(unittest.TestCase):
-    """install.sh must ask for the archive the host's loader can start.
-
-    Issues #10 and #16 are one report seen from two sides: the generic linux
-    archive needs glibc 2.32, so a Kylin V10 SP1 host (glibc 2.31) downloaded a
-    binary that could not start. The installer reads the host's glibc and asks the
-    manifest for the kylin archive instead.
-
-    The probe stops at the archive lookup on purpose: what is under test is which
-    asset the installer names. Extraction and promotion are covered by
-    tests/cli_pair_delivery.py.
-    """
-
+class LinuxChannelSelectionTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="aster-kylin-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="aster-linux-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.assets = self.root / "assets"
-        self.prefix = self.root / "prefix"
-        self.fake = self.root / "fake"
+        self.assets, self.prefix, self.fake = (self.root / name for name in ("assets", "prefix", "fake"))
         for path in (self.assets, self.prefix, self.fake):
             path.mkdir()
         digest = "0" * 64
-        entries = ",".join(
-            f'"{platform}":{{"name":"aster-cli-v{VERSION}-{platform}.tar.gz","sha256":"{digest}"}}'
-            for platform in ("linux", "kylin")
-        )
         (self.assets / "latest.json").write_text(
-            f'{{"version":"{VERSION}","tag":"aster-cli-v{VERSION}","assets":{{{entries}}}}}\n'
+            f'{{"version":"{VERSION}","tag":"aster-cli-v{VERSION}","assets":{{"linux":{{"name":"aster-cli-v{VERSION}-linux.tar.gz","sha256":"{digest}"}}}}}}\n'
         )
+        self.fake_tool("uname", 'printf "%s\\n" Linux')
 
     def fake_tool(self, name, body):
         path = self.fake / name
         path.write_text("#!/bin/sh\n" + body + "\n")
         path.chmod(0o755)
 
-    def select(self):
-        environment = dict(
-            os.environ,
-            ASTER_RELEASE_BASE=str(self.assets),
-            PATH=str(self.fake) + os.pathsep + os.environ["PATH"],
-        )
-        environment.pop("ASTER_INSTALL_URL", None)
-        environment.pop("GROK_INSTALL_URL", None)
-        return subprocess.run(
-            ["bash", str(INSTALL), "--prefix", str(self.prefix)],
-            env=environment,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+    def environment(self):
+        env = dict(os.environ, ASTER_RELEASE_BASE=str(self.assets), PATH=str(self.fake) + os.pathsep + os.environ["PATH"])
+        env.pop("ASTER_INSTALL_URL", None)
+        env.pop("GROK_INSTALL_URL", None)
+        return env
 
-    def missing_asset(self, completed):
-        self.assertIn("local release is missing", completed.stderr)
-        return completed.stderr.split("local release is missing ", 1)[1].split()[0]
+    def test_linux_hosts_request_the_same_archive_without_a_special_channel(self):
+        for version in ("2.31", "2.39", None):
+            with self.subTest(reported_glibc=version):
+                self.fake_tool("getconf", f'printf "%s\\n" "glibc {version}"' if version else "exit 1")
+                self.fake_tool("ldd", "exit 1")
+                result = subprocess.run(["bash", str(INSTALL), "--prefix", str(self.prefix)], env=self.environment(), capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"local release is missing aster-cli-v{VERSION}-linux.tar.gz", result.stderr)
 
-    def test_a_glibc_2_31_host_asks_for_the_kylin_archive(self):
-        self.fake_tool("getconf", 'printf "%s\\n" "glibc 2.31"')
-        completed = self.select()
-        self.assertEqual(
-            self.missing_asset(completed), f"aster-cli-v{VERSION}-kylin.tar.gz"
-        )
-
-    def test_a_glibc_2_27_host_also_asks_for_the_kylin_archive(self):
-        self.fake_tool("getconf", 'printf "%s\\n" "glibc 2.27"')
-        completed = self.select()
-        self.assertEqual(
-            self.missing_asset(completed), f"aster-cli-v{VERSION}-kylin.tar.gz"
-        )
-
-    def test_a_current_glibc_host_asks_for_the_generic_archive(self):
-        self.fake_tool("getconf", 'printf "%s\\n" "glibc 2.39"')
-        completed = self.select()
-        self.assertEqual(
-            self.missing_asset(completed), f"aster-cli-v{VERSION}-linux.tar.gz"
-        )
-
-    def test_a_kylin_ldd_line_is_read_when_getconf_is_silent(self):
-        # Kylin's own loader prints "ldd (Ubuntu GLIBC 2.31-0kylin9.1k22.0) 2.31".
-        # The trailing token is the version; the numbers inside the parenthesis are
-        # part of the distribution suffix, so a first-match read would pick 2.31
-        # twice and a greedy one would land on 0.0.
-        self.fake_tool("getconf", "exit 1")
-        self.fake_tool("ldd", 'printf "%s\\n" "ldd (Ubuntu GLIBC 2.31-0kylin9.1k22.0) 2.31"')
-        completed = self.select()
-        self.assertEqual(
-            self.missing_asset(completed), f"aster-cli-v{VERSION}-kylin.tar.gz"
-        )
-
-    def test_an_unknown_glibc_keeps_the_generic_archive(self):
-        self.fake_tool("getconf", "exit 1")
-        self.fake_tool("ldd", "exit 1")
-        completed = self.select()
-        self.assertEqual(
-            self.missing_asset(completed), f"aster-cli-v{VERSION}-linux.tar.gz"
-        )
-
-    def test_the_installer_accepts_a_kylin_archive_url(self):
-        source = INSTALL.read_text()
-        self.assertIn("(macos|linux|kylin|windows)", source)
+    def test_retired_direct_archive_is_refused_before_network_access(self):
+        marker = self.root / "network-called"
+        self.fake_tool("curl", 'printf called > "$NETWORK_MARKER"; exit 99')
+        env = self.environment()
+        env["NETWORK_MARKER"] = str(marker)
+        result = subprocess.run(["bash", str(INSTALL), "--prefix", str(self.prefix), f"https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v{VERSION}/aster-cli-v{VERSION}-kylin.tar.gz"], env=env, capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not download that binary", result.stderr)
+        self.assertFalse(marker.exists())
 
 
 if __name__ == "__main__":
