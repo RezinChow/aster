@@ -20,9 +20,10 @@ runs:
       id: revision
       shell: bash
       run: |
-        # Container checkout ownership can differ; trust only this workspace.
-        test "$(git -c safe.directory="$GITHUB_WORKSPACE" ls-tree HEAD apps/studio | cut -d ' ' -f 1)" = 160000
-        echo "sha=$(git -c safe.directory="$GITHUB_WORKSPACE" rev-parse HEAD:apps/studio)" >> "$GITHUB_OUTPUT"
+        # Older container Git and later build scripts need this exact runner checkout.
+        git config --global --add safe.directory "${GITHUB_WORKSPACE:?}"
+        test "$(git -C "$GITHUB_WORKSPACE" ls-tree HEAD apps/studio | cut -d ' ' -f 1)" = 160000
+        echo "sha=$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD:apps/studio)" >> "$GITHUB_OUTPUT"
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         repository: kense-labs/studio

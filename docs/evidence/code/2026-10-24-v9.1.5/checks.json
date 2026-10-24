@@ -134,6 +134,12 @@
       "raw_sha256": "70e93564d0764ef0a87cb81eef0920beaaace971b28365ee0acd06f66cbe72d7",
       "normalized_sha256": "70e93564d0764ef0a87cb81eef0920beaaace971b28365ee0acd06f66cbe72d7",
       "scope": "line-end and excess final blank whitespace removed; original logs retained"
+    },
+    {
+      "public_copy": "studio-checkout-compatible-green.log",
+      "raw_sha256": "cbf0054a7b922908843a620138ba48fe142dd241b598b0008dfc782e82a5958c",
+      "normalized_sha256": "cbf0054a7b922908843a620138ba48fe142dd241b598b0008dfc782e82a5958c",
+      "scope": "line-end and excess final blank whitespace removed; original log retained"
     }
   ],
   "ci_current_run": {
@@ -144,12 +150,22 @@
   "studio_checkout_ownership": {
     "passed": 1,
     "baseline_red": true,
-    "negative_wrong_workspace": true,
-    "global_trust_unchanged": true
+    "wrong_and_missing_workspace_refused": true,
+    "unrelated_current_directory_supported": true,
+    "downstream_build_git_supported": true,
+    "trust_scope": "only the exact runner checkout is added to the ephemeral CI global Git config; existing entries preserved, no wildcard, user global Git config untouched",
+    "log": "studio-checkout-compatible-green.log"
   },
   "release_workflow_preflight": {
     "yaml_parsed": true,
     "shell_scripts_bash_syntax_checked": 11,
     "kylin_glibc_probe": "explicit Bash, because the container default is sh"
+  },
+  "ci_checkout_counterexample": {
+    "run_id": 40102189209,
+    "git_version": "2.25.1",
+    "result": "command-line safe.directory still rejected in the Ubuntu20 container; later source-identity build scripts also need trusted Git reads",
+    "log": "studio-checkout-old-git-ci.log",
+    "raw_log_sha256": "fcf8809db2aba340c620111873155a9ae0f5436ea9d8ca9b86955eb6418aff56"
   }
 }

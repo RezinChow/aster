@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class StudioCheckout(unittest.TestCase):
-    def test_revision_step_handles_a_different_owner_without_global_trust(self):
+    def test_revision_and_build_git_trust_only_the_runner_checkout(self):
         lines = (ROOT / ".github/actions/checkout-studio/action.yml").read_text().splitlines()
         start = lines.index("      id: revision")
         start = lines.index("      run: |", start) + 1
@@ -37,10 +37,22 @@ class StudioCheckout(unittest.TestCase):
             accepted = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT, env=env, text=True, capture_output=True, timeout=10)
             self.assertEqual(accepted.returncode, 0, accepted.stderr)
             self.assertRegex((temporary / "output").read_text(), r"\Asha=[0-9a-f]{40}\n\Z")
+            elsewhere = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=temporary, env=env, text=True, capture_output=True, timeout=10)
+            self.assertEqual(elsewhere.returncode, 0, elsewhere.stderr)
+            downstream = subprocess.run(["git", "ls-files", "--error-unmatch", "apps/aster/Cargo.toml"], cwd=ROOT, env=env, text=True, capture_output=True, timeout=10)
+            self.assertEqual(downstream.returncode, 0, downstream.stderr)
+            safe = subprocess.check_output(["git", "config", "--global", "--get-all", "safe.directory"], env=env, text=True).splitlines()
+            self.assertEqual(set(safe), {"/unrelated-checkout", str(ROOT)})
+            config.write_text(original)
             env["GITHUB_WORKSPACE"] = str(temporary)
             wrong_checkout = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT, env=env, text=True, capture_output=True, timeout=10)
             self.assertNotEqual(wrong_checkout.returncode, 0)
-            self.assertIn("dubious ownership", wrong_checkout.stderr)
+            safe = subprocess.check_output(["git", "config", "--global", "--get-all", "safe.directory"], env=env, text=True).splitlines()
+            self.assertEqual(set(safe), {"/unrelated-checkout", str(temporary)})
+            config.write_text(original)
+            env["GITHUB_WORKSPACE"] = ""
+            missing = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT, env=env, text=True, capture_output=True, timeout=10)
+            self.assertNotEqual(missing.returncode, 0)
             self.assertEqual(config.read_text(), original)
 
 
