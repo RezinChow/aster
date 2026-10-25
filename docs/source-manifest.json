@@ -2972,8 +2972,9 @@
         "backend_verified_by_unique_nonce_and_kv_reuse": true,
         "workbuddy_bundled_cli_e2e_passed": false,
         "workbuddy_first_turn_latency_accepted": false,
-        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r10/receipts/xolotl-stable-recovery-v217-promotion.json",
-        "fresh_windows_backend_verified": true
+        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r11/receipts/formal-runtime-and-stream-verification.json",
+        "fresh_windows_backend_verified": true,
+        "service_root": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-1mc13-2eae3fd237dd/serve-tool-repair-v284"
       },
       "optimization": {
         "allocation_uid": "b37b7201-2c9c-45a2-ae1f-e522319324ca",
@@ -2994,7 +2995,7 @@
         "parent_head_before_r3": "691564b0bbce7d5dfc3bf51bb0ec6585700a1e7e",
         "evidence_revision": "ttft-1m-20261025/r10"
       },
-      "next_action": "Observe exact213r1/214 existing actual1M control_a; no duplicate input. Compare native2bc83 flag0/1/0 on C12; keep stable C13 and failed profiler/C2 gates visible. Do not equate24.1x operator timing with model/API speed.",
+      "next_action": "Observe existing control_b suite on C12 with213r4; keep unchanged C2 acceptance. After all profiles drain, the replay-free profiler watch292 may run. Formal C13 serves repaired API; successful authenticated GUI search remains unverified.",
       "serving": {
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
@@ -3023,8 +3024,9 @@
         "backend_verified_by_unique_nonce_and_kv_reuse": true,
         "workbuddy_bundled_cli_e2e_passed": false,
         "workbuddy_first_turn_latency_accepted": false,
-        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r10/receipts/xolotl-stable-recovery-v217-promotion.json",
-        "fresh_windows_backend_verified": true
+        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r11/receipts/formal-runtime-and-stream-verification.json",
+        "fresh_windows_backend_verified": true,
+        "service_root": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-1mc13-2eae3fd237dd/serve-tool-repair-v284"
       }
     },
     "server_access_131k": {
@@ -3843,6 +3845,17 @@
       "operator_1M_rows6_candidate_graph_us": 301.214648,
       "model_gain_qualified": false,
       "production_promoted": false
+    },
+    "latest_tool_loop_repair": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r11",
+      "formal_service_root": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-1mc13-2eae3fd237dd/serve-tool-repair-v284",
+      "native_binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
+      "tool_call_and_result_IDs_preserved": true,
+      "identical_completed_rounds_limit": 3,
+      "installed_client_Read_passed": true,
+      "installed_client_repeated_search_stopped_at_three_and_reported_three": true,
+      "successful_authenticated_search_E2E_passed": false,
+      "WorkBuddy_GUI_E2E_passed": false
     }
   }
 }
