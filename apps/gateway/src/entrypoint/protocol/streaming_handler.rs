@@ -332,7 +332,7 @@ pub async fn handle_sse_dispatch(ctx: ProtocolContext) -> Response<ResponseBody>
                                         }
                                         drop(inference_admission);
                                         drop(service_request);
-                                        return track_usage_response(response, usage_lifecycle);
+                return track_usage_response(response, usage_lifecycle);
                                     }
                                     crate::wire::Gated::Forward {
                                         body: gated,
@@ -510,6 +510,7 @@ pub async fn handle_sse_dispatch(ctx: ProtocolContext) -> Response<ResponseBody>
                     observed_tokens,
                     attribution,
                 );
+                let response = super::http_handler::with_inference_metrics(response, request_start).await;
                 return track_usage_response(response, usage_lifecycle);
             }
             Err(error) => {

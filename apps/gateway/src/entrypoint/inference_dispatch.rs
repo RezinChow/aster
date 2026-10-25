@@ -222,7 +222,19 @@ impl InferenceDispatchState {
     /// (the turn's content against the plan's rubric, over the
     /// decision model's resolved backend), and the effective target
     /// list. Fail-closed throughout: any failure resolves primary.
-    pub(crate) async fn resolve_routing(&mut self, state: &GatewayState) {
+    pub(crate) async fn resolve_routing(&mut self, state: &GatewayState, req_headers: &http::HeaderMap) {
+        if self.model_alias == "auto" {
+            let now = chrono::Utc::now();
+            if let Ok(candidates) = self.authorizer.allowed_models(self.authenticated, now) {
+                let candidates = candidates
+                    .into_iter()
+                    .filter(|alias| alias != "auto" && !alias.starts_with("platform/"))
+                    .collect::<Vec<_>>();
+                if let Some(selected) = auto_select_model(&self.request, &candidates, req_headers).await {
+                    self.model_alias = selected;
+                }
+            }
+        }
         if self.effective_targets.is_some() {
             return;
         }
@@ -1011,4 +1023,81 @@ fn translate_anthropic_request(
 fn translation_refused(reason: &str) -> InferenceAccessError {
     tracing::warn!(reason, "Cross-protocol translation refused");
     InferenceAccessError::TranslationRefused
+}
+
+
+/// Use a decision model to choose the best chat model for this request.
+/// Falls back to the catalog's default when the router is unavailable or
+/// returns an unknown model.
+async fn auto_select_model(request: &OpenAiJsonRequest, candidates: &[String], req_headers: &http::HeaderMap) -> Option<String> {
+    if candidates.is_empty() {
+        tracing::warn!("auto router has no candidates");
+        return None;
+    }
+    tracing::info!(candidates = ?candidates, "auto router invoked");
+    let router_model = std::env::var("A3S_ROUTER_MODEL").unwrap_or_else(|_| "prism-27b".to_string());
+    let router_url = std::env::var("A3S_ROUTER_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:8080/v1/chat/completions".to_string());
+    let router_token = req_headers
+        .get(http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.trim_start_matches("Bearer ").to_string())
+        .or_else(|| std::env::var("A3S_ROUTER_TOKEN").ok())
+        .or_else(|| std::env::var("A3S_GATEWAY_ADMIN_TOKEN").ok())
+        .or_else(|| std::env::var("A3S_GATEWAY_SHARED_TOKEN").ok())
+        .unwrap_or_default();
+    if router_token.is_empty() {
+        return None;
+    }
+    let request_text = serde_json::to_string(&request.document).unwrap_or_default();
+    let request_text = if request_text.len() > 4000 {
+        &request_text[..4000]
+    } else {
+        &request_text
+    };
+    let prompt = format!(
+        "You are a model router. Choose exactly one model id from the candidate list that best fits the user's request. Respond with only the model id, no explanation.\n\nCandidates: {}\n\nRequest://n{}",
+        candidates.join(", "),
+        request_text
+    );
+    let body = serde_json::json!({
+        "model": router_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 24,
+    });
+    let client = reqwest::Client::new();
+    let response = match client
+        .post(router_url)
+        .bearer_auth(router_token)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::warn!(error = %error, "auto router request failed");
+            return None;
+        }
+    };
+    if !response.status().is_success() {
+        tracing::warn!(status = %response.status(), "auto router returned an error");
+        return None;
+    }
+    let json = response.json::<serde_json::Value>().await.ok()?;
+    let content = json
+        .get("choices")
+        .and_then(|choices| choices.get(0))
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("content"))
+        .and_then(|content| content.as_str())?;
+    let selected = content.trim().trim_matches(|c| c == '"' || c == '\'' || c == '`');
+    let selected = candidates
+        .iter()
+        .find(|candidate| candidate.eq_ignore_ascii_case(selected))
+        .cloned();
+    if let Some(model) = &selected {
+        tracing::info!(model = %model, "auto model selected by decision model");
+    }
+    selected
 }
