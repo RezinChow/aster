@@ -2941,16 +2941,16 @@
       "superseded_by": "server_access_1m"
     },
     "current_serving_optimization_roles": {
-      "unix": 1792893765.3897414,
+      "unix": 1792900946.624879,
       "goal_objective": "深度完成单卡H200 DeepSeek v4.1 Flash 1M上下文 三值量化版本模型推理速度优化",
       "goal_met": false,
       "active_service": {
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
-        "allocation_uid": "3a66564e-0a12-4c17-9b41-741fd78e0017",
-        "gpu_uuid": "GPU-43dd75b7-4024-e33d-325e-3042ce0f3c43",
+        "allocation_uid": "1cfa236c-40ba-408f-a45e-003e0261bdf5",
+        "gpu_uuid": "GPU-ae6ae91f-8d9b-abc1-f7d4-7077c20fcc97",
         "context_tokens": 1048576,
-        "lease_ends_unix": 1792906909.8635943,
+        "lease_ends_unix": 1792921721.8908198,
         "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
         "api_sha256": "f062d9d39131959da9c981b6704e2ec27f89d8e2806730062dcabc3eb27682ba",
         "prefill_batch_tokens": 8192,
@@ -2966,39 +2966,41 @@
         "same_existing_key": true,
         "native_tool_arguments_repaired": true,
         "workbuddy_gui_end_to_end_passed": false,
-        "allocation_job": "aster-xolotl-1mc9-e81ede480e07-8789662",
-        "replica_uid": "c19ea7d8-bb55-4d85-966a-f10cd42a08cb",
+        "allocation_job": "aster-xolotl-1mc11-6ef84ac5b528-78529266",
+        "replica_uid": "51a633ec-5c55-4544-bf11-94aeb9283ebd",
         "credentials_retained": false,
         "backend_verified_by_unique_nonce_and_kv_reuse": true,
         "workbuddy_bundled_cli_e2e_passed": false,
-        "workbuddy_first_turn_latency_accepted": false
+        "workbuddy_first_turn_latency_accepted": false,
+        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8/receipts/xolotl-stable-recovery-v157-promotion.json",
+        "fresh_windows_backend_verified": true
       },
       "optimization": {
         "allocation_uid": "7455d989-8255-4f7c-ae8f-3cc0aa5928e4",
         "gpu_uuid": "GPU-099e8da4-8df0-c431-9e67-eb721e59beee",
         "lease_ends_unix": 1792910673.5259097,
         "binary_sha256": "9a684b2442d4b648fff6a73024de5b7bab096657fe45897bf036c7e216895bbf",
-        "latest_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r7",
-        "current_profile": "native9a684/S512/1Mconfigured; seed diagnostic rejected for complete-output identity; matched native trace completed",
+        "latest_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8",
+        "current_profile": "Same-native99f3/S512/GPFS baseline vs exact literal API; real1M campaign in progress",
         "production_promoted": false,
         "full1m_candidate_qualified": false,
-        "actual1m_input_completed_this_round": false,
+        "actual1m_input_completed_this_round": true,
         "ordinary_decode_gain_proven": false,
         "concurrent_identity_fixed": false
       },
       "maximum_allocated_h200": 2,
       "publication": {
         "parent_head_before_r3": "691564b0bbce7d5dfc3bf51bb0ec6585700a1e7e",
-        "evidence_revision": "ttft-1m-20261025/r7"
+        "evidence_revision": "ttft-1m-20261025/r8"
       },
-      "next_action": "Use the matched1M/batch2 trace to target Q3/dense execution and synchronization; finish new unique-code actual1M GPU suite; preserve failed identity gates and formal C9; max2 GPUs.",
+      "next_action": "Observe exact same-native literal API real1M campaign on C10; preserve failed C2 gate, current C11 availability and bounded max2 roles; target dense GPU/kernel/copy/sync counters after finite campaigns.",
       "serving": {
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
-        "allocation_uid": "3a66564e-0a12-4c17-9b41-741fd78e0017",
-        "gpu_uuid": "GPU-43dd75b7-4024-e33d-325e-3042ce0f3c43",
+        "allocation_uid": "1cfa236c-40ba-408f-a45e-003e0261bdf5",
+        "gpu_uuid": "GPU-ae6ae91f-8d9b-abc1-f7d4-7077c20fcc97",
         "context_tokens": 1048576,
-        "lease_ends_unix": 1792906909.8635943,
+        "lease_ends_unix": 1792921721.8908198,
         "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
         "api_sha256": "f062d9d39131959da9c981b6704e2ec27f89d8e2806730062dcabc3eb27682ba",
         "prefill_batch_tokens": 8192,
@@ -3014,12 +3016,14 @@
         "same_existing_key": true,
         "native_tool_arguments_repaired": true,
         "workbuddy_gui_end_to_end_passed": false,
-        "allocation_job": "aster-xolotl-1mc9-e81ede480e07-8789662",
-        "replica_uid": "c19ea7d8-bb55-4d85-966a-f10cd42a08cb",
+        "allocation_job": "aster-xolotl-1mc11-6ef84ac5b528-78529266",
+        "replica_uid": "51a633ec-5c55-4544-bf11-94aeb9283ebd",
         "credentials_retained": false,
         "backend_verified_by_unique_nonce_and_kv_reuse": true,
         "workbuddy_bundled_cli_e2e_passed": false,
-        "workbuddy_first_turn_latency_accepted": false
+        "workbuddy_first_turn_latency_accepted": false,
+        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8/receipts/xolotl-stable-recovery-v157-promotion.json",
+        "fresh_windows_backend_verified": true
       }
     },
     "server_access_131k": {
@@ -3761,13 +3765,43 @@
       "diagnostic_only": true
     },
     "latest_unique_code_actual1m_fixture": {
-      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r7",
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8",
       "actual_input_tokens": 1047544,
       "max_output_tokens": 1024,
       "source_revision": "e9d0826d71c59072cbff77d2a31dd51f27ab7a12",
       "corpus_repeated": false,
-      "cpu_qualified": true,
-      "gpu_qualified": false
+      "canonical_api_cpu_qualified": true,
+      "canonical_api_prompt_id_sha256": "b442a593a4066e3e99b663b670db4d7d624c471f1c5f6ee906e315c99d1969c4",
+      "gpu_actual_count_verified": true,
+      "native_runtime_id_digest_captured": false,
+      "full_cold_restore_and_c1_passed": true,
+      "complete_c2_output_identity_passed": false
+    },
+    "latest_engram_simd": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8",
+      "model_requests": 120,
+      "all_standard_requests_passed": true,
+      "observed_long_output_api_tok_s": [
+        75.74289371644436,
+        76.31130960042509,
+        75.50382248049063
+      ],
+      "real1m_gpu_input_tested": false,
+      "production_promoted": false
+    },
+    "latest_exact_literal_frontend": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8",
+      "real_api_cpu_A_B_A_seconds": [
+        9.153777753934264,
+        1.6471612737514079,
+        9.126679551787674
+      ],
+      "all_token_ids_exact": true,
+      "new_helper_unit_methods": 15,
+      "upstream_frontend_methods": 25,
+      "overlay_cpu_suites": 14,
+      "gpu_api_improvement_qualified": false,
+      "production_promoted": false
     }
   }
 }
