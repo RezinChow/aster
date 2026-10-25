@@ -3881,6 +3881,18 @@
       "complete_C2_output_identity_passed": false,
       "actual_model_1M_decode_hardware_trace_collected": false,
       "production_experimental_native_promoted": false
+    },
+    "latest_manual_decode_trace_preparation": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r13",
+      "helper_unit_methods": 36,
+      "actual_smoke_parser_metrics": 30,
+      "actual_smoke_parser_rows": 18000,
+      "physical_counter_values_qualified": false,
+      "actual_model_decode_trace_collected": false,
+      "upstream_reviewed_commit": "0b9a0fc86dc55388c8c737bdc5fbccccf7273927",
+      "upstream_ahead_commits": 36,
+      "formal_changed": false,
+      "graph_full_model_comparison_in_progress": true
     }
   }
 }
