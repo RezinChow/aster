@@ -24,6 +24,10 @@ pub(crate) struct UsageFactBody {
     model_id: String,
     endpoint: String,
     tokens: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    prompt_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    completion_tokens: Option<u64>,
     succeeded: bool,
     occurred_at: i64,
 }
@@ -52,6 +56,8 @@ pub(crate) fn report_principal_usage(
     attribution: &UsageAttribution,
     total_tokens: u64,
     status: u16,
+    prompt_tokens: Option<u64>,
+    completion_tokens: Option<u64>,
 ) {
     let Some(attribution) = platform_attribution(attribution) else {
         static LOGGED: OnceLock<()> = OnceLock::new();
@@ -67,7 +73,7 @@ pub(crate) fn report_principal_usage(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or(0);
-    let body = usage_fact_body(&attribution, total_tokens, status, occurred_at);
+    let body = usage_fact_body(&attribution, total_tokens, status, occurred_at, prompt_tokens, completion_tokens);
     let url = std::env::var("A3S_USAGE_INGEST_URL").unwrap_or_default();
     let token = std::env::var("A3S_GATEWAY_ADMIN_TOKEN").unwrap_or_default();
     submit_usage_fact(url.trim(), token.trim(), body);
@@ -78,6 +84,8 @@ pub(crate) fn usage_fact_body(
     total_tokens: u64,
     status: u16,
     occurred_at: i64,
+    prompt_tokens: Option<u64>,
+    completion_tokens: Option<u64>,
 ) -> UsageFactBody {
     let org_id = attribution
         .subject
@@ -94,6 +102,8 @@ pub(crate) fn usage_fact_body(
         model_id: attribution.model.clone(),
         endpoint: attribution.endpoint.as_str().to_owned(),
         tokens: total_tokens,
+        prompt_tokens,
+        completion_tokens,
         succeeded: status < 400,
         occurred_at,
     }
