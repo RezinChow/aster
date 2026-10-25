@@ -3915,5 +3915,14 @@
     "profile_evidence": "docs/evidence/deployment/2026-10-25-deepseek-dspark-prefill",
     "source": "tools/model-runtime/deepseek-v41-xq",
     "native_engine_revision": "e9d0826d71c59072cbff77d2a31dd51f27ab7a12"
+  },
+  "gateway_neural_auto_availability_20261025": {
+    "binary_sha256": "af7ccb465e147e56afbddd0bc22257db444c600e83ddfedff76e648ab5d78d24",
+    "decision_model": "prism-27b",
+    "routing_mode": "smart_saving",
+    "evidence": "docs/evidence/gateway/2026-10-25-neural-auto-readiness",
+    "managed_policy": "docs/evidence/gateway/2026-10-25-neural-auto-readiness/selected-auto-policy.acl",
+    "source_base_revision": "d97ab61b430115253949ec7dac59f9603646b6a1",
+    "private_acl_or_credentials_imported": false
   }
 }

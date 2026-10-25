@@ -17,6 +17,8 @@ const MESSAGE_ANNOTATIONS: &[&str] = &[
     "argumentsDisplayText",
     "rawUsage",
     "usage",
+    "queuePosition",
+    "queueTotal",
 ];
 
 pub(super) fn normalize(document: &mut Map<String, Value>) -> bool {

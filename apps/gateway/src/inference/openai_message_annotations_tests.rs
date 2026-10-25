@@ -28,7 +28,7 @@ fn annotated() -> Value {
     for (index, annotations) in [
         (
             0,
-            json!({"agent":{"untrusted":true},"messageId":"replay-row"}),
+            json!({"agent":{"untrusted":true},"messageId":"replay-row","queuePosition":1,"queueTotal":2}),
         ),
         (
             1,

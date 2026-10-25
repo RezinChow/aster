@@ -5,7 +5,9 @@ mod authorization;
 mod console_catalog;
 mod decision;
 mod decision_cache;
+mod decision_flights;
 mod decision_plane;
+mod decision_transport;
 mod distributed_serving;
 mod fast_model;
 mod identity;
@@ -40,7 +42,8 @@ pub(crate) use decision::{
 pub(crate) use decision_cache::{
     ChosenGroup, DecisionReason, FrozenDecision, TurnDecisionCache, TurnIdentity,
 };
-pub(crate) use decision_plane::{DecisionPlane, HttpDecisionTransport};
+pub(crate) use decision_plane::DecisionPlane;
+pub(crate) use decision_transport::HttpDecisionTransport;
 pub(crate) use distributed_serving::{
     DistributedExecutionRequest, DistributedInferenceResponse, DistributedServingError,
     DistributedServingOrchestrator, DistributedWorkerEndpoint, PowerDistributedClient,

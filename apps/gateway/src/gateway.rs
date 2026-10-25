@@ -190,6 +190,14 @@ async fn build_runtime(
             "TCP SNI router table compiled"
         );
     }
+    let supplier_keys = if config.inference.is_some() {
+        crate::inference::load_supplier_credentials(config).await.map_err(|reason| {
+            GatewayError::Config(format!("Inference supplier credentials unavailable; runtime activation refused: {reason}"))
+        })?
+    } else {
+        Vec::new()
+    };
+
     let pipeline_cache = build_pipeline_cache(config, &config.middlewares, middleware_registry)?;
 
     let service_registry = ServiceRegistry::from_config(&config.services)?;
@@ -247,12 +255,6 @@ async fn build_runtime(
                     "Could not initialize distributed inference runtime: {error}"
                 ))
             })?;
-
-    let supplier_keys = if config.inference.is_some() {
-        crate::inference::load_supplier_credentials(config).await
-    } else {
-        Vec::new()
-    };
 
     let access_log = Arc::new(crate::observability::access_log::AccessLog::new());
     const ACCESS_LOG_QUEUE_CAPACITY: usize = 4096;
