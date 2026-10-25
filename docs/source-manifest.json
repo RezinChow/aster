@@ -2947,8 +2947,8 @@
       "active_service": {
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
-        "allocation_uid": "e808d0b3-65c6-4a48-b121-220ff6fc5eb2",
-        "gpu_uuid": "GPU-ae6ae91f-8d9b-abc1-f7d4-7077c20fcc97",
+        "allocation_uid": "bd638591-0ba6-4c60-9eb6-129a531714ee",
+        "gpu_uuid": "GPU-ddd0cb62-2b13-caf7-7336-159994b18f02",
         "context_tokens": 1048576,
         "lease_ends_unix": 1792933033.9163594,
         "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
@@ -2972,9 +2972,10 @@
         "backend_verified_by_unique_nonce_and_kv_reuse": true,
         "workbuddy_bundled_cli_e2e_passed": false,
         "workbuddy_first_turn_latency_accepted": false,
-        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r11/receipts/formal-runtime-and-stream-verification.json",
+        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r12/receipts/xolotl-C14-serving-v368-verification.json",
         "fresh_windows_backend_verified": true,
-        "service_root": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-1mc13-2eae3fd237dd/serve-tool-repair-v284"
+        "service_root": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-1mc14-3458a0d96e5c/serve-stable-recovery-v354",
+        "native_binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373"
       },
       "optimization": {
         "allocation_uid": "b37b7201-2c9c-45a2-ae1f-e522319324ca",
@@ -2995,12 +2996,12 @@
         "parent_head_before_r3": "691564b0bbce7d5dfc3bf51bb0ec6585700a1e7e",
         "evidence_revision": "ttft-1m-20261025/r10"
       },
-      "next_action": "Observe existing control_b suite on C12 with213r4; keep unchanged C2 acceptance. After all profiles drain, the replay-free profiler watch292 may run. Formal C13 serves repaired API; successful authenticated GUI search remains unverified.",
+      "next_action": "Observe exact graph-source-type full-model comparison375 on C15; retain original40+20 and concurrent full-output gates. Formal C14 uses unchanged fa019 with repaired tool protocol. Actual1M decode hardware collection and 300/1000 token/s remain pending.",
       "serving": {
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
-        "allocation_uid": "e808d0b3-65c6-4a48-b121-220ff6fc5eb2",
-        "gpu_uuid": "GPU-ae6ae91f-8d9b-abc1-f7d4-7077c20fcc97",
+        "allocation_uid": "bd638591-0ba6-4c60-9eb6-129a531714ee",
+        "gpu_uuid": "GPU-ddd0cb62-2b13-caf7-7336-159994b18f02",
         "context_tokens": 1048576,
         "lease_ends_unix": 1792933033.9163594,
         "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
@@ -3024,9 +3025,18 @@
         "backend_verified_by_unique_nonce_and_kv_reuse": true,
         "workbuddy_bundled_cli_e2e_passed": false,
         "workbuddy_first_turn_latency_accepted": false,
-        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r11/receipts/formal-runtime-and-stream-verification.json",
+        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r12/receipts/xolotl-C14-serving-v368-verification.json",
         "fresh_windows_backend_verified": true,
-        "service_root": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-1mc13-2eae3fd237dd/serve-tool-repair-v284"
+        "service_root": "/mnt/shared-storage-user/yangchao/Workspace/aster-h200-xq/aster-xolotl-1mc14-3458a0d96e5c/serve-stable-recovery-v354",
+        "native_binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373"
+      },
+      "latest_verified_optimization_role": {
+        "job": "aster-xolotl-1mc15-4cde736558c0-49555809",
+        "allocation_uid": "5bc306b2-e9e1-4e25-bd05-d78eca2b4833",
+        "gpu_uuid": "GPU-da0c6213-da08-a516-298a-002a7a2899b7",
+        "native_sha256": "b7124c78d711d3f48b928a292bd6423af4137816533e0acfbeb5114644508185",
+        "comparison_in_progress": true,
+        "formal_changed": false
       }
     },
     "server_access_131k": {
@@ -3856,6 +3866,21 @@
       "installed_client_repeated_search_stopped_at_three_and_reported_three": true,
       "successful_authenticated_search_E2E_passed": false,
       "WorkBuddy_GUI_E2E_passed": false
+    },
+    "latest_GPU_graph_and_recovery": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r12",
+      "source_type_cache_defect_reproduced": true,
+      "graph_guard_GPU_replay_cases": 1350,
+      "graph_guard_model_qualified": false,
+      "graph_guard_native_sha256": "b7124c78d711d3f48b928a292bd6423af4137816533e0acfbeb5114644508185",
+      "MXFP4_header_global_enable_rejected": true,
+      "C1_actual1M_topk_gain_percent": [
+        51.98,
+        51.72
+      ],
+      "complete_C2_output_identity_passed": false,
+      "actual_model_1M_decode_hardware_trace_collected": false,
+      "production_experimental_native_promoted": false
     }
   }
 }
