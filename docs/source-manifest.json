@@ -2941,16 +2941,16 @@
       "superseded_by": "server_access_1m"
     },
     "current_serving_optimization_roles": {
-      "unix": 1792905566.603158,
+      "unix": 1792913141.6488562,
       "goal_objective": "深度完成单卡H200 DeepSeek v4.1 Flash 1M上下文 三值量化版本模型推理速度优化",
       "goal_met": false,
       "active_service": {
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
-        "allocation_uid": "1cfa236c-40ba-408f-a45e-003e0261bdf5",
+        "allocation_uid": "e808d0b3-65c6-4a48-b121-220ff6fc5eb2",
         "gpu_uuid": "GPU-ae6ae91f-8d9b-abc1-f7d4-7077c20fcc97",
         "context_tokens": 1048576,
-        "lease_ends_unix": 1792921721.8908198,
+        "lease_ends_unix": 1792933033.9163594,
         "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
         "api_sha256": "f062d9d39131959da9c981b6704e2ec27f89d8e2806730062dcabc3eb27682ba",
         "prefill_batch_tokens": 8192,
@@ -2966,41 +2966,42 @@
         "same_existing_key": true,
         "native_tool_arguments_repaired": true,
         "workbuddy_gui_end_to_end_passed": false,
-        "allocation_job": "aster-xolotl-1mc11-6ef84ac5b528-78529266",
-        "replica_uid": "51a633ec-5c55-4544-bf11-94aeb9283ebd",
+        "allocation_job": "aster-xolotl-1mc13-2eae3fd237dd-5760761",
+        "replica_uid": "81b3fe4f-fe48-4624-97cb-6432c000b175",
         "credentials_retained": false,
         "backend_verified_by_unique_nonce_and_kv_reuse": true,
         "workbuddy_bundled_cli_e2e_passed": false,
         "workbuddy_first_turn_latency_accepted": false,
-        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8/receipts/xolotl-stable-recovery-v157-promotion.json",
+        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r10/receipts/xolotl-stable-recovery-v217-promotion.json",
         "fresh_windows_backend_verified": true
       },
       "optimization": {
-        "allocation_uid": "7455d989-8255-4f7c-ae8f-3cc0aa5928e4",
+        "allocation_uid": "b37b7201-2c9c-45a2-ae1f-e522319324ca",
         "gpu_uuid": "GPU-099e8da4-8df0-c431-9e67-eb721e59beee",
-        "lease_ends_unix": 1792910673.5259097,
-        "binary_sha256": "9a684b2442d4b648fff6a73024de5b7bab096657fe45897bf036c7e216895bbf",
-        "latest_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r9",
-        "current_profile": "Completed literal API A/B: no material throughput/TTFT improvement; actual1M native counter profile pending",
+        "lease_ends_unix": 1792932297.8810108,
+        "binary_sha256": "2bc83dcc3d3993ae7473b4e289454672f04190f21924e672de8dd53e2aff0195",
+        "latest_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r10",
+        "current_profile": "Native Top-K flag0/1/0 actual1M model A/B/A pending; exact38 GPU operator gates passed",
         "production_promoted": false,
         "full1m_candidate_qualified": false,
-        "actual1m_input_completed_this_round": true,
+        "actual1m_input_completed_this_round": false,
         "ordinary_decode_gain_proven": false,
-        "concurrent_identity_fixed": false
+        "concurrent_identity_fixed": false,
+        "allocation_job": "aster-xolotl-1mc12-00686222ad57-74805472"
       },
       "maximum_allocated_h200": 2,
       "publication": {
         "parent_head_before_r3": "691564b0bbce7d5dfc3bf51bb0ec6585700a1e7e",
-        "evidence_revision": "ttft-1m-20261025/r9"
+        "evidence_revision": "ttft-1m-20261025/r10"
       },
-      "next_action": "Observe exact V173r1/V168/V172r1 handles on C10 for actual1M hardware counters. Keep failed C2 gate and formal C11 unchanged; test16M Engram cache only in a subsequent isolated controlled campaign.",
+      "next_action": "Observe exact213r1/214 existing actual1M control_a; no duplicate input. Compare native2bc83 flag0/1/0 on C12; keep stable C13 and failed profiler/C2 gates visible. Do not equate24.1x operator timing with model/API speed.",
       "serving": {
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
-        "allocation_uid": "1cfa236c-40ba-408f-a45e-003e0261bdf5",
+        "allocation_uid": "e808d0b3-65c6-4a48-b121-220ff6fc5eb2",
         "gpu_uuid": "GPU-ae6ae91f-8d9b-abc1-f7d4-7077c20fcc97",
         "context_tokens": 1048576,
-        "lease_ends_unix": 1792921721.8908198,
+        "lease_ends_unix": 1792933033.9163594,
         "binary_sha256": "fa0195a9b64f5e18136eec6852997cd0637f3197e9b6b97e4f512c5f50d5f373",
         "api_sha256": "f062d9d39131959da9c981b6704e2ec27f89d8e2806730062dcabc3eb27682ba",
         "prefill_batch_tokens": 8192,
@@ -3016,13 +3017,13 @@
         "same_existing_key": true,
         "native_tool_arguments_repaired": true,
         "workbuddy_gui_end_to_end_passed": false,
-        "allocation_job": "aster-xolotl-1mc11-6ef84ac5b528-78529266",
-        "replica_uid": "51a633ec-5c55-4544-bf11-94aeb9283ebd",
+        "allocation_job": "aster-xolotl-1mc13-2eae3fd237dd-5760761",
+        "replica_uid": "81b3fe4f-fe48-4624-97cb-6432c000b175",
         "credentials_retained": false,
         "backend_verified_by_unique_nonce_and_kv_reuse": true,
         "workbuddy_bundled_cli_e2e_passed": false,
         "workbuddy_first_turn_latency_accepted": false,
-        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8/receipts/xolotl-stable-recovery-v157-promotion.json",
+        "availability_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r10/receipts/xolotl-stable-recovery-v217-promotion.json",
         "fresh_windows_backend_verified": true
       }
     },
@@ -3809,13 +3810,15 @@
       "complete_C2_output_identity_passed": false
     },
     "latest_exact_hardware_profiler": {
-      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r9",
-      "CPU_contracts_per_mode": 20015,
-      "requested_exact_H200_metrics": 8,
-      "query_mode": "suffix CSV",
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r10",
+      "actual_model_phase": "failed",
       "actual_model_hardware_counters_collected": false,
-      "full1024_gate_substituted": false,
-      "formal_changed": false
+      "completed_actual1m_controls": 3,
+      "output_tokens": 128,
+      "tiny_kernel_metric_preflight_passed": true,
+      "tiny_kernel_metrics": 8,
+      "raw_reports_published": false,
+      "failure_cause_proven": false
     },
     "latest_canonical_engram_footprint": {
       "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r9",
@@ -3825,6 +3828,21 @@
       "hash_only": true,
       "cache_capacity_changed": false,
       "speed_improvement_claimed": false
+    },
+    "latest_exact_topk_GPU": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r10",
+      "operator_cases": 38,
+      "all_ordered_IDs_equal": true,
+      "CUDA_graph_changed_inputs_passed": true,
+      "CCCL_commit": "28101b07413743e1dcca8ca8af1cfc63e8cff2d1",
+      "native_candidate_sha256": "2bc83dcc3d3993ae7473b4e289454672f04190f21924e672de8dd53e2aff0195",
+      "default_mode": 0,
+      "min_columns": 65536,
+      "k": 512,
+      "operator_1M_rows6_reference_us": 7255.71543,
+      "operator_1M_rows6_candidate_graph_us": 301.214648,
+      "model_gain_qualified": false,
+      "production_promoted": false
     }
   }
 }

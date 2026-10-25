@@ -15,3 +15,7 @@
 /docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8/frozen-candidates/**/*.patch -text whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8/public-diagnostics/literal-cpu-v145/upstream-frontend-tests.log -text whitespace=-blank-at-eol
 /docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r9/frozen-candidate/*.patch -text whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Preserve the executed profiler worker byte-for-byte, including its recorded
+# trailing space. This exception covers only this immutable evidence snapshot.
+/docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r10/operators/xolotl_ncu_actual1m_worker_v171r2.frozen.py -text whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
