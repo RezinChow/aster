@@ -218,9 +218,9 @@
       "version": "0.10.0",
       "path": "crates/power",
       "source": "git@github.com:A3S-Lab/Power.git",
-      "revision": "c891f930bcbc06b52175ad4fe0247cc2c1f9b412",
+      "revision": "24b364c6935c1b62a689d91839ec394bfc74c059",
       "source_manifest_sha256": "ee7e386eeeb226d81a21fe846e91c203dd8d5b86f985d1f0feaa32288d97b865",
-      "note": "Published existing Power submodule branch codex/aster-h200-native-20261024. Root workspace owns the lockfile; ACL and Runtime resolve locally. Native storage, peer transfer, injectable model/auth hooks and strict streamed usage accounting are included."
+      "note": "Published Power main merges the existing H200/native-storage branch and upstream WorkBuddy metadata compatibility; adds managed native Xolotl lifecycle, bounded readiness, DSpark/FP4 KV configuration, and shared OpenAI tool compatibility. Root workspace retains the lockfile and local dependencies."
     },
     {
       "package": "serde-saphyr",
@@ -3894,5 +3894,13 @@
       "formal_changed": false,
       "graph_full_model_comparison_in_progress": true
     }
+  },
+  "deepseek_single_gpu_dspark_20261025": {
+    "power_revision": "24b364c6935c1b62a689d91839ec394bfc74c059",
+    "power_binary_sha256": "899084c8e07d7da2a902169dd21d6dc4e294352caf7b110c4eded34a78e59d28",
+    "evidence": "docs/evidence/deployment/2026-10-25-deepseek-dspark-main",
+    "profile_evidence": "docs/evidence/deployment/2026-10-25-deepseek-dspark-prefill",
+    "source": "tools/model-runtime/deepseek-v41-xq",
+    "native_engine_revision": "e9d0826d71c59072cbff77d2a31dd51f27ab7a12"
   }
 }
