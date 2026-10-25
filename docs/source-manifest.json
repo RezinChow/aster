@@ -3893,6 +3893,19 @@
       "upstream_ahead_commits": 36,
       "formal_changed": false,
       "graph_full_model_comparison_in_progress": true
+    },
+    "latest_user_retained_availability": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/availability-20261025/r14",
+      "optimization_cancelled": true,
+      "optimization_GPU_released": true,
+      "active_GPU_roles": 1,
+      "guard_unit_methods": 10,
+      "guard_actual_recoveries": 0,
+      "WorkBuddy_CLI_fresh_HI_passed": true,
+      "GUI_verified": false,
+      "cold_first_output_seconds": 47.85900000017136,
+      "warm_first_output_seconds": 4.530999999959022,
+      "model_configuration_changed": false
     }
   }
 }
