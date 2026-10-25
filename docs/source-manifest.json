@@ -2941,7 +2941,7 @@
       "superseded_by": "server_access_1m"
     },
     "current_serving_optimization_roles": {
-      "unix": 1792900946.624879,
+      "unix": 1792905566.603158,
       "goal_objective": "深度完成单卡H200 DeepSeek v4.1 Flash 1M上下文 三值量化版本模型推理速度优化",
       "goal_met": false,
       "active_service": {
@@ -2980,8 +2980,8 @@
         "gpu_uuid": "GPU-099e8da4-8df0-c431-9e67-eb721e59beee",
         "lease_ends_unix": 1792910673.5259097,
         "binary_sha256": "9a684b2442d4b648fff6a73024de5b7bab096657fe45897bf036c7e216895bbf",
-        "latest_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8",
-        "current_profile": "Same-native99f3/S512/GPFS baseline vs exact literal API; real1M campaign in progress",
+        "latest_evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r9",
+        "current_profile": "Completed literal API A/B: no material throughput/TTFT improvement; actual1M native counter profile pending",
         "production_promoted": false,
         "full1m_candidate_qualified": false,
         "actual1m_input_completed_this_round": true,
@@ -2991,9 +2991,9 @@
       "maximum_allocated_h200": 2,
       "publication": {
         "parent_head_before_r3": "691564b0bbce7d5dfc3bf51bb0ec6585700a1e7e",
-        "evidence_revision": "ttft-1m-20261025/r8"
+        "evidence_revision": "ttft-1m-20261025/r9"
       },
-      "next_action": "Observe exact same-native literal API real1M campaign on C10; preserve failed C2 gate, current C11 availability and bounded max2 roles; target dense GPU/kernel/copy/sync counters after finite campaigns.",
+      "next_action": "Observe exact V173r1/V168/V172r1 handles on C10 for actual1M hardware counters. Keep failed C2 gate and formal C11 unchanged; test16M Engram cache only in a subsequent isolated controlled campaign.",
       "serving": {
         "base_url": "http://10.102.93.68/v1",
         "model": "deepseek-v4.1-flash-1017-xq",
@@ -3790,7 +3790,7 @@
       "production_promoted": false
     },
     "latest_exact_literal_frontend": {
-      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r8",
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r9",
       "real_api_cpu_A_B_A_seconds": [
         9.153777753934264,
         1.6471612737514079,
@@ -3801,7 +3801,30 @@
       "upstream_frontend_methods": 25,
       "overlay_cpu_suites": 14,
       "gpu_api_improvement_qualified": false,
-      "production_promoted": false
+      "production_promoted": false,
+      "GPU_ordinary_requests": 40,
+      "actual1m_comparison_completed": true,
+      "real1m_calls_per_profile": 18,
+      "full_cold_restore_and_c1_output_text_passed": true,
+      "complete_C2_output_identity_passed": false
+    },
+    "latest_exact_hardware_profiler": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r9",
+      "CPU_contracts_per_mode": 20015,
+      "requested_exact_H200_metrics": 8,
+      "query_mode": "suffix CSV",
+      "actual_model_hardware_counters_collected": false,
+      "full1024_gate_substituted": false,
+      "formal_changed": false
+    },
+    "latest_canonical_engram_footprint": {
+      "evidence": "docs/evidence/power/2026-10-22-native-deepseek-h200/original-xolotl-single-h200/ttft-1m-20261025/r9",
+      "prompt_tokens": 1047544,
+      "unique_rows": 12953683,
+      "raw_row_bytes": 3419772312,
+      "hash_only": true,
+      "cache_capacity_changed": false,
+      "speed_improvement_claimed": false
     }
   }
 }
