@@ -123,6 +123,11 @@ test('homepage assets resolve under project Pages and no-JS content stays availa
   );
   assert.equal(document.querySelector('.hero-actions .text-link'), null);
   assert.equal(document.querySelectorAll('.download-grid .download-card').length, 4);
+  assert.deepEqual(
+    [...document.querySelectorAll('.download-grid .platform-name')].map((element) => element.textContent.trim()),
+    ['macOS', 'Windows', 'Linux', 'Aster CLI']
+  );
+  assert.equal(document.body.textContent.includes('麒麟'), false);
   assert.equal(document.querySelector('.download-card-cli').getAttribute('href'), '#cli-downloads');
   assert.equal(document.querySelectorAll('.scenario-panel').length, 4);
   for (const panel of document.querySelectorAll('.scenario-panel')) assert.equal(panel.hidden, false);
