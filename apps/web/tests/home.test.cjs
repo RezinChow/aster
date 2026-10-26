@@ -122,6 +122,8 @@ test('homepage assets resolve under project Pages and no-JS content stays availa
     ['首页', '场景', '能力', '安全', '文档']
   );
   assert.equal(document.querySelector('.hero-actions .text-link'), null);
+  assert.equal(document.querySelector('.brand small'), null);
+  assert.equal(document.querySelector('.hero-notes'), null);
   assert.equal(document.querySelectorAll('.download-grid .download-card').length, 4);
   assert.deepEqual(
     [...document.querySelectorAll('.download-grid .platform-name')].map((element) => element.textContent.trim()),
