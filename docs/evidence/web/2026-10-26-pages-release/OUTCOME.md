@@ -32,7 +32,16 @@ Rust runs use the pinned toolchain, offline locked resolution, four jobs, increm
 
 ## Publication
 
-The existing `aster-pages.yml` workflow validates generated documentation and the public file allowlist, then uploads only the staged static site and deploys through GitHub Pages. Its push trigger includes documentation sources, assets, build dependencies and tests. Publication uses a normal fast-forward push to main; no force push or modification of Pages settings is required. The deployment run and public URL are verified after the push.
+Content commit `e011dc3ab113663bf929eb80a5097178993cbc4d` was fast-forwarded to remote main. The existing `aster-pages.yml` workflow completed both validate and deploy successfully: [deployment run](https://github.com/aster-ai-lab/aster/actions/runs/40332112120), [structured result](pages-result.json). No force push or Pages-settings change was used.
+
+The published [documentation site](https://aster-ai-lab.github.io/aster/docs/) was checked over HTTPS. Nine selected pages/assets, including both Code versions, ACP references/client/session pages, styles and the navigation script, match candidate file hashes exactly; see [live-check.json](live-check.json). The follow-up evidence commit changes no deployment files.
+
+## Checks completed after submission
+
+- Isolated-context Core regression: 1 passed, 5,455 filtered out; [log](core-isolation-tests.log).
+- ACP interactive-client example: 2 passed; [log](acp-client-tests.log).
+- Rebuilt offline terminal host: 1 scenario / 13 steps passed; [report](tui-report.json), [terminal recording](terminal/offline-flow.vt).
+- The complete tutorial package's 4 unit and 6 runtime tests had already passed before the content commit, as recorded above.
 
 ## Explicitly not claimed
 
