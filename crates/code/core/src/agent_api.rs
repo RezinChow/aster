@@ -275,6 +275,8 @@ pub struct SessionOptions {
     pub llm_client: Option<Arc<dyn crate::llm::LlmClient>>,
     /// Optional context providers for RAG
     pub context_providers: Vec<Arc<dyn crate::context::ContextProvider>>,
+    /// Exclude skills, discovered instructions and persistent memory from this session.
+    pub isolated_context: bool,
     /// One exact-generation cognitive package supplied by the embedding host.
     ///
     /// This is separate from general-purpose RAG providers: Code persists the

@@ -23201,6 +23201,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "tutorial-agent"
+version = "0.1.0"
+dependencies = [
+ "a3s-code-core",
+ "a3s-memory",
+ "anyhow",
+ "async-trait",
+ "crossterm 0.28.1",
+ "futures-util",
+ "ratatui",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "two-face"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

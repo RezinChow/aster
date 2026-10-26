@@ -4,6 +4,7 @@ exclude = ["crates/code/fixtures/s3-compat"]
 members = [
     "crates/embedding",
     "apps/aster",
+    "apps/tutorial-agent",
     "apps/auth",
     "apps/billing",
     "apps/runner",

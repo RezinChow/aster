@@ -30,6 +30,7 @@ impl std::fmt::Debug for SessionOptions {
             .field("security_provider", &self.security_provider.is_some())
             .field("llm_client", &self.llm_client.is_some())
             .field("context_providers", &self.context_providers.len())
+            .field("isolated_context", &self.isolated_context)
             .field("cognitive_context", &self.cognitive_context)
             .field("confirmation_manager", &self.confirmation_manager.is_some())
             .field("permission_checker", &self.permission_checker.is_some())
@@ -207,6 +208,13 @@ impl SessionOptions {
         provider: Arc<dyn crate::context::ContextProvider>,
     ) -> Self {
         self.context_providers.push(provider);
+        self
+    }
+
+    /// Keep host-supplied context, but omit skills and discovered instructions and
+    /// use empty, session-local memory instead of any persistent memory binding.
+    pub fn with_isolated_context(mut self) -> Self {
+        self.isolated_context = true;
         self
     }
 

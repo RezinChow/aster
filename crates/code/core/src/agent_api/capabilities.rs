@@ -425,6 +425,9 @@ pub(super) fn build_effective_skill_registry(
     agent_registry: Option<&SkillRegistry>,
     opts: &SessionOptions,
 ) -> Arc<SkillRegistry> {
+    if opts.isolated_context {
+        return Arc::new(SkillRegistry::new());
+    }
     let base_registry = agent_registry
         .map(|r| r.fork())
         .unwrap_or_else(SkillRegistry::with_builtins);
@@ -603,8 +606,10 @@ fn build_context_providers(
             Arc::clone(sandbox),
         )));
     }
-    push_agents_md_context(&mut providers, code_config, workspace);
-    push_skill_catalog_context(&mut providers, skill_registry);
+    if !opts.isolated_context {
+        push_agents_md_context(&mut providers, code_config, workspace);
+        push_skill_catalog_context(&mut providers, skill_registry);
+    }
     providers
 }
 
