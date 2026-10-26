@@ -7,6 +7,7 @@ on:
       - apps/web/public/download/**
       - apps/web/public/tenant/aster/logo.svg
       - apps/web/public/tenant/aster/mark-light.png
+      - apps/web/public/tenant/aster/favicon.png
       - apps/web/public/index.html
       - apps/web/public/home.css
       - apps/web/public/home.js
@@ -20,6 +21,7 @@ on:
       - apps/web/public/download/**
       - apps/web/public/tenant/aster/logo.svg
       - apps/web/public/tenant/aster/mark-light.png
+      - apps/web/public/tenant/aster/favicon.png
       - apps/web/public/index.html
       - apps/web/public/home.css
       - apps/web/public/home.js

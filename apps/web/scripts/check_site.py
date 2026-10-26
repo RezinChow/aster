@@ -13,7 +13,7 @@ import sys
 from urllib.parse import unquote, urlsplit
 import zlib
 
-from site_contract import DOWNLOAD_MANIFEST, FONT_FILES, HOME_FILES, PAGE_FILES, PAGES_URL, REPOSITORY_URL, SCREENSHOT_FILES, SITE_FILES
+from site_contract import DOWNLOAD_MANIFEST, DOWNLOAD_BRAND_FILES, FONT_FILES, HOME_FILES, PAGE_FILES, PAGES_URL, REPOSITORY_URL, SCREENSHOT_FILES, SITE_FILES
 
 PUBLIC_ROOT = Path(__file__).resolve().parents[1] / "public"
 DOWNLOAD_URLS = frozenset(item[4] for item in DOWNLOAD_MANIFEST)
@@ -201,7 +201,8 @@ def check_site(public_root=PUBLIC_ROOT):
         raise ValueError("CSS imports are not part of the standalone site")
     for match in re.finditer(r"url\(\s*(['\"]?)(.*?)\1\s*\)", css, flags=re.I):
         local_url(match.group(2), "download/styles.css")
-    if not (set(SITE_FILES) - {"download/index.html"}).issubset(seen_assets):
+    required_download_assets = set(PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + DOWNLOAD_BRAND_FILES) - {"download/index.html"}
+    if not required_download_assets.issubset(seen_assets):
         raise ValueError("page/CSS does not reference all approved public assets")
     for filename in ("download/app.js", "download/canvas.js"):
         javascript = source[filename]
@@ -311,7 +312,7 @@ def check_home_page(root):
     for match in re.finditer(r"url\(\s*(['\"]?)(.*?)\1\s*\)", css, flags=re.I):
         local_url(match.group(2))
     required_assets = (set(HOME_FILES + SCREENSHOT_FILES + FONT_FILES) |
-                       {"tenant/aster/logo.svg", "tenant/aster/mark-light.png"}) - {"index.html"}
+                       {"tenant/aster/logo.svg", "tenant/aster/mark-light.png", "tenant/aster/favicon.png"}) - {"index.html"}
     if not required_assets.issubset(seen_assets):
         missing = sorted(required_assets - seen_assets)
         raise ValueError(f"homepage does not reference required public assets: {missing}")

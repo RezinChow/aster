@@ -27,6 +27,11 @@ FONT_FILES = (
 BRAND_FILES = (
     "tenant/aster/logo.svg",
     "tenant/aster/mark-light.png",
+    "tenant/aster/favicon.png",
+)
+DOWNLOAD_BRAND_FILES = (
+    "tenant/aster/logo.svg",
+    "tenant/aster/favicon.png",
 )
 SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES
 

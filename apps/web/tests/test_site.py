@@ -48,7 +48,7 @@ class SiteTest(unittest.TestCase):
         downloads = "".join(f'<a href="{item[4]}">{item[0]} {item[1]} {item[2]} {item[3]}</a>' for item in DOWNLOAD_MANIFEST)
         self.html = ('<!doctype html><html lang="zh-CN"><head><title>Aster</title>'
                      '<link rel="stylesheet" href="styles.css">'
-                     '<link rel="icon" href="../tenant/aster/mark-light.png">'
+                     '<link rel="icon" href="../tenant/aster/favicon.png">'
                      '<script src="app.js" defer></script></head><body>'
                      '<script src="canvas.js" defer></script>'
                      '<h1 id="top">Aster</h1><img src="../tenant/aster/logo.svg" alt="Aster">'
@@ -82,10 +82,10 @@ class SiteTest(unittest.TestCase):
             for weight in (400, 500, 700)), encoding="utf-8")
 
     def test_four_png_screenshots_and_three_local_fonts_with_license_are_public(self):
-        self.assertEqual(check_site(self.public)["files"], 18)
+        self.assertEqual(check_site(self.public)["files"], 19)
         destination = self.root / 'with-real-ui'
         receipt = stage_site(self.public, destination)
-        self.assertEqual(len(receipt['files']), 18)
+        self.assertEqual(len(receipt['files']), 19)
         for name in (*SCREENSHOTS, *FONTS, FONT_LICENSE):
             self.assertEqual((destination / name).read_bytes(), (self.public / name).read_bytes())
 
