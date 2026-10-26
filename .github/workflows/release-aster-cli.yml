@@ -79,6 +79,10 @@ jobs:
       - name: Install pinned toolchain
         shell: bash
         run: rustup show active-toolchain
+      - name: Shorten Windows Cargo home
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo 'CARGO_HOME=D:\c' >> "$GITHUB_ENV"
       - name: Build locked release
         shell: bash
         run: env -u GROK_VERSION cargo build --locked --release -p aster -p a3s-code-acp

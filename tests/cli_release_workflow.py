@@ -108,6 +108,14 @@ print(hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() + " *" + name)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIsNone(args)
 
+    def test_windows_build_uses_a_short_cargo_home(self):
+        workflow = (ROOT / ".github/workflows/release-aster-cli.yml").read_text()
+        self.assertIn(
+            "      - name: Shorten Windows Cargo home\n        if: runner.os == 'Windows'",
+            workflow,
+        )
+        self.assertIn("CARGO_HOME=D:\\c", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
