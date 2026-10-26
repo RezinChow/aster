@@ -16,7 +16,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -46,27 +46,36 @@ macro_rules! ensure {
 struct Model {
     addr: SocketAddr,
     slow_seen: Arc<AtomicBool>,
+    calls: Arc<AtomicUsize>,
 }
 
 fn spawn_model() -> Model {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind model");
     let addr = listener.local_addr().expect("model addr");
     let slow_seen = Arc::new(AtomicBool::new(false));
+    let calls = Arc::new(AtomicUsize::new(0));
     let seen = Arc::clone(&slow_seen);
+    let counted = Arc::clone(&calls);
     std::thread::spawn(move || {
         for stream in listener.incoming() {
             let Ok(mut stream) = stream else { continue };
             let seen = Arc::clone(&seen);
+            let counted = Arc::clone(&counted);
             std::thread::spawn(move || {
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(20)));
                 if let Some(body) = read_http_body(&mut stream) {
+                    counted.fetch_add(1, Ordering::SeqCst);
                     let reply = decide(&body, &seen);
                     let _ = write_http(&mut stream, &reply);
                 }
             });
         }
     });
-    Model { addr, slow_seen }
+    Model {
+        addr,
+        slow_seen,
+        calls,
+    }
 }
 
 fn read_http_body(stream: &mut TcpStream) -> Option<String> {
@@ -485,6 +494,10 @@ const CASES: &[(&str, &str)] = &[
         "session/prompt streams agent_message_chunk updates for the session, then answers stopReason end_turn",
     ),
     (
+        "prompt-unsupported-content",
+        "session/prompt rejects content that cannot reach the model instead of dropping it or starting a model call",
+    ),
+    (
         "prompt-unknown-session",
         "session/prompt for an unknown sessionId is a JSON-RPC error, not a result",
     ),
@@ -521,6 +534,9 @@ async fn run_case(id: &str, model: &Model) -> Outcome {
         "initialize-version" => initialize_version(&mut wire, &fixture).await,
         "initialize-capabilities" => initialize_capabilities(&mut wire).await,
         "prompt-end-turn" => prompt_end_turn(&mut wire, &fixture).await,
+        "prompt-unsupported-content" => {
+            prompt_unsupported_content(&mut wire, &fixture, model).await
+        }
         "prompt-unknown-session" => prompt_unknown_session(&mut wire).await,
         "prompt-invalid-params" => prompt_invalid_params(&mut wire).await,
         "unknown-method" => unknown_method(&mut wire).await,
@@ -568,10 +584,14 @@ async fn initialize_capabilities(wire: &mut Wire) -> Outcome {
         caps["loadSession"] == true,
         "loadSession not advertised: {caps}"
     );
-    ensure!(
-        caps["promptCapabilities"].is_object(),
-        "no promptCapabilities: {caps}"
-    );
+    let prompt = &caps["promptCapabilities"];
+    ensure!(prompt.is_object(), "no promptCapabilities: {caps}");
+    for capability in ["image", "audio", "embeddedContext"] {
+        ensure!(
+            prompt[capability] == false,
+            "unsupported prompt capability {capability} is advertised: {prompt}"
+        );
+    }
     ensure!(
         result["authMethods"].is_array(),
         "no authMethods list: {result}"
@@ -603,6 +623,58 @@ async fn prompt_end_turn(wire: &mut Wire, fixture: &Fixture) -> Outcome {
     ensure!(
         foreign.is_none(),
         "an update for another session: {foreign:?}"
+    );
+    Ok(())
+}
+
+async fn prompt_unsupported_content(wire: &mut Wire, fixture: &Fixture, model: &Model) -> Outcome {
+    wire.initialize().await?;
+    let session = wire.new_session(&fixture.workspace).await?;
+    let calls_before = model.calls.load(Ordering::SeqCst);
+    let blocks = [
+        json!({"type": "image", "data": "aGVsbG8=", "mimeType": "image/png"}),
+        json!({"type": "audio", "data": "aGVsbG8=", "mimeType": "audio/wav"}),
+        json!({"type": "resource", "resource": {"uri": "file:///note.txt", "text": "note"}}),
+        json!({"type": "resource_link", "name": "note", "uri": "file:///note.txt"}),
+    ];
+    for block in blocks {
+        let kind = block["type"].as_str().unwrap_or("unknown").to_owned();
+        let response = wire
+            .call(
+                "session/prompt",
+                json!({
+                    "sessionId": session,
+                    "prompt": [{"type": "text", "text": "SAY: must not run"}, block]
+                }),
+            )
+            .await?;
+        ensure!(
+            error_code(&response) == Some(-32602),
+            "{kind} was not rejected: {response}"
+        );
+        ensure!(
+            response["error"]["data"]
+                .as_str()
+                .is_some_and(|data| data.contains("did not send")),
+            "{kind} rejection did not explain the fail-closed boundary: {response}"
+        );
+    }
+    let response = wire
+        .call(
+            "session/prompt",
+            json!({
+                "sessionId": session,
+                "prompt": [{"type": "image", "data": "aGVsbG8=", "mimeType": "image/png"}]
+            }),
+        )
+        .await?;
+    ensure!(
+        error_code(&response) == Some(-32602),
+        "an image-only prompt must not return a successful empty turn: {response}"
+    );
+    ensure!(
+        model.calls.load(Ordering::SeqCst) == calls_before,
+        "unsupported prompt content reached the model"
     );
     Ok(())
 }
@@ -852,6 +924,7 @@ fn activation_oracle_detects_a_started_companion_without_launching_one() {
     let model = Model {
         addr: "127.0.0.1:1".parse().unwrap(),
         slow_seen: Arc::new(AtomicBool::new(false)),
+        calls: Arc::new(AtomicUsize::new(0)),
     };
     let fixture = Fixture::new(&model);
     assert!(fixture.no_companion_started().is_ok());

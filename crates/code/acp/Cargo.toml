@@ -1,10 +1,10 @@
 [package]
 name = "a3s-code-acp"
-version = "9.1.5"
+version = "9.1.6"
 edition = "2021"
 authors = ["A3S Lab Team"]
 license = "MIT"
-description = "ACP stdio agent over a3s-code-core 9.1.5 for Aster desktop hosts"
+description = "ACP stdio agent over a3s-code-core 9.1.6 for Aster desktop hosts"
 publish = false
 
 [[bin]]

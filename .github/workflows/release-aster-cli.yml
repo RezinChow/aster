@@ -14,7 +14,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: aster-cli-v0.1.3
+  group: aster-cli-v0.1.4
   cancel-in-progress: false
 
 jobs:
@@ -50,10 +50,10 @@ jobs:
         include:
           - os: macos-latest
             platform: macos
-            asset: aster-cli-v0.1.3-macos.tar.gz
+            asset: aster-cli-v0.1.4-macos.tar.gz
           - os: windows-latest
             platform: windows
-            asset: aster-cli-v0.1.3-windows.zip
+            asset: aster-cli-v0.1.4-windows.zip
     env:
       CARGO_INCREMENTAL: "0"
       CARGO_TERM_COLOR: always
@@ -166,11 +166,11 @@ jobs:
           set -euo pipefail
           . "$HOME/.cargo/env"
           bin_dir="${CARGO_TARGET_DIR:-target}/release"
-          bash scripts/package-aster-cli.sh linux "$bin_dir" "aster-cli-v0.1.3-linux.tar.gz"
+          bash scripts/package-aster-cli.sh linux "$bin_dir" "aster-cli-v0.1.4-linux.tar.gz"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: aster-cli-linux
-          path: aster-cli-v0.1.3-linux.tar.gz
+          path: aster-cli-v0.1.4-linux.tar.gz
           if-no-files-found: error
 
   publish:
@@ -190,7 +190,7 @@ jobs:
           path: dist
           run-id: ${{ inputs.artifact_run_id != '' && inputs.artifact_run_id || github.run_id }}
           github-token: ${{ github.token }}
-      - name: Assemble draft aster-cli v0.1.3
+      - name: Assemble draft aster-cli v0.1.4
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -205,11 +205,11 @@ jobs:
             printf '%s\n' "${files[@]:-}" >&2
             exit 1
           fi
-          macos_sha="$(sha256sum -b dist/aster-cli-v0.1.3-macos.tar.gz | cut -d' ' -f1)"
-          linux_sha="$(sha256sum -b dist/aster-cli-v0.1.3-linux.tar.gz | cut -d' ' -f1)"
-          windows_sha="$(sha256sum -b dist/aster-cli-v0.1.3-windows.zip | cut -d' ' -f1)"
+          macos_sha="$(sha256sum -b dist/aster-cli-v0.1.4-macos.tar.gz | cut -d' ' -f1)"
+          linux_sha="$(sha256sum -b dist/aster-cli-v0.1.4-linux.tar.gz | cut -d' ' -f1)"
+          windows_sha="$(sha256sum -b dist/aster-cli-v0.1.4-windows.zip | cut -d' ' -f1)"
           # Compact single-line manifest: scripts/install.sh parses this exact shape.
-          printf '{"version":"0.1.3","tag":"aster-cli-v0.1.3","assets":{"macos":{"name":"aster-cli-v0.1.3-macos.tar.gz","sha256":"%s"},"linux":{"name":"aster-cli-v0.1.3-linux.tar.gz","sha256":"%s"},"windows":{"name":"aster-cli-v0.1.3-windows.zip","sha256":"%s"}}}\n' \
+          printf '{"version":"0.1.4","tag":"aster-cli-v0.1.4","assets":{"macos":{"name":"aster-cli-v0.1.4-macos.tar.gz","sha256":"%s"},"linux":{"name":"aster-cli-v0.1.4-linux.tar.gz","sha256":"%s"},"windows":{"name":"aster-cli-v0.1.4-windows.zip","sha256":"%s"}}}\n' \
             "$macos_sha" "$linux_sha" "$windows_sha" > dist/latest.json
           if [[ -n "$ARTIFACT_RUN_ID" ]]; then
             built="$(gh api "repos/${GH_REPO}/actions/runs/${ARTIFACT_RUN_ID}" --jq .head_sha)"
@@ -217,33 +217,29 @@ jobs:
             built="$BUILD_SHA"
           fi
           cat > notes.md <<'EOF'
-          aster-cli v0.1.3 — Core / ACP 9.1.5
+          aster-cli v0.1.4 — Core / ACP 9.1.6
 
-          Long-running tasks now stop repeated refused calls and successful A/B workspace-state cycles without adding an implicit global tool-round ceiling. Original observation continuity recovers after an external edit; productive new states still continue.
-
-          Host-issued invocation IDs fence late approvals across cancelled, answered, rejected, and later model calls. Goal deadlines cancel active model/tool/confirmation waits. Reopened host policies retain cumulative opportunities, absolute deadlines, original admissions, and recorded usage.
+          ACP now rejects image, audio, embedded resource, and resource-link prompt blocks with invalid_params instead of silently dropping them. Unsupported prompts fail before any model call, and initialization no longer advertises embedded-context prompt support.
 
           The embeddable SDK remains Rust-only and local to this workspace. Optional workflow features remain disabled in the default CLI/ACP build.
 
-          Qualification uses controlled-model actual ACP and compiler-VM workflows. It does not establish real-model Terminal Bench speed or token savings. Arbitrary persistence/export callbacks still require actual return before their original owner can retire; broader recovery-fault and changed-argument-loop boundaries remain under investigation.
+          Qualification covers scripted ACP conformance, including proof that unsupported content never reaches the model, plus paired CLI/ACP delivery contracts. It does not claim whole-workspace qualification or real-model Terminal Bench speed and token savings.
 
-          Whole-workspace CI is blocked by pre-existing pinned Studio test-module and renderer-dependency gaps; CLI/Core/ACP component checks are recorded separately.
-
-          Each archive contains the locked release build of aster 0.1.3 and a3s-code-acp 9.1.5 from this repository, plus their shared BUILD_ID and SHA256SUMS. The binaries are unsigned.
+          Each archive contains the locked release build of aster 0.1.4 and a3s-code-acp 9.1.6 from this repository, plus their shared BUILD_ID and SHA256SUMS. The binaries are unsigned.
           The Linux archive uses one x86_64, glibc 2.31 compatibility baseline.
           Update with `aster update`, or use `aster update --check` to inspect first. Installations predating the paired updater can use scripts/install.sh or scripts/install.ps1.
           EOF
           printf 'Built from %s.\n' "$built" >> notes.md
           # A rerun may extend this draft, never replace published assets.
-          if gh release view aster-cli-v0.1.3 >/dev/null 2>&1; then
-            test "$(gh release view aster-cli-v0.1.3 --json isDraft --jq .isDraft)" = true
-            test "$(gh release view aster-cli-v0.1.3 --json targetCommitish --jq .targetCommitish)" = "$built"
-            gh release upload aster-cli-v0.1.3 "${files[@]}" dist/latest.json --clobber
+          if gh release view aster-cli-v0.1.4 >/dev/null 2>&1; then
+            test "$(gh release view aster-cli-v0.1.4 --json isDraft --jq .isDraft)" = true
+            test "$(gh release view aster-cli-v0.1.4 --json targetCommitish --jq .targetCommitish)" = "$built"
+            gh release upload aster-cli-v0.1.4 "${files[@]}" dist/latest.json --clobber
           else
-            gh release create aster-cli-v0.1.3 \
+            gh release create aster-cli-v0.1.4 \
               --draft --target "$built" \
-              --title "aster-cli v0.1.3" \
+              --title "aster-cli v0.1.4" \
               --notes-file notes.md \
               "${files[@]}" dist/latest.json
           fi
-          gh release view aster-cli-v0.1.3
+          gh release view aster-cli-v0.1.4

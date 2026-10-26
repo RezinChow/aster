@@ -10,14 +10,14 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_SHA = "a" * 40
-NAMES = [f"aster-cli-v0.1.3-{os}.{extension}" for os, extension in
+NAMES = [f"aster-cli-v0.1.4-{os}.{extension}" for os, extension in
          [("macos", "tar.gz"), ("linux", "tar.gz"), ("windows", "zip")]]
 
 
 class ReleaseAssembly(unittest.TestCase):
     def assemble(self, missing=False, extra=False, existing_draft=False, draft=True, draft_sha=SOURCE_SHA):
         lines = (ROOT / ".github/workflows/release-aster-cli.yml").read_text().splitlines()
-        start = lines.index("      - name: Assemble draft aster-cli v0.1.3")
+        start = lines.index("      - name: Assemble draft aster-cli v0.1.4")
         start = lines.index("        run: |", start) + 1
         end = start
         while end < len(lines) and (not lines[end].strip() or lines[end].startswith("          ")):
@@ -34,7 +34,7 @@ class ReleaseAssembly(unittest.TestCase):
             if missing:
                 (dist / NAMES[-1]).unlink()
             if extra:
-                (dist / "aster-cli-v0.1.3-kylin.tar.gz").write_bytes(b"retired fixture")
+                (dist / "aster-cli-v0.1.4-kylin.tar.gz").write_bytes(b"retired fixture")
             gh = commands / "gh"
             gh.write_text('''#!/bin/sh
 case "$1:$2" in
@@ -74,6 +74,8 @@ print(hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() + " *" + name)
     def test_three_archives_form_a_draft_bound_to_the_artifact_source(self):
         result, manifest, args = self.assemble()
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(manifest["version"], "0.1.4")
+        self.assertEqual(manifest["tag"], "aster-cli-v0.1.4")
         self.assertEqual(set(manifest["assets"]), {"macos", "linux", "windows"})
         self.assertEqual(args[args.index("--target") + 1], SOURCE_SHA)
         self.assertIn("--draft", args)
