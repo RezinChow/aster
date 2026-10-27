@@ -1,0 +1,74 @@
+[
+  {
+    "method": "a3s/goal/import",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/goal/import/preview",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/goal/definition",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/goal/plan",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/goal/control",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/goal/wait",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/goal/state",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/review/target",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/review/admit",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/review/settle",
+    "page": "../goals/"
+  },
+  {
+    "method": "a3s/wiki/search",
+    "page": "../memory/"
+  },
+  {
+    "method": "a3s/memory/manage",
+    "page": "../memory/"
+  },
+  {
+    "method": "x.ai/session/info",
+    "page": "../sessions/"
+  },
+  {
+    "method": "x.ai/session/list",
+    "page": "../sessions/"
+  },
+  {
+    "method": "x.ai/session/delete",
+    "page": "../sessions/"
+  },
+  {
+    "method": "x.ai/permission_posture",
+    "page": "../permissions/"
+  },
+  {
+    "method": "x.ai/compact_conversation",
+    "page": "../sessions/"
+  },
+  {
+    "method": "x.ai/interject",
+    "page": "../sessions/"
+  }
+]

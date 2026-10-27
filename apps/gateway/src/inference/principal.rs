@@ -98,7 +98,10 @@ impl PrincipalVerifier {
             return Ok(());
         };
         let now = Instant::now();
-        let mut windows = self.rpm_windows.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut windows = self
+            .rpm_windows
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         let window = windows.entry(subject.credential_id).or_default();
         while window
             .front()
@@ -347,8 +350,8 @@ async fn call_verify(
         InferenceAccessError::Unauthorized
     })?;
     let org = principal.org_header.as_deref().and_then(header);
-    let credential_id = header("x-a3s-credential-id")
-        .and_then(|value| Uuid::parse_str(&value).ok());
+    let credential_id =
+        header("x-a3s-credential-id").and_then(|value| Uuid::parse_str(&value).ok());
     let allowed_models = header("x-a3s-models").map(|value| {
         value
             .split(',')

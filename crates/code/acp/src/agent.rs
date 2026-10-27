@@ -989,7 +989,7 @@ impl acp::Agent for A3sCodeAgent {
             .agent_capabilities(
                 acp::AgentCapabilities::new()
                     .load_session(true)
-                    .prompt_capabilities(acp::PromptCapabilities::new().embedded_context(true)),
+                    .prompt_capabilities(acp::PromptCapabilities::new()),
             )
             .auth_methods(Vec::new())
             .meta(
@@ -1319,7 +1319,7 @@ impl acp::Agent for A3sCodeAgent {
             .map(|live| Arc::clone(&live.turn_queue))
             .ok_or_else(|| acp::Error::invalid_params().data("unknown session id"))?;
 
-        let prompt = Self::prompt_text(&args.prompt);
+        let prompt = Self::prompt_text(&args.prompt)?;
         if prompt.trim().is_empty() {
             return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
         }

@@ -3,15 +3,24 @@
 use super::*;
 
 impl A3sCodeAgent {
-    pub(super) fn prompt_text(prompt: &[acp::ContentBlock]) -> String {
-        prompt
-            .iter()
-            .filter_map(|block| match block {
-                acp::ContentBlock::Text(text) => Some(text.text.as_str()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+    pub(super) fn prompt_text(prompt: &[acp::ContentBlock]) -> acp::Result<String> {
+        let unsupported = |kind: &str| {
+            acp::Error::invalid_params().data(format!(
+                "unsupported prompt content block `{kind}`; this agent accepts text only and did not send the request to the model"
+            ))
+        };
+        let mut text = Vec::new();
+        for block in prompt {
+            match block {
+                acp::ContentBlock::Text(content) => text.push(content.text.as_str()),
+                acp::ContentBlock::Image(_) => return Err(unsupported("image")),
+                acp::ContentBlock::Audio(_) => return Err(unsupported("audio")),
+                acp::ContentBlock::Resource(_) => return Err(unsupported("resource")),
+                acp::ContentBlock::ResourceLink(_) => return Err(unsupported("resource_link")),
+                _ => return Err(unsupported("unknown")),
+            }
+        }
+        Ok(text.join("\n"))
     }
 
     pub(super) async fn handle_event(

@@ -1091,11 +1091,7 @@ impl InferenceAuthorizer {
             .unwrap_or(Uuid::nil())
     }
 
-    fn principal_allows_model(
-        &self,
-        authenticated: AuthenticatedInference,
-        alias: &str,
-    ) -> bool {
+    fn principal_allows_model(&self, authenticated: AuthenticatedInference, alias: &str) -> bool {
         if !authenticated.principal {
             return true;
         }

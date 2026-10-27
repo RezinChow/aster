@@ -550,3 +550,11 @@ XQ 的 FP32、epsilon 与归一化轴顺序；通过显式构建 feature 作为�
 
 
 2026-10-24 按用户要求增补原版 Xolotl 单 H200 试跑，与 Rust 原生执行分开。外部源码仅在隔离部署工件中构建，未导入产品；MIT 通知、上游/ggml 提交、Aster 默认关闭的有界图元数据与保留读回 fence 的异步实验补丁及实机对照均已留证。当前用户门槛改为单 H200 单请求至少 500 token/s，尚未完成；没有凭据或用户会话导入。
+
+## 2026-10-25 — single-GPU DeepSeek DSpark and managed readiness
+
+Power main 24b364c6935c1b62a689d91839ec394bfc74c059 retains the published H200/storage history and merges upstream typed WorkBuddy message metadata support. Native DeepSeek serving on GPU6 uses ACL-owned launch parameters, the pinned upstream Xolotl engine with retained license/provenance and actual DSpark draft accounting, and shared OpenAI tool compatibility. The Gateway normalizes only the enumerated client annotations. A bounded readiness wait fixes false 503 responses when concurrent health probes share the lifecycle lock. Sources and deployment evidence: tools/model-runtime/deepseek-v41-xq and docs/evidence/deployment/2026-10-25-deepseek-dspark-main/OUTCOME.md. No credentials, tenant state, weights, or unrelated concurrent Cloud/API edits are imported.
+
+## 2026-10-25 — unified Gateway availability and neural Auto
+
+Auto now uses the existing typed decision plane with an explicit ACL decision protocol, bounded neural Prism calls, per-turn coalescing, policy-bound frozen decisions and a primary-model floor for oversized observations. A failed console credential fetch rejects activation and retains the previous valid runtime; an authoritative empty credential list still revokes keyed routes. All platform supplier protocols share the console-key boundary. Shared message normalization includes the known WorkBuddy queue annotations without changing tool semantics. The model-service API registers the six-backend Prism pool supplier, and the existing managed snapshot publisher persists its ACL policy. Validation and retained counterexamples: docs/evidence/gateway/2026-10-25-neural-auto-readiness/OUTCOME.md. No private ACL, credentials, actual user prompts or unrelated control-plane edits are imported.

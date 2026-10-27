@@ -1,0 +1,42 @@
+export const meta = {
+  "title": "查询会话，不必先启动一次任务",
+  "description": "会话目录、加载重放、工具事件与运行控制。",
+  "label": "目录、历史与工具清单",
+  "updated": "2026-10-26"
+};
+
+## 会话目录与删除
+
+`x.ai/session/list` 读取 Code 事实投影，不创建新的 AgentSession。参数支持 cwd、limit、query、headless，以及宿主使用的 facet 元数据。headless 只接受 include、exclude、only，kind facet 只接受 build、chat。
+
+cwd 仍受启动工作区范围约束，allowRelax 兼容字段不能扩大宿主范围。查询不到或无权访问时按资源不可用处理，不通过错误细节泄露其他工作区。
+
+`x.ai/session/info` 查询指定会话，`x.ai/session/delete` 是实际删除操作。客户端应在用户明确要求删除该会话后使用真实 ID 和 cwd；不要把“关闭标签页”接到删除接口。删除过程中还需关闭活动 Session 并清理相关记录，失败不能伪装成成功。
+
+## 加载历史与工具事件
+
+调用标准 `session/load` 时，代理从会话事实日志重放历史文本，通过 `session/update` 发送用户与模型消息，并在 `_meta` 中标记 `isReplay: true`。客户端应将这些内容放入该会话的历史区，不能把它们显示成一条新任务的实时输出。
+
+当前重放只发送可显示的文本内容，不保证恢复原工具卡片的全部结构。工具运行中的状态来自实时 tool call 与 tool call update，按 toolCallId 合并；可用斜杠命令由 available commands update 提供。命令目录不是完整工具目录，客户端不能据此推断全部工具已连接。
+
+## 当前版本的接口边界
+
+本版未提供独立的 ACP 工具目录查询、转录分页、前缀分支和工作区搜索扩展。`a3s/session/tooling/v1`、`a3s/session/transcript/page/v1`、`a3s/session/fork/prefix/v1` 与 `a3s/workspace/search/v1` 不在当前扩展闭集中，调用会返回 method_not_found。
+
+Core 的 Rust 接口与 ACP 扩展是两套入口。嵌入式宿主可查阅 [Core 能力参考](../../../code/9.1.6/reference/)，不能把 Rust 能力直接当成已经存在的 ACP 方法。
+
+## 压缩与运行中追加输入
+
+`x.ai/compact_conversation` 接收 sessionId 和可选 userContext，压缩供模型使用的上下文。完整转录仍按 store 读取。压缩后不能删除 UI 中的重要工具与验证记录来假装从未发生。
+
+`x.ai/interject` 接收 sessionId 和 text，对活动 Run 追加输入；后续应用状态遵守 Core 的运行控制回执。空闲、新 generation 和取消竞争要分别处理。
+
+## 验收
+
+先列出当前工作区会话，再加载一个已保存的会话，核对历史文本与实时工具事件是否分开展示。用错误 cwd、未知 sessionId 和本版未提供的方法确认拒绝行为。删除只在测试会话上验证，检查失败是否明确返回。
+
+## 实现依据
+
+- [目录查询参数](https://github.com/aster-ai-lab/aster/blob/main/crates/code/acp/src/agent/session_catalog.rs)
+- [扩展方法闭集](https://github.com/aster-ai-lab/aster/blob/main/crates/code/acp/src/agent/host_methods.rs)
+- [信息、删除、压缩和 interject](https://github.com/aster-ai-lab/aster/blob/main/crates/code/acp/src/agent/extensions.rs)

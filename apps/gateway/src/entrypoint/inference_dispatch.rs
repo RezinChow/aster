@@ -222,7 +222,11 @@ impl InferenceDispatchState {
     /// (the turn's content against the plan's rubric, over the
     /// decision model's resolved backend), and the effective target
     /// list. Fail-closed throughout: any failure resolves primary.
-    pub(crate) async fn resolve_routing(&mut self, state: &GatewayState) {
+    pub(crate) async fn resolve_routing(
+        &mut self,
+        state: &GatewayState,
+        _req_headers: &http::HeaderMap,
+    ) {
         if self.effective_targets.is_some() {
             return;
         }
@@ -256,7 +260,7 @@ impl InferenceDispatchState {
         };
         let transport = match (request.as_ref(), plan.decision_model.as_deref()) {
             (Some(_request), Some(alias)) => self
-                .resolve_decision_transport(state, alias, now)
+                .resolve_decision_transport(state, alias, plan.decision_protocol, now)
                 .await
                 .map(|transport| {
                     std::sync::Arc::new(transport)
@@ -295,6 +299,7 @@ impl InferenceDispatchState {
         &self,
         state: &GatewayState,
         decision_alias: &str,
+        protocol: crate::config::InferenceDecisionProtocol,
         now: chrono::DateTime<chrono::Utc>,
     ) -> Option<crate::inference::HttpDecisionTransport> {
         let target = self
@@ -313,10 +318,21 @@ impl InferenceDispatchState {
             .authorizer
             .upstream_authorization(target.target_id)
             .and_then(|value| value.to_str().ok().map(str::to_owned));
-        Some(crate::inference::HttpDecisionTransport::new(
-            selected.backend.url.clone(),
-            authorization,
-        ))
+        Some(match protocol {
+            crate::config::InferenceDecisionProtocol::Decisions => {
+                crate::inference::HttpDecisionTransport::new(
+                    selected.backend.url.clone(),
+                    authorization,
+                )
+            }
+            crate::config::InferenceDecisionProtocol::OpenaiChat => {
+                crate::inference::HttpDecisionTransport::new_chat(
+                    selected.backend.url.clone(),
+                    authorization,
+                    target.upstream_model.clone(),
+                )
+            }
+        })
     }
 
     pub(crate) fn prepare_next(
