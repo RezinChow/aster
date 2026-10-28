@@ -63,6 +63,9 @@ Aster is one Rust workspace for the terminal coding tool, harness, and shared As
 - `crates/terminal` preserves the upstream pager layout and license notices.
 - Use `cargo fmt --all -- --check`, focused tests, and the workspace checks
   in CI. Test new behavior with small hermetic cases.
+- Follow `.gitattributes` for cross-platform line endings. Source text is
+  UTF-8/LF; Windows command files check out as CRLF. Preserve byte-identified
+  evidence and fixtures, and inspect unexpected whole-file staging changes.
 - Do not restore upstream binary updates for Aster. Updates must not replace
   this product with an A3S/Grok release.
 - Migration history and source provenance live in `docs/migration.md` and

@@ -222,6 +222,11 @@ sheet is the only edge travel. The contract is `DESIGN.md` §6
 - Never commit another session's in-flight edits. Stage files
   individually and verify `git diff --cached --name-only` first.
   Do not commit unless the user asked.
+- `.gitattributes` owns cross-platform line endings: UTF-8/LF source text,
+  CRLF Windows command-file checkouts, and exact-byte `-text` evidence and
+  fixtures. Investigate whole-file staging churn before committing; never
+  sweep unrelated edits into renormalization. Development standards §10
+  defines the compatibility checks and explicit encoding exceptions.
 
 ## Development Workflow
 

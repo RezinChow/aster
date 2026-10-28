@@ -16,7 +16,7 @@ This is one of three governance surfaces, each with a distinct job:
 - [`.specify/memory/constitution.md`](../.specify/memory/constitution.md)
   — the enforceable distillation the spec-kit phases read. A
   NON-NEGOTIABLE mark may not be waived by any spec, plan, or task.
-- [`Agents.md`](../Agents.md) — the quick reference for this
+- [`AGENTS.md`](../AGENTS.md) — the quick reference for this
   workspace, including what must stay local and what must not be
   replaced by an upstream binary.
 
@@ -241,6 +241,35 @@ not append thousands of inline test lines to a production file.
 - Do not commit unless the user asked.
 - A slice that changes behavior lands with its tests and, when the
   landing is recorded, its `OUTCOME.md`.
+
+### Cross-platform text and checkout
+
+- `.gitattributes` owns line endings on Windows, Linux and macOS; do not
+  depend on a contributor's global `core.autocrlf`. Source, ACL, JSON,
+  Markdown, shell and PowerShell text use UTF-8 and LF. Windows `.bat`
+  and `.cmd` files use CRLF in the checkout and canonical LF in the index.
+- Generate text with an explicit encoding and newline policy. Use UTF-8
+  without a BOM by default. A required legacy encoding or BOM is an explicit,
+  documented runtime/fixture contract and needs a focused compatibility check.
+- Evidence, model fixtures and other byte-identified inputs keep their exact
+  bytes through explicit `-text` attributes. Do not normalize frozen records
+  to satisfy a formatter or whitespace check. Scope any whitespace exception
+  to the immutable records that require it.
+- Before staging across Windows/WSL, inspect `git check-attr text eol -- PATH`
+  and the staged diff. An unexpected whole-file replacement requires checking
+  line endings before proceeding. Review `git diff --cached --check` and
+  `git diff --cached --stat`. Renormalize only individually reviewed paths;
+  never run repository-wide renormalization over another session's edits.
+- Keep case-sensitive paths, executable modes, native path separators and
+  shell quoting explicit at platform boundaries. Check behavior on each
+  claimed target; a Windows executable run through WSL interop is not a
+  native Linux qualification.
+
+**Enforcement.** `.gitattributes` is exercised by
+`python tests/line_endings.py`: real Git add/checkout under both `autocrlf`
+settings must preserve UTF-8, LF scripts, CRLF command files and immutable
+bytes. The line-ending workflow runs it on Windows, Linux and macOS. A small
+fixture is not a full-history renormalization or a substitute for native E2E.
 
 ## 11. Documentation
 
