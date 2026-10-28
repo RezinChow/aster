@@ -323,7 +323,10 @@ class SiteTest(unittest.TestCase):
         destination = self.root / 'staged'
         receipt = stage_site(self.public, destination)
         self.assertEqual(set(receipt['files']), set(SITE_FILES + HOME_FILES + DOCS_FILES))
-        self.assertIn('id="scenarios"', (destination / 'index.html').read_text())
+        homepage = (destination / 'index.html').read_text()
+        self.assertIn('id="scenarios"', homepage)
+        self.assertIn('href="./terms/"', homepage)
+        self.assertIn('href="./privacy/"', homepage)
         for name in SITE_FILES:
             self.assertEqual((destination / name).read_bytes(), (self.public / name).read_bytes())
         self.assertFalse((destination / 'tenant/toyou').exists())
