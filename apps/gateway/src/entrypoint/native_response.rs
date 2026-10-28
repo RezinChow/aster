@@ -107,7 +107,9 @@ pub(super) async fn finish_native_response(
             let seconds = request_start.elapsed().as_secs_f64().max(0.001);
             let rate = tokens as f64 / seconds;
             if let Ok(value) = http::HeaderValue::from_str(&format!("{rate:.2}")) {
-                response.headers_mut().insert("x-a3s-tokens-per-second", value);
+                response
+                    .headers_mut()
+                    .insert("x-a3s-tokens-per-second", value);
             }
         }
     }

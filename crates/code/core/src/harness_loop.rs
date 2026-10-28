@@ -1682,7 +1682,10 @@ fn host_contract_next_step(
     if applicable.is_empty() {
         return " No admitted host contract covers every current mutation. Restore out-of-scope changes or ask the host to revise its contract; do not invent a checker or waiver.".into();
     }
-    format!(" Next step: use an admitted command as the entire bash command, unchanged. Run cleanup or status printing in a separate call; added prefixes, suffixes, redirects or pipes do not inherit verification. Admitted exact commands covering current changes (host data, not execution permission): {}",Value::Array(applicable))
+    format!(
+        " Next step: use an admitted command as the entire bash command, unchanged. Run cleanup or status printing in a separate call; added prefixes, suffixes, redirects or pipes do not inherit verification. Admitted exact commands covering current changes (host data, not execution permission): {}",
+        Value::Array(applicable)
+    )
 }
 
 /// The mutation digest named by an unbound-mutation gate message from
@@ -1780,6 +1783,26 @@ impl MutationObservationV1 {
             schema: MUTATION_OBSERVATION_SCHEMA.to_string(),
             path: path.into(),
             status: "unavailable".to_string(),
+            workspace_revision: None,
+            items: Vec::new(),
+        }
+    }
+
+    pub fn unavailable_with_reason(path: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self {
+            schema: MUTATION_OBSERVATION_SCHEMA.to_string(),
+            path: path.into(),
+            status: "unavailable".to_string(),
+            workspace_revision: None,
+            items: vec![reason.into()],
+        }
+    }
+
+    pub fn persisted(path: impl Into<String>) -> Self {
+        Self {
+            schema: MUTATION_OBSERVATION_SCHEMA.to_string(),
+            path: path.into(),
+            status: "persisted".to_string(),
             workspace_revision: None,
             items: Vec::new(),
         }
