@@ -31,4 +31,4 @@
 - [x] No Rust edits, new A3S dependencies, native choice controls or product configuration.
 - [x] No unrelated edits staged or committed; publication is explicitly authorized by the active user goal.
 
-- [ ] T012 [US4] Commit scoped files, push to main, retain the Pages run receipt and verify live root/docs pages and all six latest installer URLs.
+- [x] T012 [US4] Commit scoped files, push to main, retain the Pages run receipt and verify live root/docs pages and all six latest installer URLs.

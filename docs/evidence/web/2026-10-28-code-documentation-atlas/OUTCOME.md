@@ -2,9 +2,11 @@
 
 ## Result
 
-Local implementation and verification passed. Publication is explicitly
-authorized by the active user goal. The deployment and live-site receipt will
-be appended after GitHub Pages completes.
+Published to https://aster-ai-lab.github.io/aster/ from commit
+`e9c00be87570aeab3b7bc0484a30d0dc7790998f`. Pages run
+[40701137901](https://github.com/aster-ai-lab/aster/actions/runs/40701137901)
+completed successfully. Publication was explicitly authorized by the active
+user goal. Live read-back matched all 197 staged files byte for byte.
 
 ## What changed
 
@@ -51,6 +53,28 @@ be appended after GitHub Pages completes.
 See `inventory.json`, `asset-head-checks.json`, `stage-release-verification.json`,
 `provenance-check.json` and the retained command logs. Earlier failing logs are
 retained rather than replaced by a success claim.
+
+## Publication and live read-back
+
+- Both CI validation and Pages deployment completed successfully; see
+  `pages-run.json`.
+- Requested all 197 files through their public URLs, using canonical directory
+  URLs for HTML. Every response returned HTTP 200 and its SHA-256 matched the
+  reviewed staging receipt. This includes all document routes and atlas assets.
+- Parsed the live homepage and download page. Each exposes exactly the six
+  expected installer URLs, independently compared with freshly fetched Release
+  metadata. All six selected assets returned HTTP 200.
+- Verified both exact taglines in the live homepage. The Code Hike excerpts,
+  SeeCode controls and pinned source links are covered by the complete byte
+  comparison and implementation/DOM suites; no pixel rendering is claimed.
+- Latest published stable desktop packages are macOS 0.1.3, Windows 0.1.1 and
+  Kylin Linux 0.1.2. The three CLI packages are 0.1.4. `desktop-stable` was still
+  a draft at live verification and was excluded.
+- The local preview service remains stopped. The dirty root checkout was not
+  merged over or reset; publication used the isolated worktree.
+
+See `live-site-verification.json` for the timestamp, all response hashes,
+selected Release records, actual page URLs and asset availability results.
 
 ## Review findings and resolutions
 
