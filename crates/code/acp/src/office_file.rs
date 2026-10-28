@@ -8,12 +8,12 @@ use a3s_office::{
     NativeOfficeDocument, NativeOfficeEditor, NativeOfficeImage, NativeOfficeMutation,
     NativeSpreadsheetCellFormat, SpreadsheetCellValue, SpreadsheetFormulaValue,
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use async_trait::async_trait;
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, OpenOptionsSyncExt};
 use cap_std::fs::{Dir, OpenOptions};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 const MAX_INPUT_BYTES: usize = 1024 * 1024;
@@ -605,6 +605,13 @@ pub(crate) fn parent_dir(root: &Path, relative: &str) -> Result<(Dir, std::ffi::
         "file path must stay inside the workspace"
     );
     ensure!(root.is_absolute(), "local workspace root must be absolute");
+    if let Some(parent) = path.parent() {
+        ensure!(
+            root.join(parent).is_dir(),
+            "parent directory does not exist: {}",
+            root.join(parent).display()
+        );
+    }
     let mut anchor = PathBuf::new();
     let mut components = root.components().peekable();
     while components

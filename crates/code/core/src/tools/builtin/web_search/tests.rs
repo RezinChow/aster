@@ -61,10 +61,12 @@ search {
     let deepseek = search.engines.get("deepseek").expect("deepseek");
     assert!(doubao.weight > deepseek.weight);
     assert!(doubao.api_key.as_deref().is_some_and(|key| !key.is_empty()));
-    assert!(deepseek
-        .api_key
-        .as_deref()
-        .is_some_and(|key| !key.is_empty()));
+    assert!(
+        deepseek
+            .api_key
+            .as_deref()
+            .is_some_and(|key| !key.is_empty())
+    );
     assert_eq!(
         enabled_engine_names(&search.engines),
         ["doubao".to_string(), "deepseek".to_string()]
@@ -534,9 +536,11 @@ async fn real_builtin_default_search_uses_external_probe_query() {
     );
     let metadata = result.metadata.expect("default search metadata");
     assert_eq!(metadata["engine_selection_source"], "builtin_default");
-    assert!(metadata["selected_engines"]
-        .as_array()
-        .is_some_and(|engines| !engines.is_empty()));
+    assert!(
+        metadata["selected_engines"]
+            .as_array()
+            .is_some_and(|engines| !engines.is_empty())
+    );
     let summaries = items
         .as_array()
         .expect("search result array")
@@ -808,29 +812,37 @@ fn test_web_search_schema_is_canonical() {
     // Example with engines should use array format
     assert!(examples[1]["engines"].is_array());
     assert_eq!(examples[1]["engines"].as_array().unwrap(), &["ddg", "wiki"]);
-    assert!(params["properties"]["engines"]["description"]
-        .as_str()
-        .is_some_and(|description| {
-            description.contains("bing (Bing RSS)")
-                && description.contains("anysearch")
-                && description.contains("tavily")
-        }));
+    assert!(
+        params["properties"]["engines"]["description"]
+            .as_str()
+            .is_some_and(|description| {
+                description.contains("bing (Bing RSS)")
+                    && description.contains("anysearch")
+                    && description.contains("tavily")
+            })
+    );
     #[cfg(feature = "headless-search")]
-    assert!(params["properties"]["engines"]["description"]
-        .as_str()
-        .is_some_and(|description| description.contains("Google, headless")));
+    assert!(
+        params["properties"]["engines"]["description"]
+            .as_str()
+            .is_some_and(|description| description.contains("Google, headless"))
+    );
     #[cfg(feature = "headless-search")]
-    assert!(params["properties"]["engines"]["description"]
-        .as_str()
-        .is_some_and(|description| {
-            description.contains("bing_browser")
-                && description.contains("brave_browser")
-                && description.contains("Moli")
-        }));
+    assert!(
+        params["properties"]["engines"]["description"]
+            .as_str()
+            .is_some_and(|description| {
+                description.contains("bing_browser")
+                    && description.contains("brave_browser")
+                    && description.contains("Moli")
+            })
+    );
     #[cfg(not(feature = "headless-search"))]
-    assert!(params["properties"]["engines"]["description"]
-        .as_str()
-        .is_some_and(|description| !description.contains("Google")));
+    assert!(
+        params["properties"]["engines"]["description"]
+            .as_str()
+            .is_some_and(|description| !description.contains("Google"))
+    );
 }
 
 #[test]
@@ -1385,8 +1397,8 @@ fn configured_api_endpoint_accepts_loopback_http() {
 #[tokio::test]
 #[ignore = "S-WS-01 soak: loopback search fixture connection and byte caps"]
 async fn soak_web_search_loopback_fixture_stays_connection_and_byte_capped() {
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
@@ -1518,16 +1530,24 @@ struct WikiInvoker {
     output: String,
     exit_code: i32,
     calls: Arc<std::sync::atomic::AtomicUsize>,
+    scopes: Arc<std::sync::Mutex<Vec<String>>>,
 }
 
 #[async_trait]
 impl crate::tools::ToolInvoker for WikiInvoker {
     async fn invoke(
         &self,
-        _invocation: crate::tools::ToolInvocation,
+        invocation: crate::tools::ToolInvocation,
         _ctx: &ToolContext,
     ) -> crate::tools::ToolResult {
         self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if let Some(scope) = invocation
+            .args
+            .get("scope")
+            .and_then(|value| value.as_str())
+        {
+            self.scopes.lock().unwrap().push(scope.to_string());
+        }
         if self.exit_code == 0 {
             crate::tools::ToolResult::success("search_wiki", self.output.clone())
         } else {
@@ -1573,6 +1593,7 @@ fn saved_notes_decide_whether_the_web_runs() {
 #[tokio::test]
 async fn web_search_returns_saved_notes_without_searching_the_web() {
     let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let scopes = Arc::new(std::sync::Mutex::new(Vec::new()));
     let session = "local-first-execute";
     let query = "谁是林夏";
     let _ = claim_web_escalation(session, query);
@@ -1582,6 +1603,7 @@ async fn web_search_returns_saved_notes_without_searching_the_web() {
             output: "林夏只在本地笔记".to_string(),
             exit_code: 0,
             calls: Arc::clone(&calls),
+            scopes: Arc::clone(&scopes),
         }));
     let output = WebSearchTool::new()
         .execute(&serde_json::json!({ "query": query }), &ctx)
@@ -1591,6 +1613,7 @@ async fn web_search_returns_saved_notes_without_searching_the_web() {
     assert!(output.content.contains("林夏只在本地笔记"));
     assert!(output.content.contains("local-knowledge"));
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(*scopes.lock().unwrap(), ["current"]);
 }
 
 #[cfg(feature = "headless-search")]
@@ -1626,8 +1649,10 @@ async fn deferred_moli_resolution_uses_the_configured_executable() {
     assert_eq!(runtime.max_tabs, Some(3));
     let pending = headless_runtime(config, true).1.unwrap();
     std::fs::remove_file(&executable).unwrap();
-    assert!(pending
-        .await
-        .unwrap_err()
-        .contains("configured Moli executable"));
+    assert!(
+        pending
+            .await
+            .unwrap_err()
+            .contains("configured Moli executable")
+    );
 }

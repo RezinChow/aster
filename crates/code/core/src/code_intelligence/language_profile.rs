@@ -3,7 +3,7 @@
 use super::project_layout::{ProjectLanguageProfile, ProjectLayout, ProjectMarkerKind};
 use crate::language::LanguageCatalog;
 use crate::workspace::WorkspacePath;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -145,6 +145,78 @@ impl LanguageServerProfile {
     fn with_workspace_typescript_resolution(mut self) -> Self {
         self.launch_resolution = LaunchResolution::WorkspaceTypeScript;
         self
+    }
+
+    /// Fail closed before advertising a language runtime that cannot start.
+    pub(crate) fn unavailable_reason(
+        &self,
+        canonical_root: &Path,
+        layout: &ProjectLayout,
+    ) -> Option<String> {
+        match self.launch_resolution {
+            LaunchResolution::PyrightFamily => {
+                if on_path(BASEDPYRIGHT) || on_path(PYRIGHT) {
+                    None
+                } else {
+                    Some(format!(
+                        "required language server programs {BASEDPYRIGHT} or {PYRIGHT} are not installed"
+                    ))
+                }
+            }
+            LaunchResolution::WorkspaceTypeScript => {
+                if on_path(&self.command.program.to_string_lossy())
+                    || self.workspace_typescript_available(canonical_root, layout)
+                {
+                    None
+                } else {
+                    Some(format!(
+                        "required language server program {:?} is not installed and no workspace TypeScript SDK is available",
+                        self.command.program
+                    ))
+                }
+            }
+            LaunchResolution::Static => {
+                (!on_path(&self.command.program.to_string_lossy())).then(|| {
+                    format!(
+                        "required language server program {:?} is not installed",
+                        self.command.program
+                    )
+                })
+            }
+        }
+    }
+
+    fn workspace_typescript_available(
+        &self,
+        canonical_root: &Path,
+        layout: &ProjectLayout,
+    ) -> bool {
+        for search_root in self.typescript_search_roots(canonical_root, layout) {
+            for package_root in typescript_package_roots(&search_root) {
+                let lib = package_root.join("lib");
+                if lib.join("tsserver.js").is_file() {
+                    return true;
+                }
+                if lib.join("tsc.js").is_file()
+                    && std::fs::read_to_string(package_root.join("package.json"))
+                        .ok()
+                        .and_then(|body| serde_json::from_str::<Value>(&body).ok())
+                        .and_then(|package| {
+                            package
+                                .get("version")?
+                                .as_str()?
+                                .split('.')
+                                .next()?
+                                .parse::<u64>()
+                                .ok()
+                        })
+                        .is_some_and(|major| major >= 7)
+                {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     pub(crate) fn id(&self) -> ProjectLanguageProfile {
@@ -449,12 +521,12 @@ fn protocol_path(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{protocol_path, LanguageServerProfile, ServerTopology};
+    use super::{LanguageServerProfile, ServerTopology, protocol_path};
     use crate::code_intelligence::project_layout::{ProjectLanguageProfile, ProjectLayoutResolver};
     use crate::workspace::{
         LocalWorkspaceFile, LocalWorkspaceFileStatus, LocalWorkspaceManifestSnapshot,
     };
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
 
@@ -493,9 +565,11 @@ mod tests {
             panic!("four built-in profiles");
         };
         assert!(rust.requires_server_status());
-        assert!([web, python, native]
-            .iter()
-            .all(|profile| !profile.requires_server_status()));
+        assert!(
+            [web, python, native]
+                .iter()
+                .all(|profile| !profile.requires_server_status())
+        );
         assert!(!LanguageServerProfile::rust("custom-rust-server").requires_server_status());
 
         assert_eq!(
@@ -528,9 +602,11 @@ mod tests {
                 profile.initialization_options(Path::new("/w"), &layout),
                 Value::Null
             );
-            assert!(profile
-                .workspace_settings(Path::new("/w"), &layout)
-                .is_empty());
+            assert!(
+                profile
+                    .workspace_settings(Path::new("/w"), &layout)
+                    .is_empty()
+            );
         }
 
         assert_eq!(rust.command().program, PathBuf::from("rust-analyzer"));

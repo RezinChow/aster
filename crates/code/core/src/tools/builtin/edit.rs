@@ -158,7 +158,7 @@ impl Tool for EditTool {
             }
             Err(crate::text::LineEndingEditError::Unsafe) => {
                 return Ok(ToolOutput::error(format!(
-                    "Refusing to edit {display_path}: the file or the replacement mixes LF and CRLF, or a match would split a CRLF pair. Normalize the file to one line ending and retry."
+                    "Refusing to edit {display_path}: the file uses CR-only line endings or mixes LF and CRLF, or a match would split a CRLF pair. Normalize the file to one line ending and retry."
                 )));
             }
         };
@@ -364,6 +364,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn edit_refuses_cr_only_with_a_line_ending_reason() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("test.txt");
+        std::fs::write(&path, "alpha\rbeta\r").unwrap();
+        let ctx = ToolContext::new(temp.path().to_path_buf()).with_session_id("edit-cr-only");
+        for (old, new) in [("alpha", "gamma"), ("alpha\nbeta", "alpha\ngamma")] {
+            let result = EditTool
+                .execute(
+                    &serde_json::json!({
+                        "file_path": "test.txt",
+                        "old_string": old,
+                        "new_string": new
+                    }),
+                    &ctx,
+                )
+                .await
+                .unwrap();
+            assert!(!result.success, "{}", result.content);
+            assert!(result.content.contains("CR-only"), "{}", result.content);
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), "alpha\rbeta\r");
+        }
+        crate::external_observation::release_session("edit-cr-only");
+    }
+
+    #[tokio::test]
     async fn edit_without_a_session_does_not_apply_or_claim_an_owner() {
         let temp = tempfile::tempdir().unwrap();
         let original = "hello world";
@@ -498,9 +523,11 @@ mod tests {
             .unwrap();
 
         assert!(!result.success);
-        assert!(result
-            .content
-            .contains("expected 3 replacement(s), found 2"));
+        assert!(
+            result
+                .content
+                .contains("expected 3 replacement(s), found 2")
+        );
         assert_eq!(std::fs::read_to_string(path).unwrap(), "alpha alpha");
     }
 
