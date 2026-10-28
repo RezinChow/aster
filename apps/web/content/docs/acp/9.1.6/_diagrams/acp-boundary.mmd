@@ -1,0 +1,11 @@
+flowchart TB
+  accTitle: ACP 客户端与 Core 的进程边界
+  accDescr: 终端、桌面或自建客户端经 stdio JSON-RPC 连接 ACP 进程。ACP 完成协议适配，Core 执行模型与受控工具。直接嵌入 Core 的 Rust 宿主不经过 ACP。
+  A[终端、桌面或自建客户端] -->|stdio JSON-RPC 请求| B[a3s-code-acp 进程]
+  B -->|session/update 与交互请求| A
+  B --> C[协议处理与会话准入]
+  C --> D[Core AgentSession 与 Run]
+  E[直接嵌入 SDK 的 Rust 宿主] --> D
+  D --> F[模型适配器]
+  D --> G[受控工具与工作区]
+  D --> H[事实日志与会话存储]
