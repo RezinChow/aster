@@ -4,6 +4,8 @@
 
 `public/download/` 是可独立访问的静态下载网站，使用 HTML、CSS 和 JavaScript，不需要安装前端框架或读取私有桌面源码。品牌图形直接使用 `public/tenant/aster/logo.svg` 和 `mark-light.png`。工作区、Office、审查和产物追溯使用 `screenshots/` 中四张真实产品截图；截图来自原生 Aster 窗口和隔离演示数据，不包含主实例任务或文件，图片本身不代表网页可以执行这些桌面功能。
 
+`public/terms/` 和 `public/privacy/` 是 Aster 用户协议与隐私政策，`public/legal/styles.css` 提供两页共享的响应式版式。桌面关于页直接打开 `/aster/terms/` 与 `/aster/privacy/`；页面不加载脚本、不设置 Cookie，正文与导航在无 JavaScript 时完整可用。
+
 页面结构自上而下为：星轨 hero、真实界面功能页签、多场景卡片、五步工作流、接入方式、对比表、常见问题与底部行动区。品牌图形在 hero 中由内联 SVG 实时绘制：星核、双轨道与环绕彗星，全部由 CSS 关键帧驱动。
 
 动效图标同样是内联手绘 SVG，不依赖外部图标库：下载目录只允许发布既定文件，外链只允许仓库域名，因此第三方资源无法引入。图标用描边路径、`pathLength` 归一化与 `stroke-dashoffset` 实现线条书写、括号开合、图层呼吸、指针流动等循环动画，并随 `prefers-reduced-motion` 关闭。
@@ -16,7 +18,7 @@
 python3 -m http.server 4188 --bind 127.0.0.1 --directory apps/web/public
 ```
 
-打开 <http://127.0.0.1:4188/> 查看首页；下载页位于 <http://127.0.0.1:4188/download/>，文档总入口位于 <http://127.0.0.1:4188/docs/>。
+打开 <http://127.0.0.1:4188/> 查看首页；下载页位于 <http://127.0.0.1:4188/download/>，文档总入口位于 <http://127.0.0.1:4188/docs/>，用户协议与隐私政策分别位于 <http://127.0.0.1:4188/terms/>、<http://127.0.0.1:4188/privacy/>。
 
 ## MDX 文档站
 
@@ -119,7 +121,7 @@ JS_DOM_MODULE="$PWD/target/download-test-deps/node_modules/jsdom" node --test ap
 
 DOM 回归验证交互状态和事件；Canvas 测试用受控绘图上下文和动画时钟验证调度。它们不替代真实浏览器的像素、布局、原生对话框焦点和绘图效果检查。
 
-输出目录必须不存在。脚本只复制首页的四个文件、下载页的四个文件、四张 PNG 截图、三份 Ubuntu 字体及其完整许可证、三个 Aster 品牌文件，以及文档注册表中的 150 个 HTML 地址（89 篇文档，含默认版本兼容地址）、23 份 SVG、两份 SeeCode 本地水印图片、文档样式、生成样式和渐进交互脚本，目前共 197 个文件；根入口是完整首页，`download/` 和 `docs/` 独立访问，不复制其他租户、MDX 源码、依赖或用户数据。所有资源路径均兼容 GitHub Pages 的 `/aster/` 项目路径。Canvas 是下载页的独立装饰层：减少动态时静态绘制，页面隐藏或首屏离开视口时停止动画，没有第三方绘图库。
+输出目录必须不存在。脚本只复制首页的四个文件、下载页的四个文件、四张 PNG 截图、三份 Ubuntu 字体及其完整许可证、三个 Aster 品牌文件、两个法律页面及其共享样式，以及文档注册表中的 150 个 HTML 地址（89 篇文档，含默认版本兼容地址）、23 份 SVG、两份 SeeCode 本地水印图片、文档样式、生成样式和渐进交互脚本，目前共 200 个文件；根入口是完整首页，`download/`、`docs/`、`terms/` 和 `privacy/` 独立访问，不复制其他租户、MDX 源码、依赖或用户数据。所有资源路径均兼容 GitHub Pages 的 `/aster/` 项目路径。Canvas 是下载页的独立装饰层：减少动态时静态绘制，页面隐藏或首屏离开视口时停止动画，没有第三方绘图库。
 
 资源清单位于 `scripts/site_contract.py`。截图只允许 `workspace.png`、`office.png`、`review.png` 和 `lineage.png`，每张不超过 2 MiB；检查覆盖 PNG 签名、IHDR 尺寸和头部校验码，并要求 HTML 显式引用四张图片。检查不代替完整图片解码或截图内容审查。字体从本地 Ubuntu 字体包复制，页面使用本地 `@font-face`，`fonts/Ubuntu-LICENSE.txt` 随站点完整发布。下载目录出现其他文件或符号链接会拒绝发布。
 
