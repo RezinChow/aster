@@ -1,5 +1,22 @@
 # Harness migration
 
+## Documentation atlas, 2026-10-28
+
+The existing static website now uses SeeCode 0.6.2 for the current Code/ACP
+architecture drawings and Code Hike 1.1.0 for committed-source walkthroughs.
+SeeCode's original MIT skill source is retained under `apps/web/vendor/seecode`.
+Its provenance file records the archive revision and SHA-256. Code Hike and
+the shared high-contrast theme are pinned in the website package lock.
+
+These dependencies run during documentation generation. The public site
+continues to load one local progressive script and local assets. It has no
+browser dependency on Studio source, a model service, a CDN or a diagram API.
+README vectors come from the same authored diagram specifications. Historical
+9.1.5 prose is preserved; 9.1.6 source walks use the explicit committed source
+revision from the documentation catalog. This is not a Rust runtime or SDK
+binding change. Acceptance is recorded under
+`docs/evidence/web/2026-10-28-code-documentation-atlas`.
+
 ## Native Power integration, 2026-10-22
 
 The existing `crates/power` submodule is integrated into the root Cargo

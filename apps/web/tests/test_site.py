@@ -239,7 +239,7 @@ class SiteTest(unittest.TestCase):
         original = DOWNLOAD_MANIFEST[0][4]
         for changed in (original.replace('github.com', 'github.com.evil.example'),
                         original.replace('/aster-ai-lab/aster/', '/someone/aster/'),
-                        original.replace('/v0.1.1/', '/v9.9.9/'), original + '?redirect=1'):
+                        original.replace('/' + original.split('/releases/download/')[1].split('/')[0] + '/', '/v9.9.9/'), original + '?redirect=1'):
             with self.subTest(changed=changed):
                 self.rewrite(original, changed)
                 with self.assertRaisesRegex(ValueError, "host|repository|download"):

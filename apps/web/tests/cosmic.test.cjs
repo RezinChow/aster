@@ -20,7 +20,7 @@ function eventTarget() {
   };
 }
 
-function webGLContext(state) {
+function webGLContext(state, options) {
   return {
     VERTEX_SHADER: 1, FRAGMENT_SHADER: 2, COMPILE_STATUS: 3, LINK_STATUS: 4,
     ARRAY_BUFFER: 5, STATIC_DRAW: 6, DYNAMIC_DRAW: 7, FLOAT: 8, TRIANGLES: 9, POINTS: 10,
@@ -28,7 +28,7 @@ function webGLContext(state) {
     createShader: () => ({}),
     shaderSource() {},
     compileShader() {},
-    getShaderParameter: () => true,
+    getShaderParameter: () => !options.failShaders,
     createProgram: () => ({}),
     attachShader() {},
     linkProgram() {},
@@ -36,11 +36,13 @@ function webGLContext(state) {
     createBuffer: () => ({}),
     bindBuffer() {},
     bufferData(_target, data) { state.bufferData.push(data); },
-    vertexAttribPointer() {},
+    vertexAttribPointer(...args) { state.attributes.push(args); },
     enableVertexAttribArray() {},
-    getUniformLocation: () => ({}),
-    uniform1f() {},
-    uniform2f() {},
+    getAttribLocation(_program, name) { return { aPosition: 0, aSize: 1, aColor: 2, aLayer: 3 }[name]; },
+    getUniformLocation: (_program, name) => name,
+    uniform1f(name, ...values) { state.uniforms[name] = values; },
+    uniform2f(name, ...values) { state.uniforms[name] = values; },
+    uniform3f(name, ...values) { state.uniforms[name] = values; },
     viewport(...args) { state.viewport = args; },
     disable() {},
     enable() {},
@@ -51,7 +53,7 @@ function webGLContext(state) {
 }
 
 function setup(options = {}) {
-  const state = { draws: 0, dimensionWrites: 0, transforms: [], arcs: [], gradients: 0, frames: new Map(), nextId: 1, bufferData: [], drawCalls: [], webglDraws: 0, viewport: null };
+  const state = { draws: 0, dimensionWrites: 0, transforms: [], arcs: [], gradients: 0, frames: new Map(), nextId: 1, bufferData: [], drawCalls: [], webglDraws: 0, viewport: null, attributes: [], uniforms: {} };
   const bounds = { width: 1200, height: 900, top: 0, left: 0, ...options.bounds };
   const section = { ...eventTarget(), getBoundingClientRect: () => ({ ...bounds }) };
   const context = Object.fromEntries(['save', 'restore', 'beginPath', 'stroke', 'moveTo', 'lineTo', 'fill'].map(name => [name, () => {}]));
@@ -63,7 +65,7 @@ function setup(options = {}) {
     createLinearGradient() { state.gradients++; return { addColorStop() {} }; },
     createRadialGradient() { state.gradients++; return { addColorStop() {} }; }
   });
-  const gl = webGLContext(state);
+  const gl = webGLContext(state, options);
   const canvas = {
     dataset: {},
     closest: selector => selector === '.download' ? section : null,
@@ -97,7 +99,7 @@ function setup(options = {}) {
   };
   vm.runInNewContext(source, globals, { timeout: 1000 });
   return {
-    state, bounds, section, document, window, motion,
+    state, bounds, section, document, window, motion, canvas,
     intersect(value) { state.intersection([{ isIntersecting: value }]); },
     advance(now) {
       const callbacks = [...state.frames.values()];
@@ -210,13 +212,27 @@ test('older browsers without intersection observation keep a static cosmos', () 
   assert.equal(env.state.frames.size, 0);
 });
 
-test('WebGL renders perspective star and galaxy buffers with clamped DPR', () => {
+test('WebGL supplies three-dimensional star layers and a galaxy with clamped DPR', () => {
   const env = setup({ webgl: true, dpr: 3 });
   env.intersect(true);
   env.advance(0);
   assert.deepEqual(env.state.viewport, [0, 0, 2400, 1800]);
   assert.ok(env.state.drawCalls.at(-1).count > 400);
-  assert.equal(env.state.bufferData.at(-1).length % 7, 0);
+  const vertices = env.state.bufferData.at(-1);
+  assert.equal(vertices.length % 9, 0);
+  const depths = [];
+  const layers = new Map();
+  for (let index = 0; index < vertices.length; index += 9) {
+    assert.ok([...vertices.slice(index, index + 9)].every(Number.isFinite));
+    depths.push(vertices[index + 2]);
+    const layer = vertices[index + 8];
+    layers.set(layer, (layers.get(layer) || 0) + 1);
+  }
+  assert.ok(Math.min(...depths) < -180);
+  assert.ok(Math.max(...depths) > -10);
+  assert.deepEqual([...layers.keys()].sort(), [0, 1, 2, 3]);
+  assert.ok(env.state.attributes.some(([location, size, , , stride]) => location === 0 && size === 3 && stride === 36));
+  assert.deepEqual(env.state.uniforms.uRatio, [2]);
   assert.equal(env.state.frames.size, 1);
 });
 
@@ -233,15 +249,17 @@ test('WebGL reduced motion renders once and toggles the animation lifecycle', ()
   assert.equal(env.state.frames.size, 0);
 });
 
-test('WebGL pointer movement changes the projected star field but touch is neutral', () => {
+test('WebGL camera parallax changes with mouse input while touch stays neutral', () => {
   const env = setup({ webgl: true });
   env.intersect(true);
   env.advance(0);
-  const before = [...env.state.bufferData.at(-1)];
+  const before = [...env.state.uniforms.uCamera];
+  const field = [...env.state.bufferData.at(-1)];
   env.section.dispatch('pointermove', { clientX: 1200, clientY: 900, pointerType: 'mouse' });
   env.advance(100);
-  const after = [...env.state.bufferData.at(-1)];
+  const after = [...env.state.uniforms.uCamera];
   assert.notDeepEqual(after, before);
+  assert.deepEqual([...env.state.bufferData.at(-1)], field);
   const touch = setup({ webgl: true });
   touch.intersect(true);
   touch.advance(0);
@@ -251,5 +269,16 @@ test('WebGL pointer movement changes the projected star field but touch is neutr
   control.intersect(true);
   control.advance(0);
   control.advance(100);
-  assert.deepEqual([...touch.state.bufferData.at(-1)], [...control.state.bufferData.at(-1)]);
+  assert.deepEqual([...touch.state.uniforms.uCamera], [...control.state.uniforms.uCamera]);
+  assert.ok(after[0] > control.state.uniforms.uCamera[0]);
+  assert.ok(after[1] > control.state.uniforms.uCamera[1]);
+});
+
+test('unavailable WebGL shaders retain the existing Canvas fallback', () => {
+  const env = setup({ webgl: true, failShaders: true });
+  env.intersect(true);
+  env.advance(0);
+  assert.equal(env.canvas.dataset.renderer, 'canvas');
+  assert.ok(env.state.draws > 0);
+  assert.equal(env.state.webglDraws, 0);
 });

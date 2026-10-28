@@ -41,6 +41,8 @@
   --shadow-window: 0 40px 100px rgba(25, 29, 38, 0.12), 0 8px 30px rgba(25, 29, 38, 0.08);
   --font-sans: "Ubuntu", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --feedback-curve: cubic-bezier(0.22, 1, 0.36, 1);
+  --selection-curve: cubic-bezier(0.22, 1.12, 0.36, 1);
 }
 
 *,
@@ -201,16 +203,16 @@ ul {
   left: 0;
   width: 100%;
   border-bottom: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.84);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  transition: border-color 200ms ease, box-shadow 200ms ease, background 200ms ease;
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  transition: border-color 300ms cubic-bezier(0.22, 1, 0.36, 1), background 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .site-header.is-scrolled {
   border-color: rgba(227, 227, 227, 0.9);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 8px 30px rgba(20, 20, 24, 0.035);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: none;
 }
 
 .header-inner {
@@ -255,8 +257,8 @@ ul {
 .desktop-nav {
   display: flex;
   align-items: center;
-  gap: 34px;
-  margin-left: 56px;
+  gap: 32px;
+  margin-left: 48px;
 }
 
 .desktop-nav a {
@@ -264,7 +266,7 @@ ul {
   padding-block: 26px 24px;
   color: #5e5e64;
   font-size: 14px;
-  transition: color 180ms ease;
+  transition: color 240ms var(--feedback-curve);
 }
 
 .desktop-nav a::after {
@@ -272,13 +274,14 @@ ul {
   right: 0;
   bottom: 16px;
   left: 0;
-  width: 0;
+  width: 18px;
   height: 2px;
   margin-inline: auto;
   border-radius: 2px;
   background: var(--ink);
   content: "";
-  transition: width 180ms ease;
+  transform: scaleX(0);
+  transition: transform 300ms var(--feedback-curve), opacity 240ms var(--feedback-curve);
 }
 
 .desktop-nav a:hover,
@@ -287,8 +290,11 @@ ul {
 }
 
 .desktop-nav a.is-active::after {
-  width: 18px;
+  transform: scaleX(1);
 }
+
+.desktop-nav a:hover::after { transform: scaleX(1); opacity: 0.45; }
+.desktop-nav a.is-active:hover::after { opacity: 1; }
 
 .header-actions {
   display: flex;
@@ -313,30 +319,34 @@ ul {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 11px;
-  min-height: 52px;
-  padding: 0 25px;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px 16px;
   border: 1px solid var(--ink);
   border-radius: 999px;
   background: var(--ink);
   color: #fff;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
-  line-height: 1;
-  box-shadow: 0 8px 20px rgba(23, 23, 23, 0.12);
-  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  line-height: 24px;
+  box-shadow: 0 2px 8px rgba(23, 23, 23, 0.08);
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), background 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .button:hover {
-  background: #2a2a2a;
-  box-shadow: 0 12px 28px rgba(23, 23, 23, 0.18);
-  transform: translateY(-2px);
+  background: #272727;
+  box-shadow: 0 4px 12px rgba(23, 23, 23, 0.12);
+  transform: translateY(-1px);
 }
+
+.button:active { transform: translateY(0) scale(0.98); }
+.button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 
 .button-small {
   min-height: 40px;
-  padding-inline: 18px;
-  font-size: 13px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 20px;
   box-shadow: none;
 }
 
@@ -380,7 +390,8 @@ ul {
   box-shadow: 0 24px 70px rgba(25, 28, 36, 0.15), 0 4px 16px rgba(25, 28, 36, 0.06);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
-  animation: popover-fade 160ms ease both;
+  transform-origin: top center;
+  animation: popover-fade 220ms var(--feedback-curve) both;
 }
 
 .download-popover[hidden] {
@@ -588,8 +599,8 @@ ul {
   line-height: 1.12;
 }
 
-.hero h1 > .hero-title-tail {
-  letter-spacing: -0.075em;
+.hero h1 .hero-title-tail {
+  letter-spacing: -0.035em;
 }
 
 .hero h1 {
@@ -598,8 +609,9 @@ ul {
 
 .typing-char {
   display: inline-block;
+  white-space: pre;
   opacity: 0;
-  transition: opacity 70ms linear;
+  transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .typing-char.is-visible {
@@ -638,11 +650,11 @@ ul {
 }
 
 .hero-description {
-  max-width: 720px;
-  margin: 28px auto 0;
+  max-width: 680px;
+  margin: 24px auto 0;
   color: #696970;
-  font-size: 17px;
-  line-height: 1.9;
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .hero-actions {
@@ -657,15 +669,14 @@ ul {
 .text-link {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   color: #55555c;
   font-size: 14px;
   font-weight: 500;
-  transition: color 180ms ease, gap 180ms ease;
+  transition: color 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .text-link:hover {
-  gap: 11px;
   color: var(--ink);
 }
 
@@ -933,24 +944,26 @@ ul {
 .section-kicker {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-  color: #9a9aa1;
-  font-size: 10px;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: #686870;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
 }
 
 .section-kicker > span {
   display: inline-flex;
   align-items: center;
-  min-height: 25px;
-  padding-inline: 10px;
+  min-height: 24px;
+  padding-inline: 8px;
   border: 1px solid #e7e7e9;
   border-radius: 999px;
   background: #f7f7f8;
   color: #5f5f66;
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 16px;
   letter-spacing: 0.04em;
 }
 
@@ -959,7 +972,7 @@ ul {
 .download h2 {
   font-size: clamp(40px, 4vw, 54px);
   font-weight: 500;
-  letter-spacing: -0.055em;
+  letter-spacing: -0.025em;
   line-height: 1.2;
 }
 
@@ -1800,9 +1813,11 @@ ul {
 @keyframes popover-fade {
   from {
     opacity: 0;
+    transform: scale(0.98);
   }
   to {
     opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -2239,7 +2254,7 @@ ul {
     line-height: 1.16;
   }
 
-  .hero h1 > .hero-title-tail {
+  .hero h1 .hero-title-tail {
     display: block;
     margin-top: 4px;
     font-size: 0.86em;
@@ -2948,9 +2963,8 @@ ul {
   opacity: 0;
   pointer-events: none;
   transition:
-    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    width 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 100ms ease;
+    transform 420ms var(--selection-curve),
+    opacity 220ms var(--feedback-curve);
 }
 
 .scenario-tabs.is-enhanced .scenario-tab-indicator {
@@ -3129,4 +3143,104 @@ ul {
   color: #5d5d64;
   font-size: 11px;
   line-height: 1.6;
+}
+
+.arc-surface {
+  position: relative;
+}
+
+.arc-surface::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(320px circle at var(--arc-x, 50%) var(--arc-y, 50%), var(--arc-glow, rgba(23, 23, 23, 0.045)), transparent 72%);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms var(--feedback-curve);
+}
+
+.arc-surface.is-pointing::before { opacity: 1; }
+.product-window.arc-surface { --arc-glow: rgba(255, 255, 255, 0.16); }
+.download-card.arc-surface { --arc-glow: rgba(213, 225, 255, 0.12); }
+
+.product-window.arc-depth {
+  transform: perspective(1400px) rotateX(var(--arc-rotate-x, 0deg)) rotateY(var(--arc-rotate-y, 0deg));
+  transition: transform 500ms var(--feedback-curve);
+}
+
+.download-card.arc-depth {
+  transform: perspective(1200px) rotateX(var(--arc-rotate-x, 0deg)) rotateY(var(--arc-rotate-y, 0deg)) translateY(var(--arc-lift, 0px)) scale(var(--arc-press, 1));
+  transition: transform 400ms var(--feedback-curve), border-color 240ms var(--feedback-curve), box-shadow 300ms var(--feedback-curve), background 240ms var(--feedback-curve);
+}
+
+.download-card.arc-depth:hover { --arc-lift: -4px; }
+.download-card.arc-depth:active { --arc-press: 0.985; }
+.connector-card, .security-card { transition-timing-function: var(--feedback-curve); }
+.product-window > a, .scenario-visual figure > a { cursor: zoom-in; }
+.download-option:focus-visible, .replay-step:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.download :is(a, button):focus-visible { outline: 2px solid #d6ddf0; outline-offset: 4px; }
+
+.scenario-panel.is-active .scenario-copy > * {
+  animation: detail-enter 360ms var(--feedback-curve) both;
+}
+
+.scenario-panel.is-active .scenario-copy > :nth-child(2) { animation-delay: 40ms; }
+.scenario-panel.is-active .scenario-copy > :nth-child(3) { animation-delay: 80ms; }
+.scenario-panel.is-active .scenario-copy > :nth-child(4) { animation-delay: 120ms; }
+
+.quickstart button[data-copy-state="copied"] {
+  border-color: #c7d0e5;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.quickstart button[data-copy-state="copied"] .icon { animation: check-enter 260ms var(--selection-curve) both; }
+.quickstart button[data-copy-state="error"] { border-color: #b42318; }
+
+@keyframes detail-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes check-enter {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-window.arc-depth, .download-card.arc-depth { transform: none; }
+  .arc-surface::before { display: none; }
+  .scenario-copy > *, .download-popover, .quickstart .icon { animation: none !important; }
+  .scenario-tab-indicator { transition: none; }
+}
+
+.hero h1[data-typing-title] { display: grid; }
+.typing-line, .typing-reserve { grid-area: 1 / 1; }
+.typing-reserve { visibility: hidden; pointer-events: none; }
+.hero h1 .hero-title-tail { white-space: nowrap; }
+@media (max-width: 640px) {
+  .hero h1 .hero-title-tail { font-size: 36px; line-height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing-char { transition: none; }
+  .typing-cursor { animation: none; }
+}
+
+/* Quiet link feedback keeps neighboring content in place. */
+.text-link .icon { transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1); }
+.text-link:hover .icon { transform: translateX(4px); }
+.text-link:focus-visible, .desktop-nav a:focus-visible, .footer-nav a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.hero-description, .section-heading > p, .download-intro > p { text-wrap: pretty; }
+.hero h1, .section-heading h2, .connections h2, .download h2 { text-wrap: balance; }
+.window-address, .product-window figcaption { font-variant-numeric: tabular-nums; }
+.footer-nav a, .footer-bottom a { text-underline-offset: 4px; }
+.footer-nav a:hover, .footer-bottom a:hover { text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) {
+  .text-link .icon { transition: none; }
+  .text-link:hover .icon { transform: none; }
 }

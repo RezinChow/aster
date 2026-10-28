@@ -1,0 +1,135 @@
+{
+  "spec": {
+    "type": "architecture",
+    "title": "激活记忆与发布语义分区分开",
+    "subtitle": "只有 Active 记忆具备召回资格。语义刷新使用完整快照。",
+    "nodes": [
+      {
+        "id": "candidate",
+        "label": "候选修订",
+        "sub": "独立来源",
+        "row": 0,
+        "col": 0
+      },
+      {
+        "id": "proof",
+        "label": "激活证据",
+        "sub": "准确 revision",
+        "row": 0,
+        "col": 1
+      },
+      {
+        "id": "active",
+        "label": "Active 记忆",
+        "sub": "已准入事实",
+        "row": 0,
+        "col": 2,
+        "focal": true
+      },
+      {
+        "id": "recall",
+        "label": "本轮召回",
+        "sub": "会话使用",
+        "row": 0,
+        "col": 3
+      },
+      {
+        "id": "snapshot",
+        "label": "完整快照",
+        "sub": "全部 Active",
+        "row": 1,
+        "col": 2
+      },
+      {
+        "id": "embed",
+        "label": "重建分区",
+        "sub": "宿主 embedding",
+        "row": 1,
+        "col": 3
+      },
+      {
+        "id": "publish",
+        "label": "发布 generation",
+        "sub": "要求原子一致性",
+        "row": 2,
+        "col": 3
+      }
+    ],
+    "edges": [
+      [
+        "candidate",
+        "proof",
+        "审查"
+      ],
+      [
+        "proof",
+        "active",
+        "激活",
+        "primary"
+      ],
+      [
+        "active",
+        "recall",
+        "使用",
+        "primary"
+      ],
+      [
+        "active",
+        "snapshot",
+        "刷新"
+      ],
+      [
+        "snapshot",
+        "embed",
+        "构建"
+      ],
+      [
+        "embed",
+        "publish",
+        "完整发布"
+      ]
+    ],
+    "lang": "zh-CN",
+    "fonts": "system",
+    "skin": "light",
+    "legend": false,
+    "motion": "auto"
+  },
+  "steps": [
+    {
+      "title": "先核对候选与证据",
+      "body": "激活请求绑定候选 ID、准确修订和独立决策证据。",
+      "focus": [
+        "candidate",
+        "proof",
+        "active"
+      ],
+      "source": {
+        "path": "crates/code/core/src/durable_memory.rs",
+        "match": "pub async fn activate_candidate("
+      }
+    },
+    {
+      "title": "再构建完整的语义分区",
+      "body": "刷新从完整 Active 快照构建索引。失败或取消保留原发布边界。",
+      "focus": [
+        "active",
+        "snapshot",
+        "embed",
+        "publish"
+      ],
+      "source": {
+        "path": "crates/code/core/src/durable_memory.rs",
+        "match": "pub async fn refresh_semantic_recall_requiring("
+      }
+    },
+    {
+      "title": "使用时继续保留依据",
+      "body": "召回资格、索引发布和实际使用有各自记录。",
+      "focus": [
+        "active",
+        "recall"
+      ]
+    }
+  ]
+}

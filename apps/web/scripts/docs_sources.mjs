@@ -5,7 +5,7 @@ import { sourceRepository } from './docs_components.mjs';
 export function createSourceReferences(sourceRef, repositoryRoot, cache = new Map()) {
   const references = new Map();
 
-  function SourceRef({ path, match, children }) {
+  function resolve({ path, match, before = 0, after = 0 }) {
     if (typeof path !== 'string' || !/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)+$/.test(path) || path.split('/').some((part) => part === '.' || part === '..')) throw new Error(`Invalid source path: ${path}`);
     if (typeof match !== 'string' || !match.trim()) throw new Error(`Source reference needs an exact match: ${path}`);
     const identity = `${sourceRef}:${path}`;
@@ -15,8 +15,17 @@ export function createSourceReferences(sourceRef, repositoryRoot, cache = new Ma
     if (offset === -1 || source.indexOf(match, offset + 1) !== -1) throw new Error(`Source match must occur exactly once: ${identity}: ${match}`);
     const first = source.slice(0, offset).split('\n').length;
     const last = first + match.split('\n').length - 1;
-    const lines = `L${first}${last > first ? `-L${last}` : ''}`;
+    if (![before, after].every((value) => Number.isInteger(value) && value >= 0 && value <= 40)) throw new Error(`Invalid excerpt extent: ${path}`);
+    const start = Math.max(1, first - before);
+    const end = Math.min(source.split('\n').length, last + after);
+    const value = source.split('\n').slice(start - 1, end).join('\n');
+    const lines = `L${start}${end > start ? `-L${end}` : ''}`;
     const href = `${sourceRepository}/blob/${sourceRef}/${path}#${lines}`;
+    return { href, path, lines, first: start, value, focus: first - start + 1 };
+  }
+
+  function SourceRef({ path, match, children, before = 0, after = 0 }) {
+    const { href, lines, first } = resolve({ path, match, before, after });
     const label = children || path.split('/').at(-1);
     references.set(href, { href, path, lines, label });
     return h('a', { className: 'source-ref', href, title: `${path}:${first}` }, h('code', null, label), h('span', { className: 'source-line' }, ` ${lines} ↗`));
@@ -31,5 +40,5 @@ export function createSourceReferences(sourceRef, repositoryRoot, cache = new Ma
         h('strong', null, label), h('span', null, `${path.split('/').at(-1)} · ${lines} ↗`))));
   }
 
-  return { SourceRef, SourceList };
+  return { SourceRef, SourceList, resolve };
 }

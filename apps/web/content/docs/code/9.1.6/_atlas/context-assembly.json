@@ -1,0 +1,123 @@
+{
+  "spec": {
+    "type": "architecture",
+    "title": "模型看到的上下文怎样选出",
+    "subtitle": "上下文是模型输入的投影。裁剪上下文不会删除事实日志。",
+    "nodes": [
+      {
+        "id": "sources",
+        "label": "收集来源",
+        "sub": "ContextResult",
+        "row": 0,
+        "col": 0
+      },
+      {
+        "id": "latest",
+        "label": "保留最新贡献",
+        "sub": "按来源替换",
+        "row": 0,
+        "col": 1
+      },
+      {
+        "id": "dedupe",
+        "label": "合并重复条目",
+        "sub": "内容身份",
+        "row": 0,
+        "col": 2,
+        "focal": true
+      },
+      {
+        "id": "rank",
+        "label": "排序候选",
+        "sub": "优先级与评分",
+        "row": 1,
+        "col": 2
+      },
+      {
+        "id": "budget",
+        "label": "应用预算",
+        "sub": "条目与令牌",
+        "row": 1,
+        "col": 1
+      },
+      {
+        "id": "frame",
+        "label": "形成模型输入",
+        "sub": "本轮上下文",
+        "row": 1,
+        "col": 0
+      }
+    ],
+    "edges": [
+      [
+        "sources",
+        "latest",
+        "",
+        "primary"
+      ],
+      [
+        "latest",
+        "dedupe",
+        "",
+        "primary"
+      ],
+      [
+        "dedupe",
+        "rank",
+        "",
+        "primary"
+      ],
+      [
+        "rank",
+        "budget",
+        "",
+        "primary"
+      ],
+      [
+        "budget",
+        "frame",
+        "",
+        "primary"
+      ]
+    ],
+    "lang": "zh-CN",
+    "fonts": "system",
+    "skin": "light",
+    "legend": false,
+    "motion": "auto"
+  },
+  "steps": [
+    {
+      "title": "来源先提交候选",
+      "body": "文件、技能目录和检索提供条目。",
+      "focus": [
+        "sources"
+      ]
+    },
+    {
+      "title": "同一来源只保留最新贡献",
+      "body": "后一次贡献替换前一次贡献，再处理条目去重。",
+      "focus": [
+        "latest",
+        "dedupe"
+      ],
+      "source": {
+        "path": "crates/code/core/src/context/assembler.rs",
+        "match": "pub fn assemble(&self, results: &[ContextResult]) -> ContextAssembly {"
+      }
+    },
+    {
+      "title": "预算约束最终输入",
+      "body": "装配器依据排序、必需项和来源配额选择内容。",
+      "focus": [
+        "rank",
+        "budget",
+        "frame"
+      ],
+      "source": {
+        "path": "crates/code/core/src/context/assembler.rs",
+        "match": "pub fn assemble(&self, results: &[ContextResult]) -> ContextAssembly {"
+      }
+    }
+  ]
+}

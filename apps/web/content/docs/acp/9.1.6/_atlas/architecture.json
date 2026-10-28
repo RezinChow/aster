@@ -1,0 +1,110 @@
+{
+  "spec": {
+    "type": "architecture",
+    "title": "ACP 怎样连接界面与执行内核",
+    "subtitle": "ACP 负责转接和宿主集成。任务状态仍由 Core 的事实驱动。",
+    "nodes": [
+      {
+        "id": "client",
+        "label": "界面客户端",
+        "sub": "CLI / IDE / Studio",
+        "row": 0,
+        "col": 0
+      },
+      {
+        "id": "wire",
+        "label": "协议连接",
+        "sub": "ACP stdio",
+        "row": 0,
+        "col": 1
+      },
+      {
+        "id": "adapter",
+        "label": "ACP 适配器",
+        "sub": "会话与消息",
+        "row": 0,
+        "col": 2,
+        "focal": true
+      },
+      {
+        "id": "core",
+        "label": "Core 会话",
+        "sub": "执行与治理",
+        "row": 1,
+        "col": 2
+      },
+      {
+        "id": "project",
+        "label": "模型与工作区",
+        "sub": "受控调用",
+        "row": 1,
+        "col": 1
+      }
+    ],
+    "edges": [
+      [
+        "client",
+        "wire",
+        "",
+        "primary"
+      ],
+      [
+        "wire",
+        "adapter",
+        "",
+        "primary"
+      ],
+      [
+        "adapter",
+        "core",
+        "",
+        "primary"
+      ],
+      [
+        "core",
+        "project",
+        "",
+        "primary"
+      ]
+    ],
+    "lang": "zh-CN",
+    "fonts": "system",
+    "skin": "light",
+    "legend": false,
+    "motion": "auto"
+  },
+  "steps": [
+    {
+      "title": "客户端负责交互",
+      "body": "客户端发送用户消息，并显示代理事件。",
+      "focus": [
+        "client",
+        "wire"
+      ]
+    },
+    {
+      "title": "适配器保留协议身份",
+      "body": "ACP 会话映射到 Core 会话，工具 ID 跟随原调用。",
+      "focus": [
+        "adapter",
+        "core"
+      ],
+      "source": {
+        "path": "crates/code/acp/src/agent/turn.rs",
+        "match": "pub(super) async fn handle_event("
+      }
+    },
+    {
+      "title": "内核维持执行边界",
+      "body": "模型调用与工具效果仍由原始运行处理。",
+      "focus": [
+        "core",
+        "project"
+      ],
+      "source": {
+        "path": "crates/code/core/src/fact_control.rs",
+        "match": "pub struct FactRun {"
+      }
+    }
+  ]
+}

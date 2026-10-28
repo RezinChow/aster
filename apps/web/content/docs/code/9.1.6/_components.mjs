@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createElement as h } from 'react';
 import { table } from '../../../../scripts/docs_components.mjs';
-import { PeleDiagram } from '../../../../scripts/docs_diagrams.mjs';
+import { SeeCodeDiagram } from '../../../../scripts/docs_atlas.mjs';
 
 const definitions = [
   ['architecture', 'FIG. 01 · 运行时架构', '终端与桌面通过 ACP 接入 Core，Rust 应用直接使用 SDK。会话调用模型和受控工具，并把结果写入事实日志。'],
@@ -15,7 +15,7 @@ const definitions = [
 function codeDiagram(name) {
   const entry = definitions.find(([id]) => id === name);
   if (!entry) throw new Error(`Unknown Code diagram: ${name}`);
-  return h(PeleDiagram, { name, label: entry[1], description: entry[2] });
+  return h(SeeCodeDiagram, { name, label: entry[1], description: entry[2] });
 }
 
 export function ArchitectureDiagram() {
@@ -27,11 +27,7 @@ export function WorkflowDiagram() {
 }
 
 export function VerificationDiagram() {
-  return h('figure', { className: 'verification-figure' },
-    h('div', { className: 'verification-row' }, h('span', { className: 'version' }, '版本 A'), h('div', null, h('strong', null, '修改摘要 A'), h('span', null, '测试通过，报告对应 A')), h('span', { className: 'result-pill' }, 'Verified')),
-    h('div', { className: 'version-change' }, '↓ 再次修改，产生新的 effect_digest'),
-    h('div', { className: 'verification-row' }, h('span', { className: 'version' }, '版本 B'), h('div', null, h('strong', null, '修改摘要 B'), h('span', null, '需要重新运行相应检查')), h('span', { className: 'result-pill result-open' }, '待验证')),
-    h('figcaption', null, 'FIG. 03 · A 的测试结果不能证明 B 也通过了测试。'));
+  return h(SeeCodeDiagram, { name: 'verification-revision', label: '修改与验证的版本关联' });
 }
 
 export function Principles() {
@@ -80,12 +76,7 @@ export function CompletionStates() {
 }
 
 export function StackDiagram() {
-  return h('figure', { className: 'stack-figure' }, ...[
-    ['应用', 'Aster · IDE · 业务应用', '提供界面、用户任务与业务信息'],
-    ['Agent Harness', 'A3S Code · Codex · Claude Agent SDK · Deep Agents', '模型循环、工具、上下文、运行规则'],
-    ['编排运行时', '例如 LangGraph', '保存状态、安排步骤，处理暂停与恢复'],
-  ].map(([label, title, text]) => h('div', { key: label }, h('span', { className: 'mini-label' }, label), h('strong', null, title), h('span', null, text))),
-    h('figcaption', null, 'FIG. 04 · 各 harness 采用各自的编排实现，其中 Deep Agents 使用 LangGraph。'));
+  return h(SeeCodeDiagram, { name: 'framework-layers', label: '应用、Harness 与编排的职责' });
 }
 
 export function FrameworkTable() {

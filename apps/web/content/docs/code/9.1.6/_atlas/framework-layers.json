@@ -1,0 +1,72 @@
+{
+  "spec": {
+    "type": "layers",
+    "title": "应用、Harness 与编排各负责什么",
+    "subtitle": "各 Harness 使用各自的编排实现。Aster 使用 a3s-effect。",
+    "lang": "zh-CN",
+    "fonts": "system",
+    "skin": "light",
+    "motion": "auto",
+    "legend": false,
+    "layers": [
+      {
+        "id": "app",
+        "label": "应用",
+        "sub": "界面、任务与业务信息",
+        "items": [
+          "Aster",
+          "IDE",
+          "业务应用"
+        ]
+      },
+      {
+        "id": "harness",
+        "label": "Agent Harness",
+        "sub": "模型、工具与运行规则",
+        "items": [
+          "A3S Code",
+          "Codex",
+          "Claude Agent SDK",
+          "Deep Agents"
+        ],
+        "focal": true
+      },
+      {
+        "id": "orchestration",
+        "label": "编排运行时",
+        "sub": "状态、步骤与恢复",
+        "items": [
+          "Aster: a3s-effect",
+          "Deep Agents: LangGraph"
+        ]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "title": "应用先定义用户体验",
+      "body": "应用接收任务，显示执行过程，并提供业务信息。",
+      "focus": [
+        "app"
+      ]
+    },
+    {
+      "title": "Harness 组织模型与工具",
+      "body": "Harness 准备上下文，组织调用，并处理运行约束。",
+      "focus": [
+        "harness"
+      ]
+    },
+    {
+      "title": "编排实现维持运行状态",
+      "body": "Aster 使用事实驱动的 a3s-effect。图中的其他实现有各自边界。",
+      "focus": [
+        "orchestration"
+      ],
+      "source": {
+        "path": "crates/code/core/src/fact_control.rs",
+        "match": "pub struct FactRun {"
+      }
+    }
+  ]
+}

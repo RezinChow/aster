@@ -1,0 +1,82 @@
+{
+  "spec": {
+    "type": "exploded",
+    "title": "一条请求跨过哪些责任层",
+    "subtitle": "概念分层不代表四个进程。工作区资料不能提高宿主上限。",
+    "parts": [
+      {
+        "id": "core",
+        "label": "Core 权威状态",
+        "sub": "事实 / 权限 / 完成",
+        "w": 240,
+        "d": 150,
+        "t": 12,
+        "kind": "slab",
+        "focal": false
+      },
+      {
+        "id": "adapter",
+        "label": "ACP 协议适配",
+        "sub": "DTO / 事件映射",
+        "w": 240,
+        "d": 150,
+        "t": 12,
+        "kind": "slab",
+        "focal": false
+      },
+      {
+        "id": "host",
+        "label": "可信宿主配置",
+        "sub": "模型 / 续跑上限",
+        "w": 240,
+        "d": 150,
+        "t": 12,
+        "kind": "slab",
+        "focal": true
+      },
+      {
+        "id": "client",
+        "label": "客户端交互",
+        "sub": "输入 / 展示 / 回答",
+        "w": 240,
+        "d": 150,
+        "t": 12,
+        "kind": "slab",
+        "focal": false
+      }
+    ],
+    "lang": "zh-CN",
+    "fonts": "system",
+    "skin": "light",
+    "legend": false,
+    "motion": "auto"
+  },
+  "steps": [
+    {
+      "title": "从交互进入适配器",
+      "body": "客户端构造协议参数。ACP 在入口检查内容类型。",
+      "focus": [
+        "client",
+        "adapter"
+      ]
+    },
+    {
+      "title": "可信宿主选择能力",
+      "body": "宿主提供可信配置。工作区配置保留原有信任限制。",
+      "focus": [
+        "host"
+      ]
+    },
+    {
+      "title": "Core 处理事实与完成",
+      "body": "ACP 的显示事件不会替代内核回执。",
+      "focus": [
+        "core"
+      ],
+      "source": {
+        "path": "crates/code/acp/src/agent/turn.rs",
+        "match": "pub(super) async fn handle_event("
+      }
+    }
+  ]
+}

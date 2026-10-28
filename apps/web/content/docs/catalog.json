@@ -41,6 +41,62 @@
               "description": "创建会话、配置验证命令和记忆"
             },
             {
+              "slug": "internals/",
+              "file": "internals/index",
+              "label": "原理漫游起点",
+              "title": "跟着一次修复读源码",
+              "description": "从职责图进入运行机制",
+              "section": "内核原理"
+            },
+            {
+              "slug": "internals/system-prompts/",
+              "file": "internals/system-prompts",
+              "label": "系统提示词设计",
+              "title": "提示词如何装配",
+              "description": "默认文本、插槽与实际执行约束",
+              "section": "内核原理"
+            },
+            {
+              "slug": "internals/context/",
+              "file": "internals/context",
+              "label": "上下文与压缩",
+              "title": "本轮模型看到了什么",
+              "description": "来源替换、去重、预算与历史",
+              "section": "内核原理"
+            },
+            {
+              "slug": "internals/execution/",
+              "file": "internals/execution",
+              "label": "执行循环内部",
+              "title": "一次 Run 如何推进",
+              "description": "提案、权限、事实与控制",
+              "section": "内核原理"
+            },
+            {
+              "slug": "internals/long-running/",
+              "file": "internals/long-running",
+              "label": "长期任务设计",
+              "title": "目标怎样分轮完成",
+              "description": "计划、等待、进展和有限续跑",
+              "section": "内核原理"
+            },
+            {
+              "slug": "internals/recovery/",
+              "file": "internals/recovery",
+              "label": "恢复与未决效果",
+              "title": "重启后先证明什么",
+              "description": "检查点、事实与外部效果",
+              "section": "内核原理"
+            },
+            {
+              "slug": "internals/completion/",
+              "file": "internals/completion",
+              "label": "完成判定内部",
+              "title": "何时才能说完成",
+              "description": "摘要、验证、豁免与资源结清",
+              "section": "内核原理"
+            },
+            {
               "slug": "design/philosophy/",
               "file": "design/philosophy",
               "section": "设计原理",
@@ -547,6 +603,30 @@
               "label": "ACP 概览",
               "title": "把 Aster 接进自己的客户端",
               "description": "先理解进程与协议边界，再接入模型、会话和宿主扩展。"
+            },
+            {
+              "slug": "internals/",
+              "file": "internals/index",
+              "label": "协议原理漫游",
+              "title": "ACP 与 Core 怎样分工",
+              "description": "从一条消息追踪责任层",
+              "section": "协议原理"
+            },
+            {
+              "slug": "internals/events/",
+              "file": "internals/events",
+              "label": "事件与确认内部",
+              "title": "从事件到工具行",
+              "description": "准确 ID、完整参数与确认回答",
+              "section": "协议原理"
+            },
+            {
+              "slug": "internals/goals/",
+              "file": "internals/goals",
+              "label": "目标与无人值守内部",
+              "title": "有界执行与结果依据",
+              "description": "目标唤醒、停止原因与证据",
+              "section": "协议原理"
             },
             {
               "slug": "launch/",

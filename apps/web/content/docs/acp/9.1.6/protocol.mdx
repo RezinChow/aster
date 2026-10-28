@@ -7,7 +7,7 @@ export const meta = {
 
 ## 最小会话流程
 
-<PeleDiagram name="protocol-lifecycle" label="会话请求、持续更新与取消" description="最终响应到来之前，客户端始终消费更新和独立交互请求；取消后仍等待原 prompt 结束。" />
+<SeeCodeDiagram name="protocol-lifecycle" label="会话请求、持续更新与取消" description="最终响应到来之前，客户端始终消费更新和独立交互请求；取消后仍等待原 prompt 结束。" />
 
 客户端启动代理后先协商协议，再创建会话，最后向拿到的 sessionId 提交 prompt。示例中的路径为占位路径，需替换为代理准入的绝对工作区。
 

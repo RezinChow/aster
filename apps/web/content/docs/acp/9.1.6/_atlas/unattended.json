@@ -1,0 +1,119 @@
+{
+  "spec": {
+    "type": "architecture",
+    "title": "无人值守仍然需要准入与结果",
+    "subtitle": "缺少成功动作证据时，适配器报告失败。无人值守不会默认批准工具。",
+    "nodes": [
+      {
+        "id": "input",
+        "label": "接收任务",
+        "sub": "显式输入",
+        "row": 0,
+        "col": 0
+      },
+      {
+        "id": "admit",
+        "label": "检查宿主条件",
+        "sub": "配置与期限",
+        "row": 0,
+        "col": 1
+      },
+      {
+        "id": "goal",
+        "label": "准入目标",
+        "sub": "有限续跑",
+        "row": 0,
+        "col": 2,
+        "focal": true
+      },
+      {
+        "id": "run",
+        "label": "执行原始 Run",
+        "sub": "权限仍有效",
+        "row": 1,
+        "col": 2
+      },
+      {
+        "id": "settle",
+        "label": "收尾与核对",
+        "sub": "动作证据",
+        "row": 1,
+        "col": 1
+      },
+      {
+        "id": "report",
+        "label": "写入结果记录",
+        "sub": "真实终态",
+        "row": 1,
+        "col": 0
+      }
+    ],
+    "edges": [
+      [
+        "input",
+        "admit",
+        "",
+        "primary"
+      ],
+      [
+        "admit",
+        "goal",
+        "",
+        "primary"
+      ],
+      [
+        "goal",
+        "run",
+        "",
+        "primary"
+      ],
+      [
+        "run",
+        "settle",
+        "",
+        "primary"
+      ],
+      [
+        "settle",
+        "report",
+        "",
+        "primary"
+      ]
+    ],
+    "lang": "zh-CN",
+    "fonts": "system",
+    "skin": "light",
+    "legend": false,
+    "motion": "auto"
+  },
+  "steps": [
+    {
+      "title": "启动前固定边界",
+      "body": "宿主选择任务、截止时间和结果文件。",
+      "focus": [
+        "input",
+        "admit"
+      ]
+    },
+    {
+      "title": "沿原路径有界执行",
+      "body": "目标与 Run 使用现有准入和权限。",
+      "focus": [
+        "goal",
+        "run"
+      ]
+    },
+    {
+      "title": "按实际证据写结果",
+      "body": "缺少动作证据或结果写入失败时，流程保留失败。",
+      "focus": [
+        "settle",
+        "report"
+      ],
+      "source": {
+        "path": "crates/code/acp/src/agent/unattended_turn.rs",
+        "match": "pub(super) async fn unattended_prompt("
+      }
+    }
+  ]
+}

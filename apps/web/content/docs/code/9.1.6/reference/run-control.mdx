@@ -11,7 +11,7 @@ Agent 持有模型与共享服务；Session 绑定工作区和会话状态；一
 
 同一个 Session 的会话写入采用单次执行边界，重叠请求会返回忙状态。界面应串行提交普通对话；如果是用户对当前任务的补充，使用 `steer`，不要另开一个相互竞争的 `send`。
 
-<PeleDiagram name="run-control" label="运行控制的请求与回执" description="Accepted 只是排队，Applied 才表示执行消费了输入；Run 先结束时还要结算未应用请求。" />
+<SeeCodeDiagram name="run-control" label="运行控制的请求与回执" description="Accepted 只是排队，Applied 才表示执行消费了输入；Run 先结束时还要结算未应用请求。" />
 
 ## 给当前任务追加约束
 

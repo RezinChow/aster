@@ -37,7 +37,7 @@ Hook 可以阻止或调整流程，但不能批准被权限拒绝的操作。Hoo
 
 `verify_commands` 执行已选验证命令并保留报告；`verification_reports`、`verification_summary` 读取结果。命令本身仍需要受控执行权限。进程退出码为零只证明这条检查按其规则成功，不自动证明用户需求全部满足。
 
-<PeleDiagram name="completion-gate" label="完成门禁与资源收尾" description="先处理不确定结果与未完成事项，再判断 Narrative、Waived 或 Verified；任何可结束状态都还要等待清理。" />
+<SeeCodeDiagram name="completion-gate" label="完成门禁与资源收尾" description="先处理不确定结果与未完成事项，再判断 Narrative、Waived 或 Verified；任何可结束状态都还要等待清理。" />
 
 宿主使用 `CompletionAttestor` 提交独立检查结果时，报告应绑定当前修改摘要和检查身份。修改后旧报告需要失效或重新检查。明确豁免应保留原因，不能把缺失检查改名为通过。
 

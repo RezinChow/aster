@@ -1,0 +1,104 @@
+{
+  "spec": {
+    "type": "sequence",
+    "title": "从建立连接到结束一轮",
+    "subtitle": "先协商，再建立会话。prompt 响应只描述本轮协议终态。",
+    "numbered": true,
+    "participants": [
+      {
+        "id": "client",
+        "label": "客户端"
+      },
+      {
+        "id": "agent",
+        "label": "ACP 代理"
+      },
+      {
+        "id": "core",
+        "label": "Core 会话"
+      }
+    ],
+    "messages": [
+      [
+        "client",
+        "agent",
+        "initialize",
+        "primary"
+      ],
+      [
+        "client",
+        "agent",
+        "session/new 或 load",
+        "primary"
+      ],
+      [
+        "agent",
+        "core",
+        "创建或恢复会话"
+      ],
+      [
+        "client",
+        "agent",
+        "session/prompt",
+        "primary"
+      ],
+      [
+        "core",
+        "agent",
+        "运行事件",
+        "reply"
+      ],
+      [
+        "agent",
+        "client",
+        "session/update",
+        "reply"
+      ],
+      [
+        "agent",
+        "client",
+        "prompt 响应",
+        "reply"
+      ]
+    ],
+    "lang": "zh-CN",
+    "fonts": "system",
+    "skin": "light",
+    "legend": false,
+    "motion": "auto"
+  },
+  "steps": [
+    {
+      "title": "先协商能力",
+      "body": "客户端依据 initialize 响应选择已声明的能力。",
+      "focus": [
+        "client",
+        "agent"
+      ]
+    },
+    {
+      "title": "再建立或恢复会话",
+      "body": "session/new 与 session/load 有不同来源校验。",
+      "focus": [
+        "agent",
+        "core"
+      ],
+      "source": {
+        "path": "crates/code/acp/src/agent/resume.rs",
+        "match": "pub(super) async fn admit_resume("
+      }
+    },
+    {
+      "title": "消费事件直到本轮结束",
+      "body": "客户端同时处理消息、工具更新和确认请求。",
+      "focus": [
+        "client",
+        "core"
+      ],
+      "source": {
+        "path": "crates/code/acp/src/agent/turn.rs",
+        "match": "pub(super) async fn handle_event("
+      }
+    }
+  ]
+}

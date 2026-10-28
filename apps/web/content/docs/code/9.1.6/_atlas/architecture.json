@@ -1,0 +1,110 @@
+{
+  "spec": {
+    "type": "high-level",
+    "title": "谁负责把目标变成结果",
+    "subtitle": "Rust 应用也支持直接接入 Core。模型提出动作，Core 检查动作。",
+    "nodes": [
+      {
+        "id": "person",
+        "label": "你提出目标",
+        "sub": "用户",
+        "row": 0,
+        "col": 0
+      },
+      {
+        "id": "host",
+        "label": "界面接收输入",
+        "sub": "CLI / Studio",
+        "row": 0,
+        "col": 1
+      },
+      {
+        "id": "acp",
+        "label": "协议转接",
+        "sub": "ACP",
+        "row": 0,
+        "col": 2,
+        "focal": true
+      },
+      {
+        "id": "core",
+        "label": "执行与检查",
+        "sub": "Core",
+        "row": 1,
+        "col": 2
+      },
+      {
+        "id": "world",
+        "label": "项目与模型",
+        "sub": "工具 / LLM",
+        "row": 1,
+        "col": 1
+      }
+    ],
+    "edges": [
+      [
+        "person",
+        "host",
+        "",
+        "primary"
+      ],
+      [
+        "host",
+        "acp",
+        "",
+        "primary"
+      ],
+      [
+        "acp",
+        "core",
+        "",
+        "primary"
+      ],
+      [
+        "core",
+        "world",
+        "",
+        "primary"
+      ]
+    ],
+    "lang": "zh-CN",
+    "fonts": "system",
+    "skin": "light",
+    "legend": false,
+    "motion": "auto"
+  },
+  "steps": [
+    {
+      "title": "先说清想得到什么",
+      "body": "你提供目标、范围和完成条件。界面负责接收输入。",
+      "focus": [
+        "person",
+        "host"
+      ]
+    },
+    {
+      "title": "把界面请求送入内核",
+      "body": "ACP 把协议消息转成 Core 会话调用。Rust 宿主支持直接使用 SDK。",
+      "focus": [
+        "acp",
+        "core"
+      ],
+      "source": {
+        "path": "crates/code/acp/src/agent/turn.rs",
+        "match": "pub(super) async fn handle_event("
+      }
+    },
+    {
+      "title": "检查实际发生的结果",
+      "body": "Core 调用模型与受控工具。事实日志保留执行依据。",
+      "focus": [
+        "core",
+        "world"
+      ],
+      "source": {
+        "path": "crates/code/core/src/fact_control.rs",
+        "match": "pub struct FactRun {"
+      }
+    }
+  ]
+}

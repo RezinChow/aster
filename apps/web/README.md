@@ -55,7 +55,13 @@ Markdown 通过 MDX 官方推荐的 `remark-gfm` 支持 GFM 表格、任务列�
 
 代码块通过 [Shiki 的 Rehype 插件](https://shiki.style/packages/rehype) 在构建时高亮，使用 GitHub Light High Contrast 配色。声明代码语言后，构建器提供语言标识、可聚焦的滚动区域和完整原文；纯文本使用 `text`。ACL 的 TextMate 规则只着色词法单元，依据 `crates/acl/src/lexer.rs`，不代替 ACL 解析或校验。新出现的内置语言由 Shiki 在构建时加载。
 
-运行时架构、执行时序、Meta Harness、上下文装配、运行控制、完成门禁、记忆生命周期和 ACP 进程边界、协议、确认、事件等图示使用 [Pele](https://pele.run/)。Mermaid 源文件放在 `content/docs/<产品>/<版本>/_diagrams/`，版本组件或 MDX 的 `PeleDiagram` 声明图注。渲染器按当前产品和版本读取源文件，生成独立的稳定 ID。构建器禁用图内链接与图片，生成带标题和描述的 SVG；主题变量在 `public/docs/styles.css` 的 `.diagram .pele` 中统一维护，沿用白底、石墨文字、浅灰分组和 Ubuntu 字体。图与代码的生成样式合并到 `public/docs/generated.css`，不使用内联样式、CDN 或浏览器运行时。
+当前 9.1.6 的架构图使用 [SeeCode](https://github.com/Aryanutkarsh/SeeCode) 0.6.2。`content/docs/atlas.json` 注册 23 张图，`_atlas/*.json` 保存图示规范、分步说明和精确源码选择器。图示覆盖总览、组件连接、时序、状态、流程、层次与 3D 概念拆解。软件拆解图说明职责，不表示实际部署距离。原有 9.1.5 图示继续使用 Pele。
+
+`SeeCodeDiagram` 在构建时调用保留的原始 SeeCode 渲染器。Aster 提取 SVG 和样式，把样式合并到 `generated.css`。水印保留，所需图片作为两份本地资产发布。公开文档保持禁止内联脚本、内联样式、远程字体和 iframe。图示支持上一步、下一步、完整视图、有限分步讲解，以及拆解图的合起与展开。减少动态时保留手动切换。
+
+`_walks/*.json` 保存七条源码漫游、38 个站点。每站声明准确片段与前后文行数，构建器从该版本的 Git 提交提取原文，并用 [Code Hike](https://codehike.org/docs/concepts/code) 1.1.0 高亮。Code Hike 与普通代码块共用 GitHub Light High Contrast 主题。桌面支持随叙述切换的源码面板，按钮和键盘支持独立切换，完整阅读模式支持连续对照。脚本关闭时全部说明与源码仍然可见。
+
+六张 README SVG 与网页使用同一份图示数据。`npm --prefix apps/web run build` 同时生成文档、公开图示资产和 README 图片。只修改 MDX、图示 JSON 或渲染器源文件，然后重新生成。SeeCode 的 MIT 许可、归档修订与摘要见 `vendor/seecode/PROVENANCE.md`。
 
 正文可用 `<SourceRef path="crates/code/core/src/agent_api/run_facade.rs" match="pub async fn steer(">AgentSession::steer</SourceRef>` 引用实现。`match` 是作者明确指定的源码原文，不推断符号名。构建器从当前版本 `sourceRef` 的 Git 对象读取文件，要求原文恰好出现一次，计算 GitHub 行号或多行范围；文件缺失、片段消失或重复会使构建失败。相同引用在右栏“本页源码”按正文首次出现顺序去重，窄屏移到正文之后。该功能需要 Git 历史；Pages CI 检出完整公共仓库历史，不初始化私有子模块。
 
@@ -101,19 +107,19 @@ python3 apps/web/scripts/stage_site.py target/aster-site
 交互回归使用公共 UI 工作区已有的 `jsdom` 开发依赖；已安装该工作区依赖时直接运行：
 
 ```sh
-node --test apps/web/tests/download.test.cjs apps/web/tests/canvas.test.cjs apps/web/tests/cosmic.test.cjs apps/web/tests/home.test.cjs apps/web/tests/docs.test.mjs
+node --test apps/web/tests/download.test.cjs apps/web/tests/canvas.test.cjs apps/web/tests/cosmic.test.cjs apps/web/tests/home.test.cjs apps/web/tests/docs.test.mjs apps/web/tests/atlas.test.mjs apps/web/tests/releases.test.mjs
 ```
 
 也可以隔离安装测试依赖并显式指定，不需要私有源码：
 
 ```sh
 npm install --prefix target/download-test-deps --ignore-scripts --no-save --package-lock=false jsdom@26.1.0
-JS_DOM_MODULE="$PWD/target/download-test-deps/node_modules/jsdom" node --test apps/web/tests/download.test.cjs apps/web/tests/canvas.test.cjs apps/web/tests/cosmic.test.cjs apps/web/tests/home.test.cjs apps/web/tests/docs.test.mjs
+JS_DOM_MODULE="$PWD/target/download-test-deps/node_modules/jsdom" node --test apps/web/tests/download.test.cjs apps/web/tests/canvas.test.cjs apps/web/tests/cosmic.test.cjs apps/web/tests/home.test.cjs apps/web/tests/docs.test.mjs apps/web/tests/atlas.test.mjs apps/web/tests/releases.test.mjs
 ```
 
 DOM 回归验证交互状态和事件；Canvas 测试用受控绘图上下文和动画时钟验证调度。它们不替代真实浏览器的像素、布局、原生对话框焦点和绘图效果检查。
 
-输出目录必须不存在。脚本只复制首页的四个文件、下载页的四个文件、四张 PNG 截图、三份 Ubuntu 字体及其完整许可证、三个 Aster 品牌文件，以及文档注册表中的 130 个 HTML 地址（79 篇文档，含默认版本兼容地址）、文档样式、生成样式和菜单滚动增强脚本，目前共 152 个文件；根入口是完整首页，`download/` 和 `docs/` 独立访问，不复制其他租户、MDX 源码、依赖或用户数据。所有资源路径均兼容 GitHub Pages 的 `/aster/` 项目路径。Canvas 是下载页的独立装饰层：减少动态时静态绘制，页面隐藏或首屏离开视口时停止动画，没有第三方绘图库。
+输出目录必须不存在。脚本只复制首页的四个文件、下载页的四个文件、四张 PNG 截图、三份 Ubuntu 字体及其完整许可证、三个 Aster 品牌文件，以及文档注册表中的 150 个 HTML 地址（89 篇文档，含默认版本兼容地址）、23 份 SVG、两份 SeeCode 本地水印图片、文档样式、生成样式和渐进交互脚本，目前共 197 个文件；根入口是完整首页，`download/` 和 `docs/` 独立访问，不复制其他租户、MDX 源码、依赖或用户数据。所有资源路径均兼容 GitHub Pages 的 `/aster/` 项目路径。Canvas 是下载页的独立装饰层：减少动态时静态绘制，页面隐藏或首屏离开视口时停止动画，没有第三方绘图库。
 
 资源清单位于 `scripts/site_contract.py`。截图只允许 `workspace.png`、`office.png`、`review.png` 和 `lineage.png`，每张不超过 2 MiB；检查覆盖 PNG 签名、IHDR 尺寸和头部校验码，并要求 HTML 显式引用四张图片。检查不代替完整图片解码或截图内容审查。字体从本地 Ubuntu 字体包复制，页面使用本地 `@font-face`，`fonts/Ubuntu-LICENSE.txt` 随站点完整发布。下载目录出现其他文件或符号链接会拒绝发布。
 
@@ -138,6 +144,51 @@ a3s-test check apps/web/tests/docs.acl --json
 a3s-test run apps/web/tests/docs.acl --browser-driver standalone --json
 ```
 
-它覆盖文档总入口、入门章节、Meta Harness 能力目录及七个专题、十二章终端智能体教程、菜单滚动保持、产品版本切换、分组导航、移动目录展开、Pele 图、代码高亮与相邻页面跳转。A3S Test 的截图与页面错误记录用于浏览器证据；构建同步、项目地址、发布隔离、对比度和无脚本可读性分别由 Node 与 Python 检查。
+它覆盖文档总入口、入门章节、Meta Harness 能力目录及七个专题、十二章终端智能体教程、菜单滚动保持、产品版本切换、分组导航、移动目录展开、SeeCode 图示、源码漫游、代码高亮与相邻页面跳转。A3S Test 的截图与页面错误记录用于浏览器证据；构建同步、项目地址、发布隔离、对比度和无脚本可读性分别由 Node 与 Python 检查。
 
 能力覆盖检查使用 `code/9.1.6/_coverage.json` 与 `acp/9.1.6/_coverage.json`，逐项对应 Core 的合同 ID、规范操作、tier、宿主责任和 ACP 接受的 method 集合。增加接口时同步索引、参考章节和测试。这项检查只验证文档与接口目录的对应关系；`apps/tutorial-agent` 另有编译、固定模型集成测试和离线终端回归，真实模型与外部服务需单独验收。
+
+
+## 中文校验与首页细节
+
+新增原理章节使用 A3S-Lab/stc-answer 1.2.0 的 STC 0.2 规则。
+下面的抽取步骤保留中文内容，排除 JSX 属性和源码模块语法。
+原始代码片段保持不变，抽取结果附来源映射。
+
+```sh
+node apps/web/scripts/docs_prose.mjs target/docs-stc
+python3 /path/to/stc-answer/stc/tools/check.py --strict target/docs-stc/prose.md
+python3 /path/to/stc-answer/stc/tools/check.py --strict README.md
+```
+
+首页标语按原位置循环输入「Aster 让想法落地」和「Aster 是你需要的全部」。
+较长标语预留宽度，隐藏页面时停止计时，减少动态时显示静态文字。
+Magpie 参考用于导航透明度、中文标题字距、小字层次、按钮阴影和稳定的链接反馈。
+现有居中首屏、产品截图、页面分区与 3D 星空继续保留。
+未复制参考站的代码或素材。
+
+
+## 最新 Release 下载
+
+首页与下载页的 HTML 源码分别在 `content/home.html` 和 `content/download.html`。
+`public/index.html` 与 `public/download/index.html` 由构建器生成，禁止手改。
+CSS 与交互脚本继续在原路径维护。
+
+```sh
+node apps/web/scripts/build_releases.mjs --refresh
+npm --prefix apps/web run build
+npm --prefix apps/web run check
+```
+
+刷新步骤从 GitHub Releases 读取元数据，排除草稿、预发布和未上传完成的资产。
+六个目标按产品、平台与发布器的准确文件格式选择最高数字版本。
+ACP 独立发布不参与 Aster 安装包选择。
+现有 `desktop-stable` 的 macOS ZIP 发布格式也在已声明集合中。
+下载链接、版本标签、格式和 CLI 安装命令共用 `content/releases.json`。
+CLI 安装命令显式指定已解析的版本，避免仓库全局 latest 指向 SDK 发布。
+浏览器不调用 GitHub API，禁用 JavaScript 时仍保留准确下载地址。
+
+Pages 在正式发布变动及现有桌面、CLI 发布工作流成功后刷新数据。
+这两种事件从 main 检出官网源码，避免使用旧发布标签中的网站。
+PR 校验使用提交内的固定快照，保持测试可离线复现。
+修改现有发布工作流的名称时，同步 Pages 的 `workflow_run` 名称集合。

@@ -11,37 +11,20 @@
 
   function initHeroTyping() {
     const title = document.querySelector("[data-typing-title]");
-    if (!title || reduceMotion.matches) return;
-    const original = title.innerHTML;
-    const textNodes = [];
-    const walker = document.createTreeWalker(title, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      if (walker.currentNode.nodeValue.trim()) textNodes.push(walker.currentNode);
-    }
-    const characters = [];
-    textNodes.forEach((node) => {
-      const fragment = document.createDocumentFragment();
-      Array.from(node.nodeValue).forEach((value) => {
-        const character = document.createElement("span");
-        character.className = "typing-char";
-        character.setAttribute("aria-hidden", "true");
-        character.textContent = value;
-        fragment.appendChild(character);
-        characters.push(character);
-      });
-      node.replaceWith(fragment);
-    });
-    title.classList.add("is-typing");
-    const cursor = document.createElement("span");
-    cursor.className = "typing-cursor";
-    cursor.setAttribute("aria-hidden", "true");
-    title.appendChild(cursor);
+    if (!title) return;
+    const line = title.querySelector("[data-typing-line]");
+    const phrases = ["Aster 让想法落地", "Aster 是你需要的全部"];
+    const original = line.innerHTML;
+    let phrase = 0;
+    let characters = [];
+    let cursor;
     let index = 0;
     let timer = 0;
-    let currentCharacter = null;
+    let rotation = 0;
+    let currentCharacter;
 
     function positionCursor() {
-      if (!currentCharacter) return;
+      if (!currentCharacter || !cursor) return;
       const titleRect = title.getBoundingClientRect();
       const characterRect = currentCharacter.getBoundingClientRect();
       const cursorRect = cursor.getBoundingClientRect();
@@ -49,42 +32,80 @@
       cursor.style.top = `${Math.max(0, characterRect.top - titleRect.top + (characterRect.height - cursorRect.height) / 2)}px`;
     }
 
-    function isVisible(character) {
-      for (let element = character; element && element !== title; element = element.parentElement) {
-        if (window.getComputedStyle(element).display === "none") return false;
-      }
-      return true;
+    function paintPhrase() {
+      line.replaceChildren();
+      characters = [];
+      const tail = document.createElement("span");
+      tail.className = "hero-title-tail";
+      Array.from(phrases[phrase]).forEach((value, offset) => {
+        const character = document.createElement("span");
+        character.className = "typing-char";
+        character.textContent = value;
+        (offset < 5 ? line : tail).appendChild(character);
+        characters.push(character);
+      });
+      line.appendChild(tail);
+      cursor = document.createElement("span");
+      cursor.className = "typing-cursor";
+      line.appendChild(cursor);
+      index = 0;
     }
 
-    function revealNext() {
-      const visibleCharacters = characters.filter(isVisible);
-      if (index >= visibleCharacters.length) {
+    function typeNext() {
+      if (index === characters.length) {
         cursor.classList.add("is-complete");
         timer = window.setTimeout(() => cursor.classList.remove("is-active"), 1200);
         return;
       }
-      currentCharacter = visibleCharacters[index];
+      currentCharacter = characters[index++];
       currentCharacter.classList.add("is-visible");
-      positionCursor();
       cursor.classList.add("is-active");
-      const value = currentCharacter.textContent;
-      const delay = value === "，" ? 170 : /[\u3400-\u9fff]/.test(value) ? 105 : 78;
-      index += 1;
-      timer = window.setTimeout(revealNext, delay);
+      positionCursor();
+      timer = window.setTimeout(typeNext, index <= 5 ? 78 : 105);
     }
 
-    function restoreOriginal() {
+    function eraseNext() {
+      if (index === 0) {
+        phrase = (phrase + 1) % phrases.length;
+        paintPhrase();
+        timer = window.setTimeout(typeNext, 320);
+        return;
+      }
+      characters[--index].classList.remove("is-visible");
+      currentCharacter = characters[Math.max(0, index - 1)];
+      cursor.classList.remove("is-complete");
+      cursor.classList.add("is-active");
+      positionCursor();
+      timer = window.setTimeout(eraseNext, 48);
+    }
+
+    function stop() {
       window.clearTimeout(timer);
-      window.removeEventListener("resize", positionCursor);
-      title.classList.remove("is-typing");
-      title.innerHTML = original;
+      window.clearInterval(rotation);
+      rotation = 0;
+    }
+
+    function start() {
+      stop();
+      if (reduceMotion.matches) {
+        title.classList.remove("is-typing");
+        line.innerHTML = original;
+        return;
+      }
+      title.classList.add("is-typing");
+      paintPhrase();
+      timer = window.setTimeout(typeNext, 220);
+      rotation = window.setInterval(eraseNext, 5800);
     }
 
     window.addEventListener("resize", positionCursor);
-    reduceMotion.addEventListener("change", (event) => {
-      if (event.matches) restoreOriginal();
+    window.addEventListener("pagehide", stop);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) stop();
+      else start();
     });
-    timer = window.setTimeout(revealNext, 220);
+    reduceMotion.addEventListener("change", start);
+    start();
   }
 
   const pinnedDownloads = new WeakSet();
@@ -146,18 +167,35 @@
         event.preventDefault();
         toggleDownloadPopover(trigger);
       }
-      if (event.key === "ArrowDown" && popover) {
+      if ((event.key === "ArrowDown" || event.key === "ArrowUp") && popover) {
         event.preventDefault();
         pinnedDownloads.add(trigger);
         setDownloadPopover(trigger, true);
-        popover.querySelector("a")?.focus();
+        const links = Array.from(popover.querySelectorAll("a"));
+        (event.key === "ArrowUp" ? links.at(-1) : links[0])?.focus();
       }
     });
     if (popover) {
+      popover.addEventListener("keydown", (event) => {
+        const links = Array.from(popover.querySelectorAll("a"));
+        const current = links.indexOf(document.activeElement);
+        if (current < 0) return;
+        let next;
+        if (event.key === "ArrowDown") next = (current + 1) % links.length;
+        if (event.key === "ArrowUp") next = (current - 1 + links.length) % links.length;
+        if (event.key === "Home") next = 0;
+        if (event.key === "End") next = links.length - 1;
+        if (next === undefined) return;
+        event.preventDefault();
+        links[next].focus();
+      });
       popover.querySelectorAll("a").forEach((link) => {
         link.addEventListener("click", () => setDownloadPopover(trigger, false));
       });
     }
+    dropdown.addEventListener("focusout", (event) => {
+      if (!dropdown.contains(event.relatedTarget)) closeDownloadPopover(trigger);
+    });
     if (hoverCapable.matches) {
       dropdown.addEventListener("mouseenter", () => {
         clearHoverClose(trigger);
@@ -248,12 +286,15 @@
     list.className = "replay-steps";
     const event = document.createElement("p");
     event.className = "replay-event";
+    event.setAttribute("aria-live", "polite");
+    event.setAttribute("aria-atomic", "true");
     header.append(label, toggle, count);
     root.append(header, track, list, event);
 
     let activeIndex = 0;
     let playing = false;
     let timer = 0;
+    let eventAnimation = null;
     const buttons = steps.map((step, index) => {
       const item = document.createElement("li");
       const button = document.createElement("button");
@@ -271,6 +312,10 @@
     });
 
     function render() {
+      if (reduceMotion.matches) {
+        eventAnimation?.cancel();
+        eventAnimation = null;
+      }
       buttons.forEach((button, index) => {
         const current = index === activeIndex;
         button.classList.toggle("is-current", current);
@@ -279,7 +324,16 @@
         else button.removeAttribute("aria-current");
       });
       count.textContent = `${activeIndex + 1} / ${steps.length}`;
-      event.textContent = steps[activeIndex];
+      if (event.textContent !== steps[activeIndex]) {
+        event.textContent = steps[activeIndex];
+        eventAnimation?.cancel();
+        if (!reduceMotion.matches && typeof event.animate === "function") {
+          eventAnimation = event.animate([
+            { opacity: 0.4, transform: "translateY(4px)" },
+            { opacity: 1, transform: "translateY(0)" }
+          ], { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+        }
+      }
       progress.style.transform = `scaleX(${activeIndex / (steps.length - 1)})`;
       toggle.textContent = playing ? "暂停" : reduceMotion.matches ? "下一步" : activeIndex === steps.length - 1 ? "重播" : "播放";
       toggle.setAttribute("aria-pressed", String(playing));
@@ -483,19 +537,27 @@
   }
 
   if (copyButton && command) {
+    const label = copyButton.querySelector("span");
+    const glyph = copyButton.querySelector("use");
+    label.setAttribute("aria-live", "polite");
     copyButton.addEventListener("click", async () => {
-      const label = copyButton.querySelector("span");
       window.clearTimeout(copyTimer);
       try {
         await copyText(command.textContent.trim());
         label.textContent = "已复制";
+        copyButton.dataset.copyState = "copied";
+        glyph.setAttribute("href", "#i-check");
         copyButton.setAttribute("aria-label", "Aster 启动命令已复制");
       } catch (_error) {
         label.textContent = "请手动复制";
+        copyButton.dataset.copyState = "error";
+        glyph.setAttribute("href", "#i-copy");
         copyButton.setAttribute("aria-label", "自动复制不可用，请手动复制命令");
       }
       copyTimer = window.setTimeout(() => {
         label.textContent = "复制命令";
+        delete copyButton.dataset.copyState;
+        glyph.setAttribute("href", "#i-copy");
         copyButton.setAttribute("aria-label", "复制 Aster 启动命令");
       }, 2200);
     });
@@ -504,4 +566,50 @@
   const year = document.getElementById("current-year");
   if (year) year.textContent = String(new Date().getFullYear());
   initHeroTyping();
+  initSurfaceFeedback();
+
+  function initSurfaceFeedback() {
+    if (!hoverCapable.matches) return;
+    const resets = [];
+    document.querySelectorAll(".product-window, .connector-card, .security-card, .download-card").forEach((surface) => {
+      const depth = surface.matches(".product-window, .download-card");
+      surface.classList.add("arc-surface");
+      if (depth) surface.classList.add("arc-depth");
+      let pending = 0;
+      let point;
+
+      function paint() {
+        pending = 0;
+        const bounds = surface.getBoundingClientRect();
+        if (!bounds.width || !bounds.height) return;
+        const x = Math.max(0, Math.min(1, (point.clientX - bounds.left) / bounds.width));
+        const y = Math.max(0, Math.min(1, (point.clientY - bounds.top) / bounds.height));
+        surface.style.setProperty("--arc-x", `${(x * 100).toFixed(2)}%`);
+        surface.style.setProperty("--arc-y", `${(y * 100).toFixed(2)}%`);
+        if (depth) {
+          surface.style.setProperty("--arc-rotate-x", `${((0.5 - y) * 3).toFixed(2)}deg`);
+          surface.style.setProperty("--arc-rotate-y", `${((x - 0.5) * 3).toFixed(2)}deg`);
+        }
+      }
+
+      function reset() {
+        if (pending) window.cancelAnimationFrame(pending);
+        pending = 0;
+        surface.classList.remove("is-pointing");
+        ["--arc-x", "--arc-y", "--arc-rotate-x", "--arc-rotate-y"].forEach((property) => surface.style.removeProperty(property));
+      }
+
+      surface.addEventListener("pointermove", (event) => {
+        if (reduceMotion.matches || event.pointerType === "touch") return;
+        point = { clientX: event.clientX, clientY: event.clientY };
+        surface.classList.add("is-pointing");
+        if (!pending) pending = window.requestAnimationFrame(paint);
+      }, { passive: true });
+      surface.addEventListener("pointerleave", reset, { passive: true });
+      resets.push(reset);
+    });
+    reduceMotion.addEventListener("change", (event) => {
+      if (event.matches) resets.forEach((reset) => reset());
+    });
+  }
 })();

@@ -3947,5 +3947,22 @@
     "model": "kimi/k3.1-pro",
     "evidence": "docs/evidence/tui/2026-10-28-wsl-linux-k31-source-integration/OUTCOME.md",
     "private_acl_or_credentials_imported": false
+  },
+  "web_documentation_atlas_20261028": {
+    "path": "apps/web/vendor/seecode",
+    "source": "https://github.com/Aryanutkarsh/SeeCode",
+    "revision": "bf91328450796dcb87f49fb2f37a8acd85d87c52",
+    "version": "0.6.2",
+    "license": "MIT",
+    "archive_sha256": "40b0d7b9839e58281e59507ba3b816ddb7dcf206a23a175b15c1634c7c8def8f",
+    "source_modified": false,
+    "integration": "apps/web/scripts/docs_atlas.mjs",
+    "codehike": {
+      "version": "1.1.0",
+      "source": "https://github.com/code-hike/codehike",
+      "integrity": "sha512-hOxqmTHjiOxhlcVEuDTCoAQ8TW358HVrNKlOwuKcnbwkuTpbGtwj5TnQ7AZjnZiQvJ3LeXohrd1E7qfYYN0Rdg=="
+    },
+    "runtime_source_ref": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+    "evidence": "docs/evidence/web/2026-10-28-code-documentation-atlas/OUTCOME.md"
   }
 }

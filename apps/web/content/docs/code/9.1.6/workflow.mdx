@@ -21,7 +21,7 @@ export const meta = {
 
 工作区检索用于查找相关代码，Skills 提供任务所需的操作说明，持久记忆保存可跨会话使用的信息。是否使用这些来源，取决于宿主接入了哪些能力。
 
-<PeleDiagram name="context-assembly" label="上下文装配" description="必需项保留，其他来源按去重、排序与预算规则进入模型上下文。图中来源需要宿主实际接入。" />
+<SeeCodeDiagram name="context-assembly" label="上下文装配" description="必需项保留，其他来源按去重、排序与预算规则进入模型上下文。图中来源需要宿主实际接入。" />
 
 具体去重与预算选择见 <SourceRef path="crates/code/core/src/context/assembler.rs" match="pub fn assemble(&amp;self, results: &amp;[ContextResult])">ContextAssembler::assemble</SourceRef>；各来源的每轮最新贡献不会无限叠加。
 
