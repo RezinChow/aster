@@ -138,7 +138,7 @@ test('MDX builds deterministically and refuses stale generated pages', async (t)
   t.after(() => rm(outputRoot, { recursive: true, force: true }));
   const files = await buildDocs({ outputRoot });
   const atlas = JSON.parse(await readFile(path.join(root, 'apps/web/content/docs/atlas.json'), 'utf8'));
-  assert.equal(files.length, pages.length + 1 + atlas.diagrams.length + atlas.diagrams.filter((entry) => entry.readme).length + 2);
+  assert.equal(files.length, pages.length + 1 + atlas.diagrams.length + atlas.diagrams.filter((entry) => entry.readme).length);
   await buildDocs({ check: true, outputRoot });
   const original = await readFile(files[0], 'utf8');
   await writeFile(files[0], '<h1>stale</h1>');
@@ -195,19 +195,19 @@ test('the generated syntax palette meets 4.5:1 text contrast against its light b
   }
 });
 
-test('SeeCode renders current architecture figures with labels and extracted styles', async (t) => {
-  for (const [route, name, type] of [['code/', 'architecture', 'high-level'], ['code/workflow/', 'workflow', 'architecture'], ['code/meta-harness/', 'meta-harness', 'exploded'], ['code/tutorial/', 'tutorial-architecture', 'architecture'], ['code/tutorial/permissions/', 'tutorial-permissions', 'sequence'], ['code/design/rsi/', 'rsi-cycle', 'architecture'], ['code/workflow/', 'context-assembly', 'architecture'], ['code/reference/run-control/', 'run-control', 'sequence'], ['code/reference/governance/', 'completion-gate', 'flowchart'], ['code/reference/memory/', 'memory-lifecycle', 'architecture'], ['acp/', 'architecture', 'architecture'], ['acp/protocol/', 'protocol-lifecycle', 'sequence'], ['acp/permissions/', 'permission-roundtrip', 'sequence'], ['acp/events/', 'event-routing', 'sequence']]) {
+test('Pele renders current architecture figures with labels and extracted styles', async (t) => {
+  for (const [route, name, type] of [['code/', 'architecture', 'flowchart'], ['code/workflow/', 'workflow', 'flowchart'], ['code/meta-harness/', 'meta-harness', 'block'], ['code/tutorial/', 'tutorial-architecture', 'flowchart'], ['code/tutorial/permissions/', 'tutorial-permissions', 'sequence'], ['code/design/rsi/', 'rsi-cycle', 'flowchart'], ['code/workflow/', 'context-assembly', 'flowchart'], ['code/reference/run-control/', 'run-control', 'sequence'], ['code/reference/governance/', 'completion-gate', 'flowchart'], ['code/reference/memory/', 'memory-lifecycle', 'flowchart'], ['acp/', 'architecture', 'flowchart'], ['acp/protocol/', 'protocol-lifecycle', 'sequence'], ['acp/permissions/', 'permission-roundtrip', 'sequence'], ['acp/events/', 'event-routing', 'sequence']]) {
     const dom = new JSDOM(await readFile(path.join(publicRoot, 'docs', route, 'index.html'), 'utf8'));
     t.after(() => dom.window.close());
-    const svg = dom.window.document.querySelector(`.atlas-figure[data-atlas="${name}"] svg[data-sc-type="${type}"]`);
+    const svg = dom.window.document.querySelector(`.atlas-figure[data-atlas="${name}"] svg.pele-${type}`);
     assert.ok(svg, route);
     assert.equal(svg.getAttribute('role'), 'img');
     assert.ok(svg.querySelector('title').textContent.trim());
     assert.ok(svg.querySelector('desc').textContent.trim());
     assert.equal(svg.querySelectorAll('[style], style, script, foreignObject, a').length, 0);
     assert.equal(svg.hasAttribute('style'), false);
-    assert.ok(svg.getAttribute('class').includes('atlas-style-'));
-    assert.ok([...svg.querySelectorAll('image')].every((node) => /atlas\/seecode-(symbol|word)\.png$/.test(node.getAttribute('href'))));
+    assert.ok(svg.getAttribute('class').includes('pele-style-'));
+    assert.equal(svg.querySelectorAll('image').length, 0);
   }
 });
 

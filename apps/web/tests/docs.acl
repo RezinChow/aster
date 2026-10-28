@@ -14,7 +14,7 @@ suite "aster-documentation" {
         expect "architecture-diagram" { visible = css(".diagram svg[role='img']") }
         click "workflow" { target = css(".chapter-nav a[href$='code/9.1.6/workflow/']") }
         expect "workflow-heading" { target = css("main h1") rendered_text = "一个任务如何运行" }
-        expect "pele-sequence" { visible = css(".diagram svg[data-sc-type='sequence'][role='img']") }
+        expect "pele-sequence" { visible = css(".diagram svg.pele-sequence[role='group']") }
         expect "selected-workflow" { visible = css(".chapter-nav a[aria-current='page'][href$='code/9.1.6/workflow/']") }
         screenshot "workflow-desktop" { path = "screenshots/workflow-desktop.png" }
         click "comparison" { target = css(".chapter-nav a[href$='code/9.1.6/comparison/']") }

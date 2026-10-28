@@ -33,7 +33,7 @@ const atlas = JSON.parse(await readFile(path.join(contentRoot, 'atlas.json'), 'u
 for (const entry of atlas.diagrams) {
   const filename = `${entry.product}/${entry.version}/_atlas/${entry.name}.json`;
   const definition = JSON.parse(await readFile(path.join(contentRoot, filename), 'utf8'));
-  const values = [definition.spec.title, definition.spec.subtitle, ...definition.steps.flatMap((step) => [step.title, step.body])].filter(Boolean);
+  const values = [definition.title, definition.description, ...definition.steps.flatMap((step) => [step.title, step.body])].filter(Boolean);
   for (const value of values) { mapping.push({ outputLine: lines.length + 1, file: filename }); lines.push(value, ''); }
 }
 for (const [project, names] of [['code',['system-prompts','context','execution','long-running','recovery','completion']], ['acp',['runtime']]]) {

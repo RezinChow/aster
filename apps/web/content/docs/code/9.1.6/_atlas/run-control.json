@@ -1,60 +1,6 @@
 {
-  "spec": {
-    "type": "sequence",
-    "title": "补充要求如何进入正在运行的任务",
-    "subtitle": "接纳请求与应用请求分开。请求始终指向原 Run。",
-    "numbered": true,
-    "participants": [
-      {
-        "id": "host",
-        "label": "宿主"
-      },
-      {
-        "id": "inbox",
-        "label": "控制收件箱"
-      },
-      {
-        "id": "run",
-        "label": "当前 Run"
-      }
-    ],
-    "messages": [
-      [
-        "host",
-        "inbox",
-        "提交 steer 或 interrupt",
-        "primary"
-      ],
-      [
-        "inbox",
-        "host",
-        "返回接纳回执",
-        "reply"
-      ],
-      [
-        "run",
-        "inbox",
-        "到达安全点"
-      ],
-      [
-        "inbox",
-        "run",
-        "应用匹配请求",
-        "primary"
-      ],
-      [
-        "run",
-        "host",
-        "报告处理结果",
-        "reply"
-      ]
-    ],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "补充要求如何进入正在运行的任务",
+  "description": "接纳请求与应用请求分开。请求始终指向原 Run。",
   "steps": [
     {
       "title": "指向准确的一次运行",

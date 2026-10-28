@@ -1,14 +1,13 @@
-flowchart TB
-  accTitle: Core 事件如何投影为客户端状态
-  accDescr: ACP 按事件类型生成 session/update，文本与工具按会话和调用身份分别渲染。可选 Run 观测通过独立通知发送，最后仍以原 prompt 终态与结算为准。
-  A[Core AgentEvent] --> B[turn.rs：handle_event]
-  B --> C[文本、推理与计划更新]
-  B --> D[工具开始、输出与结束]
-  C --> E[session/update]
-  D --> E
-  E --> F[客户端按 sessionId 与 toolCallId 合并]
-  A --> G[启用观测时：run_observation::Observer]
-  G --> H[_a3s/execution/observe]
-  H --> I[按 promptId、runId 与 sequence 展示状态]
-  F --> J[等待原 prompt 终态与资源结算]
-  I --> J
+sequenceDiagram
+  accTitle: 事件怎样变成界面中的一行
+  accDescr: 文字、推理和工具输出分别映射。工具行复用原始调用 ID。
+  autonumber
+  participant core as Core
+  participant adapter as ACP 适配器
+  participant client as 客户端
+  core->>adapter: TextDelta
+  adapter->>client: agent_message_chunk
+  core->>adapter: ToolExecutionStart
+  adapter->>client: tool_call
+  core->>adapter: ToolEnd
+  adapter->>client: tool_call_update

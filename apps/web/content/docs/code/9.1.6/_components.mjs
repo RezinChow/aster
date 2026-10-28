@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createElement as h } from 'react';
 import { table } from '../../../../scripts/docs_components.mjs';
-import { SeeCodeDiagram } from '../../../../scripts/docs_atlas.mjs';
+import { PeleAtlasDiagram } from '../../../../scripts/docs_atlas.mjs';
 
 const definitions = [
   ['architecture', 'FIG. 01 · 运行时架构', '终端与桌面通过 ACP 接入 Core，Rust 应用直接使用 SDK。会话调用模型和受控工具，并把结果写入事实日志。'],
@@ -15,7 +15,7 @@ const definitions = [
 function codeDiagram(name) {
   const entry = definitions.find(([id]) => id === name);
   if (!entry) throw new Error(`Unknown Code diagram: ${name}`);
-  return h(SeeCodeDiagram, { name, label: entry[1], description: entry[2] });
+  return h(PeleAtlasDiagram, { name, label: entry[1], description: entry[2] });
 }
 
 export function ArchitectureDiagram() {
@@ -27,7 +27,7 @@ export function WorkflowDiagram() {
 }
 
 export function VerificationDiagram() {
-  return h(SeeCodeDiagram, { name: 'verification-revision', label: '修改与验证的版本关联' });
+  return h(PeleAtlasDiagram, { name: 'verification-revision', label: '修改与验证的版本关联' });
 }
 
 export function Principles() {
@@ -76,7 +76,7 @@ export function CompletionStates() {
 }
 
 export function StackDiagram() {
-  return h(SeeCodeDiagram, { name: 'framework-layers', label: '应用、Harness 与编排的职责' });
+  return h(PeleAtlasDiagram, { name: 'framework-layers', label: '应用、Harness 与编排的职责' });
 }
 
 export function FrameworkTable() {

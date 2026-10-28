@@ -57,13 +57,13 @@ Markdown 通过 MDX 官方推荐的 `remark-gfm` 支持 GFM 表格、任务列�
 
 代码块通过 [Shiki 的 Rehype 插件](https://shiki.style/packages/rehype) 在构建时高亮，使用 GitHub Light High Contrast 配色。声明代码语言后，构建器提供语言标识、可聚焦的滚动区域和完整原文；纯文本使用 `text`。ACL 的 TextMate 规则只着色词法单元，依据 `crates/acl/src/lexer.rs`，不代替 ACL 解析或校验。新出现的内置语言由 Shiki 在构建时加载。
 
-当前 9.1.6 的架构图使用 [SeeCode](https://github.com/Aryanutkarsh/SeeCode) 0.6.2。`content/docs/atlas.json` 注册 23 张图，`_atlas/*.json` 保存图示规范、分步说明和精确源码选择器。图示覆盖总览、组件连接、时序、状态、流程、层次与 3D 概念拆解。软件拆解图说明职责，不表示实际部署距离。原有 9.1.5 图示继续使用 Pele。
+所有版本的架构图使用 [Pele](https://pele.run/) 1.10.0，在构建时将 Mermaid 源文件渲染成 SVG。`content/docs/atlas.json` 注册当前 23 张图；`_diagrams/*.mmd` 保存流程、时序与职责分块，`_atlas/*.json` 保存标题、说明、分步讲解和精确源码选择器。分块排列表示职责或对照，不添加原文没有的执行关系。
 
-`SeeCodeDiagram` 在构建时调用保留的原始 SeeCode 渲染器。Aster 提取 SVG 和样式，把样式合并到 `generated.css`。水印保留，所需图片作为两份本地资产发布。公开文档保持禁止内联脚本、内联样式、远程字体和 iframe。图示支持上一步、下一步、完整视图、有限分步讲解，以及拆解图的合起与展开。减少动态时保留手动切换。
+`PeleDiagram` 与 `PeleAtlasDiagram` 共用同一个 Pele 渲染入口。构建器提取图示样式，合并到 `generated.css`，禁用图内链接和图片。公开文档保持禁止内联脚本、内联样式、远程字体和 iframe。当前图示支持上一步、下一步、节点聚焦、完整视图与有限分步讲解；减少动态时保留手动切换。节点身份取自 Pele 的 `data-id`，讲解引用的节点不存在时构建失败。
 
 `_walks/*.json` 保存七条源码漫游、38 个站点。每站声明准确片段与前后文行数，构建器从该版本的 Git 提交提取原文，并用 [Code Hike](https://codehike.org/docs/concepts/code) 1.1.0 高亮。Code Hike 与普通代码块共用 GitHub Light High Contrast 主题。桌面支持随叙述切换的源码面板，按钮和键盘支持独立切换，完整阅读模式支持连续对照。脚本关闭时全部说明与源码仍然可见。
 
-六张 README SVG 与网页使用同一份图示数据。`npm --prefix apps/web run build` 同时生成文档、公开图示资产和 README 图片。只修改 MDX、图示 JSON 或渲染器源文件，然后重新生成。SeeCode 的 MIT 许可、归档修订与摘要见 `vendor/seecode/PROVENANCE.md`。
+六张 README SVG 与网页使用同一份 Mermaid 源文件。`npm --prefix apps/web run build` 同时生成文档、公开图示资产和 README 图片。只修改 MDX、Mermaid、讲解 JSON 或渲染器源文件，然后重新生成。Pele 使用 MIT 许可，依赖版本与完整性摘要保存在 `package-lock.json`。
 
 正文可用 `<SourceRef path="crates/code/core/src/agent_api/run_facade.rs" match="pub async fn steer(">AgentSession::steer</SourceRef>` 引用实现。`match` 是作者明确指定的源码原文，不推断符号名。构建器从当前版本 `sourceRef` 的 Git 对象读取文件，要求原文恰好出现一次，计算 GitHub 行号或多行范围；文件缺失、片段消失或重复会使构建失败。相同引用在右栏“本页源码”按正文首次出现顺序去重，窄屏移到正文之后。该功能需要 Git 历史；Pages CI 检出完整公共仓库历史，不初始化私有子模块。
 
@@ -121,7 +121,7 @@ JS_DOM_MODULE="$PWD/target/download-test-deps/node_modules/jsdom" node --test ap
 
 DOM 回归验证交互状态和事件；Canvas 测试用受控绘图上下文和动画时钟验证调度。它们不替代真实浏览器的像素、布局、原生对话框焦点和绘图效果检查。
 
-输出目录必须不存在。脚本只复制首页的四个文件、下载页的四个文件、四张 PNG 截图、三份 Ubuntu 字体及其完整许可证、三个 Aster 品牌文件、两个法律页面及其共享样式，以及文档注册表中的 150 个 HTML 地址（89 篇文档，含默认版本兼容地址）、23 份 SVG、两份 SeeCode 本地水印图片、文档样式、生成样式和渐进交互脚本，目前共 200 个文件；根入口是完整首页，`download/`、`docs/`、`terms/` 和 `privacy/` 独立访问，不复制其他租户、MDX 源码、依赖或用户数据。所有资源路径均兼容 GitHub Pages 的 `/aster/` 项目路径。Canvas 是下载页的独立装饰层：减少动态时静态绘制，页面隐藏或首屏离开视口时停止动画，没有第三方绘图库。
+输出目录必须不存在。脚本只复制首页的四个文件、下载页的四个文件、四张 PNG 截图、三份 Ubuntu 字体及其完整许可证、三个 Aster 品牌文件、两个法律页面及其共享样式，以及文档注册表中的 150 个 HTML 地址（89 篇文档，含默认版本兼容地址）、23 份 SVG、文档样式、生成样式和渐进交互脚本，目前共 198 个文件；根入口是完整首页，`download/`、`docs/`、`terms/` 和 `privacy/` 独立访问，不复制其他租户、MDX 源码、依赖或用户数据。所有资源路径均兼容 GitHub Pages 的 `/aster/` 项目路径。Canvas 是下载页的独立装饰层：减少动态时静态绘制，页面隐藏或首屏离开视口时停止动画，没有第三方绘图库。
 
 资源清单位于 `scripts/site_contract.py`。截图只允许 `workspace.png`、`office.png`、`review.png` 和 `lineage.png`，每张不超过 2 MiB；检查覆盖 PNG 签名、IHDR 尺寸和头部校验码，并要求 HTML 显式引用四张图片。检查不代替完整图片解码或截图内容审查。字体从本地 Ubuntu 字体包复制，页面使用本地 `@font-face`，`fonts/Ubuntu-LICENSE.txt` 随站点完整发布。下载目录出现其他文件或符号链接会拒绝发布。
 
@@ -146,7 +146,7 @@ a3s-test check apps/web/tests/docs.acl --json
 a3s-test run apps/web/tests/docs.acl --browser-driver standalone --json
 ```
 
-它覆盖文档总入口、入门章节、Meta Harness 能力目录及七个专题、十二章终端智能体教程、菜单滚动保持、产品版本切换、分组导航、移动目录展开、SeeCode 图示、源码漫游、代码高亮与相邻页面跳转。A3S Test 的截图与页面错误记录用于浏览器证据；构建同步、项目地址、发布隔离、对比度和无脚本可读性分别由 Node 与 Python 检查。
+它覆盖文档总入口、入门章节、Meta Harness 能力目录及七个专题、十二章终端智能体教程、菜单滚动保持、产品版本切换、分组导航、移动目录展开、Pele 图示、源码漫游、代码高亮与相邻页面跳转。A3S Test 的截图与页面错误记录用于浏览器证据；构建同步、项目地址、发布隔离、对比度和无脚本可读性分别由 Node 与 Python 检查。
 
 能力覆盖检查使用 `code/9.1.6/_coverage.json` 与 `acp/9.1.6/_coverage.json`，逐项对应 Core 的合同 ID、规范操作、tier、宿主责任和 ACP 接受的 method 集合。增加接口时同步索引、参考章节和测试。这项检查只验证文档与接口目录的对应关系；`apps/tutorial-agent` 另有编译、固定模型集成测试和离线终端回归，真实模型与外部服务需单独验收。
 

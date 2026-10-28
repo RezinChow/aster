@@ -1,26 +1,14 @@
 sequenceDiagram
-  accTitle: ACP 请求、更新与取消的时序
-  accDescr: 客户端先初始化并创建会话，提交 prompt 后持续消费更新和交互请求。取消是无独立响应的通知；客户端继续等待原 prompt 终态和资源结算。
-  participant C as 客户端
-  participant A as ACP 进程
-  participant R as Core Run
-  C->>A: initialize（id 1）
-  A-->>C: 协议与能力（id 1）
-  C->>A: session/new（id 2）
-  A-->>C: sessionId（id 2）
-  C->>A: session/prompt（id 3）
-  A->>R: 准入当前 generation
-  loop 执行期间持续读取 stdout
-    R-->>A: 文本、工具与执行事件
-    A-->>C: session/update
-    opt 需要工具确认
-      A->>C: session/request_permission（独立 id）
-      C-->>A: 原请求的 optionId 与 id
-    end
-  end
-  opt 用户取消
-    C->>A: session/cancel（无 id）
-    A->>R: 请求协作停止
-  end
-  R-->>A: 终态与资源结算
-  A-->>C: 原 prompt 的最终响应（id 3）
+  accTitle: 从建立连接到结束一轮
+  accDescr: 先协商，再建立会话。prompt 响应只描述本轮协议终态。
+  autonumber
+  participant client as 客户端
+  participant agent as ACP 代理
+  participant core as Core 会话
+  client->>agent: initialize
+  client->>agent: session/new 或 load
+  agent->>core: 创建或恢复会话
+  client->>agent: session/prompt
+  core-->>agent: 运行事件
+  agent-->>client: session/update
+  agent-->>client: prompt 响应

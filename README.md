@@ -54,7 +54,7 @@ ACP 转接协议，Core 调用模型与受控工具。
 [![Aster 职责总览：用户、界面、ACP、Core、模型与工作区](assets/readme/aster-overview.svg)](https://aster-ai-lab.github.io/aster/docs/code/9.1.6/internals/)
 
 点击图示进入[原理漫游](https://aster-ai-lab.github.io/aster/docs/code/9.1.6/internals/)。
-文档图示支持分步聚焦，概念拆解图支持合起与展开。
+文档图示使用 [Pele](https://pele.run/) 渲染，支持分步聚焦和完整视图。
 源码漫游使用 Code Hike 高亮本版真实代码，并保留行号。
 GitHub README 显示同一份图示数据生成的静态版本。
 

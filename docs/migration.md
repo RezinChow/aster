@@ -606,3 +606,16 @@ The original Kimi ACL is used without importing credentials or user state.
 Build identities, complete results, isolated reruns and retained input-driver
 counterexamples are in
 `docs/evidence/tui/2026-10-28-wsl-linux-k31-source-integration/OUTCOME.md`.
+
+## 2026-10-29: Documentation diagrams use Pele
+
+Replaced all 23 current SeeCode diagrams with authored Mermaid sources rendered
+by the existing pinned Pele 1.10.0 dependency. Six README SVG exports now share
+those sources. Preserved diagram node identities, labels, relationship labels,
+ordered explanations and exact source references. Conceptual layers are block
+diagrams; their arrangement does not introduce execution edges.
+
+Removed the unused SeeCode vendor tree, project settings, motion selectors and
+watermark assets. Historical provenance and evidence remain in this repository.
+The Code Hike source walks and their pinned source revision are unchanged.
+See `docs/evidence/web/2026-10-29-pele-diagram-migration/OUTCOME.md`.

@@ -3963,6 +3963,21 @@
       "integrity": "sha512-hOxqmTHjiOxhlcVEuDTCoAQ8TW358HVrNKlOwuKcnbwkuTpbGtwj5TnQ7AZjnZiQvJ3LeXohrd1E7qfYYN0Rdg=="
     },
     "runtime_source_ref": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
-    "evidence": "docs/evidence/web/2026-10-28-code-documentation-atlas/OUTCOME.md"
+    "evidence": "docs/evidence/web/2026-10-28-code-documentation-atlas/OUTCOME.md",
+    "retired_at": "2026-10-29",
+    "replacement": "web_documentation_pele_20261029"
+  },
+  "web_documentation_pele_20261029": {
+    "source": "https://github.com/obsidianmd/pele",
+    "documentation": "https://pele.run/",
+    "version": "1.10.0",
+    "license": "MIT",
+    "integrity": "sha512-hDMEM+GQ01pZin8tst3PRXGeB/xFATvXBreHHtjx2glSNAQ7nHFq7EbMuNJGTbqkYgueWPboLjyUBsAudsb1qQ==",
+    "integration": "apps/web/scripts/docs_diagrams.mjs",
+    "diagram_catalog": "apps/web/content/docs/atlas.json",
+    "replaces": "web_documentation_atlas_20261028",
+    "diagrams": 23,
+    "readme_exports": 6,
+    "evidence": "docs/evidence/web/2026-10-29-pele-diagram-migration/OUTCOME.md"
   }
 }

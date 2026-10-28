@@ -1,91 +1,47 @@
 import { readFileSync } from 'node:fs';
-import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createElement as h, useContext } from 'react';
-import { fromHtml } from 'hast-util-from-html';
-import { toHtml } from 'hast-util-to-html';
 import { highlight } from 'codehike/code';
 import highContrast from '@shikijs/themes/github-light-high-contrast';
-import { renderSpec } from '../vendor/seecode/scripts/lib/render.mjs';
-import { svgFromHtml } from '../vendor/seecode/scripts/lib/export/svg.mjs';
-import { DIAGRAM_CSS, skinCss } from '../vendor/seecode/scripts/lib/tokens.mjs';
-import { MOTION_CSS } from '../vendor/seecode/scripts/lib/motion.mjs';
-import { DiagramScope } from './docs_diagrams.mjs';
+import { DiagramScope, renderPele } from './docs_diagrams.mjs';
 
-const webRoot = fileURLToPath(new URL('../', import.meta.url));
 const safeName = (name) => typeof name === 'string' && /^[a-z][a-z0-9-]*$/.test(name);
-const brand = { light: { paper: '#f4f3ee', ink: '#1d302a', accent: '#347653', link: '#2a5741' }, dark: { paper: '#1d302a', ink: '#f4f3ee', accent: '#3a845d', link: '#77a289' }, fonts: { sans: 'Ubuntu', serif: 'Ubuntu', mono: 'monospace' } };
 
-export function renderAtlas(definition) {
-  if (!definition.steps?.length || definition.steps.some((step) => !step.title || !step.body)) throw new Error('Atlas needs explanatory steps');
-  const rendered = renderSpec(definition.spec, { settings: { fonts: 'system', skin: 'light', brand } });
-  if (!rendered.ok) throw new Error(`SeeCode: ${JSON.stringify(rendered.problems)}`);
-  const problems = rendered.result.problems ?? [];
-  if (problems.some((problem) => /^[EW]_/.test(problem.code))) throw new Error(`SeeCode layout: ${JSON.stringify(problems)}`);
-  return rendered;
+export function renderAtlas(source, definition, identity, styles = new Map()) {
+  if (!definition.title || !definition.description || !definition.steps?.length || definition.steps.some((step) => !step.title || !step.body)) throw new Error('Atlas needs a title, description and explanatory steps');
+  const result = renderPele(source, identity, styles, definition);
+  for (const step of definition.steps) for (const id of step.focus ?? []) {
+    if (!result.nodeIds.has(id)) throw new Error(`Unknown Pele focus node: ${id}`);
+  }
+  return result;
 }
 
-// The upstream renderer stays unchanged. Only repository-authored drawing data enters it.
-export function diagramMarkup(rendered, styles, imageRoot) {
-  const tree = fromHtml(rendered.html);
-  const find = (node, tag) => node.tagName === tag ? node : (node.children ?? []).map((child) => find(child, tag)).find(Boolean);
-  const svg = find(tree, 'svg');
-  const title = find(tree, 'h1');
-  svg.children.unshift({ type: 'element', tagName: 'title', properties: { id: title.properties.id }, children: title.children });
-  svg.properties.className.push('sc-still');
-  const extract = (node) => {
-    if (node.properties?.style) {
-      const style = node.properties.style;
-      const className = `atlas-style-${createHash('sha256').update(style).digest('hex').slice(0, 12)}`;
-      styles.set(className, style);
-      node.properties.className = [...(node.properties.className ?? []), className];
-      delete node.properties.style;
-    }
-    if (node.tagName === 'image') {
-      const href = node.properties.href;
-      const word = href.includes(Buffer.from(readFileSync(path.join(webRoot, 'vendor/seecode/assets/mark-word.png'))).toString('base64'));
-      node.properties.href = `${imageRoot}seecode-${word ? 'word' : 'symbol'}.png`;
-      delete node.properties.xLinkHref;
-    }
-    if (node.properties?.dataScNode) {
-      delete node.properties.tabIndex;
-      node.properties.role = 'group';
-    }
-    if (node.tagName === 'script' || node.tagName === 'style' || node.tagName === 'foreignObject') throw new Error('Unexpected executable diagram markup');
-    for (const child of node.children ?? []) extract(child);
-  };
-  extract(svg);
-  return toHtml(svg);
-}
-
-export const atlasCss = skinCss({ skin: 'light', brand }).replaceAll(':root', '.atlas-figure') + '\n' + DIAGRAM_CSS + '\n' + MOTION_CSS;
-
-export function SeeCodeDiagram({ name, label, description }) {
+export function PeleAtlasDiagram({ name, label, description }) {
   const scope = useContext(DiagramScope);
   if (!scope?.chapter.version || !safeName(name)) throw new Error('Atlas needs a version and safe name');
   const { chapter, contentRoot, styles, sources } = scope;
-  const root = path.join(contentRoot, chapter.project.id, chapter.version.id, '_atlas');
-  const definition = JSON.parse(readFileSync(path.join(root, `${name}.json`), 'utf8'));
-  const rendered = renderAtlas(definition);
+  const root = path.join(contentRoot, chapter.project.id, chapter.version.id);
+  const definition = JSON.parse(readFileSync(path.join(root, '_atlas', `${name}.json`), 'utf8'));
+  const source = readFileSync(path.join(root, '_diagrams', `${name}.mmd`), 'utf8');
+  const { markup } = renderAtlas(source, definition, `${chapter.project.id}/${chapter.version.id}/${name}`, styles);
   const depth = chapter.route.split('/').filter(Boolean).length;
   const docsRoot = '../'.repeat(depth) || './';
-  const markup = diagramMarkup(rendered, styles, `${docsRoot}atlas/`);
-  return h('figure', { className: 'diagram atlas-figure', 'data-atlas': name, 'data-theme': 'light' },
-    h('figcaption', null, h('span', { className: 'figure-label' }, label || definition.spec.title), description || definition.spec.subtitle),
+  return h('figure', { className: 'diagram pele-diagram atlas-figure', 'data-atlas': name },
+    h('figcaption', null, h('span', { className: 'figure-label' }, label || definition.title), description || definition.description),
     h('div', { className: 'atlas-controls', hidden: true },
       h('button', { type: 'button', 'data-atlas-action': 'previous' }, '上一步'),
       h('button', { type: 'button', 'data-atlas-action': 'next' }, '下一步'),
       h('button', { type: 'button', 'data-atlas-action': 'play', 'aria-pressed': false }, '播放讲解'),
-      h('button', { type: 'button', 'data-atlas-action': 'all' }, '查看全图'),
-      definition.spec.type === 'exploded' && h('button', { type: 'button', 'data-atlas-action': 'assemble', 'aria-pressed': false }, '合起分层')),
-    h('div', { className: 'diagram-scroll', tabIndex: 0, role: 'region', 'aria-label': `${definition.spec.title}，可横向滚动`, dangerouslySetInnerHTML: { __html: markup } }),
+      h('button', { type: 'button', 'data-atlas-action': 'all' }, '查看全图')),
+    h('div', { className: 'diagram-hint', 'aria-hidden': true }, '左右滑动查看完整图示 ↔'),
+    h('div', { className: 'diagram-scroll', tabIndex: 0, role: 'region', 'aria-label': `${definition.title}，可横向滚动`, dangerouslySetInnerHTML: { __html: markup } }),
     h('ol', { className: 'atlas-steps' }, ...definition.steps.map((step, index) => h('li', { key: index, 'data-atlas-focus': (step.focus ?? []).join(' ') },
       h('button', { type: 'button', className: 'atlas-step', 'data-atlas-step': index }, h('span', { className: 'step-number' }, String(index + 1).padStart(2, '0')), step.title),
       h('p', null, step.body), step.source && h(sources.SourceRef, step.source)))),
     h('p', { className: 'atlas-status', role: 'status', 'aria-live': 'polite' }),
-    h('p', { className: 'atlas-credit' }, 'SeeCode · ', definition.spec.type, ' · ', h('a', { href: `${docsRoot}atlas/${chapter.project.id}-${name}.svg`, download: true }, '下载静态 SVG')));
+    h('p', { className: 'atlas-credit' }, 'Pele · ', h('a', { href: `${docsRoot}atlas/${chapter.project.id}-${name}.svg`, download: true }, '下载静态 SVG')));
 }
 
 export async function prepareWalks(directory, sources, styles) {
@@ -143,17 +99,23 @@ export async function buildAtlasAssets({ contentRoot, outputRoot, check, reposit
   try { catalog = JSON.parse(await readFile(path.join(contentRoot, 'atlas.json'), 'utf8')); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   const files = [];
   const emit = async (target, value) => {
-    if (check) { if (!Buffer.from(await readFile(target)).equals(Buffer.from(value))) throw new Error(`Stale atlas asset: ${target}`); }
+    if (check) { if (await readFile(target, 'utf8') !== value) throw new Error(`Stale atlas asset: ${target}`); }
     else { await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, value); }
     files.push(target);
   };
   for (const entry of catalog.diagrams) {
-    const definition = JSON.parse(await readFile(path.join(contentRoot, entry.product, entry.version, '_atlas', `${entry.name}.json`), 'utf8'));
-    const rendered = renderAtlas(definition);
-    const svg = svgFromHtml(rendered.html);
+    const root = path.join(contentRoot, entry.product, entry.version);
+    const definition = JSON.parse(await readFile(path.join(root, '_atlas', `${entry.name}.json`), 'utf8'));
+    const source = await readFile(path.join(root, '_diagrams', `${entry.name}.mmd`), 'utf8');
+    const { svg } = renderAtlas(source, definition, `${entry.product}/${entry.version}/${entry.name}`);
     await emit(path.join(outputRoot, 'atlas', `${entry.product}-${entry.name}.svg`), svg);
     if (entry.readme) await emit(path.join(repositoryRoot, 'assets/readme', `${entry.readme}.svg`), svg);
   }
-  for (const name of ['symbol', 'word']) await emit(path.join(outputRoot, 'atlas', `seecode-${name}.png`), await readFile(path.join(webRoot, 'vendor/seecode/assets', `mark-${name}.png`)));
+  for (const name of ['seecode-symbol.png', 'seecode-word.png']) {
+    const obsolete = path.join(outputRoot, 'atlas', name);
+    try { await readFile(obsolete); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    if (check) throw new Error(`Obsolete diagram watermark: ${obsolete}`);
+    await unlink(obsolete);
+  }
   return files;
 }

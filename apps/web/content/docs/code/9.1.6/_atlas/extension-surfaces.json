@@ -1,66 +1,6 @@
 {
-  "spec": {
-    "type": "exploded",
-    "title": "扩展各自承担什么职责",
-    "subtitle": "这张图按职责拆开扩展入口。扩展文本不会授予工具权限。",
-    "parts": [
-      {
-        "id": "kernel",
-        "label": "内核检查",
-        "sub": "权限 / 完成",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "tools",
-        "label": "工具执行能力",
-        "sub": "MCP / 动态工具",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "context",
-        "label": "上下文资料",
-        "sub": "文件 / 检索",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": true
-      },
-      {
-        "id": "guidance",
-        "label": "工作指导",
-        "sub": "Skills / 提示槽",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "host",
-        "label": "宿主装配",
-        "sub": "Hooks / 组件",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      }
-    ],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "扩展各自承担什么职责",
+  "description": "这张图按职责拆开扩展入口。扩展文本不会授予工具权限。",
   "steps": [
     {
       "title": "指导与执行分开",

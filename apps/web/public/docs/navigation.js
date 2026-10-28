@@ -20,22 +20,21 @@
   for (const figure of document.querySelectorAll('[data-atlas]')) {
     const controls = figure.querySelector('.atlas-controls');
     const steps = [...figure.querySelectorAll('[data-atlas-step]')];
-    const nodes = [...figure.querySelectorAll('[data-sc-node], [data-sc-edge]')];
-    const diagram = figure.querySelector('.sc-svg');
+    const nodes = [...figure.querySelectorAll('.pele-node[data-id]')];
+    const diagram = figure.querySelector('.pele');
     let current = -1;
     let timer;
     const play = controls.querySelector('[data-atlas-action="play"]');
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const nodeStep = (id) => steps.findIndex((button) => button.closest('li').dataset.atlasFocus.split(' ').includes(id));
     diagram.setAttribute('role', 'group');
-    for (const node of nodes.filter((item) => item.dataset.scNode && nodeStep(item.dataset.scNode) >= 0)) {
+    for (const node of nodes.filter((item) => item.dataset.id && nodeStep(item.dataset.id) >= 0)) {
       node.setAttribute('role', 'button');
       node.setAttribute('tabindex', '0');
     }
     const stop = () => {
       window.clearTimeout(timer);
       timer = undefined;
-      diagram.classList.add('sc-still');
       play.setAttribute('aria-pressed', 'false');
       play.textContent = '播放讲解';
     };
@@ -52,7 +51,7 @@
         else button.removeAttribute('aria-current');
       }
       for (const node of nodes) {
-        const active = focused.includes(node.dataset.scNode) || focused.includes(node.dataset.from) && focused.includes(node.dataset.to);
+        const active = focused.includes(node.dataset.id);
         node.classList.toggle('atlas-is-muted', focused.length > 0 && !active);
         node.classList.toggle('atlas-is-current', active);
         if (node.getAttribute('role') === 'button') node.setAttribute('aria-pressed', String(active));
@@ -64,17 +63,13 @@
     figure.addEventListener('click', (event) => {
       const step = event.target.closest('[data-atlas-step]');
       if (step) { stop(); return select(Number(step.dataset.atlasStep)); }
-      const node = event.target.closest('[data-sc-node][role="button"]');
-      if (node) { stop(); return select(nodeStep(node.dataset.scNode)); }
+      const node = event.target.closest('.pele-node[data-id][role="button"]');
+      if (node) { stop(); return select(nodeStep(node.dataset.id)); }
       const action = event.target.closest('[data-atlas-action]');
       if (!action) return;
       if (action.dataset.atlasAction === 'play') {
         if (timer || reducedMotion?.matches) return stop();
         if (current === steps.length - 1) current = -1;
-        figure.classList.remove('atlas-assembled');
-        const assemble = figure.querySelector('[data-atlas-action="assemble"]');
-        if (assemble) { assemble.setAttribute('aria-pressed', 'false'); assemble.textContent = '合起分层'; }
-        diagram.classList.remove('sc-still');
         play.setAttribute('aria-pressed', 'true');
         play.textContent = '暂停讲解';
         advance();
@@ -84,16 +79,11 @@
       if (action.dataset.atlasAction === 'previous') select(current - 1);
       if (action.dataset.atlasAction === 'next') select(current + 1);
       if (action.dataset.atlasAction === 'all') select(-1);
-      if (action.dataset.atlasAction === 'assemble') {
-        const assembled = figure.classList.toggle('atlas-assembled');
-        action.setAttribute('aria-pressed', String(assembled));
-        action.textContent = assembled ? '展开分层' : '合起分层';
-      }
     });
     figure.addEventListener('keydown', (event) => {
-      const node = event.target.closest('[data-sc-node][role="button"]');
+      const node = event.target.closest('.pele-node[data-id][role="button"]');
       if (node && ['Enter', ' '].includes(event.key)) {
-        event.preventDefault(); stop(); select(nodeStep(node.dataset.scNode)); return;
+        event.preventDefault(); stop(); select(nodeStep(node.dataset.id)); return;
       }
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) || !event.target.closest('.atlas-controls, .atlas-steps')) return;
       event.preventDefault();

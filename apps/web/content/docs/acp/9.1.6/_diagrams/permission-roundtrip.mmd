@@ -1,17 +1,14 @@
 sequenceDiagram
-  accTitle: 工具确认的往返与失败处理
-  accDescr: 需要人工确认的工具调用由 Core 暂停，ACP 向客户端传递会话、工具调用与选项身份。客户端回传原请求选项，超时、断线或拒绝都不能执行该调用；批准也不能绕过 Core 权限。
-  participant R as Core
-  participant A as ACP 确认桥
-  participant C as 客户端
-  R->>A: 待确认的 tool_id 与参数
-  A->>C: request_permission：sessionId、toolCallId、options
-  alt 用户选择允许
-    C-->>A: 原 id + selected optionId
-    A-->>R: 此次调用的确认结果
-    R->>R: 在原权限与沙箱约束内执行
-  else 用户拒绝、超时或断线
-    C-->>A: 拒绝、取消或无有效答复
-    A-->>R: 此次调用不获批准
-    R->>R: 不执行，记录拒绝原因
-  end
+  accTitle: ACP 确认请求的完整往返
+  accDescr: 展示、回答和执行分别记录。取消确认也必须回到原请求。
+  autonumber
+  participant core as Core
+  participant adapter as ACP 适配器
+  participant client as 客户端
+  participant user as 用户
+  core->>adapter: ConfirmationRequired
+  adapter->>client: request_permission
+  client->>user: 显示本次工具参数
+  user-->>client: 选择确认结果
+  client-->>adapter: 返回原始选项 ID
+  adapter-->>core: 提交匹配回答

@@ -1,12 +1,14 @@
 flowchart TB
-  accTitle: 上下文如何进入模型请求
-  accDescr: 宿主接入的上下文来源先保留各来源最新贡献，再去重排序。必需项保留，其他项受总预算与每来源预算限制，形成供模型使用的上下文。
-  A[项目规则与系统指令] --> D[各来源的 ContextResult]
-  B[会话历史与摘要] --> D
-  C[检索、Skills 与已激活记忆] --> D
-  D --> E[保留同一来源的最新贡献]
-  E --> F[按身份去重与优先级排序]
-  F --> G[保留必需项]
-  G --> H[其余项按总量与每来源预算选择]
-  H --> I[ContextAssembly]
-  I --> J[模型请求]
+  accTitle: 模型看到的上下文怎样选出
+  accDescr: 上下文是模型输入的投影。裁剪上下文不会删除事实日志。
+  sources["收集来源<br/>ContextResult"]
+  latest["保留最新贡献<br/>按来源替换"]
+  dedupe["合并重复条目<br/>内容身份"]
+  rank["排序候选<br/>优先级与评分"]
+  budget["应用预算<br/>条目与令牌"]
+  frame["形成模型输入<br/>本轮上下文"]
+  sources --> latest
+  latest --> dedupe
+  dedupe --> rank
+  rank --> budget
+  budget --> frame
