@@ -3924,5 +3924,28 @@
     "managed_policy": "docs/evidence/gateway/2026-10-25-neural-auto-readiness/selected-auto-policy.acl",
     "source_base_revision": "d97ab61b430115253949ec7dac59f9603646b6a1",
     "private_acl_or_credentials_imported": false
+  },
+  "aster_tui_windows_integration_20261028": {
+    "aster_version": "0.1.4",
+    "core_version": "9.1.6",
+    "acp_version": "9.1.6",
+    "public_code_main_revision": "cfaa22e8f1fca7ad1bfe132ac97ce7be930071f2",
+    "public_code_main_version": "9.1.4",
+    "source": "Aster-authored Windows observation and verification integration over the maintained local Code sources",
+    "model": "kimi/k3.1-pro",
+    "evidence": "docs/evidence/tui/2026-10-28-kimi-k31-source-integration/OUTCOME.md",
+    "private_acl_or_credentials_imported": false
+  },
+  "aster_tui_linux_qualification_20261028": {
+    "aster_version": "0.1.4",
+    "core_version": "9.1.6",
+    "acp_version": "9.1.6",
+    "target": "x86_64-unknown-linux-gnu",
+    "host": "Ubuntu 24.04.3 LTS on WSL2",
+    "source": "Maintained local Aster/Code sources with Aster-authored Unix PTY test adapters",
+    "source_pair_build_id": "aster-cli-pair-v1:09f5a18bf9767c1da42011f8a2314d1609691344:x86_64-unknown-linux-gnu",
+    "model": "kimi/k3.1-pro",
+    "evidence": "docs/evidence/tui/2026-10-28-wsl-linux-k31-source-integration/OUTCOME.md",
+    "private_acl_or_credentials_imported": false
   }
 }

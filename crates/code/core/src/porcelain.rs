@@ -11,10 +11,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
-#[cfg(any(unix, test))]
+#[cfg(any(unix, windows, test))]
 use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
+
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+use windows::{directory_entries, node_stamp, observe_identity_windows};
 
 /// `git status -u` on a large worktree takes longer than a few hundred
 /// milliseconds. A shorter budget made porcelain return nothing, and the
@@ -939,7 +944,7 @@ fn node_stamp(relative: &str, stat: &libc::stat) -> Option<NodeStamp> {
     })
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn node_stamp(_relative: &str, _stat: &()) -> Option<NodeStamp> {
     None
 }
@@ -1163,7 +1168,9 @@ fn stamp_paths(
         *path_budget -= 1;
         #[cfg(unix)]
         let stamp = observe_identity_unix(root, path, byte_budget, true);
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        let stamp = observe_identity_windows(root, path, byte_budget, true);
+        #[cfg(not(any(unix, windows)))]
         let stamp = observe_file_identity(root, path, byte_budget);
         match stamp {
             Some(stamp) => stamps.push(stamp),
@@ -1252,7 +1259,11 @@ pub(crate) fn observe_file_identity(
     {
         observe_identity_unix(root, relative, budget, false)
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        observe_identity_windows(root, relative, budget, false)
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         // Never substitute a following open on platforms where this observer
         // has no descriptor-anchored implementation. Receipts stay incomplete.
@@ -1287,7 +1298,7 @@ fn tool_file_identity(stamp: &ContentStamp) -> Option<a3s_effect::ToolFileIdenti
     })
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn missing_identity(relative: &str) -> ContentStamp {
     ContentStamp {
         path: relative.to_string(),
@@ -1302,7 +1313,7 @@ fn missing_identity(relative: &str) -> ContentStamp {
     }
 }
 
-#[cfg(any(unix, test))]
+#[cfg(any(unix, windows, test))]
 fn read_content_digest(reader: &mut impl Read, len: u64, budget: &mut u64) -> Option<String> {
     if len > *budget {
         return None;
@@ -1327,7 +1338,7 @@ fn read_content_digest(reader: &mut impl Read, len: u64, budget: &mut u64) -> Op
     (read == len).then(|| format!("{:x}", digest.finalize()))
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn relative_components(relative: &Path) -> Option<Vec<&std::ffi::OsStr>> {
     let mut parts = Vec::new();
     for part in relative.components() {
@@ -1726,7 +1737,7 @@ fn directory_errno() -> Option<*mut libc::c_int> {
     None
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn directory_entries(
     _root: &Path,
     _relative: &Path,
