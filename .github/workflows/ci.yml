@@ -55,6 +55,8 @@ jobs:
         run: python3 tests/studio_checkout.py
       - name: CLI pair delivery
         run: python3 tests/cli_pair_delivery.py
+      - name: Release tag and channel governance
+        run: python3 tests/release_governance.py
       - name: Linux CLI glibc baseline and installer
         run: python3 tests/aster_cli_linux.py
       - name: Kylin input method launcher

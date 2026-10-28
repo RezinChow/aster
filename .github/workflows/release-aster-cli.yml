@@ -37,6 +37,7 @@ jobs:
           python3 tests/cli_pair_delivery.py
           python3 tests/aster_cli_linux.py
           python3 tests/cli_release_workflow.py
+          python3 tests/release_governance.py
 
   build:
     needs: preflight

@@ -1,58 +1,6 @@
 {
-  "spec": {
-    "type": "sequence",
-    "title": "恢复会话时先证明来源",
-    "subtitle": "重放事实恢复控制状态。结果不明的外部操作仍需核实。",
-    "numbered": true,
-    "participants": [
-      {
-        "id": "host",
-        "label": "宿主"
-      },
-      {
-        "id": "snapshot",
-        "label": "检查点"
-      },
-      {
-        "id": "log",
-        "label": "事实日志"
-      },
-      {
-        "id": "run",
-        "label": "恢复的会话"
-      }
-    ],
-    "messages": [
-      [
-        "host",
-        "snapshot",
-        "读取身份与缓存"
-      ],
-      [
-        "host",
-        "log",
-        "核对原始事实",
-        "primary"
-      ],
-      [
-        "log",
-        "run",
-        "恢复控制投影",
-        "primary"
-      ],
-      [
-        "run",
-        "host",
-        "报告未决副作用",
-        "reply"
-      ]
-    ],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "恢复会话时先证明来源",
+  "description": "重放事实恢复控制状态。结果不明的外部操作仍需核实。",
   "steps": [
     {
       "title": "检查点用于接续上下文",

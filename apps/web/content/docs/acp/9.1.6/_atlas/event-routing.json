@@ -1,64 +1,6 @@
 {
-  "spec": {
-    "type": "sequence",
-    "title": "事件怎样变成界面中的一行",
-    "subtitle": "文字、推理和工具输出分别映射。工具行复用原始调用 ID。",
-    "numbered": true,
-    "participants": [
-      {
-        "id": "core",
-        "label": "Core"
-      },
-      {
-        "id": "adapter",
-        "label": "ACP 适配器"
-      },
-      {
-        "id": "client",
-        "label": "客户端"
-      }
-    ],
-    "messages": [
-      [
-        "core",
-        "adapter",
-        "TextDelta"
-      ],
-      [
-        "adapter",
-        "client",
-        "agent_message_chunk",
-        "primary"
-      ],
-      [
-        "core",
-        "adapter",
-        "ToolExecutionStart"
-      ],
-      [
-        "adapter",
-        "client",
-        "tool_call",
-        "primary"
-      ],
-      [
-        "core",
-        "adapter",
-        "ToolEnd"
-      ],
-      [
-        "adapter",
-        "client",
-        "tool_call_update",
-        "primary"
-      ]
-    ],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "事件怎样变成界面中的一行",
+  "description": "文字、推理和工具输出分别映射。工具行复用原始调用 ID。",
   "steps": [
     {
       "title": "文本增量直接流向界面",

@@ -1,65 +1,6 @@
 {
-  "spec": {
-    "type": "architecture",
-    "title": "自己的终端智能体需要哪些部分",
-    "subtitle": "界面显示事件。宿主持有会话和确认管理器。",
-    "nodes": [
-      {
-        "id": "ui",
-        "label": "终端界面",
-        "sub": "键盘与消息",
-        "row": 0,
-        "col": 0
-      },
-      {
-        "id": "host",
-        "label": "Rust 宿主",
-        "sub": "会话与存储",
-        "row": 0,
-        "col": 1
-      },
-      {
-        "id": "session",
-        "label": "Core 会话",
-        "sub": "AgentSession",
-        "row": 0,
-        "col": 2,
-        "focal": true
-      },
-      {
-        "id": "events",
-        "label": "运行事件",
-        "sub": "增量与回执",
-        "row": 1,
-        "col": 2
-      }
-    ],
-    "edges": [
-      [
-        "ui",
-        "host",
-        "",
-        "primary"
-      ],
-      [
-        "host",
-        "session",
-        "",
-        "primary"
-      ],
-      [
-        "session",
-        "events",
-        "",
-        "primary"
-      ]
-    ],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "自己的终端智能体需要哪些部分",
+  "description": "界面显示事件。宿主持有会话和确认管理器。",
   "steps": [
     {
       "title": "界面只处理交互",

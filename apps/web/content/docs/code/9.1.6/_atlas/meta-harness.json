@@ -1,66 +1,6 @@
 {
-  "spec": {
-    "type": "exploded",
-    "title": "把可组合部分与固定约束分开",
-    "subtitle": "这是一张软件概念拆解图。层间距离不表示进程或部署位置。",
-    "parts": [
-      {
-        "id": "kernel",
-        "label": "Core 固定约束",
-        "sub": "权限 / 完成 / 资源",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "facts",
-        "label": "同一份事实日志",
-        "sub": "状态与原始回执",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "system",
-        "label": "系统与工具组件",
-        "sub": "system + tools",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": true
-      },
-      {
-        "id": "control",
-        "label": "预算与压缩组件",
-        "sub": "budget + compact",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "infer",
-        "label": "模型调度组件",
-        "sub": "infer",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      }
-    ],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "把可组合部分与固定约束分开",
+  "description": "软件职责按层排列，不表示进程或部署位置。",
   "steps": [
     {
       "title": "先看底座",

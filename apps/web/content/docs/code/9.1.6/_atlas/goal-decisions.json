@@ -1,67 +1,6 @@
 {
-  "spec": {
-    "type": "state",
-    "title": "推进前可能遇到的决定",
-    "subtitle": "每个方框是一种 tick 决定。排列用于对照，不表示状态迁移。",
-    "nodes": [
-      {
-        "id": "input",
-        "label": "需要输入",
-        "sub": "NeedsInput",
-        "row": 0,
-        "col": 0
-      },
-      {
-        "id": "advance",
-        "label": "允许推进",
-        "sub": "Advance",
-        "row": 0,
-        "col": 1
-      },
-      {
-        "id": "wait",
-        "label": "等待条件",
-        "sub": "Wait",
-        "row": 0,
-        "col": 2,
-        "focal": true
-      },
-      {
-        "id": "paused",
-        "label": "用户暂停",
-        "sub": "Paused",
-        "row": 1,
-        "col": 2
-      },
-      {
-        "id": "budget",
-        "label": "预算耗尽",
-        "sub": "BudgetExhausted",
-        "row": 1,
-        "col": 1
-      },
-      {
-        "id": "reconcile",
-        "label": "先核对旧运行",
-        "sub": "Reconcile",
-        "row": 1,
-        "col": 0
-      },
-      {
-        "id": "done",
-        "label": "目标已完成",
-        "sub": "Complete",
-        "row": 2,
-        "col": 0
-      }
-    ],
-    "edges": [],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "推进前可能遇到的决定",
+  "description": "每个方框是一种 tick 决定。排列用于对照，不表示状态迁移。",
   "steps": [
     {
       "title": "只有 Advance 才启动本轮",

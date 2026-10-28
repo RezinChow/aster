@@ -1,66 +1,6 @@
 {
-  "spec": {
-    "type": "exploded",
-    "title": "一份系统提示词由哪些层组成",
-    "subtitle": "分层表示解释顺序。完整拼接次序见下方源码漫游。",
-    "parts": [
-      {
-        "id": "base",
-        "label": "基础角色与行为",
-        "sub": "SYSTEM_DEFAULT",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "runtime",
-        "label": "运行契约与工具契约",
-        "sub": "RUNTIME_CONTRACT",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "boundaries",
-        "label": "共同安全边界",
-        "sub": "BOUNDARIES",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": true
-      },
-      {
-        "id": "host",
-        "label": "宿主工作要求",
-        "sub": "WorkPolicy / slots",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      },
-      {
-        "id": "turn",
-        "label": "本轮补充上下文",
-        "sub": "验证清单 / 回复语言",
-        "w": 240,
-        "d": 150,
-        "t": 12,
-        "kind": "slab",
-        "focal": false
-      }
-    ],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "一份系统提示词由哪些层组成",
+  "description": "分层表示解释顺序。完整拼接次序见下方源码漫游。",
   "steps": [
     {
       "title": "模型先知道职责",

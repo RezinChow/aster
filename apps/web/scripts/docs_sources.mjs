@@ -21,7 +21,7 @@ export function createSourceReferences(sourceRef, repositoryRoot, cache = new Ma
     const value = source.split('\n').slice(start - 1, end).join('\n');
     const lines = `L${start}${end > start ? `-L${end}` : ''}`;
     const href = `${sourceRepository}/blob/${sourceRef}/${path}#${lines}`;
-    return { href, path, lines, first: start, value, focus: first - start + 1 };
+    return { href, path, lines, first: start, value, focus: first - start + 1, focusEnd: last - start + 1 };
   }
 
   function SourceRef({ path, match, children, before = 0, after = 0 }) {
@@ -34,10 +34,10 @@ export function createSourceReferences(sourceRef, repositoryRoot, cache = new Ma
   // React renders this after the article, once its inline citations have been collected.
   function SourceList() {
     if (!references.size) return null;
-    return h('nav', { className: 'page-sources', 'aria-label': '本页源码' },
-      h('p', { className: 'nav-label' }, '本页源码'),
-      ...[...references.values()].map(({ href, path, lines, label }) => h('a', { key: href, href, title: path },
-        h('strong', null, label), h('span', null, `${path.split('/').at(-1)} · ${lines} ↗`))));
+    return h('details', { className: 'page-sources', open: references.size <= 3 },
+      h('summary', null, h('span', null, '本页源码'), h('span', { className: 'source-count' }, String(references.size))),
+      h('nav', { 'aria-label': '本页源码' }, ...[...references.values()].map(({ href, path, lines, label }) => h('a', { key: href, href, title: path },
+        h('strong', null, label), h('span', null, `${path.split('/').at(-1)} · ${lines} ↗`)))));
   }
 
   return { SourceRef, SourceList, resolve };

@@ -1,54 +1,6 @@
 {
-  "spec": {
-    "type": "sequence",
-    "title": "一次确认如何回到原调用",
-    "subtitle": "策略决定 Ask 后，宿主等待明确回答。计时器不会生成批准。",
-    "numbered": true,
-    "participants": [
-      {
-        "id": "core",
-        "label": "Core"
-      },
-      {
-        "id": "host",
-        "label": "宿主"
-      },
-      {
-        "id": "user",
-        "label": "用户"
-      }
-    ],
-    "messages": [
-      [
-        "core",
-        "host",
-        "请求确认",
-        "primary"
-      ],
-      [
-        "host",
-        "user",
-        "显示准确参数"
-      ],
-      [
-        "user",
-        "host",
-        "回答本次请求",
-        "reply"
-      ],
-      [
-        "host",
-        "core",
-        "绑定原调用 ID",
-        "reply"
-      ]
-    ],
-    "lang": "zh-CN",
-    "fonts": "system",
-    "skin": "light",
-    "legend": false,
-    "motion": "auto"
-  },
+  "title": "一次确认如何回到原调用",
+  "description": "策略决定 Ask 后，宿主等待明确回答。计时器不会生成批准。",
   "steps": [
     {
       "title": "先绑定调用",

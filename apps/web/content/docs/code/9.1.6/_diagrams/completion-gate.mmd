@@ -1,18 +1,14 @@
-flowchart TB
-  accTitle: 完成证据如何决定任务能否结束
-  accDescr: 完成门禁先检查结果不明的操作、外部观察、未处理子任务和不完整观察，再判断无修改、豁免或绑定当前摘要的验证；通过门禁后仍须完成资源清理。
-  A[模型提出结束] --> B{存在未解决的操作、观察或子任务}
-  B -->|是| C[Continue 或 Incomplete]
-  B -->|否| D{修改账本为空}
-  D -->|是| E[Narrative]
-  D -->|否| F{宿主豁免绑定当前摘要}
-  F -->|是| G[Waived]
-  F -->|否| H{Passed 报告绑定当前摘要}
-  H -->|是| I[Verified]
-  H -->|否| J[Incomplete：补齐验证依据]
-  E --> K[等待资源清理]
-  G --> K
-  I --> K
-  K --> L{清理完成且未取消}
-  L -->|是| M[返回相应完成状态]
-  L -->|否| N[返回取消或清理失败]
+flowchart LR
+  accTitle: 结束前必须逐项核对
+  accDescr: 这是门禁的判定顺序。任一前置条件未满足，运行保留缺口。
+  effects["副作用已结清<br/>原始回执"]
+  external["外部观察已处理<br/>当前对象"]
+  children["子任务已观察<br/>工作区影响"]
+  complete["修改观察完整<br/>完整摘要"]
+  proof["验证或豁免<br/>匹配当前摘要"]
+  terminal["允许结束<br/>最终完成状态"]
+  effects --> external
+  external --> children
+  children --> complete
+  complete --> proof
+  proof --> terminal
