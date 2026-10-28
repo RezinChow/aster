@@ -14,6 +14,30 @@ identity was checked before stopping, and port 7101 has no remaining listener;
 see `preview-stopped.json`. Historical HTTP read-back of three pages and all
 three reading assets matches the source bytes; see `preview-verification.json`.
 The user subsequently authorized committing and pushing this version to main.
+The source commit `3a8b8235c59e554dab3a9d98906e35ad872c7697` was pushed to
+`origin/main` as a fast-forward from `aeeb815338fd602b6b0cb06dd455a7d209f0a9a7`.
+The isolated checkout needed no merge conflict resolution; the root checkout's
+unrelated working changes were not staged or modified.
+
+## Publication read-back
+
+The [Aster website workflow](https://github.com/aster-ai-lab/aster/actions/runs/40783193490)
+completed both validation and Pages deployment successfully. Its Linux run
+passed all 95 Node tests and 20 Python tests and checked 89 documents / 150
+routes. Actual job results and logs are retained in `pages-run.json` and
+`pages-ci.log`.
+
+The [published source walk](https://aster-ai-lab.github.io/aster/docs/code/9.1.6/internals/system-prompts/)
+and all other public deployment files were read back over HTTPS. All 198 files
+returned 200 and exactly matched the SHA-256 hashes of the checked local
+deployment package. All six README diagram exports match the committed Git
+blobs. See `stage-published.json` and `live-site-verification.json`.
+
+The homepage and download page both link to the six latest published stable
+installation assets selected by the actual release builder. All six assets
+returned 200: macOS desktop 0.1.4, Windows desktop 0.1.1, Kylin desktop 0.1.2,
+and all three CLI packages 0.1.4. Draft releases remain excluded. This verifies
+the links and availability, not installation or application behavior.
 
 ## Design and behavior
 
@@ -117,8 +141,8 @@ opacity is 1.
 
 ## Explicitly not claimed
 
-No Rust runtime, model prompt, evaluation input, grader, SDK binding, application
-account behavior or production deployment was changed or qualified by this
-preview. No physical mobile-device testing or native clipboard permission
+No Rust runtime, model prompt, evaluation input, grader, SDK binding or application
+account behavior was changed or qualified by this website publication. No release
+binary was rebuilt or installed. No physical mobile-device testing or native clipboard permission
 qualification is claimed. The mobile evidence uses Chromium viewports, and the
 clipboard evidence validates the payload at the browser API boundary.
