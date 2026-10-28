@@ -61,12 +61,10 @@ search {
     let deepseek = search.engines.get("deepseek").expect("deepseek");
     assert!(doubao.weight > deepseek.weight);
     assert!(doubao.api_key.as_deref().is_some_and(|key| !key.is_empty()));
-    assert!(
-        deepseek
-            .api_key
-            .as_deref()
-            .is_some_and(|key| !key.is_empty())
-    );
+    assert!(deepseek
+        .api_key
+        .as_deref()
+        .is_some_and(|key| !key.is_empty()));
     assert_eq!(
         enabled_engine_names(&search.engines),
         ["doubao".to_string(), "deepseek".to_string()]
@@ -536,11 +534,9 @@ async fn real_builtin_default_search_uses_external_probe_query() {
     );
     let metadata = result.metadata.expect("default search metadata");
     assert_eq!(metadata["engine_selection_source"], "builtin_default");
-    assert!(
-        metadata["selected_engines"]
-            .as_array()
-            .is_some_and(|engines| !engines.is_empty())
-    );
+    assert!(metadata["selected_engines"]
+        .as_array()
+        .is_some_and(|engines| !engines.is_empty()));
     let summaries = items
         .as_array()
         .expect("search result array")
@@ -812,37 +808,29 @@ fn test_web_search_schema_is_canonical() {
     // Example with engines should use array format
     assert!(examples[1]["engines"].is_array());
     assert_eq!(examples[1]["engines"].as_array().unwrap(), &["ddg", "wiki"]);
-    assert!(
-        params["properties"]["engines"]["description"]
-            .as_str()
-            .is_some_and(|description| {
-                description.contains("bing (Bing RSS)")
-                    && description.contains("anysearch")
-                    && description.contains("tavily")
-            })
-    );
+    assert!(params["properties"]["engines"]["description"]
+        .as_str()
+        .is_some_and(|description| {
+            description.contains("bing (Bing RSS)")
+                && description.contains("anysearch")
+                && description.contains("tavily")
+        }));
     #[cfg(feature = "headless-search")]
-    assert!(
-        params["properties"]["engines"]["description"]
-            .as_str()
-            .is_some_and(|description| description.contains("Google, headless"))
-    );
+    assert!(params["properties"]["engines"]["description"]
+        .as_str()
+        .is_some_and(|description| description.contains("Google, headless")));
     #[cfg(feature = "headless-search")]
-    assert!(
-        params["properties"]["engines"]["description"]
-            .as_str()
-            .is_some_and(|description| {
-                description.contains("bing_browser")
-                    && description.contains("brave_browser")
-                    && description.contains("Moli")
-            })
-    );
+    assert!(params["properties"]["engines"]["description"]
+        .as_str()
+        .is_some_and(|description| {
+            description.contains("bing_browser")
+                && description.contains("brave_browser")
+                && description.contains("Moli")
+        }));
     #[cfg(not(feature = "headless-search"))]
-    assert!(
-        params["properties"]["engines"]["description"]
-            .as_str()
-            .is_some_and(|description| !description.contains("Google"))
-    );
+    assert!(params["properties"]["engines"]["description"]
+        .as_str()
+        .is_some_and(|description| !description.contains("Google")));
 }
 
 #[test]
@@ -1397,8 +1385,8 @@ fn configured_api_endpoint_accepts_loopback_http() {
 #[tokio::test]
 #[ignore = "S-WS-01 soak: loopback search fixture connection and byte caps"]
 async fn soak_web_search_loopback_fixture_stays_connection_and_byte_capped() {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::Arc;
     use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
@@ -1649,10 +1637,8 @@ async fn deferred_moli_resolution_uses_the_configured_executable() {
     assert_eq!(runtime.max_tabs, Some(3));
     let pending = headless_runtime(config, true).1.unwrap();
     std::fs::remove_file(&executable).unwrap();
-    assert!(
-        pending
-            .await
-            .unwrap_err()
-            .contains("configured Moli executable")
-    );
+    assert!(pending
+        .await
+        .unwrap_err()
+        .contains("configured Moli executable"));
 }

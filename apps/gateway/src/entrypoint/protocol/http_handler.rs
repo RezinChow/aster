@@ -16,8 +16,8 @@ use arc_swap::ArcSwap;
 use bytes::Bytes;
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use http::{HeaderValue, Response};
-use hyper::body::Body as _;
 use http_body_util::BodyExt;
+use hyper::body::Body as _;
 use std::sync::Arc;
 
 pub(super) async fn with_inference_metrics(
@@ -48,8 +48,11 @@ pub(super) async fn with_inference_metrics(
                         let seconds = request_start.elapsed().as_secs_f64().max(0.001);
                         let rate = tokens as f64 / seconds;
                         if let Ok(value) = HeaderValue::from_str(&format!("{rate:.2}")) {
-                            let mut response = Response::from_parts(parts, ResponseBody::full(bytes));
-                            response.headers_mut().insert("x-a3s-tokens-per-second", value);
+                            let mut response =
+                                Response::from_parts(parts, ResponseBody::full(bytes));
+                            response
+                                .headers_mut()
+                                .insert("x-a3s-tokens-per-second", value);
                             return response;
                         }
                     }

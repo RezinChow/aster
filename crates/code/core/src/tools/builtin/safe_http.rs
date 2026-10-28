@@ -8,8 +8,8 @@
 //! DNS-over-HTTPS against `1.1.1.1`. DoH answers are still subject to the same
 //! public-address SSRF checks before any connection is opened.
 
-use reqwest::header::{ACCEPT, ACCEPT_ENCODING, HeaderMap, LOCATION, RANGE};
-use reqwest::{Url, redirect::Policy};
+use reqwest::header::{HeaderMap, ACCEPT, ACCEPT_ENCODING, LOCATION, RANGE};
+use reqwest::{redirect::Policy, Url};
 use std::fmt;
 use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -777,11 +777,9 @@ mod tests {
             ]
         );
         assert!(parse_doh_answer_ips(r#"{"Status":2}"#, 443).is_err());
-        assert!(
-            parse_doh_answer_ips(r#"{"Status":0}"#, 443)
-                .unwrap()
-                .is_empty()
-        );
+        assert!(parse_doh_answer_ips(r#"{"Status":0}"#, 443)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -812,9 +810,7 @@ mod tests {
         let next = Url::parse("https://EXAMPLE.com/other").unwrap();
         let mut headers = HeaderMap::new();
         headers.insert(reqwest::header::IF_RANGE, "\"v1\"".parse().unwrap());
-        assert!(
-            redirect_headers(&current, &next, &headers).contains_key(reqwest::header::IF_RANGE)
-        );
+        assert!(redirect_headers(&current, &next, &headers).contains_key(reqwest::header::IF_RANGE));
     }
 
     #[tokio::test]

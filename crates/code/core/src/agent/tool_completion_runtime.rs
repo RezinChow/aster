@@ -1,8 +1,8 @@
+use super::execution_state::ExecutionLoopState;
+use super::tool_result_runtime::{push_tool_result_message, NormalizedToolResult};
 use super::AgentEvent;
 #[cfg(test)]
 use super::AgentLoop;
-use super::execution_state::ExecutionLoopState;
-use super::tool_result_runtime::{NormalizedToolResult, push_tool_result_message};
 use crate::llm::ToolCall;
 use std::time::Instant;
 use tokio::sync::mpsc;

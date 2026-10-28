@@ -268,8 +268,8 @@ fn splice(haystack: &str, spans: &[(usize, usize)], replacement: &str) -> String
 #[cfg(test)]
 mod tests {
     use super::{
-        LineEndingEditError, NewlineClass, NewlineStyle, apply_line_ending_edit, classify_newlines,
-        preserve_newline_style, truncate_utf8,
+        apply_line_ending_edit, classify_newlines, preserve_newline_style, truncate_utf8,
+        LineEndingEditError, NewlineClass, NewlineStyle,
     };
 
     #[test]

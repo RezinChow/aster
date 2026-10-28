@@ -523,11 +523,9 @@ mod tests {
             .unwrap();
 
         assert!(!result.success);
-        assert!(
-            result
-                .content
-                .contains("expected 3 replacement(s), found 2")
-        );
+        assert!(result
+            .content
+            .contains("expected 3 replacement(s), found 2"));
         assert_eq!(std::fs::read_to_string(path).unwrap(), "alpha alpha");
     }
 

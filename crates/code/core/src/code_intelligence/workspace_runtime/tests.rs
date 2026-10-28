@@ -1,5 +1,5 @@
 use super::*;
-use crate::code_intelligence::{CodeRange, LanguageId, project_layout::ProjectLayoutResolver};
+use crate::code_intelligence::{project_layout::ProjectLayoutResolver, CodeRange, LanguageId};
 use crate::workspace::{LocalWorkspaceBackend, LocalWorkspaceFile, LocalWorkspaceFileStatus};
 
 fn snapshot(root: &Path, version: u64, paths: &[&str]) -> LocalWorkspaceManifestSnapshot {
@@ -156,12 +156,10 @@ async fn missing_language_program_is_unavailable_before_the_first_query() {
 
     let status = runtime.subscribe_status().borrow().clone();
     assert_eq!(status.state, CodeIntelligenceState::Unavailable);
-    assert!(
-        status.languages[0]
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains("a3s-missing-language-server"))
-    );
+    assert!(status.languages[0]
+        .message
+        .as_deref()
+        .is_some_and(|message| message.contains("a3s-missing-language-server")));
     let error = runtime
         .document_symbols(
             &WorkspacePath::from_normalized("src/lib.rs"),

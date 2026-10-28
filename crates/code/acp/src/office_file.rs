@@ -8,12 +8,12 @@ use a3s_office::{
     NativeOfficeDocument, NativeOfficeEditor, NativeOfficeImage, NativeOfficeMutation,
     NativeSpreadsheetCellFormat, SpreadsheetCellValue, SpreadsheetFormulaValue,
 };
-use anyhow::{Result, bail, ensure};
+use anyhow::{bail, ensure, Result};
 use async_trait::async_trait;
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, OpenOptionsSyncExt};
 use cap_std::fs::{Dir, OpenOptions};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 const MAX_INPUT_BYTES: usize = 1024 * 1024;

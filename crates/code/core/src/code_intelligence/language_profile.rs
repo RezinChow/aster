@@ -3,7 +3,7 @@
 use super::project_layout::{ProjectLanguageProfile, ProjectLayout, ProjectMarkerKind};
 use crate::language::LanguageCatalog;
 use crate::workspace::WorkspacePath;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -521,12 +521,12 @@ fn protocol_path(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{LanguageServerProfile, ServerTopology, protocol_path};
+    use super::{protocol_path, LanguageServerProfile, ServerTopology};
     use crate::code_intelligence::project_layout::{ProjectLanguageProfile, ProjectLayoutResolver};
     use crate::workspace::{
         LocalWorkspaceFile, LocalWorkspaceFileStatus, LocalWorkspaceManifestSnapshot,
     };
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
 
@@ -565,11 +565,9 @@ mod tests {
             panic!("four built-in profiles");
         };
         assert!(rust.requires_server_status());
-        assert!(
-            [web, python, native]
-                .iter()
-                .all(|profile| !profile.requires_server_status())
-        );
+        assert!([web, python, native]
+            .iter()
+            .all(|profile| !profile.requires_server_status()));
         assert!(!LanguageServerProfile::rust("custom-rust-server").requires_server_status());
 
         assert_eq!(
@@ -602,11 +600,9 @@ mod tests {
                 profile.initialization_options(Path::new("/w"), &layout),
                 Value::Null
             );
-            assert!(
-                profile
-                    .workspace_settings(Path::new("/w"), &layout)
-                    .is_empty()
-            );
+            assert!(profile
+                .workspace_settings(Path::new("/w"), &layout)
+                .is_empty());
         }
 
         assert_eq!(rust.command().program, PathBuf::from("rust-analyzer"));

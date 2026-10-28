@@ -11,7 +11,7 @@ use crate::moli_runtime::ensure_moli;
 use crate::tools::types::{Tool, ToolContext, ToolErrorKind, ToolOutput};
 #[cfg(feature = "headless-search")]
 use a3s_search::product::PendingHeadlessRuntime;
-use a3s_search::product::{CascadeControls, CascadeRequest, HeadlessBrowser, execute_cascade};
+use a3s_search::product::{execute_cascade, CascadeControls, CascadeRequest, HeadlessBrowser};
 use a3s_search::proxy::ProxyConfig;
 use a3s_search::{
     EngineTierPlan, Metrics, MetricsSnapshot, SearchCoalescerSnapshot, SearchQuery, SearchResult,
@@ -50,7 +50,8 @@ const WEB_SEARCH_DESCRIPTION: &str = "When saved notes are available, this tool 
      Supports proxy configuration for conventional search transports.";
 
 #[cfg(feature = "headless-search")]
-const ENGINE_CATALOG_DESCRIPTION: &str = "Optional. List of search engines or native providers to use. Without explicit configuration, \
+const ENGINE_CATALOG_DESCRIPTION: &str =
+    "Optional. List of search engines or native providers to use. Without explicit configuration, \
      all built-in providers that advertise anonymous access are combined with the public HTTP \
      defaults. Available: anysearch (anonymous or authenticated native provider), tavily (keyless \
      or authenticated native provider), ddg (DuckDuckGo), brave (Brave Search), bing (Bing RSS), \
@@ -62,7 +63,8 @@ const ENGINE_CATALOG_DESCRIPTION: &str = "Optional. List of search engines or na
      Lightpanda remain explicit compatibility backends.";
 
 #[cfg(not(feature = "headless-search"))]
-const ENGINE_CATALOG_DESCRIPTION: &str = "Optional. List of search engines or native providers to use. Without explicit configuration, \
+const ENGINE_CATALOG_DESCRIPTION: &str =
+    "Optional. List of search engines or native providers to use. Without explicit configuration, \
      all built-in providers that advertise anonymous access are combined with the public HTTP \
      defaults. Available: anysearch (anonymous or authenticated native provider), tavily (keyless \
      or authenticated native provider), ddg (DuckDuckGo), brave (Brave Search), bing (Bing RSS), \

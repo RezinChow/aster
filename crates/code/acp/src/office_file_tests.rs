@@ -5,8 +5,8 @@ use a3s_code_core::llm::{
     ContentBlock, LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition,
 };
 use std::sync::{
-    Arc,
     atomic::{AtomicUsize, Ordering},
+    Arc,
 };
 
 #[path = "office_file_tests/nested_verification.rs"]
@@ -278,12 +278,10 @@ async fn authority_revoked_at_publication_removes_staging_and_releases_the_write
         Ok(())
     })
     .await;
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("authority revoked")
-    );
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("authority revoked"));
     assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
     assert!(!a3s_code_core::external_observation::session_owns_write(
         ctx.session_id.as_deref().unwrap(),
@@ -336,10 +334,9 @@ async fn artifact_verification_is_bound_to_the_created_path_and_saved_bytes() {
             "accepted {key}"
         );
     }
-    assert!(
-        tool.artifact_verification(&workbook("other.xlsx"), &output)
-            .is_none()
-    );
+    assert!(tool
+        .artifact_verification(&workbook("other.xlsx"), &output)
+        .is_none());
 }
 
 #[tokio::test]
@@ -455,13 +452,11 @@ async fn presentation_embeds_a_real_png_chart_below_the_title_inside_the_slide()
         .part_names()
         .find(|part| part.starts_with("ppt/media/"))
         .unwrap();
-    assert!(
-        document
-            .package()
-            .part(media)
-            .unwrap()
-            .starts_with(b"\x89PNG\r\n\x1a\n")
-    );
+    assert!(document
+        .package()
+        .part(media)
+        .unwrap()
+        .starts_with(b"\x89PNG\r\n\x1a\n"));
 }
 
 #[tokio::test]
@@ -509,11 +504,9 @@ async fn native_workbook_saves_reopens_and_preserves_typed_cells_and_sheet_names
     let receipt: Value = serde_json::from_str(&output.content).unwrap();
     assert_eq!(receipt["validated"], true);
     assert!(receipt["readback"].as_str().unwrap().contains("R01"));
-    assert!(
-        std::fs::read(root.path().join("result.xlsx"))
-            .unwrap()
-            .starts_with(b"PK")
-    );
+    assert!(std::fs::read(root.path().join("result.xlsx"))
+        .unwrap()
+        .starts_with(b"PK"));
     assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
 }
 
@@ -563,11 +556,9 @@ async fn native_presentation_contains_all_requested_slides_and_saved_text() {
         .collect();
     boxes.sort_unstable();
     assert_eq!(boxes.len(), 4);
-    assert!(
-        boxes
-            .iter()
-            .all(|&(top, bottom)| top >= 0 && bottom <= 190_500)
-    );
+    assert!(boxes
+        .iter()
+        .all(|&(top, bottom)| top >= 0 && bottom <= 190_500));
     assert!(boxes.windows(2).all(|pair| pair[0].1 <= pair[1].0));
 }
 
@@ -668,12 +659,10 @@ async fn replaced_workspace_root_is_not_followed() {
     let outside = tempfile::tempdir().unwrap();
     std::fs::rename(&root, base.path().join("old-workspace")).unwrap();
     std::os::unix::fs::symlink(outside.path(), &root).unwrap();
-    assert!(
-        create(&workbook("result.xlsx"), &ctx, || binding
-            .validate(&ctx.workspace))
-        .await
-        .is_err()
-    );
+    assert!(create(&workbook("result.xlsx"), &ctx, || binding
+        .validate(&ctx.workspace))
+    .await
+    .is_err());
     assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
 }
 

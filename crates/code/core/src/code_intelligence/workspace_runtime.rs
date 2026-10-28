@@ -14,29 +14,29 @@ use std::{
     panic::AssertUnwindSafe,
     path::Path,
     sync::{
-        Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
     },
     time::{Duration, Instant},
 };
 
-use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
+use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 use tokio::{
-    sync::{Mutex, RwLock, oneshot, watch},
+    sync::{oneshot, watch, Mutex, RwLock},
     task::AbortHandle,
 };
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    CodeDiagnostic, CodeIntelligenceCapabilities, CodeIntelligenceError,
-    CodeIntelligenceLanguageStatus, CodeIntelligenceResult, CodeIntelligenceState,
-    CodeIntelligenceStatus, CodeLocation, CodePosition, CodeQueryResult, DocumentSymbol,
-    NavigationKind, SymbolInformation,
     diagnostics::DiagnosticsStore,
     document_store::DocumentStore,
     language_profile::LanguageServerProfile,
     language_runtime::{LanguageRuntime, LanguageRuntimeError},
     project_layout::{ProjectLanguageProfile, ProjectLayout},
+    CodeDiagnostic, CodeIntelligenceCapabilities, CodeIntelligenceError,
+    CodeIntelligenceLanguageStatus, CodeIntelligenceResult, CodeIntelligenceState,
+    CodeIntelligenceStatus, CodeLocation, CodePosition, CodeQueryResult, DocumentSymbol,
+    NavigationKind, SymbolInformation,
 };
 use crate::workspace::{
     LocalWorkspaceManifestSnapshot, WorkspaceFileChange, WorkspaceFileSystem, WorkspacePath,
