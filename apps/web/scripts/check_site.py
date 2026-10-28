@@ -255,6 +255,8 @@ def check_home_page(root):
         target = ((root / decoded) if decoded else (root / "index.html")).resolve()
         if not target.is_relative_to(root.resolve()):
             raise ValueError(f"homepage asset escapes site: {value}")
+        if target.is_dir():
+            target = target / "index.html"
         name = target.relative_to(root.resolve()).as_posix()
         if name not in allowed:
             raise ValueError(f"unapproved homepage asset: {value}")
