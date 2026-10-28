@@ -1,4 +1,10 @@
+# Source text has the same checkout bytes on Windows, Linux and macOS.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 # Evidence and model fixtures carry SHA-256 identities over their exact bytes.
+/docs/evidence/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /crates/deepseek/fixtures/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /docs/evidence/power/2026-10-22-native-deepseek-h200/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /docs/evidence/power/2026-10-22-h200-official/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
