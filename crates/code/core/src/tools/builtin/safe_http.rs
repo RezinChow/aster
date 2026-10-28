@@ -8,8 +8,8 @@
 //! DNS-over-HTTPS against `1.1.1.1`. DoH answers are still subject to the same
 //! public-address SSRF checks before any connection is opened.
 
-use reqwest::header::{HeaderMap, ACCEPT, ACCEPT_ENCODING, LOCATION, RANGE};
-use reqwest::{redirect::Policy, Url};
+use reqwest::header::{ACCEPT, ACCEPT_ENCODING, HeaderMap, LOCATION, RANGE};
+use reqwest::{Url, redirect::Policy};
 use std::fmt;
 use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -371,8 +371,13 @@ where
             addresses = resolve_via_dns_over_https(host, port)
                 .await
                 .map_err(|doh_error| {
-                    SafeHttpError::invalid(format!(
-                        "{error}; DNS-over-HTTPS fallback also failed: {doh_error}"
+                    let fake_ip_addresses = addresses
+                        .iter()
+                        .map(|address| address.ip().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    SafeHttpError::transport(format!(
+                        "Network unavailable: sandbox DNS returned only Fake-IP addresses for {host} ({fake_ip_addresses}); DNS-over-HTTPS fallback failed: {doh_error}. Check sandbox network access or configure a web proxy."
                     ))
                 })?;
             addresses.sort_unstable();
@@ -725,6 +730,34 @@ mod tests {
         assert!(!addresses_are_exclusively_fake_ip(&[]));
     }
 
+    #[tokio::test]
+    async fn fake_ip_doh_failure_reports_network_unavailable() {
+        struct ResetResolutionScript;
+        impl Drop for ResetResolutionScript {
+            fn drop(&mut self) {
+                set_resolution_script(None);
+            }
+        }
+
+        set_resolution_script(Some(ResolutionScript::FakeIpDohFail));
+        let _reset = ResetResolutionScript;
+        let url = Url::parse("https://example.com").unwrap();
+        let error = match resolve_public_target(&url).await {
+            Ok(_) => panic!("Fake-IP without a DoH fallback must not connect"),
+            Err(error) => error,
+        };
+        let message = error.to_string();
+        assert!(error.is_transport(), "{message}");
+        assert!(message.contains("Network unavailable"), "{message}");
+        assert!(message.contains("Fake-IP"), "{message}");
+        assert!(message.contains("198.18.0.1"), "{message}");
+        assert!(
+            message.contains("DNS-over-HTTPS fallback failed"),
+            "{message}"
+        );
+        assert!(!message.contains("non-public address"), "{message}");
+    }
+
     #[test]
     fn doh_json_parser_extracts_a_and_aaaa_only() {
         let body = r#"{
@@ -744,9 +777,11 @@ mod tests {
             ]
         );
         assert!(parse_doh_answer_ips(r#"{"Status":2}"#, 443).is_err());
-        assert!(parse_doh_answer_ips(r#"{"Status":0}"#, 443)
-            .unwrap()
-            .is_empty());
+        assert!(
+            parse_doh_answer_ips(r#"{"Status":0}"#, 443)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
@@ -777,7 +812,9 @@ mod tests {
         let next = Url::parse("https://EXAMPLE.com/other").unwrap();
         let mut headers = HeaderMap::new();
         headers.insert(reqwest::header::IF_RANGE, "\"v1\"".parse().unwrap());
-        assert!(redirect_headers(&current, &next, &headers).contains_key(reqwest::header::IF_RANGE));
+        assert!(
+            redirect_headers(&current, &next, &headers).contains_key(reqwest::header::IF_RANGE)
+        );
     }
 
     #[tokio::test]
