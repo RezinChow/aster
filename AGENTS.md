@@ -2,6 +2,43 @@
 
 Aster is one Rust workspace for the terminal coding tool, harness, and shared Aster desktop host.
 
+## General rules
+
+- Do not add complexity for speculative races or security boundaries that are
+  unlikely to occur. If one is genuinely required, first explain the concrete
+  failure, its likelihood, and the code cost, then get approval. Never expand
+  the change scope silently.
+- Validate external input once at the entry boundary. Pass typed values inward;
+  do not repeat defensive checks throughout internal code.
+- Do not extract a single-use function prematurely. Extract only for reuse,
+  genuinely complex logic, or a concept that benefits from a clear name.
+- Keep the main function on the normal path. Put validation and details in
+  small helper functions below it.
+- Comment only on non-obvious constraints and counterintuitive behavior. Do not
+  narrate code whose behavior is already clear.
+- Never hand-edit generated files. Change the source and regenerate them.
+- Test the real implementation. Do not copy business logic into tests, and keep
+  mocks to a minimum.
+- Follow the repository's existing workflows. Do not introduce tools or
+  processes that the repository does not already use.
+
+## Task and artifact fidelity
+
+- Treat the source data and delivery contract as authoritative. Preserve names,
+  ordering, record counts, units, truncation, and required output paths. Do not
+  normalize labels, add rows or summaries, or substitute an output location
+  unless the task asks for it.
+- When a task can be completed with reasonable assumptions, proceed and state
+  them. Ask for clarification only when missing information materially changes
+  the outcome; do not invent conflicts between compatible requirements.
+- Re-open deliverables and compare them with the source before completion.
+  Check record counts, categories, formulas, filenames, and required structure.
+  Keyword presence alone is not acceptance evidence.
+- Keep evaluation inputs, prompts, models, timeouts, and frozen graders fixed.
+  Never hardcode answers or change a grader to obtain a pass. Use actual logs
+  and artifacts to distinguish model errors, harness failures, and grader
+  defects.
+
 - Build from the repository root with the pinned Rust toolchain.
 - `apps/aster` is the `aster` terminal binary. `crates/code/acp` is its
   `a3s-code-acp` companion. Build and distribute both together.
