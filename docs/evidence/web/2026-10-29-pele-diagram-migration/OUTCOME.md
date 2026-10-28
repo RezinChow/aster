@@ -3,8 +3,11 @@
 ## Result
 
 Replaced all 23 current SeeCode figures and six README exports with Pele 1.10.0.
-Local rendering, interaction, source-fidelity and staging checks passed. Pages
-publication and live read-back are pending and will be recorded here.
+Published to https://aster-ai-lab.github.io/aster/ from commit
+`494ae4944374a908b2013dd041f9e70d3984ee01`. Pages run
+[40770177426](https://github.com/aster-ai-lab/aster/actions/runs/40770177426)
+completed successfully. Live read-back matched all 198 staged files, and all six
+current README export blobs matched GitHub.
 
 ## Changes
 
@@ -30,19 +33,41 @@ publication and live read-back are pending and will be recorded here.
 
 | Check | Result |
 | --- | --- |
-| Complete web Node suites | 91 passed before the final prose-export regression case |
+| Complete web Node suites | 92 passed in the final Linux CI run |
 | Final documentation and diagram integration suites | 30 passed |
 | Final diagram/prose regression suite | 14 passed |
-| Python site suite | Initial mixed-checkout failure retained; isolated root-cause case passed; affected-case reruns and final CI pending |
+| Python site suite | 20 passed in final CI; all four affected local cases passed in stable-checkout reruns |
 | Deterministic generation | 89 documents / 150 routes passed |
 | Unchanged STC checker, strict mode | 1054 extracted prose units; 0 mandatory and 0 advisory findings |
 | Independent diagram audit | 23 SVGs parse; original node identities and ordered step/source data retained |
-| Public staging | 198 files; independent source/receipt byte comparison recorded separately |
+| Public staging | 198 files; independent source/receipt byte comparison passed |
 | Release refresh | Six defaults still match the latest published stable installation assets |
 
 Commands and exact outputs are retained in adjacent logs. Final staging is
-`target/aster-pele-final-20261029`; see `stage-final.json` and
-`stage-verification.json`. Earlier failed checks remain available.
+`target/aster-pele-current-releases-20261029`; see
+`stage-current-releases.json` and `stage-current-verification.json`. Earlier
+failed checks remain available. The final full CI log is `ci-run-final.log`.
+
+## Publication and live verification
+
+- Final CI passed all 92 Node and 20 Python cases, then deployed Pages. The
+  deployment identity and steps are retained in `pages-run-final.json`.
+- Requested all 198 public files, using canonical directory URLs for HTML.
+  Every response returned HTTP 200 and its SHA-256 matched the reviewed staging
+  receipt, including all document routes, SVGs, scripts and styles.
+- Every published HTML/CSS/JS/SVG file was checked for retired SeeCode markup,
+  resource references and assembly selectors; none remained.
+- Verified the six current README exports through GitHub's contents API and
+  matched their Git blob identities to the local committed files.
+- Parsed both live download surfaces, compared their six direct asset URLs to
+  fresh stable Release metadata, and received HTTP 200 for every selected asset.
+- macOS desktop v0.1.4 became published during this task. CI automatically
+  selected it. The source snapshot was refreshed and staged again before the
+  final run. Windows desktop remains 0.1.1, Kylin desktop 0.1.2 and CLI 0.1.4.
+- The local preview service remains stopped; port 7101 had no listener.
+
+See `live-site-verification.json` for timestamps, URLs, hashes, Release records,
+README blob identities and installation-asset response statuses.
 
 ## Findings resolved
 
@@ -67,6 +92,17 @@ Commands and exact outputs are retained in adjacent logs. Final staging is
   vendor removals alone. The remaining migration is committed immediately
   afterward; acceptance uses the complete migration and its successful Pages
   run, never that intermediate commit.
+
+- The remote README directory contains seven SVGs, while the current catalog
+  owns six. The additional `meta-harness.svg` is a preserved Hairline historical
+  illustration, unreferenced by the current root README. The read-back verifier
+  now follows the authoritative catalog mapping. The asset authoring guide was
+  updated to the current six-image Pele build and passed strict STC checking.
+- The first live byte comparison used the pre-publication macOS download
+  snapshot. Only the homepage and download page differed, because CI had
+  correctly adopted newly published macOS v0.1.4. That receipt is retained as
+  `live-site-before-release-sync.json`; final source, staging and live bytes all
+  agree after the refresh.
 
 ## Explicitly not claimed
 
