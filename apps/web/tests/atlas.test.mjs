@@ -7,6 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { renderAtlas, prepareWalks } from '../scripts/docs_atlas.mjs';
+import { createElement as h, Fragment } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { createSourceReferences } from '../scripts/docs_sources.mjs';
 
 const require = createRequire(import.meta.url);
@@ -156,10 +158,10 @@ test('diagram nodes have working pointer and keyboard explanations', async (t) =
 
 test('Code Hike token colors remain readable on both code backgrounds', async () => {
   const css = await readFile(path.join(publicRoot, 'generated.css'), 'utf8');
-  const colors = [...css.matchAll(/\.walk-token-[a-f0-9]+\{color:(#[a-f0-9]{6})\}/ig)].map((match) => match[1]);
+  const colors = [...css.matchAll(/\.walk-style-[a-f0-9]+\{[^}]*color:(#[a-f0-9]{6})\b/ig)].map((match) => match[1]);
   const luminance = (hex) => hex.slice(1).match(/../g).map((part) => parseInt(part, 16) / 255).map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
   assert.ok(colors.length > 5);
-  for (const background of ['#ffffff', '#f6faf7']) for (const color of colors) {
+  for (const background of ['#ffffff', '#eff6f0']) for (const color of colors) {
     const [dark, light] = [luminance(color), luminance(background)].sort((a, b) => a - b);
     assert.ok((light + .05) / (dark + .05) >= 4.5, `${color} on ${background}`);
   }
@@ -180,13 +182,15 @@ test('source walkthrough works without IntersectionObserver and exposes full rea
   assert.equal(walk.querySelector('[aria-current="step"]').dataset.walkStep, '9');
 });
 
-test('scroll walkthrough follows an observed narrative without announcing every scroll', async (t) => {
+test('Spotlight preserves explicit selection while the document scrolls', async (t) => {
   const ui = await page(t, 'code/internals/system-prompts', { observe: true });
   const walk = ui.document.querySelector('[data-source-walk]');
-  const narrative = walk.querySelector('[data-walk-stop="3"] .walk-narrative');
-  ui.observe([{ isIntersecting: true, target: narrative, boundingClientRect: { top: 200 } }]);
+  walk.querySelector('[data-walk-step="3"]').click();
+  ui.window.dispatchEvent(new ui.window.Event('scroll'));
   assert.equal(walk.querySelector('[aria-current="step"]').dataset.walkStep, '3');
-  assert.equal(walk.querySelector('.walk-status').textContent, '');
+  assert.equal(walk.querySelector('.walk-code:not([hidden])').dataset.sourceFile, 'crates/code/core/prompts/common/runtime_contract.md');
+  assert.equal(walk.querySelectorAll('.walk-detail:not([hidden])').length, 1);
+  assert.ok(walk.querySelector('.walk-status').textContent.includes('第 4 站'));
 });
 
 test('static source walks retain every explanation and original code line without JavaScript', async () => {
@@ -208,8 +212,10 @@ test('static source walks retain every explanation and original code line withou
         const original = originals.get(sourceFile).split('\n').slice(Number(first) - 1, Number(last || first)).join('\n');
         assert.ok(original.includes(step.source.match));
         assert.ok(stop.querySelector('.walk-focus').textContent.includes(step.source.match.split('\n')[0]));
-        const lines = [...stop.querySelectorAll('.walk-line')].map((line) => { line.querySelector('.walk-line-number').remove(); return line.textContent; });
-        assert.equal(lines.join('').replace(/\n$/, ''), original);
+        assert.equal(stop.querySelector('pre').textContent, original);
+        assert.equal(Number(stop.querySelector('.walk-line').dataset.lineNumber), Number(first));
+        assert.ok(stop.querySelector('pre[data-ch="true"]'));
+        assert.equal(stop.querySelectorAll('pre[style], pre [style]').length, 0);
         assert.equal(stop.querySelector('.walk-code').hidden, false);
         assert.ok(stop.querySelector('pre[data-codehike="1.1.0"]'));
       }
@@ -259,4 +265,55 @@ test('published documents, diagram assets and README exports contain Pele with n
   const assets = await readdir(path.join(publicRoot, 'atlas'));
   assert.equal(assets.length, 23);
   assert.ok(assets.every(name => name.endsWith('.svg')));
+});
+
+test('Spotlight focus, wrapping and source range controls remain local to each code panel', async (t) => {
+  const ui = await page(t, 'code/internals/system-prompts');
+  const walk = ui.document.querySelector('[data-source-walk]');
+  const first = walk.querySelector('.walk-code:not([hidden])');
+  assert.ok(first.classList.contains('is-context'));
+  first.querySelector('[data-code-action="focus"]').click();
+  assert.equal(first.classList.contains('is-context'), false);
+  assert.equal(first.querySelector('[data-code-action="focus"]').getAttribute('aria-pressed'), 'true');
+  first.querySelector('[data-code-action="wrap"]').click();
+  assert.ok(first.classList.contains('is-wrapped'));
+  walk.querySelector('[data-walk-step="1"]').click();
+  const prompt = walk.querySelector('.walk-code:not([hidden])');
+  assert.ok(prompt.classList.contains('is-wrapped'));
+  assert.ok(prompt.classList.contains('is-context'));
+  assert.equal(prompt.querySelector('.walk-file-location strong').textContent, 'system_default.md');
+  assert.match(prompt.querySelector('.walk-file-source').href, /system_default\.md#L1-L26$/);
+  assert.equal(walk.querySelector('[data-walk-position]').textContent, '02 / 10');
+});
+
+test('clipboard boundary receives the exact source text and reports denied access inline', async (t) => {
+  const ui = await page(t, 'code/internals/system-prompts');
+  const panel = ui.document.querySelector('.walk-code:not([hidden])');
+  let copied;
+  Object.defineProperty(ui.window.navigator, 'clipboard', { configurable: true, value: { writeText: async value => { copied = value; } } });
+  panel.querySelector('[data-code-action="copy"]').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(copied, panel.querySelector('pre').textContent);
+  assert.equal(panel.querySelector('[data-copy-status]').textContent, '已复制');
+  ui.window.navigator.clipboard.writeText = async () => { throw new Error('Denied'); };
+  panel.querySelector('[data-code-action="copy"]').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(panel.querySelector('[data-copy-status]').textContent, '请选中代码复制');
+  assert.equal(ui.document.querySelectorAll('.walk-code:not([hidden])').length, 1);
+});
+
+test('compact page-source disclosure retains every pinned reference in first-use order', async () => {
+  const walk = JSON.parse(await readFile(path.join(root, 'apps/web/content/docs/code/9.1.6/_walks/system-prompts.json'), 'utf8'));
+  for (const count of [3, 4]) {
+    const sources = createSourceReferences(revision, root);
+    const selected = walk.steps.slice(0, count).map(step => step.source);
+    const markup = renderToStaticMarkup(h(Fragment, null, ...selected.map((source, key) => h(sources.SourceRef, { ...source, key })), h(sources.SourceList)));
+    const dom = new JSDOM(markup);
+    try {
+      const disclosure = dom.window.document.querySelector('details.page-sources');
+      assert.equal(disclosure.open, count === 3);
+      assert.equal(disclosure.querySelector('.source-count').textContent, String(count));
+      assert.deepEqual([...disclosure.querySelectorAll('nav a')].map(link => link.href), selected.map(source => sources.resolve(source).href));
+    } finally { dom.window.close(); }
+  }
 });

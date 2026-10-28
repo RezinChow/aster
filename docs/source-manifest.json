@@ -3979,5 +3979,35 @@
     "diagrams": 23,
     "readme_exports": 6,
     "evidence": "docs/evidence/web/2026-10-29-pele-diagram-migration/OUTCOME.md"
+  },
+  "web_documentation_spotlight_20261029": {
+    "reference": "https://codehike.org/docs/layouts/spotlight",
+    "codehike": {
+      "version": "1.1.0",
+      "source": "https://github.com/code-hike/codehike",
+      "integrity": "sha512-hOxqmTHjiOxhlcVEuDTCoAQ8TW358HVrNKlOwuKcnbwkuTpbGtwj5TnQ7AZjnZiQvJ3LeXohrd1E7qfYYN0Rdg==",
+      "uses": [
+        "Pre",
+        "focus annotations",
+        "utils/token-transitions"
+      ],
+      "license": "MIT",
+      "license_text": "apps/web/licenses/codehike-MIT.txt"
+    },
+    "diff": {
+      "version": "5.2.2",
+      "license": "BSD-3-Clause",
+      "license_text": "apps/web/licenses/diff-BSD-3-Clause.txt"
+    },
+    "esbuild": {
+      "version": "0.25.12",
+      "existing_repository_use": "packages/intelligent-ui/package.json"
+    },
+    "source": [
+      "apps/web/scripts/docs_atlas.mjs",
+      "apps/web/scripts/docs_navigation.mjs",
+      "apps/web/scripts/docs_diagrams.mjs"
+    ],
+    "evidence": "docs/evidence/web/2026-10-29-spotlight-reading-experience/OUTCOME.md"
   }
 }

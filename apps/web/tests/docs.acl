@@ -11,10 +11,10 @@ suite "aster-documentation" {
         expect "portal-heading" { target = css("main h1") rendered_text = "Aster 技术文档" }
         click "open-project" { target = css(".project-cards a[href$='code/9.1.6/']") }
         expect "project-heading" { target = css("main h1") rendered_text = "理解 Aster 的 Harness" }
-        expect "architecture-diagram" { visible = css(".diagram svg[role='img']") }
+        expect "architecture-diagram" { visible = css(".diagram svg.pele[role='group']") }
         click "workflow" { target = css(".chapter-nav a[href$='code/9.1.6/workflow/']") }
         expect "workflow-heading" { target = css("main h1") rendered_text = "一个任务如何运行" }
-        expect "pele-sequence" { visible = css(".diagram svg.pele-sequence[role='group']") }
+        expect "pele-flowchart" { visible = css(".diagram svg.pele-flowchart[role='group']") }
         expect "selected-workflow" { visible = css(".chapter-nav a[aria-current='page'][href$='code/9.1.6/workflow/']") }
         screenshot "workflow-desktop" { path = "screenshots/workflow-desktop.png" }
         click "comparison" { target = css(".chapter-nav a[href$='code/9.1.6/comparison/']") }
@@ -58,7 +58,7 @@ suite "aster-documentation" {
         navigate "meta-index" { url = "http://127.0.0.1:4192/docs/code/meta-harness/" }
         expect "index-heading" { target = css("main h1") rendered_text = "Meta Harness 使用指南" }
         expect "section-label" { target = css(".chapter-nav .nav-section:has(+ a[href$='code/9.1.6/meta-harness/'])") rendered_text = "Meta Harness" }
-        expect "overview-diagram" { visible = css(".diagram svg[role='img']") }
+        expect "overview-diagram" { visible = css(".diagram svg.pele[role='group']") }
         screenshot "meta-desktop" { path = "screenshots/meta-harness-desktop.png" }
         click "composition" { target = css(".table-scroll a[href$='code/9.1.6/meta-harness/composition/']") }
         expect "composition-heading" { target = css("main h1") rendered_text = "组合默认执行组件" }
@@ -191,4 +191,27 @@ suite "aster-documentation" {
         expect "lower-menu-retained" { in_viewport = css(".chapter-nav a[href$='reference/operations/']") }
         screenshot "retained-menu" { path = "screenshots/sidebar-retained.png" }
     }
+
+    scenario "spotlight-reading" {
+        name = "Spotlight source selection, wrapped prompts and expanded reading"
+        surface = "web"
+        timeout_ms = 30000
+        viewport "desktop" { width = 1440 height = 1080 scale = 1 }
+        navigate "source-walk" { url = "http://127.0.0.1:4192/docs/code/9.1.6/internals/system-prompts/" }
+        click "default-prompt" { target = css("[data-walk-step='1']") }
+        expect "selected-step" { visible = css("[data-walk-step='1'][aria-current='step']") }
+        expect "selected-file" { target = css(".walk-code:not([hidden]) .walk-file-location strong") rendered_text = "system_default.md" }
+        expect "wrapped-prompt" { visible = css(".walk-code.is-wrapped:not([hidden]) pre[data-ch='true']") }
+        screenshot "spotlight-desktop" { path = "screenshots/spotlight-desktop.png" }
+        click "expand-code" { target = css(".walk-code:not([hidden]) [data-lab-expand]") }
+        expect "code-dialog" { visible = css("dialog.doc-viewer[open]") }
+        press "close-code" { key = "Escape" }
+        expect "restored-code" { visible = css(".source-walk .walk-code:not([hidden])") }
+        viewport "mobile" { width = 390 height = 844 scale = 1 }
+        click "host-slots" { target = css("[data-walk-step='5']") }
+        expect "mobile-selection" { visible = css("[data-walk-step='5'][aria-current='step']") }
+        screenshot "spotlight-mobile" { path = "screenshots/spotlight-mobile.png" }
+        page_errors "spotlight-errors" { path = "evidence/spotlight-errors.json" clear = false }
+    }
+
 }

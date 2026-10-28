@@ -59,13 +59,13 @@ Markdown 通过 MDX 官方推荐的 `remark-gfm` 支持 GFM 表格、任务列�
 
 所有版本的架构图使用 [Pele](https://pele.run/) 1.10.0，在构建时将 Mermaid 源文件渲染成 SVG。`content/docs/atlas.json` 注册当前 23 张图；`_diagrams/*.mmd` 保存流程、时序与职责分块，`_atlas/*.json` 保存标题、说明、分步讲解和精确源码选择器。分块排列表示职责或对照，不添加原文没有的执行关系。
 
-`PeleDiagram` 与 `PeleAtlasDiagram` 共用同一个 Pele 渲染入口。构建器提取图示样式，合并到 `generated.css`，禁用图内链接和图片。公开文档保持禁止内联脚本、内联样式、远程字体和 iframe。当前图示支持上一步、下一步、节点聚焦、完整视图与有限分步讲解；减少动态时保留手动切换。节点身份取自 Pele 的 `data-id`，讲解引用的节点不存在时构建失败。
+`PeleDiagram` 与 `PeleAtlasDiagram` 共用同一个 Pele 渲染入口。构建器提取图示样式，合并到 `generated.css`，禁用图内链接和图片。公开文档保持禁止内联脚本、内联样式、远程字体和 iframe。当前图示支持上一步、下一步、节点聚焦、完整视图与有限分步讲解；减少动态时保留手动切换。节点身份取自 Pele 的 `data-id`，讲解引用的节点不存在时构建失败。所有版本共用 `docs_diagrams.mjs` 的主题，网页与六张 README 导出图同步配色。流程图横向阅读，职责分块保持无箭头；展开视图保留节点说明与源码链接，Escape 关闭后返回原阅读位置。
 
-`_walks/*.json` 保存七条源码漫游、38 个站点。每站声明准确片段与前后文行数，构建器从该版本的 Git 提交提取原文，并用 [Code Hike](https://codehike.org/docs/concepts/code) 1.1.0 高亮。Code Hike 与普通代码块共用 GitHub Light High Contrast 主题。桌面支持随叙述切换的源码面板，按钮和键盘支持独立切换，完整阅读模式支持连续对照。脚本关闭时全部说明与源码仍然可见。
+`_walks/*.json` 保存七条源码漫游、38 个站点。每站声明准确片段与前后文行数，构建器从该版本的 Git 提交提取原文，并用 [Code Hike](https://codehike.org/docs/concepts/code) 1.1.0 高亮。Code Hike 与普通代码块共用 GitHub Light High Contrast 主题。桌面采用 Spotlight 布局：紧凑步骤列表与固定高度的代码画布并排，点击或方向键明确选择站点，页面滚动不会改变选择。使用 Code Hike 的 `Pre`、聚焦标注和 `utils/token-transitions`，同文件代码保留 token 过渡，跨文件使用短暂淡入。减少动态时关闭过渡。Markdown 提示词默认软换行，原始行号与复制内容保持不变；连续阅读与无脚本模式保留全部说明和源码。
 
 六张 README SVG 与网页使用同一份 Mermaid 源文件。`npm --prefix apps/web run build` 同时生成文档、公开图示资产和 README 图片。只修改 MDX、Mermaid、讲解 JSON 或渲染器源文件，然后重新生成。Pele 使用 MIT 许可，依赖版本与完整性摘要保存在 `package-lock.json`。
 
-正文可用 `<SourceRef path="crates/code/core/src/agent_api/run_facade.rs" match="pub async fn steer(">AgentSession::steer</SourceRef>` 引用实现。`match` 是作者明确指定的源码原文，不推断符号名。构建器从当前版本 `sourceRef` 的 Git 对象读取文件，要求原文恰好出现一次，计算 GitHub 行号或多行范围；文件缺失、片段消失或重复会使构建失败。相同引用在右栏“本页源码”按正文首次出现顺序去重，窄屏移到正文之后。该功能需要 Git 历史；Pages CI 检出完整公共仓库历史，不初始化私有子模块。
+正文可用 `<SourceRef path="crates/code/core/src/agent_api/run_facade.rs" match="pub async fn steer(">AgentSession::steer</SourceRef>` 引用实现。`match` 是作者明确指定的源码原文，不推断符号名。构建器从当前版本 `sourceRef` 的 Git 对象读取文件，要求原文恰好出现一次，计算 GitHub 行号或多行范围；文件缺失、片段消失或重复会使构建失败。相同引用在右栏“本页源码”按正文首次出现顺序去重；超过三项时默认折叠，保留全部链接与计数，窄屏移到正文之后。该功能需要 Git 历史；Pages CI 检出完整公共仓库历史，不初始化私有子模块。
 
 `/docs/code/9.1.5/tutorial/` 是围绕同一 `tutorial-agent` 练习工程的十二章教程。页面源码位于 `content/docs/code/9.1.5/tutorial/`；工程文件由读者按章节建立，网站构建不创建 Rust 工作区成员或运行模型。前四章建立会话、流式事件、终端和确认交互，后续接入验证、保存恢复、Harness、上下文、工具、记忆、目标和资源收尾。注册表将教程和 Meta Harness 参考分组，两个系列共用项目导航，公开地址保持独立。
 
@@ -194,3 +194,13 @@ Pages 在正式发布变动及现有桌面、CLI 发布工作流成功后刷新�
 这两种事件从 main 检出官网源码，避免使用旧发布标签中的网站。
 PR 校验使用提交内的固定快照，保持测试可离线复现。
 修改现有发布工作流的名称时，同步 Pages 的 `workflow_run` 名称集合。
+
+## 阅读界面脚本
+
+`public/docs/navigation.js` 是生成文件。编辑 `scripts/docs_navigation.mjs`，再运行既有的 `npm run build` 或 `npm run check`。
+构建器使用仓库已有的 esbuild 0.25.12，把 Code Hike 的 token 过渡工具与渐进交互编入一个本地脚本，浏览器不加载 React。
+Code Hike 的 MIT 文本与 diff 的 BSD 许可位于 `licenses/`，并随脚本打包保留。
+
+源码行号由 CSS 根据 `data-line-number` 显示，复制代码读取真实 `Pre` 文本，不混入行号。
+聚焦与软换行是各代码面板的独立状态。展开阅读使用原生 `dialog`；代码和 SVG 移动后复用原节点，关闭时恢复位置和焦点。
+公开 HTML 仍禁止内联样式、内联脚本、远程字体和浏览器端 Release API 请求。

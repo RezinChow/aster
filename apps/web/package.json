@@ -14,6 +14,7 @@
     "@shikijs/themes": "4.5.0",
     "@shikijs/transformers": "4.5.0",
     "codehike": "1.1.0",
+    "esbuild": "0.25.12",
     "hast-util-from-html": "2.0.3",
     "hast-util-to-html": "9.0.5",
     "pele": "1.10.0",
