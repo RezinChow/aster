@@ -18,6 +18,9 @@ on:
       - apps/web/public/home.js
       - apps/web/public/cosmic.js
       - apps/web/public/docs/**
+      - apps/web/public/terms/**
+      - apps/web/public/privacy/**
+      - apps/web/public/legal/**
       - apps/web/content/**
       - apps/web/vendor/**
       - assets/readme/**
@@ -39,6 +42,9 @@ on:
       - apps/web/public/home.js
       - apps/web/public/cosmic.js
       - apps/web/public/docs/**
+      - apps/web/public/terms/**
+      - apps/web/public/privacy/**
+      - apps/web/public/legal/**
       - apps/web/content/**
       - apps/web/vendor/**
       - assets/readme/**

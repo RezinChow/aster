@@ -124,7 +124,12 @@ DOWNLOAD_BRAND_FILES = (
     "tenant/aster/logo.svg",
     "tenant/aster/favicon.png",
 )
-SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES
+LEGAL_FILES = (
+    "terms/index.html",
+    "privacy/index.html",
+    "legal/styles.css",
+)
+SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES + LEGAL_FILES
 
 REPOSITORY_URL = "https://github.com/aster-ai-lab/aster"
 PAGES_URL = "https://aster-ai-lab.github.io/aster/"
