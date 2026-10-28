@@ -68,6 +68,8 @@ Aster is one Rust workspace for the terminal coding tool, harness, and shared As
   evidence and fixtures, and inspect unexpected whole-file staging changes.
 - Do not restore upstream binary updates for Aster. Updates must not replace
   this product with an A3S/Grok release.
+- Follow `docs/release-governance.md` for product tag namespaces, Latest
+  ownership, rolling channels, and published-release compatibility.
 - Migration history and source provenance live in `docs/migration.md` and
   `docs/source-manifest.json`. Never copy credentials or user session state.
 - The development standards are `docs/development-standards.md`. The
