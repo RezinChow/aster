@@ -12,7 +12,7 @@ import { createSourceReferences } from '../scripts/docs_sources.mjs';
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const { JSDOM } = require(process.env.JS_DOM_MODULE || path.join(root, 'packages/ui/node_modules/jsdom'));
-const publicRoot = path.join(root, 'apps/web/public/docs');
+const publicRoot = path.join(root, 'apps/web/dist/docs');
 const revision = '8729d7c84a2d887c61dc206ba47bf8a63425e768';
 
 async function page(t, route, { reduced = false, observe = false } = {}) {

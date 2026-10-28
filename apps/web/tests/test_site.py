@@ -45,7 +45,7 @@ class SiteTest(unittest.TestCase):
         for name in BRAND_FILES + HOME_FILES + DOCS_FILES + LEGAL_FILES:
             destination = self.public / name
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(WEB_ROOT / "public" / name, destination)
+            shutil.copy2(WEB_ROOT / "dist" / name, destination)
         downloads = "".join(f'<a href="{item[4]}">{item[0]} {item[1]} {item[2]} {item[3]}</a>' for item in DOWNLOAD_MANIFEST)
         self.html = ('<!doctype html><html lang="zh-CN"><head><title>Aster</title>'
                      '<link rel="stylesheet" href="styles.css">'

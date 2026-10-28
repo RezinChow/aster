@@ -12,7 +12,7 @@ const publicRequire = createRequire(path.join(root, 'packages/ui/package.json'))
 const { JSDOM } = process.env.JS_DOM_MODULE
   ? require(path.resolve(process.env.JS_DOM_MODULE))
   : publicRequire('jsdom');
-const publicRoot = path.join(root, 'apps/web/public');
+const publicRoot = path.join(root, 'apps/web/dist');
 const html = fs.readFileSync(path.join(publicRoot, 'download/index.html'), 'utf8');
 const script = fs.readFileSync(path.join(publicRoot, 'download/app.js'), 'utf8');
 const pageUrl = 'https://aster-ai-lab.github.io/aster/download/';

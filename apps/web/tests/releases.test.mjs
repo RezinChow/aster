@@ -67,7 +67,7 @@ test('real template generation keeps versions, formats and direct URLs aligned a
 test('published page snapshots expose exactly the six selected stable URLs without browser API requests', async () => {
   const snapshot = JSON.parse(await readFile(new URL('../content/releases.json', import.meta.url), 'utf8'));
   for (const name of ['index.html','download/index.html']) {
-    const html = await readFile(new URL(`../public/${name}`, import.meta.url), 'utf8');
+    const html = await readFile(new URL(`../dist/${name}`, import.meta.url), 'utf8');
     const urls = new Set([...html.matchAll(/href="(https:\/\/github.com\/aster-ai-lab\/aster\/releases\/download\/[^" ]+)"/g)].map((match) => match[1]));
     assert.deepEqual([...urls].sort(), snapshot.downloads.map((item) => item.url).sort());
     assert.ok(!html.includes('{{download.'));
