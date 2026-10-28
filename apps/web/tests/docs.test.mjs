@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { createProcessor } from '@mdx-js/mdx';
 import remarkGfm from 'remark-gfm';
+import { createElement as h, Fragment } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { buildDocs, pages, validateProjects } from '../scripts/build_docs.mjs';
+import { createSourceReferences } from '../scripts/docs_sources.mjs';
 import { projects } from '../scripts/docs_components.mjs';
 import { documentPages } from '../scripts/docs_catalog.mjs';
 
@@ -191,8 +194,8 @@ test('the generated syntax palette meets 4.5:1 text contrast against its light b
   }
 });
 
-test('Pele renders the six architecture diagrams as labelled static SVG with external styling', async (t) => {
-  for (const [route, type] of [['code/', 'flowchart'], ['code/workflow/', 'sequence'], ['code/meta-harness/', 'flowchart'], ['code/tutorial/', 'flowchart'], ['code/tutorial/permissions/', 'flowchart'], ['code/design/rsi/', 'flowchart']]) {
+test('Pele renders architecture and implementation diagrams as labelled static SVG with external styling', async (t) => {
+  for (const [route, type] of [['code/', 'flowchart'], ['code/workflow/', 'sequence'], ['code/meta-harness/', 'flowchart'], ['code/tutorial/', 'flowchart'], ['code/tutorial/permissions/', 'flowchart'], ['code/design/rsi/', 'flowchart'], ['code/workflow/', 'flowchart'], ['code/reference/run-control/', 'flowchart'], ['code/reference/governance/', 'flowchart'], ['code/reference/memory/', 'flowchart'], ['acp/', 'flowchart'], ['acp/protocol/', 'sequence'], ['acp/permissions/', 'sequence'], ['acp/events/', 'flowchart']]) {
     const dom = new JSDOM(await readFile(path.join(publicRoot, 'docs', route, 'index.html'), 'utf8'));
     t.after(() => dom.window.close());
     const svg = dom.window.document.querySelector(`.pele-diagram svg.pele-${type}`);
@@ -203,6 +206,51 @@ test('Pele renders the six architecture diagrams as labelled static SVG with ext
     assert.equal(svg.querySelectorAll('[style], style, script, foreignObject, image, a').length, 0);
     assert.equal(svg.hasAttribute('style'), false);
     assert.ok(svg.getAttribute('class').includes('pele-style-'));
+  }
+});
+
+test('source citations resolve exact lines from the registered Git snapshot and refuse drift', () => {
+  const revision = projects.find((project) => project.id === 'code').versions.find((version) => version.id === '9.1.6').sourceRef;
+  const { SourceRef, SourceList } = createSourceReferences(revision, root);
+  const file = 'crates/code/core/src/agent_api/run_facade.rs';
+  const citation = { path: file, match: 'pub async fn steer(\n        &self,' };
+  const html = renderToStaticMarkup(h(Fragment, null,
+    h(SourceRef, citation, 'AgentSession::steer'), h(SourceRef, citation, 'AgentSession::steer'), h(SourceList)));
+  const dom = new JSDOM(html);
+  try {
+    const refs = [...dom.window.document.querySelectorAll('.source-ref')];
+    assert.equal(refs.length, 2);
+    assert.equal(refs[0].href, `https://github.com/aster-ai-lab/aster/blob/${revision}/${file}#L6-L7`);
+    assert.equal(refs[0].textContent, 'AgentSession::steer L6-L7 ↗');
+    assert.equal(dom.window.document.querySelectorAll('.page-sources a').length, 1);
+    assert.equal(dom.window.document.querySelector('.page-sources a').href, refs[0].href);
+    assert.ok(dom.window.document.querySelector('.page-sources').textContent.includes('run_facade.rs'));
+    assert.equal(renderToStaticMarkup(h(createSourceReferences(revision, root).SourceList)), '');
+  } finally {
+    dom.window.close();
+  }
+  for (const match of ['', 'function_that_no_longer_exists', 'pub async fn']) {
+    assert.throws(() => renderToStaticMarkup(h(SourceRef, { path: file, match })), /exact match|exactly once/);
+  }
+  assert.throws(() => renderToStaticMarkup(h(SourceRef, { ...citation, path: '../private/file.rs' })), /Invalid source path/);
+  assert.throws(() => renderToStaticMarkup(h(SourceRef, { ...citation, path: 'crates/missing/file.rs' })), /git show/);
+});
+
+test('current reading paths expose ordered page sources at fixed revisions in canonical and alias routes', async (t) => {
+  const routes = ['code/', 'code/workflow/', 'code/reference/run-control/', 'code/reference/governance/', 'code/reference/memory/', 'acp/', 'acp/protocol/', 'acp/permissions/', 'acp/events/'];
+  for (const route of routes) {
+    const [product, ...slug] = route.split('/');
+    let expected;
+    for (const address of [route, `${product}/9.1.6/${slug.join('/')}`]) {
+      const dom = new JSDOM(await readFile(path.join(publicRoot, 'docs', address, 'index.html'), 'utf8'));
+      t.after(() => dom.window.close());
+      const refs = [...dom.window.document.querySelectorAll('.prose .source-ref')].map((link) => link.href);
+      assert.ok(refs.length >= 3, address);
+      assert.ok(refs.every((href) => /\/blob\/[a-f0-9]{40}\/.+#L\d+(?:-L\d+)?$/.test(href)), address);
+      assert.deepEqual([...dom.window.document.querySelectorAll('.page-sources a')].map((link) => link.href), [...new Set(refs)], address);
+      if (expected) assert.deepEqual(refs, expected, address);
+      expected = refs;
+    }
   }
 });
 

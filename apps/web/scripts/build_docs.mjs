@@ -10,6 +10,7 @@ import remarkGfm from 'remark-gfm';
 import { transformerStyleToClass } from '@shikijs/transformers';
 import aclGrammar from './acl.tmLanguage.json' with { type: 'json' };
 import { DiagramScope, PeleDiagram } from './docs_diagrams.mjs';
+import { createSourceReferences } from './docs_sources.mjs';
 import * as components from './docs_components.mjs';
 import { projects, documentPages } from './docs_catalog.mjs';
 
@@ -86,7 +87,7 @@ function contentLink(href, chapter, docsRoot) {
   return docsRoot + target.pathname.slice(1) + target.search + target.hash;
 }
 
-function layout(chapter, meta, Content, toc, entries, versionComponents, diagramScope) {
+function layout(chapter, meta, Content, toc, entries, versionComponents, diagramScope, sources) {
   const docsRoot = '../'.repeat(chapter.route.split('/').filter(Boolean).length) || './';
   const siteRoot = docsRoot + '../';
   const { project, version } = chapter;
@@ -122,7 +123,7 @@ function layout(chapter, meta, Content, toc, entries, versionComponents, diagram
           h('article', null,
             h('div', { className: 'article-heading' }, h('p', { className: 'eyebrow' }, project ? `${project.title.toUpperCase()} / ${chapter.section || String(index + 1).padStart(2, '0')}` : 'ASTER DOCUMENTATION'), h('h1', null, meta.title), h('p', { className: 'article-description' }, meta.description), h('div', { className: 'article-meta' }, h('span', null, versionLabel), h('span', { 'aria-hidden': true }, '·'), h('time', { dateTime: meta.updated }, meta.updated))),
             h('div', { className: 'prose' }, h(DiagramScope.Provider, { value: diagramScope }, h(Content, { components: {
-              ...components, ...versionComponents, PeleDiagram,
+              ...components, ...versionComponents, PeleDiagram, SourceRef: sources.SourceRef,
               a: ({ href, ...props }) => h('a', { ...props, href: contentLink(sourceLink(href, sourceRef), chapter, docsRoot) }),
               table: components.MarkdownTable,
               th: ({ align, style, ...props }) => h('th', { ...props, scope: 'col', 'data-align': align ?? style?.textAlign }),
@@ -137,6 +138,7 @@ function layout(chapter, meta, Content, toc, entries, versionComponents, diagram
             h('nav', { 'aria-label': '本页目录' }, h('p', { className: 'nav-label' }, '本页内容'), ...toc.map(({ id, title }) => h('a', { key: id, href: `#${id}` }, title))),
             h('div', { className: 'toc-note' }, h('span', { className: 'mini-label' }, '版本说明'), h('p', null, version ? `本文对应 ${versionLabel}，运行时源码引用 ${sourceRef}。` : '先选择产品，再按版本查阅相应文档。'))),
           h('div', { className: 'docs-resources' },
+            h(sources.SourceList),
             h('div', { className: 'resource-links' }, h('p', { className: 'nav-label' }, '源码与资料'), h('a', { href: `${sourceRepository}/tree/${sourceRef}/docs` }, '仓库文档 ↗'), h('a', { href: `${sourceRepository}/tree/${sourceRef}/crates` }, '浏览源码 ↗')),
             h('div', { className: 'docs-version' }, h('span', { className: 'version-dot', 'aria-hidden': true }), versionLabel))))));
 }
@@ -145,6 +147,7 @@ export async function buildDocs({ check = false, outputRoot = path.join(webRoot,
   const files = [];
   const diagramStyles = new Map();
   const componentModules = new Map();
+  const sourceCache = new Map();
   const codeStyles = transformerStyleToClass({ classPrefix: 'syntax-' });
   const highlighting = [rehypeShiki, {
     themes: { light: 'github-light-high-contrast' }, defaultColor: false,
@@ -172,7 +175,8 @@ export async function buildDocs({ check = false, outputRoot = path.join(webRoot,
     // Only repository-authored MDX is evaluated at build time; never accept remote/user input here.
     const { default: Content, meta } = await evaluate(await readFile(sourcePath, 'utf8'), { ...runtime, baseUrl: pathToFileURL(sourcePath), remarkPlugins: [remarkGfm, headingPlugin(toc)], remarkRehypeOptions: { footnoteLabel: '注释', footnoteBackLabel: '返回引用' }, rehypePlugins: [highlighting] });
     if (!meta?.title || !meta?.description || !meta?.label || !/^\d{4}-\d{2}-\d{2}$/.test(meta.updated ?? '') || toc.length === 0) throw new Error(`Missing document metadata or sections: ${chapter.file}`);
-    const html = '<!doctype html>\n<!-- Generated from content/docs/*.mdx by npm run build. -->\n' + renderToStaticMarkup(layout(chapter, meta, Content, toc, entries, versionComponents, { chapter, contentRoot, styles: diagramStyles })) + '\n';
+    const sources = createSourceReferences(chapter.version?.sourceRef ?? 'main', path.resolve(webRoot, '../..'), sourceCache);
+    const html = '<!doctype html>\n<!-- Generated from content/docs/*.mdx by npm run build. -->\n' + renderToStaticMarkup(layout(chapter, meta, Content, toc, entries, versionComponents, { chapter, contentRoot, styles: diagramStyles }, sources)) + '\n';
     const target = path.join(outputRoot, chapter.route, 'index.html');
     if (check) {
       if (await readFile(target, 'utf8') !== html) throw new Error(`Stale MDX output: ${target}; run npm --prefix apps/web run build`);

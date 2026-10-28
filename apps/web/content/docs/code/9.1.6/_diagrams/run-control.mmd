@@ -1,0 +1,12 @@
+flowchart TB
+  accTitle: 运行控制请求与回执
+  accDescr: 宿主把追加指令绑定到当前 Run 与预期 Turn。拒绝请求不进入收件箱，接收后等执行安全点应用；Run 提前结束则结算尚未应用的请求。
+  A[读取 Run 与 Turn 快照] --> B[提交 steer 或 interrupt]
+  B --> C{身份、版本、期限与队列检查}
+  C -->|拒绝| D[Rejected：未进入收件箱]
+  C -->|接收| E[Accepted：进入当前 Run 收件箱]
+  E --> F{执行到安全点}
+  F -->|消费请求| G[Applied：已应用控制请求]
+  F -->|Run 先结束| H[Settled：未按原计划应用]
+  G --> I[继续执行或协作停止]
+  I --> J[终态与资源清理]

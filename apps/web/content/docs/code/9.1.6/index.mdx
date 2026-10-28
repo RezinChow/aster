@@ -1,7 +1,7 @@
 export const meta = {
   title: '理解 Aster 的 Harness',
   description: 'A3S Code 负责 Aster 的模型调用、工具执行、会话记录和完成检查。',
-  updated: '2026-10-26',
+  updated: '2026-10-28',
   label: '架构概览',
 };
 
@@ -14,6 +14,8 @@ export const meta = {
 在 Aster 中，这部分由 **A3S Code** 实现。它的核心库是 `a3s-code-core`，下文简称 Core。终端和桌面通过 ACP 协议与 `a3s-code-acp` 进程通信，由该进程调用 Core。Rust 应用也可以直接嵌入 Core。使用这套库的应用称为“宿主”。
 
 Core 提供 Anthropic、OpenAI、智谱及 OpenAI 兼容接口的模型适配器。
+
+入口实现：<SourceRef path="crates/code/core/src/agent_api/agent_facade.rs" match="pub struct Agent {">Agent</SourceRef> 创建共享服务与会话，<SourceRef path="crates/code/core/src/fact_control.rs" match="pub struct FactRun {">FactRun</SourceRef> 组织事实驱动的执行。
 
 <Principles />
 
@@ -53,9 +55,21 @@ Core 默认使用 `local-code` 构建，包含本地编码所需的执行循环�
 
 <ChapterCards />
 
+## 从文档走到实现
+
+正文中的函数引用会跳到本版源码快照的准确行号，右侧“本页源码”汇总本页出现的入口；窄屏显示在正文之后。沿下表可以从公开 API 读到执行机制。
+
+| 想理解什么 | 从哪里开始 | 继续查阅 |
+| --- | --- | --- |
+| 会话怎样创建 | <SourceRef path="crates/code/core/src/agent_api/agent_facade.rs" match="pub async fn session_async(">Agent::session_async</SourceRef> | [宿主接入](./integration/) |
+| 模型看到哪些内容 | <SourceRef path="crates/code/core/src/context/assembler.rs" match="pub fn assemble(&amp;self, results: &amp;[ContextResult])">ContextAssembler::assemble</SourceRef> | [执行流程](./workflow/) |
+| 运行中怎样追加指令 | <SourceRef path="crates/code/core/src/agent_api/run_facade.rs" match="pub async fn steer(">AgentSession::steer</SourceRef> | [会话与运行控制](./reference/run-control/) |
+| 任务为什么还不能结束 | <SourceRef path="crates/code/core/src/harness_loop.rs" match="pub fn decide_completion(">decide_completion</SourceRef> | [权限与验证](./reference/governance/) |
+| 记忆怎样获得召回资格 | <SourceRef path="crates/code/core/src/durable_memory.rs" match="pub async fn activate_candidate(">activate_candidate</SourceRef> | [记忆与恢复](./reference/memory/) |
+
 ## 实现依据
 
-本文根据 Aster 仓库中的 `a3s-code-core 9.1.6` 编写，代码核对日期为 2026-10-26。
+本文根据 Aster 仓库中的 `a3s-code-core 9.1.6` 编写，代码核对日期为 2026-10-28。源码引用固定到本版注册的 Git 提交，后续分支移动不会改变引用位置。
 
 - [Core 中各项职责由谁负责](https://github.com/aster-ai-lab/aster/blob/main/crates/code/docs/architecture/core-authorities.md)
 - [Meta Harness 组合契约](https://github.com/aster-ai-lab/aster/blob/main/crates/code/manual/META_HARNESS.md)

@@ -1,0 +1,13 @@
+flowchart TB
+  accTitle: 持久记忆的激活与语义刷新
+  accDescr: 有来源的候选经宿主核对精确 revision 和独立证据后才能激活。Active 事实用于召回；语义索引从完整快照构建并原子发布，失败或取消保留原有完整分区。
+  A[带来源证据的候选] --> B[宿主核对候选 ID 与 revision]
+  B --> C[activate_candidate：独立决策证据与幂等 key]
+  C --> D[当前 namespace 的 Active 事实]
+  D --> E[Active 召回]
+  E --> F[record_use：记录实际使用与结果]
+  D --> G[读取完整 Active 快照]
+  G --> H[构建并验证语义 generation]
+  H --> I{构建完整且未取消}
+  I -->|是| J[原子发布新分区]
+  I -->|否| K[保留原有完整分区]

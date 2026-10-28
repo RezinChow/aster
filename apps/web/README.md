@@ -38,6 +38,7 @@ scripts/
   build_docs.mjs               # 编译 MDX、生成导航与页内目录
   docs_components.mjs          # 跨产品共享的展示组件
   docs_diagrams.mjs            # 按当前版本读取源图的 Pele 渲染器
+  docs_sources.mjs             # 从 Git 快照定位正文引用，汇总本页源码
 public/docs/
   index.html
   code/9.1.5/**/index.html      # 保留的原有版本
@@ -54,7 +55,9 @@ Markdown 通过 MDX 官方推荐的 `remark-gfm` 支持 GFM 表格、任务列�
 
 代码块通过 [Shiki 的 Rehype 插件](https://shiki.style/packages/rehype) 在构建时高亮，使用 GitHub Light High Contrast 配色。声明代码语言后，构建器提供语言标识、可聚焦的滚动区域和完整原文；纯文本使用 `text`。ACL 的 TextMate 规则只着色词法单元，依据 `crates/acl/src/lexer.rs`，不代替 ACL 解析或校验。新出现的内置语言由 Shiki 在构建时加载。
 
-运行时架构、执行时序、Meta Harness 装配、终端分层、确认流程、RSI 改进闭环和 ACP 边界，共七类图使用 [Pele](https://pele.run/)。Mermaid 源文件放在 `content/docs/<产品>/<版本>/_diagrams/`，图注与其他带产品含义的内容组件放在该版本的 `_components.mjs`。渲染器按当前产品和版本读取源文件，生成独立的稳定 ID。构建器禁用图内链接与图片，生成带标题和描述的 SVG；主题变量在 `public/docs/styles.css` 的 `.diagram .pele` 中统一维护，沿用白底、石墨文字、浅灰分组和 Ubuntu 字体。图与代码的生成样式合并到 `public/docs/generated.css`，不使用内联样式、CDN 或浏览器运行时。
+运行时架构、执行时序、Meta Harness、上下文装配、运行控制、完成门禁、记忆生命周期和 ACP 进程边界、协议、确认、事件等图示使用 [Pele](https://pele.run/)。Mermaid 源文件放在 `content/docs/<产品>/<版本>/_diagrams/`，版本组件或 MDX 的 `PeleDiagram` 声明图注。渲染器按当前产品和版本读取源文件，生成独立的稳定 ID。构建器禁用图内链接与图片，生成带标题和描述的 SVG；主题变量在 `public/docs/styles.css` 的 `.diagram .pele` 中统一维护，沿用白底、石墨文字、浅灰分组和 Ubuntu 字体。图与代码的生成样式合并到 `public/docs/generated.css`，不使用内联样式、CDN 或浏览器运行时。
+
+正文可用 `<SourceRef path="crates/code/core/src/agent_api/run_facade.rs" match="pub async fn steer(">AgentSession::steer</SourceRef>` 引用实现。`match` 是作者明确指定的源码原文，不推断符号名。构建器从当前版本 `sourceRef` 的 Git 对象读取文件，要求原文恰好出现一次，计算 GitHub 行号或多行范围；文件缺失、片段消失或重复会使构建失败。相同引用在右栏“本页源码”按正文首次出现顺序去重，窄屏移到正文之后。该功能需要 Git 历史；Pages CI 检出完整公共仓库历史，不初始化私有子模块。
 
 `/docs/code/9.1.5/tutorial/` 是围绕同一 `tutorial-agent` 练习工程的十二章教程。页面源码位于 `content/docs/code/9.1.5/tutorial/`；工程文件由读者按章节建立，网站构建不创建 Rust 工作区成员或运行模型。前四章建立会话、流式事件、终端和确认交互，后续接入验证、保存恢复、Harness、上下文、工具、记忆、目标和资源收尾。注册表将教程和 Meta Harness 参考分组，两个系列共用项目导航，公开地址保持独立。
 
@@ -72,7 +75,7 @@ npm --prefix apps/web run check
 
 1. 在 `content/docs/catalog.json` 的 `projects` 添加唯一的 `id`、`title`、`label`、`description`、`defaultVersion` 和 `versions`。默认版本必须明确存在，不按版本号或数组位置推断。
 2. 每个版本声明 `id`、`label`、`sourceRef` 和有序的 `pages`；需要版本专有组件时，再填写 `components: "_components"`。源码放在 `content/docs/<产品>/<版本>/`。版本间各自保存 MDX、组件和源图；新增版本可复制上一版，再在新目录修改。
-3. `sourceRef` 指定运行时源码使用的真实 Git 标签、提交或分支。当前文档以 `main` 为源码引用；归档时应选择已经存在的固定 ref。文中的本仓库 `blob/main`、`tree/main` 引用会按当前版本改写，编辑文档的链接仍指向网站主分支。
+3. `sourceRef` 指定运行时源码使用的真实 Git 标签、提交或分支。9.1.6 的 Core 与 ACP 固定到公开提交 `8729d7c84a2d887c61dc206ba47bf8a63425e768`，9.1.5 保留原有 `main` 引用。更新源码快照时先核对正文与实现，再更新 ref 并重新生成；不要使用尚未推送的提交。文中的本仓库 `blob/main`、`tree/main` 引用会按当前版本改写，编辑文档的链接仍指向网站主分支。
 4. 每项 `pages` 填写 `slug`、`file`、`label`、`title` 和 `description`，可用非空 `section` 给相邻章节分组。第一项必须是 `slug: ""` 的版本首页；`file` 相对该版本目录且省略 `.mdx`，例如 `guide/start`；`slug` 为空或以 `/` 结尾。同一版本内 slug 与 file 唯一，不同版本可以使用相同名称。
 5. MDX 导出 `meta`，包含 `title`、`description`、`label` 和 ISO 日期 `updated`，正文从二级标题开始。专题首页用 `<ChapterCards section="专题名称" />` 列出同组后续文章。
 6. 运行 `build`，提交源文件、注册表与生成产物，再运行检查。删除章节或调整默认版本时，构建器只清理由它生成且已经失效的 HTML；其他手写文件不会被删除，发布检查会拒绝未登记的额外文件。
