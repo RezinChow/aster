@@ -13,6 +13,7 @@ const mapping = [];
 const text = (node) => node.type === 'inlineCode' ? `\`${node.value}\`` : node.value ?? (node.children ?? []).map(text).join('');
 for (const project of catalog.projects) {
   const version = project.versions.find((item) => item.id === '9.1.6');
+  if (!version) continue;
   for (const page of version.pages.filter((item) => item.file.startsWith('internals/'))) {
     const filename = `${project.id}/${version.id}/${page.file}.mdx`;
     const tree = createProcessor({ remarkPlugins: [remarkGfm] }).parse(await readFile(path.join(contentRoot, filename), 'utf8'));

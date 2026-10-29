@@ -723,6 +723,51 @@
           "components": "_components"
         }
       ]
+    },
+    {
+      "id": "sandbox",
+      "title": "Aster Sandbox",
+      "label": "隔离与执行",
+      "description": "使用 a3s-sandbox 限制命令进程树，或使用 a3s-box 管理 OCI Sandbox 的完整生命周期。",
+      "defaultVersion": "current",
+      "versions": [
+        {
+          "id": "current",
+          "label": "当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Sandbox 产品概览",
+              "description": "a3s-sandbox 与 a3s-box 的职责和选择"
+            },
+            {
+              "slug": "native/",
+              "file": "native",
+              "label": "a3s-sandbox",
+              "title": "a3s-sandbox 命令边界",
+              "description": "原生后端、默认策略、能力探测和 Rust 接口"
+            },
+            {
+              "slug": "box/",
+              "file": "box",
+              "label": "a3s-box",
+              "title": "a3s-box 生命周期与隔离",
+              "description": "OCI 镜像、隔离方式、生命周期和 CLI"
+            },
+            {
+              "slug": "integration/",
+              "file": "integration",
+              "label": "CLI 与 Rust SDK",
+              "title": "Sandbox 接入与验证",
+              "description": "Rust SDK、构建边界和运行验收"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
     }
   ]
 }
