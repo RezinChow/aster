@@ -1,5 +1,6 @@
 import { getStartingSnapshot, calculateTransitions } from 'codehike/utils/token-transitions';
 import './harness_demo.mjs';
+import './docs_switchers.mjs';
 
 (() => {
   const menu = document.querySelector('.docs-sidebar .chapter-nav');

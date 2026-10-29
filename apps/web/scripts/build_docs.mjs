@@ -63,9 +63,12 @@ function chapterNav(docsRoot, chapter, entries) {
 function switchers(chapter, docsRoot, entries) {
   if (!chapter.project) return null;
   const { project, version } = chapter;
-  const menu = (label, current, links) => h('details', { className: 'docs-switcher' },
-    h('summary', { 'aria-label': `选择${label}，当前${current}` }, h('span', { className: 'switcher-label' }, label), current, h('span', { 'aria-hidden': true }, '⌄')),
-    h('div', { className: 'switcher-menu' }, ...links));
+  const menu = (label, current, links) => {
+    const menuId = `docs-switcher-${label === '产品' ? 'product' : 'version'}-menu`;
+    return h('details', { className: 'docs-switcher' },
+      h('summary', { 'aria-label': `选择${label}，当前${current}`, 'aria-expanded': 'false', 'aria-controls': menuId }, h('span', { className: 'switcher-label' }, label), current, h('span', { 'aria-hidden': true }, '⌄')),
+      h('div', { className: 'switcher-menu', id: menuId }, ...links));
+  };
   return h('div', { className: 'docs-switchers', role: 'group', 'aria-label': '文档产品与版本' },
     menu('产品', project.title, entries.map((entry) => h('a', { key: entry.id, href: `${docsRoot}${entry.id}/${entry.defaultVersion}/`, 'aria-current': entry.id === project.id ? 'true' : undefined }, entry.title))),
     menu('版本', version.label, project.versions.map((entry) => {
