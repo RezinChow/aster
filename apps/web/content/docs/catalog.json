@@ -725,6 +725,196 @@
       ]
     },
     {
+      "id": "boot",
+      "title": "Aster Boot",
+      "label": "模块化服务框架",
+      "description": "使用 a3s-boot 组合模块、类型化 Provider、协议中立管线和可替换适配器。",
+      "defaultVersion": "0.2.0",
+      "versions": [
+        {
+          "id": "0.2.0",
+          "label": "0.2.0 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Boot 产品概览",
+              "description": "模块、Provider、管线和适配器边界"
+            },
+            {
+              "slug": "application/",
+              "file": "application",
+              "label": "应用与管线",
+              "title": "Boot 应用与管线",
+              "description": "模块、Controller、工厂、生命周期和协议"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "运行与验证",
+              "title": "Boot 运行与验证",
+              "description": "Feature、PostgreSQL 队列、安全和测试"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
+      "id": "orm",
+      "title": "Aster ORM",
+      "label": "类型化 SQL",
+      "description": "使用 a3s-orm 构建参数化 SQL，并通过异步 PostgreSQL、SQLite 或自定义 Executor 执行。",
+      "defaultVersion": "0.3.1",
+      "versions": [
+        {
+          "id": "0.3.1",
+          "label": "0.3.1 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster ORM 产品概览",
+              "description": "类型化查询、方言、Executor 和迁移边界"
+            },
+            {
+              "slug": "integration/",
+              "file": "integration",
+              "label": "查询与接入",
+              "title": "ORM 查询与接入",
+              "description": "Schema、Query、Executor 和受控原生 SQL"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "迁移与验证",
+              "title": "ORM 迁移与运行验证",
+              "description": "事务、迁移、连接池和部署验收"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
+      "id": "search",
+      "title": "Aster Search",
+      "label": "多源检索",
+      "description": "使用 a3s-search 统一访问原生 API、HTTP/RSS 和浏览器来源，并保留结构化执行证据。",
+      "defaultVersion": "3.4.0",
+      "versions": [
+        {
+          "id": "3.4.0",
+          "label": "3.4.0 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Search 产品概览",
+              "description": "多源检索、级联计划、结果和结构回执"
+            },
+            {
+              "slug": "integration/",
+              "file": "integration",
+              "label": "检索接入",
+              "title": "Search 检索接入",
+              "description": "CLI、Rust 级联、来源选择和 ACL"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "排名与验证",
+              "title": "Search 排名与运行验证",
+              "description": "排名融合、回执、浏览器和可靠性控制"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
+      "id": "effect",
+      "title": "Aster Effect",
+      "label": "事实日志 Actor",
+      "description": "使用 a3s-effect 描述程序值，并从不可变事实日志恢复 Harness 状态转换。",
+      "defaultVersion": "0.2.1",
+      "versions": [
+        {
+          "id": "0.2.1",
+          "label": "0.2.1 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Effect 产品概览",
+              "description": "程序值、事实日志、Actor 恢复和等待边界"
+            },
+            {
+              "slug": "integration/",
+              "file": "integration",
+              "label": "Effect 与接入",
+              "title": "Effect 与 Harness 接入",
+              "description": "Effect、服务、Coding Actor 和组合部件"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "恢复与验证",
+              "title": "Effect 恢复与运行验证",
+              "description": "日志折叠、幂等、等待恢复和结构化取消"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
+      "id": "use",
+      "title": "Aster Use",
+      "label": "扩展包与能力宿主",
+      "description": "使用 a3s-use 和 .aix 管理 Tool、MCP、Skill、OKF 与 UI 扩展，并通过审查计划应用变更。",
+      "defaultVersion": "0.3.3",
+      "versions": [
+        {
+          "id": "0.3.3",
+          "label": "0.3.3 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Use 产品概览",
+              "description": "AIX、五类扩展表面、计划应用和宿主边界"
+            },
+            {
+              "slug": "aix/",
+              "file": "aix",
+              "label": "AIX 包与接入",
+              "title": "AIX 包与接入",
+              "description": "Manifest、文件清单、Registry 和计划应用"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "运行与恢复",
+              "title": "Use 运行与恢复",
+              "description": "作用域、MCP、Registry、状态备份与恢复"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
       "id": "sandbox",
       "title": "Aster Sandbox",
       "label": "隔离与执行",
