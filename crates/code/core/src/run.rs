@@ -816,6 +816,10 @@ fn apply_event_to_snapshot(run: &mut RunSnapshot, event: &AgentEvent) {
             run.status = RunStatus::Failed;
             run.error = Some(message.clone());
         }
+        AgentEvent::ToolEffectUnresolved { error } => {
+            run.status = RunStatus::Failed;
+            run.error = Some(error.to_string());
+        }
         _ => {}
     }
 }
@@ -835,3 +839,6 @@ mod tests;
 
 #[cfg(test)]
 mod owner_cancel_tests;
+
+#[cfg(test)]
+mod unresolved_terminal_tests;

@@ -15,8 +15,11 @@ pub(super) struct LiveTui {
     pub home: PathBuf,
     config: PathBuf,
     config_before: Vec<u8>,
+    editable_config: Option<PathBuf>,
+    fixture_env: Vec<(String, String)>,
     binary: PathBuf,
     pub editor: Option<String>,
+    pub submit_keys: Vec<u8>,
     session: Option<String>,
     secrets: Vec<String>,
     child: Option<Box<dyn Child + Send + Sync>>,
@@ -48,6 +51,7 @@ impl LiveTui {
             secrets.extend(provider.headers.values().cloned());
             for model in &provider.models {
                 secrets.extend(model.api_key.iter().cloned());
+                secrets.extend(model.base_url.iter().cloned());
                 secrets.extend(model.headers.values().cloned());
             }
         }
@@ -100,12 +104,15 @@ impl LiveTui {
         );
         let mut value = Self {
             config_before: std::fs::read(&config).unwrap(),
+            editable_config: None,
+            fixture_env: Vec::new(),
             _root: root,
             workspace,
             home,
             config,
             binary,
             editor: None,
+            submit_keys: b"\r".to_vec(),
             session: None,
             secrets,
             child: None,
@@ -124,6 +131,14 @@ impl LiveTui {
     }
 
     pub fn launch(&mut self, args: &[&str]) {
+        self.launch_inner(args, true);
+    }
+
+    pub fn launch_default(&mut self, args: &[&str]) {
+        self.launch_inner(args, false);
+    }
+
+    fn launch_inner(&mut self, args: &[&str], explicit_normal: bool) {
         assert!(self.child.is_none());
         let pair = native_pty_system()
             .openpty(PtySize {
@@ -134,7 +149,10 @@ impl LiveTui {
             })
             .unwrap();
         let mut command = CommandBuilder::new(&self.binary);
-        command.args(["--cwd", self.workspace.to_str().unwrap(), "--no-plan"]);
+        command.args(["--cwd", self.workspace.to_str().unwrap()]);
+        if explicit_normal && !args.contains(&"--plan") {
+            command.arg("--no-plan");
+        }
         command.args(args);
         command.cwd(&self.workspace);
         command.env_clear();
@@ -160,7 +178,13 @@ impl LiveTui {
         command.env("APPDATA", self.home.join("AppData/Roaming"));
         command.env("LOCALAPPDATA", self.home.join("AppData/Local"));
         command.env("GROK_HOME", self.home.join("grok"));
-        command.env("A3S_CONFIG", &self.config);
+        command.env(
+            "A3S_CONFIG",
+            self.editable_config.as_ref().unwrap_or(&self.config),
+        );
+        for (name, value) in &self.fixture_env {
+            command.env(name, value);
+        }
         command.env("A3S_DISABLE_CC_SWITCH", "1");
         command.env("A3S_DISABLE_GROK_ACCOUNT", "1");
         command.env("A3S_DISABLE_CURSOR_ACCOUNT", "1");
@@ -188,6 +212,61 @@ impl LiveTui {
         self.raw.clear();
         self.cpr_through = 0;
         self.session = None;
+    }
+
+    pub fn use_editable_config(&mut self) -> PathBuf {
+        use a3s_acl::{Block, Value as AclValue};
+        let parsed = a3s_code_core::CodeConfig::from_file(&self.config).unwrap();
+        let (provider, model) = parsed.default_model_config().unwrap();
+        let mut provider_json = serde_json::to_value(provider).unwrap();
+        let attrs = provider_json.as_object_mut().unwrap();
+        attrs.remove("name");
+        attrs.remove("models");
+        let mut model_json = serde_json::to_value(model).unwrap();
+        model_json.as_object_mut().unwrap().remove("id");
+        let attributes = |value: &Value| {
+            value
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.clone(), fixture_acl_value(v, &self.secrets)))
+                .collect()
+        };
+        let mut document = a3s_acl::parse_acl("default_model = \"kimi/k3.1-pro\"\n").unwrap();
+        document.blocks.push(Block {
+            name: "providers".into(),
+            labels: vec![provider.name.clone()],
+            attributes: attributes(&provider_json),
+            blocks: vec![Block {
+                name: "models".into(),
+                labels: vec![model.id.clone()],
+                blocks: vec![],
+                attributes: attributes(&model_json),
+            }],
+        });
+        document.blocks.push(Block {
+            name: "llm_api_timeout_ms".into(),
+            labels: vec![],
+            blocks: vec![],
+            attributes: [("llm_api_timeout_ms".into(), AclValue::Number(120_000.0))].into(),
+        });
+        let text = a3s_acl::generate_acl(&document);
+        for secret in self.secrets.iter().filter(|s| !s.is_empty()) {
+            assert!(
+                !text.contains(secret),
+                "fixture must never contain a resolved secret"
+            );
+        }
+        let path = self.home.join("editable-config.acl");
+        std::fs::write(&path, text).unwrap();
+        self.fixture_env = self
+            .secrets
+            .iter()
+            .enumerate()
+            .map(|(i, value)| (format!("ASTER_TUI_CONFIG_SECRET_{i}"), value.clone()))
+            .collect();
+        self.editable_config = Some(path.clone());
+        path
     }
 
     pub fn bytes(&mut self, bytes: &[u8]) {
@@ -220,6 +299,13 @@ impl LiveTui {
         out
     }
 
+    pub fn physical_screen(&mut self) -> String {
+        self.screen();
+        let screen = self.parser.screen();
+        let (_, cols) = screen.size();
+        self.redact(&screen.rows(0, cols).collect::<Vec<_>>().join("\n"))
+    }
+
     pub fn pump(&mut self, millis: u64) -> String {
         let deadline = Instant::now() + Duration::from_millis(millis);
         while Instant::now() < deadline {
@@ -242,10 +328,8 @@ impl LiveTui {
             if last.contains(needle) {
                 return last;
             }
-            assert!(
-                self.child.as_mut().unwrap().try_wait().unwrap().is_none(),
-                "TUI exited\n{last}"
-            );
+            let status = self.child.as_mut().unwrap().try_wait().unwrap();
+            assert!(status.is_none(), "TUI exited {status:?}\n{last}");
             std::thread::sleep(Duration::from_millis(40));
         }
         panic!("timeout waiting for {needle:?}\n{last}");
@@ -282,11 +366,30 @@ impl LiveTui {
     pub fn command(&mut self, text: &str) {
         self.focus_composer();
         self.bytes(b"\x1b[200~");
-        self.bytes(text.as_bytes());
+        // ConPTY exposes bare LF as Ctrl+Enter, not a text newline. Send the
+        // native Enter encoding; the pager coalesces the paste back to LF.
+        let paste = if cfg!(windows) {
+            assert!(!text.contains('\r'), "logical live prompts use LF");
+            text.replace('\n', "\r")
+        } else {
+            text.to_owned()
+        };
+        self.bytes(paste.as_bytes());
         self.bytes(b"\x1b[201~");
-        let prefix: String = text.chars().take(48).collect();
+        if cfg!(windows) && !text.starts_with('/') {
+            // Native console events lack a paste boundary. End preserves the
+            // draft and keeps the submit key out of the final text-key batch.
+            self.bytes(b"\x1b[F");
+        }
+        let prefix: String = text
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .chars()
+            .take(48)
+            .collect();
         self.wait_for(&prefix, 8);
-        self.bytes(b"\r");
+        self.bytes(&self.submit_keys.clone());
     }
 
     pub fn literal_command(&mut self, text: &str) {
@@ -378,7 +481,22 @@ impl LiveTui {
 
     pub fn session_id(&mut self) -> String {
         self.command("/session-info");
-        let info = self.wait_for("Session ID", 30);
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let info = loop {
+            let info = self.pump(100);
+            if info.contains("Session ID") {
+                break info;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timeout waiting for bound Session ID\n{info}"
+            );
+            let status = self.child.as_mut().unwrap().try_wait().unwrap();
+            assert!(status.is_none(), "TUI exited {status:?}\n{info}");
+            if info.contains("No active session") {
+                self.command("/session-info");
+            }
+        };
         let mut rows = info.lines();
         while let Some(row) = rows.next() {
             if !row.contains("Session ID") {
@@ -454,10 +572,23 @@ impl LiveTui {
         }
         let before = self.facts().len();
         self.command(prompt);
+        self.settle_turn(before, prompt, permission)
+    }
+
+    pub fn settle_turn(
+        &mut self,
+        before: usize,
+        prompt: &str,
+        permission: Option<&[u8]>,
+    ) -> Vec<Value> {
         let deadline = Instant::now() + Duration::from_secs(420);
         let mut answered = false;
         loop {
             let screen = self.pump(80);
+            assert!(
+                !screen.contains("Turn failed"),
+                "live turn failed\n{screen}"
+            );
             if !screen.contains("Yes, proceed") {
                 answered = false;
             }
@@ -495,10 +626,6 @@ impl LiveTui {
                         "TUI did not become idle after the terminal fact\n{screen}"
                     );
                 };
-                assert!(
-                    !screen.contains("Turn failed"),
-                    "live turn failed\n{screen}"
-                );
                 self.record(
                     "settled-turn",
                     &format!(
@@ -562,6 +689,58 @@ impl LiveTui {
         );
         self.finished = true;
     }
+
+    pub fn checkpoint_session(&mut self, label: &str) {
+        let facts = self.evidence_facts();
+        self.evidence
+            .push(json!({"checkpoint":label,"session":self.session,"facts":facts}));
+    }
+
+    pub fn permission_answer_count(&self) -> usize {
+        self.evidence
+            .iter()
+            .filter(|entry| entry["name"] == "permission-answer")
+            .count()
+    }
+
+    fn evidence_facts(&self) -> Vec<Value> {
+        self.facts().iter().filter_map(|fact| {
+            let p = &fact["payload"];
+            let payload = match fact["type"].as_str()? {
+                "tool.prepared" => json!({"identity":p["prepared"]["identity"], "tool":p["prepared"]["tool_name"]}),
+                "tool.result" => {
+                    let r = &p["receipt"];
+                    json!({"identity":r["identity"],"prepared_digest":r["prepared_digest"],"outcome":r["outcome"],"effects":r["effects"],"output":r["output"]})
+                }
+                "model.turn" => json!({"prompt_tokens":p["prompt_tokens"],"has_text":p["text"].as_str().is_some_and(|v| !v.is_empty()),"tool":p["call"]["name"]}),
+                "turn.complete" | "a3s.goal.created" | "a3s.goal.paused" | "a3s.goal.resumed" | "a3s.goal.cancelled" | "compaction.done" => p.clone(),
+                _ => return None,
+            };
+            Some(json!({"seq":fact["seq"],"type":fact["type"],"payload":payload}))
+        }).collect()
+    }
+}
+
+fn fixture_acl_value(value: &Value, secrets: &[String]) -> a3s_acl::Value {
+    use a3s_acl::Value as A;
+    match value {
+        Value::Null => A::Null,
+        Value::Bool(v) => A::Bool(*v),
+        Value::Number(v) => A::Number(v.as_f64().unwrap()),
+        Value::String(v) => match secrets.iter().position(|s| !s.is_empty() && s == v) {
+            Some(i) => A::Call(
+                "env".into(),
+                vec![A::String(format!("ASTER_TUI_CONFIG_SECRET_{i}"))],
+            ),
+            None => A::String(v.clone()),
+        },
+        Value::Array(v) => A::List(v.iter().map(|v| fixture_acl_value(v, secrets)).collect()),
+        Value::Object(v) => A::Object(
+            v.iter()
+                .map(|(k, v)| (k.clone(), fixture_acl_value(v, secrets)))
+                .collect(),
+        ),
+    }
 }
 
 impl Drop for LiveTui {
@@ -578,23 +757,14 @@ impl Drop for LiveTui {
         if let Some(dir) = std::env::var_os("A3S_TUI_LIVE_EVIDENCE_DIR") {
             let dir = PathBuf::from(dir);
             std::fs::create_dir_all(&dir).unwrap();
-            let facts: Vec<Value> = self.facts().iter().filter_map(|fact| {
-                let p = &fact["payload"];
-                let payload = match fact["type"].as_str()? {
-                    "tool.prepared" => json!({"identity":p["prepared"]["identity"], "tool":p["prepared"]["tool_name"]}),
-                    "tool.result" => {
-                        let r = &p["receipt"];
-                        json!({"identity":r["identity"],"prepared_digest":r["prepared_digest"],"outcome":r["outcome"],"effects":r["effects"],"output":r["output"]})
-                    }
-                    "model.turn" => json!({"prompt_tokens":p["prompt_tokens"],"has_text":p["text"].as_str().is_some_and(|v| !v.is_empty()),"tool":p["call"]["name"]}),
-                    "turn.complete" | "a3s.goal.created" | "a3s.goal.paused" | "a3s.goal.resumed" | "a3s.goal.cancelled" | "compaction.done" => p.clone(),
-                    _ => return None,
-                };
-                Some(json!({"seq":fact["seq"],"type":fact["type"],"payload":payload}))
-            }).collect();
+            let facts = self.evidence_facts();
+            let raw_start = self.raw.len().saturating_sub(64 * 1_024);
+            let raw_tail = (!self.finished)
+                .then(|| String::from_utf8_lossy(&self.raw[raw_start..]).into_owned());
             let report = json!({"case":self.case,"model":"kimi/k3.1-pro",
                 "assertions_finished":self.finished,"panicked":std::thread::panicking(),
                 "oracles":self.evidence,"last_screen":screen,"facts":facts,
+                "raw_terminal_tail":raw_tail,
                 "config_unchanged":std::fs::read(&self.config).ok().as_deref()==Some(self.config_before.as_slice())});
             let report = self.redact(&serde_json::to_string_pretty(&report).unwrap());
             std::fs::write(dir.join(format!("{}.json", self.case)), report).unwrap();

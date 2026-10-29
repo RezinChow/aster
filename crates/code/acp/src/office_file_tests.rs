@@ -252,7 +252,12 @@ async fn an_admitted_tool_refuses_a_recreated_workspace_directory() {
         .await
         .unwrap();
     assert!(
-        !output.success && output.content.contains("not admitted"),
+        !output.success
+            && output.content.contains(if cfg!(windows) {
+                "Workspace operation not found in active capability scope"
+            } else {
+                "not admitted"
+            }),
         "{}",
         output.content
     );
@@ -303,7 +308,14 @@ async fn artifact_verification_is_bound_to_the_created_path_and_saved_bytes() {
     let args = workbook("verified.xlsx");
     let output = execute(&args, &context(root.path())).await.unwrap();
     let tool = OfficeFileTool::new(root.path()).unwrap();
-    let proof = tool.artifact_verification(&args, &output).unwrap();
+    let proof = tool
+        .artifact_verification(&args, &output)
+        .unwrap_or_else(|| {
+            panic!(
+                "native proof missing: root={:?}, args={args}, output={output:?}",
+                tool.workspace.root()
+            )
+        });
     assert_eq!(proof.file_path, "verified.xlsx");
     assert_eq!(
         proof.content_digest,

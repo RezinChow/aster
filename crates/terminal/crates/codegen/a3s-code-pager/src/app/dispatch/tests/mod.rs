@@ -7,6 +7,7 @@ mod jump;
 mod mid_text_btw;
 mod mid_text_goal;
 mod modes;
+mod modes_code;
 mod notes;
 mod permissions;
 mod prompt;

@@ -3265,7 +3265,11 @@ async fn drain_and_process(
     let preserve_keys = app.gboom_active()
         || matches!(app.active_view, ActiveView::Agent(id)
             if app.agents.get(&id).is_some_and(|agent| agent.focused_card().is_some()));
-    coalesced.extend(coalesce_live_keys(live_events, preserve_keys));
+    coalesced.extend(coalesce_live_keys(
+        live_events,
+        preserve_keys,
+        app.voice_hold_owned(),
+    ));
     let coalesced = csi_filter.filter(coalesced);
     let coalesced = x10_filter.filter(coalesced);
     let coalesced = coalesced
@@ -3537,6 +3541,10 @@ pub(super) fn drain_immediate(
         batch.push(ev);
     }
 }
+#[cfg(test)]
+#[path = "event_loop/native_paste_tests.rs"]
+mod native_paste_tests;
+
 /// Minimum key events in a run to trigger paste coalescing.
 const PASTE_COALESCE_THRESHOLD: usize = 3;
 /// Minimum run length for the Windows path-shape coalesce branch.
@@ -3637,32 +3645,44 @@ fn coalesce_rapid_keys_since(
     let live_start = events.partition_point(|event| event.arrived_at < live_input_started_at);
     let mut events = events;
     let live_events = events.split_off(live_start);
-    events.extend(coalesce_live_keys(live_events, false));
+    events.extend(coalesce_live_keys(live_events, false, false));
     events
 }
-fn coalesce_live_keys(events: Vec<TimedInputEvent>, preserve_keys: bool) -> Vec<TimedInputEvent> {
+fn coalesce_live_keys(
+    events: Vec<TimedInputEvent>,
+    preserve_keys: bool,
+    voice_hold_owned: bool,
+) -> Vec<TimedInputEvent> {
     if preserve_keys || events.len() < PASTE_COALESCE_THRESHOLD {
         return events;
     }
+    // Only an owned voice hold or a voice press in this batch needs its release.
+    // Native Windows pastes also emit ordinary space releases between text keys.
+    let voice_release_needed = voice_hold_owned
+        || events.iter().any(|event| {
+            matches!(&event.event, Event::Key(key)
+                if key.kind == KeyEventKind::Press && is_voice_chord(key))
+        });
+    let events: Vec<TimedInputEvent> = events
+        .into_iter()
+        .filter(|ev| {
+            !matches!(&ev.event, Event::Key(ke)
+                if ke.kind == KeyEventKind::Release
+                    && !(voice_release_needed && is_voice_chord(ke)))
+        })
+        .collect();
     let (mut has_paste, mut has_keys) = (false, false);
     for e in &events {
         has_paste |= matches!(e.event, Event::Paste(_));
         has_keys |= is_pasteable_key_event(&e.event);
     }
     if has_paste {
-        return if has_keys {
+        return if has_keys && !voice_release_needed {
             merge_paste_fragments(events)
         } else {
             events
         };
     }
-    let events: Vec<TimedInputEvent> = events
-        .into_iter()
-        .filter(|ev| {
-            !matches!(&ev.event, Event::Key(ke)
-                if ke.kind == KeyEventKind::Release && !is_voice_chord(ke))
-        })
-        .collect();
     let mut result = Vec::with_capacity(events.len());
     let mut i = 0;
     while i < events.len() {
@@ -5576,7 +5596,7 @@ mod tests {
             .iter()
             .map(|event| event.event.clone())
             .collect::<Vec<_>>();
-        let actual = coalesce_live_keys(events, true)
+        let actual = coalesce_live_keys(events, true, false)
             .into_iter()
             .map(|event| event.event)
             .collect::<Vec<_>>();

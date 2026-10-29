@@ -295,10 +295,13 @@ impl A3sCodeAgent {
                 .map_err(|error| acp::Error::internal_error().data(error))?;
         }
         let asset_denies = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let permissions =
+            SessionPermissions::with_client_rules(self.client_permissions.borrow().clone());
         if Self::attach_local_assets(&session, &setup.host, &asset_denies, self.document_bridge())?
+            || !permissions.client_rules.is_empty()
         {
             session
-                .set_permission_policy(posture_policy("default", &[]))
+                .set_permission_policy(permissions.policy())
                 .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
         }
         Ok(LiveSession {
@@ -306,7 +309,7 @@ impl A3sCodeAgent {
             session: Arc::new(session),
             workspace: setup.workspace,
             model_id: setup.model_id.to_string(),
-            permissions: Arc::new(std::sync::Mutex::new(SessionPermissions::default())),
+            permissions: Arc::new(std::sync::Mutex::new(permissions)),
             asset_denies,
             host: setup.host,
             plugin_tools: Vec::new(),

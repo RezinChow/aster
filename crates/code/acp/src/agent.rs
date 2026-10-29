@@ -23,6 +23,8 @@ mod host_methods;
 mod local_embedding;
 mod memory_management;
 mod models;
+#[cfg(test)]
+mod native_send_now_tests;
 mod permission_ask;
 mod permission_state;
 mod resume;
@@ -54,7 +56,9 @@ use permission_ask::{
 use permission_ask::{
     permission_response_always, permission_response_approved, question_permission_options,
 };
-use permission_state::{PermissionPosture, ResearchGate, SessionPermissions};
+use permission_state::{
+    ClientPermissionRules, PermissionPosture, ResearchGate, SessionPermissions,
+};
 #[cfg(test)]
 use sampling::resolve_consent_session;
 use sampling::serve_sampling_consent;
@@ -580,6 +584,7 @@ pub struct A3sCodeAgent {
     /// Trusted launcher instructions from initialize, kept separate from the
     /// workspace configuration and applied whenever a session is opened.
     client_rules: RefCell<Option<String>>,
+    client_permissions: RefCell<ClientPermissionRules>,
     /// This process created `~/.a3s/config.acl`. The pager opens `/config`.
     first_run_config: bool,
 }
@@ -643,6 +648,7 @@ impl A3sCodeAgent {
             workspace_admission: Default::default(),
             client_reads_files: std::cell::Cell::new(false),
             client_rules: RefCell::new(None),
+            client_permissions: RefCell::new(ClientPermissionRules::default()),
             first_run_config: false,
         }
     }
@@ -813,7 +819,9 @@ impl A3sCodeAgent {
         let count_guideline = if max_tool_rounds == 0 {
             "Tool calls have no count limit. Stop when the user's outcome is done.".to_owned()
         } else {
-            format!("Tool execution count limit: tool_rounds={max_tool_rounds}. Stop when the user's outcome is done.")
+            format!(
+                "Tool execution count limit: tool_rounds={max_tool_rounds}. Stop when the user's outcome is done."
+            )
         };
         let guidelines = slots.guidelines.get_or_insert_with(String::new);
         if !guidelines.is_empty() {
@@ -978,7 +986,9 @@ impl acp::Agent for A3sCodeAgent {
         args: acp::InitializeRequest,
     ) -> acp::Result<acp::InitializeResponse> {
         let rules = initialize_rules_from_meta(args.meta.as_ref())?;
+        let permissions = ClientPermissionRules::from_meta(args.meta.as_ref())?;
         *self.client_rules.borrow_mut() = rules;
+        *self.client_permissions.borrow_mut() = permissions;
         self.client_reads_files
             .set(args.client_capabilities.fs.read_text_file);
         let cwd = self.launch.workspace.to_string_lossy().to_string();
@@ -1309,6 +1319,11 @@ impl acp::Agent for A3sCodeAgent {
     async fn prompt(&self, args: acp::PromptRequest) -> acp::Result<acp::PromptResponse> {
         tracing::info!(target: "perf_probe", "prompt_enter");
         let requested_posture = PermissionPosture::from_meta(args.meta.as_ref())?;
+        let send_now = match args.meta.as_ref().and_then(|meta| meta.get("sendNow")) {
+            None => false,
+            Some(serde_json::Value::Bool(value)) => *value,
+            Some(_) => return Err(acp::Error::invalid_params().data("sendNow must be a boolean")),
+        };
         let session_key = args.session_id.0.to_string();
         let turn_started = std::time::Instant::now();
         let turn_queue = self
@@ -1325,6 +1340,10 @@ impl acp::Agent for A3sCodeAgent {
         }
         if let Err(message) = configured_model_id(&self.model_id.lock().await) {
             return Err(acp::Error::invalid_params().data(message));
+        }
+        if send_now {
+            self.cancel(acp::CancelNotification::new(args.session_id.clone()))
+                .await?;
         }
         // Queue behind an active turn instead of failing: the pager's
         // send-now / queue-reissue expect the agent to accept and serialize.
@@ -1572,3 +1591,11 @@ mod run_observation_agent_tests;
 #[cfg(test)]
 #[path = "agent/permission_state_tests.rs"]
 mod permission_state_tests;
+
+#[cfg(test)]
+#[path = "agent/client_permission_tests.rs"]
+mod client_permission_tests;
+
+#[cfg(test)]
+#[path = "agent/turn_input_tests.rs"]
+mod turn_input_tests;

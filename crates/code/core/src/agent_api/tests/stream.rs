@@ -113,15 +113,30 @@ async fn test_stream_tool_round_checkpoint_flushes_session_before_end() {
         .await
         .unwrap();
     let mut flushed_before_end = false;
+    let mut write_id = None;
     while let Some(event) = rx.recv().await {
         match &event {
-            AgentEvent::ToolEnd { id, .. } if id == "call-write" => {
+            AgentEvent::ToolStart { id, name } if name == "write" => {
+                assert!(write_id.replace(id.clone()).is_none());
+            }
+            AgentEvent::ToolEnd {
+                id,
+                name,
+                exit_code,
+                ..
+            } if name == "write" => {
+                assert_eq!(
+                    Some(id),
+                    write_id.as_ref(),
+                    "settle the announced host invocation"
+                );
+                assert_eq!(*exit_code, 0);
                 // Checkpoint commit acks after the event sink drains.
                 for _ in 0..50 {
                     tokio::time::sleep(std::time::Duration::from_millis(40)).await;
                     if let Ok(Some(saved)) = store.load("stream-ckpt-flush-test").await {
                         let hay = serde_json::to_string(&saved.messages).unwrap_or_default();
-                        if hay.contains("a3s-ckpt-flush.md") || hay.contains("call-write") {
+                        if hay.contains("a3s-ckpt-flush.md") && hay.contains(id) {
                             flushed_before_end = true;
                             break;
                         }
@@ -192,14 +207,29 @@ async fn test_stream_bridges_subagent_lifecycle_events() {
     let mut event_index = 0usize;
     let mut last_subagent_end = None;
     let mut parent_tool_end = None;
+    let mut parent_tool_id = None;
     while let Some(event) = rx.recv().await {
         match event {
+            AgentEvent::ToolStart { id, name } if name == "task" => {
+                assert!(parent_tool_id.replace(id).is_none());
+            }
             AgentEvent::SubagentStart { .. } => subagent_starts += 1,
             AgentEvent::SubagentEnd { .. } => {
                 subagent_ends += 1;
                 last_subagent_end = Some(event_index);
             }
-            AgentEvent::ToolEnd { id, .. } if id == "call-parallel" => {
+            AgentEvent::ToolEnd {
+                id,
+                name,
+                exit_code,
+                ..
+            } if name == "task" => {
+                assert_eq!(
+                    Some(id),
+                    parent_tool_id,
+                    "settle the announced parent invocation"
+                );
+                assert_eq!(exit_code, 0);
                 parent_tool_end = Some(event_index);
             }
             AgentEvent::End { .. } => break,

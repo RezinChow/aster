@@ -3169,11 +3169,11 @@ async fn permission_ack_failure_narrows_ui_without_writing_preference() {
         let Some(a3s_acp_lib::AcpAgentMessage::SetSessionMode(args)) = rx.recv().await else {
             panic!("must use acknowledged session/set_mode");
         };
-        assert_eq!(args.request.mode_id.0.as_ref(), "plan");
+        assert_eq!(args.request.mode_id.0.as_ref(), "yolo");
         args.response_tx.send(Err(acp::Error::invalid_params().data("refused"))).unwrap();
     });
     let result = persist_permission_mode_and_notify("yolo", Some(acp::SessionId::new("s")),
-        PermissionModePersist::WithRollback("yolo"), Some("plan"), tx).await;
+        PermissionModePersist::WithRollback("yolo"), Some("yolo"), tx).await;
     assert!(matches!(result, TaskResult::PermissionModeFailed { session_id, .. } if session_id.0.as_ref() == "s"));
     broker.await.unwrap();
 }

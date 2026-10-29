@@ -7,6 +7,8 @@ pub mod a3s_spawn;
 pub mod leader_bridge;
 pub mod meta;
 pub mod model_state;
+#[cfg(test)]
+mod permission_rules_tests;
 pub mod spawn;
 pub(crate) mod subagent_label_registry;
 mod subagent_message;
@@ -171,6 +173,9 @@ pub struct ConnectFlags {
     /// CLI permission rules from the --allow and --deny flags.
     /// Not supported in leader mode (agent config is set at leader startup).
     pub permission_rules: Vec<a3s_code_workspace::permission::types::PermissionRule>,
+    /// Original compact rules for the Code sidecar's permission engine.
+    pub permission_allow_rules: Vec<String>,
+    pub permission_deny_rules: Vec<String>,
     /// Seed agent sessions with yolo (YOLO) permission mode.
     pub default_yolo_mode: bool,
     /// Seed agent sessions with auto (classifier) permission mode.
@@ -367,7 +372,7 @@ pub(super) fn apply_config_writes(flags: &ConnectFlags) {
     }
 }
 /// Build the per-session `_meta` for `InitializeRequest` (TUI and leader).
-fn build_initialize_meta(flags: &ConnectFlags) -> serde_json::Value {
+fn build_initialize_meta(flags: &ConnectFlags, target: CapabilityTarget) -> serde_json::Value {
     let client_type = flags
         .client_identifier
         .as_deref()
@@ -386,8 +391,27 @@ fn build_initialize_meta(flags: &ConnectFlags) -> serde_json::Value {
         if let Some(rules) = &flags.rules {
             obj.insert("rules".into(), serde_json::Value::String(rules.clone()));
         }
+        if target == CapabilityTarget::Sidecar {
+            if let Some(rules) = cli_permission_rules_meta(
+                &flags.permission_allow_rules,
+                &flags.permission_deny_rules,
+            ) {
+                obj.insert("permissionRules".into(), rules);
+            }
+        }
     }
     meta
+}
+
+pub(crate) fn cli_permission_rules_meta(
+    allow: &[String],
+    deny: &[String],
+) -> Option<serde_json::Value> {
+    if allow.is_empty() && deny.is_empty() {
+        None
+    } else {
+        Some(serde_json::json!({"allow": allow, "deny": deny}))
+    }
 }
 /// Which agent receives this initialize. The leader still reads the shell extensions.
 /// The ACP sidecar does not implement them, so those keys stay off its initialize.
@@ -450,7 +474,7 @@ async fn initialize(
     flags: &ConnectFlags,
     target: CapabilityTarget,
 ) -> Result<InitializedAgent> {
-    let mut meta = build_initialize_meta(flags).as_object().cloned();
+    let mut meta = build_initialize_meta(flags, target).as_object().cloned();
     crate::app::session_startup::stamp_phase_traceparent(&mut meta);
     let req = acp::InitializeRequest::new(acp::ProtocolVersion::V1)
         .client_capabilities(
@@ -1031,7 +1055,7 @@ mod tests {
             rules: Some("Always reply in French.".into()),
             ..Default::default()
         };
-        let meta = build_initialize_meta(&flags);
+        let meta = build_initialize_meta(&flags, CapabilityTarget::Sidecar);
         assert_eq!(
             meta.get("rules").and_then(|v| v.as_str()),
             Some("Always reply in French.")
@@ -1040,7 +1064,7 @@ mod tests {
     #[test]
     fn build_initialize_meta_omits_rules_when_unset() {
         let flags = ConnectFlags::default();
-        let meta = build_initialize_meta(&flags);
+        let meta = build_initialize_meta(&flags, CapabilityTarget::Sidecar);
         assert!(
             meta.get("rules").is_none(),
             "rules key must be absent when --rules is not set; meta={meta:?}"
@@ -1052,7 +1076,7 @@ mod tests {
             system_prompt_override: Some("YOU ARE A PIRATE.".into()),
             ..Default::default()
         };
-        let meta = build_initialize_meta(&flags);
+        let meta = build_initialize_meta(&flags, CapabilityTarget::Sidecar);
         assert_eq!(
             meta.get("systemPromptOverride").and_then(|v| v.as_str()),
             Some("YOU ARE A PIRATE.")
@@ -1064,7 +1088,7 @@ mod tests {
             client_identifier: Some("zed".into()),
             ..Default::default()
         };
-        let meta = build_initialize_meta(&flags);
+        let meta = build_initialize_meta(&flags, CapabilityTarget::Sidecar);
         assert_eq!(meta.get("clientType").and_then(|v| v.as_str()), Some("zed"));
     }
     #[test]

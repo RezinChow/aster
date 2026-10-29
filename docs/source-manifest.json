@@ -223,6 +223,17 @@
       "note": "Published Power main merges the existing H200/native-storage branch and upstream WorkBuddy metadata compatibility; adds managed native Xolotl lifecycle, bounded readiness, DSpark/FP4 KV configuration, and shared OpenAI tool compatibility. Root workspace retains the lockfile and local dependencies."
     },
     {
+      "package": "crossterm",
+      "version": "0.28.1",
+      "path": "crates/third-party/crossterm",
+      "source": "https://crates.io/api/v1/crates/crossterm/0.28.1/download",
+      "revision": "492b764f9f132d302903ff6f2f55e96c1b8cd0ec",
+      "source_archive_sha256": "829d955a0bb380ef178a640b91779e3987da38c9aea133b20614cfed8cdea9c6",
+      "license": "MIT",
+      "license_text": "crates/third-party/crossterm/LICENSE",
+      "note": "Retains upstream package name, version, public API, source, examples and notices. A narrow Windows parser patch emits committed Alt-code characters as text presses; ordinary key releases remain releases. The local package is unpublished and uses the root workspace and lockfile. Sources are formatted with the pinned root toolchain."
+    },
+    {
       "package": "serde-saphyr",
       "version": "0.0.16",
       "path": "crates/third-party/serde-saphyr",

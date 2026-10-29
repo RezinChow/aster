@@ -539,15 +539,18 @@ impl ToolRegistry {
         let prepared = self.prepare_output_with_context(name, args, ctx).await?;
         let transform_binding = prepared.transform_binding;
         let mut result = match prepared.output {
-            Some(output) => Ok(ToolResult {
-                name: name.to_string(),
-                output: output.content,
-                exit_code: if output.success { 0 } else { 1 },
-                metadata: output.metadata,
-                images: output.images,
-                error_kind: output.error_kind,
-                trust: crate::tools::ToolResultTrustV1::WorkspaceData,
-            }),
+            Some(output) => {
+                let exit_code = super::tool_output_exit_code(&output);
+                Ok(ToolResult {
+                    name: name.to_string(),
+                    output: output.content,
+                    exit_code,
+                    metadata: output.metadata,
+                    images: output.images,
+                    error_kind: output.error_kind,
+                    trust: crate::tools::ToolResultTrustV1::WorkspaceData,
+                })
+            }
             None => Ok(ToolResult::error(name, format!("Unknown tool: {name}"))),
         };
 

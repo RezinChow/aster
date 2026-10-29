@@ -31,3 +31,15 @@
 /docs/evidence/tui/2026-10-28-wsl-linux-k31-source-integration/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /docs/evidence/tui/2026-10-28-kimi-k31-source-integration/**/*.log whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
 /docs/evidence/tui/2026-10-28-wsl-linux-k31-source-integration/**/*.log whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
+
+# Keep upstream Markdown spacing, including its intentional hard line breaks.
+# Checkout line endings still follow the source-wide LF rule above.
+/crates/third-party/crossterm/README.md whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+/crates/third-party/crossterm/docs/CONTRIBUTING.md whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+/crates/third-party/crossterm/docs/know-problems.md whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+/crates/third-party/crossterm/examples/README.md whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Native terminal logs and unified-patch context retain their recorded bytes.
+/docs/evidence/tui/2026-10-28-full-acceptance/**/*.log whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
+/docs/evidence/tui/2026-10-28-full-acceptance/source/*-owned.patch whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+/docs/evidence/tui/2026-10-28-full-acceptance/windows/windows-metadata-experiment.patch whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

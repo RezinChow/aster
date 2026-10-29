@@ -17,6 +17,27 @@ mod workflows;
 #[path = "aster_tui_live_e2e/forms.rs"]
 mod forms;
 
+#[path = "aster_tui_live_e2e/functional.rs"]
+mod functional;
+
+#[path = "aster_tui_live_e2e/lifecycle.rs"]
+mod lifecycle;
+
+#[path = "aster_tui_live_e2e/context_and_input.rs"]
+mod context_and_input;
+
+#[path = "aster_tui_live_e2e/input_controls.rs"]
+mod input_controls;
+
+#[path = "aster_tui_live_e2e/reading_controls.rs"]
+mod reading_controls;
+
+#[path = "aster_tui_live_e2e/stream_controls.rs"]
+mod stream_controls;
+
+#[path = "aster_tui_live_e2e/tool_contracts.rs"]
+mod tool_contracts;
+
 use driver::LiveTui;
 
 #[test]

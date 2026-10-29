@@ -12,7 +12,17 @@ impl A3sCodeAgent {
         let mut text = Vec::new();
         for block in prompt {
             match block {
-                acp::ContentBlock::Text(content) => text.push(content.text.as_str()),
+                acp::ContentBlock::Text(content) => {
+                    if content
+                        .meta
+                        .as_ref()
+                        .is_some_and(|meta| meta.contains_key("bash_command"))
+                    {
+                        return Err(acp::Error::invalid_params()
+                            .data("Direct shell commands are unavailable with the Code backend."));
+                    }
+                    text.push(content.text.as_str());
+                }
                 acp::ContentBlock::Image(_) => return Err(unsupported("image")),
                 acp::ContentBlock::Audio(_) => return Err(unsupported("audio")),
                 acp::ContentBlock::Resource(_) => return Err(unsupported("resource")),
@@ -622,8 +632,8 @@ impl A3sCodeAgent {
     /// Return `Cancelled` without awaiting a stuck public join.
     ///
     /// A short drain lets a tool that is already waiting append `cancelled`.
-    /// `cancel_and_settle` then aborts the inner fact worker. The public join
-    /// is only a waiter; the turn lock stays with it until that waiter ends.
+    /// The original worker must finish its capability cleanup and release
+    /// proof. The public join retains the turn lock while that happens.
     pub(super) async fn leave_cancelled_turn(
         &self,
         session_id: &acp::SessionId,
@@ -668,12 +678,6 @@ impl A3sCodeAgent {
                 }
             }
         }
-        let _idle = session
-            .cancel_and_settle(
-                crate::turn_cancel::CANCEL_SETTLE_GRACE,
-                crate::turn_cancel::CANCEL_ABORT_GRACE,
-            )
-            .await;
         self.settle_public_join(join, turn_permit).await;
         self.close_run_observation(state).await;
         tracing::info!(target: "perf_probe", "turn_cancel_return");

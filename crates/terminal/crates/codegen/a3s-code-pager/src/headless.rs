@@ -482,6 +482,8 @@ async fn authenticate(
 fn build_headless_init_request(
     rules: Option<&str>,
     system_prompt_override: Option<&str>,
+    allow: &[String],
+    deny: &[String],
 ) -> acp::InitializeRequest {
     let mut meta = serde_json::json!({
         "clientType": HEADLESS_CLIENT_TYPE,
@@ -496,6 +498,9 @@ fn build_headless_init_request(
                 "systemPromptOverride".into(),
                 serde_json::json!(system_prompt_override),
             );
+        }
+        if let Some(rules) = crate::acp::cli_permission_rules_meta(allow, deny) {
+            obj.insert("permissionRules".into(), rules);
         }
         obj.insert(
             "startupHints".into(),
@@ -926,6 +931,8 @@ pub async fn run_single_turn(
     let init_req = build_headless_init_request(
         options.rules.as_deref(),
         options.system_prompt_override.as_deref(),
+        &options.allow_rules,
+        &options.deny_rules,
     );
     a3s_code_telemetry::startup::enter(crate::acp::StartupPhase::AcpInitialize);
     let init_resp: acp::InitializeResponse = match acp_send(init_req, &acp_tx).await {
@@ -1873,6 +1880,9 @@ mod background_lifecycle_tests;
 #[cfg(test)]
 #[path = "headless/missing_sidecar_tests.rs"]
 mod missing_sidecar_tests;
+#[cfg(test)]
+#[path = "headless/permission_rules_tests.rs"]
+mod permission_rules_tests;
 #[cfg(test)]
 #[path = "headless_tests.rs"]
 mod tests;

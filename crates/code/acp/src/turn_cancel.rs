@@ -10,14 +10,8 @@ use tokio::sync::OwnedMutexGuard;
 use tokio::task::JoinHandle;
 
 /// How long a cancelled turn keeps reading events so a waiting tool can
-/// append `tool.result` `cancelled` before the worker is aborted.
+/// append `tool.result` `cancelled` before the public response returns.
 pub(crate) const CANCEL_EVENT_DRAIN: Duration = Duration::from_millis(150);
-
-/// Cooperative wait inside `cancel_and_settle` before the inner worker is aborted.
-pub(crate) const CANCEL_SETTLE_GRACE: Duration = Duration::from_millis(50);
-
-/// How long the inner worker may take to drop its lease after abort.
-pub(crate) const CANCEL_ABORT_GRACE: Duration = Duration::from_millis(50);
 
 /// Upper bound on holding the turn lock for a public join that does not finish.
 pub(crate) const CANCEL_JOIN_HOLD: Duration = Duration::from_secs(30);

@@ -636,3 +636,19 @@ conceptual block columns change to fit the documentation canvas.
 
 See `docs/evidence/web/2026-10-29-spotlight-reading-experience/OUTCOME.md` for actual
 browser screenshots, source comparisons, reduced-motion and no-script checks.
+
+## 2026-10-29 — native Windows Unicode text commits
+
+Vendored the published Crossterm 0.28.1 archive under its original MIT license
+and package/API identities. A narrow Windows input-parser patch treats a
+nonzero UTF-16 Alt-code commit on VK_MENU release as text input. Native ConPTY
+records demonstrated that the old classification dropped every combining acute
+accent in the frozen long-paste acceptance case. Ordinary key releases remain
+releases; surrogate-pair behavior is retained. The source archive, revision and
+license location are recorded in docs/source-manifest.json.
+
+The package joins the existing root workspace, uses its lockfile and remains
+unpublished. The paired CLI source stamp now covers the local input parser.
+Evidence, the failing regression and subsequent qualification are retained in
+docs/evidence/tui/2026-10-28-full-acceptance/OUTCOME.md. No credentials or user
+session state are imported.

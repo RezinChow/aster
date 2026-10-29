@@ -1433,8 +1433,9 @@ pub(crate) async fn persist_permission_mode_and_notify(
     tx: AcpAgentTx,
 ) -> TaskResult {
     if let Some(posture) = effective_posture {
-        if let Some(id) = session_id {
-            if let Err(error) = acp_send(acp::SetSessionModeRequest::new(id.clone(), posture), &tx).await {
+        if let Some(request) = permission_toggle_request(session_id, posture) {
+            let id = request.session_id.clone();
+            if let Err(error) = acp_send(request, &tx).await {
                 return TaskResult::PermissionModeFailed {
                     session_id: id,
                     error: format!("Permission mode was not confirmed: {error}. Next task will request a restrictive mode."),
@@ -1464,6 +1465,22 @@ pub(crate) async fn persist_permission_mode_and_notify(
     }
     route_permission_mode_result(disk_outcome, persist, config_str)
 }
+
+fn permission_toggle_request(
+    session_id: Option<acp::SessionId>,
+    posture: &'static str,
+) -> Option<acp::SetSessionModeRequest> {
+    // A permission toggle under Plan changes only the future preference.
+    // Re-sending Plan here can arrive after a newer exit and undo it.
+    if posture == "plan" {
+        return None;
+    }
+    session_id.map(|id| acp::SetSessionModeRequest::new(id, posture))
+}
+
+#[cfg(test)]
+#[path = "permission_toggle_tests.rs"]
+mod permission_toggle_tests;
 pub(crate) async fn notify_permission_mode(
     canonical: &'static str,
     session_id: Option<acp::SessionId>,
