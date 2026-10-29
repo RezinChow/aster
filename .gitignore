@@ -1,4 +1,5 @@
 /target/
+/target-merge-check/
 **/target/
 .DS_Store
 
