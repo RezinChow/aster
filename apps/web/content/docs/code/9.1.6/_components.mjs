@@ -113,3 +113,5 @@ export function CapabilityIndex() {
     record.tier + (record.hostOwned ? ' · 宿主持有策略、凭据或生命周期' : ' · Core 合同'),
   ]));
 }
+
+export { RsiEvolutionDemo, MetaHarnessExplorer } from './_harness-demo.mjs';

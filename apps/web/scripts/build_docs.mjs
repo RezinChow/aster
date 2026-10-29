@@ -135,7 +135,7 @@ function layout(chapter, meta, Content, toc, entries, versionComponents, diagram
       h('link', { rel: 'canonical', href: `https://aster-ai-lab.github.io/aster/docs/${chapter.canonicalRoute}` }),
       h('link', { rel: 'icon', type: 'image/png', href: `${siteRoot}tenant/aster/favicon.png` }),
       h('link', { rel: 'stylesheet', href: `${siteRoot}transitions.css` }),
-      h('link', { rel: 'stylesheet', href: `${docsRoot}styles.css` }), h('link', { rel: 'stylesheet', href: `${docsRoot}generated.css` }),
+      h('link', { rel: 'stylesheet', href: `${docsRoot}styles.css` }), h('link', { rel: 'stylesheet', href: `${docsRoot}harness-demo.css` }), h('link', { rel: 'stylesheet', href: `${docsRoot}generated.css` }),
       h('script', { src: `${docsRoot}navigation.js`, defer: true }), h('script', { src: `${docsRoot}search.js`, defer: true })),
     h('body', null,
       h('a', { className: 'skip-link', href: '#content' }, '跳转到正文'),
