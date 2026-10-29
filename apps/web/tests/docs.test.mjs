@@ -178,7 +178,7 @@ test('highlighted code preserves every authored character and remains labelled a
       if (language !== 'text') assert.ok(block.querySelectorAll('code span[class^="syntax-"]').length > 1);
     }
   }
-  assert.deepEqual([...languages].sort(), ['acl', 'bash', 'javascript', 'json', 'rust', 'sh', 'text', 'toml']);
+  assert.deepEqual([...languages].sort(), ['acl', 'bash', 'javascript', 'json', 'rust', 'sh', 'text', 'toml', 'ts', 'tsx']);
 });
 
 test('the generated syntax palette meets 4.5:1 text contrast against its light background', async (t) => {

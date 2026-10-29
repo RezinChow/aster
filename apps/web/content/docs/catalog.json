@@ -770,6 +770,44 @@
       ]
     },
     {
+      "id": "office",
+      "title": "Aster Office",
+      "label": "文档编辑与自动化",
+      "description": "使用 a3s-office 编辑 Document、Spreadsheet、Presentation、Markdown 和 PDF，并通过 CLI、MCP 或 Rust API 自动化文件流程。",
+      "defaultVersion": "current",
+      "versions": [
+        {
+          "id": "current",
+          "label": "当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Office 产品概览",
+              "description": "五种编辑器、双执行平面、格式和宿主边界"
+            },
+            {
+              "slug": "browser/",
+              "file": "browser",
+              "label": "浏览器接入",
+              "title": "Office 浏览器编辑器接入",
+              "description": "React、Vue、Web Components、Core API 和协作"
+            },
+            {
+              "slug": "automation/",
+              "file": "automation",
+              "label": "原生自动化",
+              "title": "Office 原生自动化",
+              "description": "CLI、MCP、Rust API、协作副本和验证"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
       "id": "gateway",
       "title": "Aster Gateway",
       "label": "流量数据平面",
