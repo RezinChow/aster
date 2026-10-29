@@ -158,6 +158,11 @@ class ReleaseContracts(unittest.TestCase):
         self.assertIn('test "$version" = "$acp_version"', workflow)
         self.assertIn('test "$version" = "$core_version"', workflow)
 
+    def test_desktop_rolling_channel_never_takes_latest(self):
+        workflow = (ROOT / ".github/workflows/release-aster-desktop.yml").read_text()
+        command = workflow.split("gh release create desktop-stable", 1)[1].split("\n          fi", 1)[0]
+        self.assertIn("--latest=false", command)
+
     def test_ci_and_cli_preflight_run_release_governance(self):
         for name in (".github/workflows/ci.yml", ".github/workflows/release-aster-cli.yml"):
             self.assertIn("python3 tests/release_governance.py", (ROOT / name).read_text())
