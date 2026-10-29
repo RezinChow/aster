@@ -207,7 +207,7 @@ test('Pele renders current architecture figures with labels and extracted styles
   for (const [route, name, type] of [['code/', 'architecture', 'flowchart'], ['code/workflow/', 'workflow', 'flowchart'], ['code/meta-harness/', 'meta-harness', 'block'], ['code/tutorial/', 'tutorial-architecture', 'flowchart'], ['code/tutorial/permissions/', 'tutorial-permissions', 'sequence'], ['code/design/rsi/', 'rsi-cycle', 'flowchart'], ['code/workflow/', 'context-assembly', 'flowchart'], ['code/reference/run-control/', 'run-control', 'sequence'], ['code/reference/governance/', 'completion-gate', 'flowchart'], ['code/reference/memory/', 'memory-lifecycle', 'flowchart'], ['acp/', 'architecture', 'flowchart'], ['acp/protocol/', 'protocol-lifecycle', 'sequence'], ['acp/permissions/', 'permission-roundtrip', 'sequence'], ['acp/events/', 'event-routing', 'sequence']]) {
     const dom = new JSDOM(await readFile(path.join(publicRoot, 'docs', route, 'index.html'), 'utf8'));
     t.after(() => dom.window.close());
-    const svg = dom.window.document.querySelector(`.atlas-figure[data-atlas="${name}"] svg.pele-${type}`);
+    const svg = dom.window.document.querySelector(`.atlas-figure[data-diagram="${name}"] svg.pele-${type}`);
     assert.ok(svg, route);
     assert.equal(svg.getAttribute('role'), 'img');
     assert.ok(svg.querySelector('title').textContent.trim());

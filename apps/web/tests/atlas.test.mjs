@@ -96,64 +96,32 @@ test('prose export reads the Pele guide schema and retains every authored prose 
   assert.ok(!prose.includes('pub struct SystemPromptSlots {'));
 });
 
-test('diagram stepping, keyboard bounds and complete view do not start animation timers', async (t) => {
+test('static architecture diagrams keep the full graph and explanations without navigation or playback', async (t) => {
   const ui = await page(t, 'code/internals/system-prompts');
-  const figure = ui.document.querySelector('[data-atlas]');
-  const next = figure.querySelector('[data-atlas-action="next"]');
-  const previous = figure.querySelector('[data-atlas-action="previous"]');
-  assert.equal(previous.disabled, true);
-  next.click();
-  assert.equal(figure.querySelector('[aria-current="step"]').dataset.atlasStep, '0');
-  assert.ok(figure.querySelector('.atlas-is-muted'));
-  next.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
-  assert.equal(next.disabled, true);
-  figure.querySelector('[data-atlas-action="all"]').click();
-  assert.equal(figure.querySelectorAll('.atlas-is-muted').length, 0);
-  assert.equal(figure.querySelectorAll('[aria-current="step"]').length, 0);
+  const figure = ui.document.querySelector('.atlas-figure');
+  assert.equal(figure.querySelector('[data-atlas-action]'), null);
+  assert.equal(figure.querySelector('.atlas-controls'), null);
+  assert.equal(figure.querySelector('[data-atlas-step]'), null);
+  assert.equal(figure.querySelector('.atlas-steps').children.length, 3);
+  assert.equal(figure.querySelector('svg.pele').getAttribute('role'), 'img');
+  assert.equal(figure.querySelector('[role="button"]'), null);
   assert.equal(ui.timers.size, 0);
 });
 
-test('requested narration is finite and reduced motion keeps manual controls', async (t) => {
-  const ui = await page(t, 'code/internals/system-prompts');
-  const play = ui.document.querySelector('[data-atlas-action="play"]');
-  const svg = ui.document.querySelector('svg.pele');
-  play.click();
-  assert.equal(play.getAttribute('aria-pressed'), 'true');
-  assert.ok(svg.querySelector('.atlas-is-current'));
-  assert.ok(svg.classList.contains('pele-block'));
-  ui.flush();
-  assert.equal(ui.timers.size, 0);
-  assert.equal(play.getAttribute('aria-pressed'), 'false');
-  assert.equal(ui.document.querySelector('[aria-current="step"]').dataset.atlasStep, '2');
-  const reduced = await page(t, 'code/internals/system-prompts', { reduced: true });
-  assert.equal(reduced.document.querySelector('[data-atlas-action="play"]').hidden, true);
-  reduced.document.querySelector('[data-atlas-action="next"]').click();
-  assert.equal(reduced.timers.size, 0);
-});
-
-test('responsibility blocks remain separate concepts and stepping does not change other figures', async (t) => {
+test('responsibility blocks and diagram nodes remain static content', async (t) => {
   const ui = await page(t, 'code/internals');
-  const figure = ui.document.querySelector('[data-atlas="meta-harness"]');
+  const figure = ui.document.querySelector('[data-diagram="meta-harness"]');
   assert.ok(figure.querySelector('svg.pele-block'));
   assert.equal(figure.querySelectorAll('.pele-node').length, 5);
-  assert.equal(figure.querySelectorAll('.pele-edge, [data-atlas-action="assemble"]').length, 0);
-  figure.querySelector('[data-atlas-action="next"]').click();
-  assert.equal(figure.querySelector('[aria-current="step"]').dataset.atlasStep, '0');
-  assert.equal(ui.document.querySelector('[data-atlas="architecture"] [aria-current="step"]'), null);
-});
-
-test('diagram nodes have working pointer and keyboard explanations', async (t) => {
-  const ui = await page(t, 'code/comparison');
-  const figure = ui.document.querySelector('[data-atlas="framework-layers"]');
-  const harness = figure.querySelector('.pele-node[data-id="harness"]');
-  assert.equal(harness.getAttribute('role'), 'button');
-  harness.dispatchEvent(new ui.window.MouseEvent('click', { bubbles: true }));
-  assert.equal(figure.querySelector('[aria-current="step"]').dataset.atlasStep, '1');
-  const application = figure.querySelector('.pele-node[data-id="app"]');
-  application.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-  assert.equal(figure.querySelector('[aria-current="step"]').dataset.atlasStep, '0');
-  assert.equal(application.getAttribute('aria-pressed'), 'true');
-  assert.equal(harness.getAttribute('aria-pressed'), 'false');
+  assert.equal(figure.querySelectorAll('.pele-edge, [data-atlas-action]').length, 0);
+  assert.equal(ui.document.querySelector('[aria-current="step"]'), null);
+  const comparison = await page(t, 'code/comparison');
+  const harness = comparison.document.querySelector('.pele-node[data-id="harness"]');
+  assert.equal(harness.getAttribute('role'), null);
+  assert.equal(harness.getAttribute('tabindex'), null);
+  harness.dispatchEvent(new comparison.window.MouseEvent('click', { bubbles: true }));
+  assert.equal(comparison.document.querySelector('[aria-current="step"]'), null);
+  assert.equal(comparison.timers.size, 0);
 });
 
 test('Code Hike token colors remain readable on both code backgrounds', async () => {
