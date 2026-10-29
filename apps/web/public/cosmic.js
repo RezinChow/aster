@@ -53,8 +53,11 @@
           float rim = 1.0 - 0.78 * smoothstep(11.5, 14.5, radius);
           float twinkle = 0.72 + 0.28 * sin(uTime * (0.55 + aSize * 4.0) + aPosition.x * 1.7 + aPosition.z * 2.1);
           float farBoost = 1.0 + 0.55 * smoothstep(0.0, 9.0, position.z);
-          position = vec3(cos(angle) * radius, position.y, sin(angle) * radius);
-          vColor = vec4(aColor.rgb, aColor.a * armBoost * twinkle * farBoost * rim * (0.55 + core * 0.35 + ring * 0.35));
+          float cycle = 0.5 + 0.5 * sin(uTime * 0.45);
+          float spread = 0.78 + cycle * 0.42;
+          float density = 1.15 - cycle * 0.3;
+          position = vec3(cos(angle) * radius * spread, position.y, sin(angle) * radius * spread);
+          vColor = vec4(aColor.rgb, aColor.a * armBoost * twinkle * farBoost * rim * density * (0.55 + core * 0.35 + ring * 0.35));
         } else {
           float span = aLayer < 1.5 ? 44.0 : (aLayer < 2.5 ? 108.0 : 204.0);
           position.z = -4.0 - mod(-position.z - 4.0 - uTime * 7.2, span);
@@ -318,15 +321,17 @@
       context.clearRect(0, 0, width, height);
       drawBackground();
       const scale = Math.min(width, height) / 15;
+      const cycle = 0.5 + 0.5 * Math.sin(time * 0.45);
+      const spread = 0.78 + cycle * 0.42;
       stars.forEach((star) => {
         const speed = 0.1 / Math.max(star.radius / 5, 0.35);
         const armAngle = star.arm * Math.PI + Math.log(star.radius) * 1.7 + Math.PI / 4;
         const angle = (star.scattered ? star.angle : armAngle + star.spread) + time * speed;
-        const x = width / 2 + Math.cos(angle) * star.radius * scale + pointerX * star.depth;
-        const y = height / 2 + Math.sin(angle) * star.radius * scale * 0.42 + pointerY * star.depth;
+        const x = width / 2 + Math.cos(angle) * star.radius * spread * scale + pointerX * star.depth;
+        const y = height / 2 + Math.sin(angle) * star.radius * spread * scale * 0.42 + pointerY * star.depth;
         const twinkle = 0.35 + (Math.sin(time * 0.65 + star.phase) * 0.5 + 0.5) * 0.55;
         const rim = 1 - Math.min(0.78, star.radius / 18);
-        const alpha = twinkle * rim;
+        const alpha = twinkle * rim * (1.15 - cycle * 0.3);
         if (star.tone > 0.72) context.fillStyle = `rgba(185,157,255,${alpha})`;
         else if (star.tone > 0.4) context.fillStyle = `rgba(123,83,224,${alpha})`;
         else context.fillStyle = `rgba(73,48,148,${alpha})`;

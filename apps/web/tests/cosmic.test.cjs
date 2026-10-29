@@ -206,6 +206,35 @@ test('cosmic pointer parallax is small and touch does not move the star field', 
   assert.deepEqual(touch.state.arcs.at(-1), control.state.arcs.at(-1));
 });
 
+test('cosmic gathers and expands smoothly in an endless cycle', () => {
+  const env = setup();
+  env.intersect(true);
+  const sampleRadius = () => {
+    const arcs = env.state.arcs;
+    assert.ok(arcs.length > 400);
+    const radius = arcs.reduce((sum, arc) => sum + Math.hypot(arc[0] - 600, (arc[1] - 450) / 0.42), 0) / arcs.length;
+    arcs.length = 0;
+    return radius;
+  };
+  env.advance(0);
+  const initial = sampleRadius();
+  const radii = [];
+  for (let now = 64; now <= 28672; now += 64) {
+    env.advance(now);
+    if (now % 1024 === 0) radii.push(sampleRadius());
+  }
+  assert.equal(radii.length, 28);
+  const first = radii.slice(0, 14);
+  const second = radii.slice(14);
+  const range = values => ({ min: Math.min(...values), max: Math.max(...values) });
+  const one = range(first);
+  const two = range(second);
+  assert.ok(one.max > initial * 1.1, JSON.stringify({ initial, one, two }));
+  assert.ok(one.min < initial * 0.85);
+  assert.ok(Math.abs(two.max - one.max) / one.max < 0.03);
+  assert.ok(Math.abs(two.min - one.min) / one.min < 0.03);
+});
+
 test('older browsers without intersection observation keep a static cosmos', () => {
   const env = setup({ noIntersection: true });
   assert.equal(env.state.draws, 1);
