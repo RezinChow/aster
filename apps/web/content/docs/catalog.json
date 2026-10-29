@@ -796,6 +796,13 @@
               "description": "本地 ACL、配置校验、启动和热更新"
             },
             {
+              "slug": "model-routing/",
+              "file": "model-routing",
+              "label": "模型路由与 P/D",
+              "title": "模型路由、P/D 分离与缓存亲和",
+              "description": "自动目标选择、Prefill/Decode 分离和 KV Cache 亲和"
+            },
+            {
               "slug": "traffic/",
               "file": "traffic",
               "label": "流量与快照",
@@ -808,6 +815,51 @@
               "label": "部署与安全",
               "title": "部署与安全",
               "description": "静态对象、用量投递、Node API 和运行验收"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
+      "id": "power",
+      "title": "Aster Power",
+      "label": "模型推理执行",
+      "description": "使用 a3s-power 管理模型制品、设备、准入、取消、分布式执行和执行回执。",
+      "defaultVersion": "0.10.0",
+      "versions": [
+        {
+          "id": "0.10.0",
+          "label": "0.10.0 · pre-v1",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Power 产品概览",
+              "description": "模型中立执行层、产品边界和发布状态"
+            },
+            {
+              "slug": "serving/",
+              "file": "serving",
+              "label": "服务与接入",
+              "title": "Power 服务与嵌入式接入",
+              "description": "OpenAI 服务、嵌入式运行时、制品和后端"
+            },
+            {
+              "slug": "distributed-inference/",
+              "file": "distributed-inference",
+              "label": "分布式推理与缓存",
+              "title": "Power 分布式推理与缓存",
+              "description": "worker 观测、P/D 分离、状态传输和前缀缓存"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "运行与验证",
+              "title": "Power 运行与发布验证",
+              "description": "资源边界、性能证据、feature 和发布门"
             }
           ],
           "components": "_components"
