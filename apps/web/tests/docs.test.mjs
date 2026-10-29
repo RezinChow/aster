@@ -562,3 +562,11 @@ test('document search loads one index, filters project and version, and supports
   assert.equal(dialog.querySelector('[data-docs-search-version="9.1.6"]').getAttribute('aria-pressed'), 'true');
   assert.equal(list.querySelectorAll('a').length, 1);
 });
+
+test('cross-document transitions are progressive and respect reduced motion', async () => {
+  const css = await readFile(path.join(publicRoot, 'docs/styles.css'), 'utf8');
+  assert.match(css, /@view-transition\s*\{\s*navigation:\s*auto;\s*\}/);
+  assert.match(css, /::view-transition-old\(root\)\s*\{\s*animation:\s*docs-page-out\s+120ms/);
+  assert.match(css, /::view-transition-new\(root\)\s*\{\s*animation:\s*docs-page-in\s+180ms/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*::view-transition-old\(root\),\s*::view-transition-new\(root\)\s*\{\s*animation:\s*none !important;\s*\}\s*\}/);
+});
