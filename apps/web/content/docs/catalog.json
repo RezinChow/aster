@@ -768,6 +768,51 @@
           "components": "_components"
         }
       ]
+    },
+    {
+      "id": "gateway",
+      "title": "Aster Gateway",
+      "label": "流量数据平面",
+      "description": "使用 a3s-gateway 处理请求准入、模型路由、健康选择、流式响应和快照生命周期。",
+      "defaultVersion": "1.1.1",
+      "versions": [
+        {
+          "id": "1.1.1",
+          "label": "1.1.1 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Gateway 产品概览",
+              "description": "流量职责、部署模式和产品边界"
+            },
+            {
+              "slug": "quickstart/",
+              "file": "quickstart",
+              "label": "快速开始",
+              "title": "standalone 快速开始",
+              "description": "本地 ACL、配置校验、启动和热更新"
+            },
+            {
+              "slug": "traffic/",
+              "file": "traffic",
+              "label": "流量与快照",
+              "title": "流量与快照",
+              "description": "协议、健康选择、Cloud、Box 和托管 Runtime Service"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "部署与安全",
+              "title": "部署与安全",
+              "description": "静态对象、用量投递、Node API 和运行验收"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
     }
   ]
 }
