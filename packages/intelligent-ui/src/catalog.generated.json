@@ -22,10 +22,15 @@
   "Checkbox": {
     "children": false,
     "props": [
-      "name",
       "label",
-      "initial",
+      "checked",
       "required"
+    ]
+  },
+  "Form": {
+    "children": true,
+    "props": [
+      "submitAction"
     ]
   },
   "Grid": {
@@ -37,9 +42,8 @@
   "Input": {
     "children": false,
     "props": [
-      "name",
       "label",
-      "initial",
+      "value",
       "type",
       "min",
       "max",
@@ -59,9 +63,8 @@
   "Select": {
     "children": false,
     "props": [
-      "name",
       "label",
-      "initial",
+      "value",
       "options",
       "required",
       "placeholder"
@@ -70,9 +73,8 @@
   "Slider": {
     "children": false,
     "props": [
-      "name",
       "label",
-      "initial",
+      "value",
       "min",
       "max",
       "step"
@@ -80,18 +82,22 @@
   },
   "Stack": {
     "children": true,
-    "props": []
+    "props": [
+      "direction",
+      "gap"
+    ]
   },
   "Text": {
-    "children": true,
-    "props": []
+    "children": false,
+    "props": [
+      "content"
+    ]
   },
   "Textarea": {
     "children": false,
     "props": [
-      "name",
       "label",
-      "initial",
+      "value",
       "required",
       "placeholder"
     ]
