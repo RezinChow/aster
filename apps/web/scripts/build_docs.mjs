@@ -49,8 +49,9 @@ function headingPlugin(toc) {
 function chapterNav(docsRoot, chapter, entries) {
   if (!chapter.project) return entries.map((project) => h('a', { key: project.id, href: `${docsRoot}${project.id}/${project.defaultVersion}/` }, project.title));
   const { project, version } = chapter;
+  const home = h('a', { key: 'home', className: 'nav-home', href: docsRoot }, h('span', { className: 'nav-home-icon', 'aria-hidden': true }, '←'), '返回文档首页');
   let section;
-  return [h('div', { key: project.id, className: 'nav-project' }, h('p', { className: 'nav-label' }, `${project.title} · ${version.label}`),
+  return [home, h('div', { key: project.id, className: 'nav-project' }, h('p', { className: 'nav-label' }, `${project.title} · ${version.label}`),
     ...version.pages.flatMap((page, index) => {
       const heading = page.section && page.section !== section ? h('p', { key: `${page.file}-section`, className: 'nav-section' }, page.section) : null;
       section = page.section;

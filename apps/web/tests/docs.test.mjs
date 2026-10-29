@@ -305,7 +305,10 @@ test('generated documents preserve project URLs, active navigation and accessibl
     assert.ok(scripts[0].src.endsWith('/docs/navigation.js'));
     assert.ok(scripts[1].src.endsWith('/docs/search.js'));
     assert.ok(scripts.every((script) => script.defer && script.textContent === ''));
+    assert.equal(document.querySelectorAll('.chapter-nav .nav-home').length, page.project ? 1 : 0);
+    assert.equal(document.querySelectorAll('.mobile-navigation .nav-home').length, page.project ? 1 : 0);
     if (page.project) {
+      assert.equal(document.querySelector('.chapter-nav .nav-home').href, 'https://aster-ai-lab.github.io/aster/docs/');
       assert.equal(document.querySelector('.chapter-nav a[aria-current]').href, `https://aster-ai-lab.github.io/aster/docs/${page.canonicalRoute}`);
       assert.equal(document.querySelector('.mobile-navigation a[aria-current]').href, `https://aster-ai-lab.github.io/aster/docs/${page.canonicalRoute}`);
     } else {
