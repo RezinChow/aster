@@ -47,11 +47,10 @@ function headingPlugin(toc) {
 }
 
 function chapterNav(docsRoot, chapter, entries) {
-  const home = h('a', { key: 'home', href: docsRoot, 'aria-current': chapter.route === '' ? 'page' : undefined }, h('span', { className: 'nav-home-icon', 'aria-hidden': true }, '←'), '文档首页');
-  if (!chapter.project) return [home, ...entries.map((project) => h('a', { key: project.id, href: `${docsRoot}${project.id}/${project.defaultVersion}/` }, project.title))];
+  if (!chapter.project) return entries.map((project) => h('a', { key: project.id, href: `${docsRoot}${project.id}/${project.defaultVersion}/` }, project.title));
   const { project, version } = chapter;
   let section;
-  return [home, h('div', { key: project.id, className: 'nav-project' }, h('p', { className: 'nav-label' }, `${project.title} · ${version.label}`),
+  return [h('div', { key: project.id, className: 'nav-project' }, h('p', { className: 'nav-label' }, `${project.title} · ${version.label}`),
     ...version.pages.flatMap((page, index) => {
       const heading = page.section && page.section !== section ? h('p', { key: `${page.file}-section`, className: 'nav-section' }, page.section) : null;
       section = page.section;
@@ -66,7 +65,7 @@ function switchers(chapter, docsRoot, entries) {
   const menu = (label, current, links) => {
     const menuId = `docs-switcher-${label === '产品' ? 'product' : 'version'}-menu`;
     return h('details', { className: 'docs-switcher' },
-      h('summary', { 'aria-label': `选择${label}，当前${current}`, 'aria-expanded': 'false', 'aria-controls': menuId }, h('span', { className: 'switcher-label' }, label), current, h('span', { 'aria-hidden': true }, '⌄')),
+      h('summary', { 'aria-label': `选择${label}，当前${current}`, 'aria-expanded': 'false', 'aria-controls': menuId }, h('span', { className: 'switcher-label' }, label), h('span', { className: 'switcher-current' }, current), h('span', { className: 'switcher-chevron', 'aria-hidden': true })),
       h('div', { className: 'switcher-menu', id: menuId }, ...links));
   };
   return h('div', { className: 'docs-switchers', role: 'group', 'aria-label': '文档产品与版本' },

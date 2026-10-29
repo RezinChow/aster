@@ -133,6 +133,7 @@ test('section navigation and chapter cards keep introductory and Meta Harness gu
   assert.equal(document.querySelectorAll('.chapter-cards > a').length, sectionPages.length - 1);
   assert.ok(document.querySelector('.breadcrumb').textContent.includes('Meta Harness'));
   assert.equal(document.querySelector('.chapter-nav a[aria-current]').href, dom.window.location.href);
+  assert.ok([...document.querySelectorAll('.chapter-nav a')].every((node) => node.textContent !== '文档首页'));
   for (const card of document.querySelectorAll('.chapter-cards > a')) assert.ok(new URL(card.href).pathname.startsWith(`/aster/docs/code/${version.id}/meta-harness/`));
   const overview = new JSDOM(await readFile(path.join(publicRoot, 'docs/code/index.html'), 'utf8'));
   t.after(() => overview.window.close());
@@ -304,8 +305,13 @@ test('generated documents preserve project URLs, active navigation and accessibl
     assert.ok(scripts[0].src.endsWith('/docs/navigation.js'));
     assert.ok(scripts[1].src.endsWith('/docs/search.js'));
     assert.ok(scripts.every((script) => script.defer && script.textContent === ''));
-    assert.equal(document.querySelector('.chapter-nav a[aria-current]').href, `https://aster-ai-lab.github.io/aster/docs/${page.canonicalRoute}`);
-    assert.equal(document.querySelector('.mobile-navigation a[aria-current]').href, `https://aster-ai-lab.github.io/aster/docs/${page.canonicalRoute}`);
+    if (page.project) {
+      assert.equal(document.querySelector('.chapter-nav a[aria-current]').href, `https://aster-ai-lab.github.io/aster/docs/${page.canonicalRoute}`);
+      assert.equal(document.querySelector('.mobile-navigation a[aria-current]').href, `https://aster-ai-lab.github.io/aster/docs/${page.canonicalRoute}`);
+    } else {
+      assert.equal(document.querySelector('.chapter-nav a[aria-current]'), null);
+      assert.equal(document.querySelector('.mobile-navigation a[aria-current]'), null);
+    }
     assert.equal(document.querySelector('.docs-brand').href, 'https://aster-ai-lab.github.io/aster/');
     const ids = [...document.querySelectorAll('[id]')].map((node) => node.id);
     assert.equal(ids.length, new Set(ids).size);
