@@ -501,3 +501,11 @@ test('hero stops its rotation when the page leaves and reduced motion starts no 
   assert.equal(reduced.activeRotations(), 0);
   assert.equal(reduced.document.querySelector('[data-typing-line]').textContent, 'Aster 让想法落地');
 });
+
+test('homepage uses cross-document transitions only when motion is allowed', () => {
+  const css = fs.readFileSync(path.join(publicRoot, 'home.css'), 'utf8');
+  assert.match(css, /@view-transition\s*\{\s*navigation:\s*auto;\s*\}/);
+  assert.match(css, /::view-transition-old\(root\)\s*\{\s*animation:\s*docs-page-out\s+120ms/);
+  assert.match(css, /::view-transition-new\(root\)\s*\{\s*animation:\s*docs-page-in\s+180ms/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*::view-transition-old\(root\),\s*::view-transition-new\(root\)\s*\{\s*animation:\s*none !important;\s*\}\s*\}/);
+});

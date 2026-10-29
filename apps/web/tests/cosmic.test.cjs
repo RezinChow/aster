@@ -274,6 +274,24 @@ test('WebGL camera parallax changes with mouse input while touch stays neutral',
   assert.ok(after[1] > control.state.uniforms.uCamera[1]);
 });
 
+test('galaxy stars cluster around two logarithmic arms at rest', () => {
+  const env = setup({ webgl: true, reduced: true });
+  env.intersect(true);
+  const vertices = env.state.bufferData.at(-1);
+  let galaxy = 0;
+  let aligned = 0;
+  for (let index = 0; index < vertices.length; index += 9) {
+    if (vertices[index + 8] !== 0) continue;
+    galaxy++;
+    const x = vertices[index];
+    const z = vertices[index + 2];
+    const phase = Math.sin(2 * Math.atan2(z, x) - 3.4 * Math.log(Math.hypot(x, z)));
+    if (phase > 0.25) aligned++;
+  }
+  assert.ok(galaxy > 400);
+  assert.ok(aligned / galaxy > 0.65);
+});
+
 test('unavailable WebGL shaders retain the existing Canvas fallback', () => {
   const env = setup({ webgl: true, failShaders: true });
   env.intersect(true);
