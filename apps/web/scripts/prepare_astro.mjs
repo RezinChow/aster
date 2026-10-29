@@ -15,7 +15,7 @@ const staticFiles = [
   'download/screenshots/workspace.png', 'download/screenshots/office.png', 'download/screenshots/review.png', 'download/screenshots/lineage.png',
   'download/fonts/ubuntu-latin-400-normal.woff2', 'download/fonts/ubuntu-latin-500-normal.woff2', 'download/fonts/ubuntu-latin-700-normal.woff2', 'download/fonts/Ubuntu-LICENSE.txt',
   'tenant/aster/logo.svg', 'tenant/aster/mark-light.png', 'tenant/aster/favicon.png',
-  'home.css', 'home.js', 'cosmic.js', 'legal/styles.css',
+  'home.css', 'home.js', 'cosmic.js', 'transitions.css', 'legal/styles.css',
   'docs/styles.css', 'docs/navigation.js', 'docs/search.js',
 ];
 

@@ -563,10 +563,12 @@ test('document search loads one index, filters project and version, and supports
   assert.equal(list.querySelectorAll('a').length, 1);
 });
 
-test('cross-document transitions are progressive and respect reduced motion', async () => {
-  const css = await readFile(path.join(publicRoot, 'docs/styles.css'), 'utf8');
+test('shared cross-document transitions are progressive and respect reduced motion', async () => {
+  const css = await readFile(path.join(publicRoot, 'transitions.css'), 'utf8');
+  const page = await readFile(path.join(publicRoot, 'docs/code/9.1.6/index.html'), 'utf8');
+  assert.match(page, /<link rel="stylesheet" href="\.\.\/\.\.\/\.\.\/transitions\.css"\s*\/?>/);
   assert.match(css, /@view-transition\s*\{\s*navigation:\s*auto;\s*\}/);
-  assert.match(css, /::view-transition-old\(root\)\s*\{\s*animation:\s*docs-page-out\s+120ms/);
-  assert.match(css, /::view-transition-new\(root\)\s*\{\s*animation:\s*docs-page-in\s+180ms/);
+  assert.match(css, /::view-transition-old\(root\)\s*\{\s*animation:\s*site-page-out\s+120ms/);
+  assert.match(css, /::view-transition-new\(root\)\s*\{\s*animation:\s*site-page-in\s+180ms/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*::view-transition-old\(root\),\s*::view-transition-new\(root\)\s*\{\s*animation:\s*none !important;\s*\}\s*\}/);
 });

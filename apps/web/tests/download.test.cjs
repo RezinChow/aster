@@ -324,10 +324,6 @@ test('the real-screenshot FAQ is an ordinary disclosure and states the fixture b
   assert.match(text(details.querySelector('p')), /不会运行 Office、调用模型或访问你的文件/);
 });
 
-test('download page uses cross-document transitions only when motion is allowed', () => {
-  const css = fs.readFileSync(path.join(publicRoot, 'download/styles.css'), 'utf8');
-  assert.match(css, /@view-transition\s*\{\s*navigation:\s*auto;\s*\}/);
-  assert.match(css, /::view-transition-old\(root\)\s*\{\s*animation:\s*docs-page-out\s+120ms/);
-  assert.match(css, /::view-transition-new\(root\)\s*\{\s*animation:\s*docs-page-in\s+180ms/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*::view-transition-old\(root\),\s*::view-transition-new\(root\)\s*\{\s*animation:\s*none !important;\s*\}\s*\}/);
+test('download page loads the shared cross-document transitions', () => {
+  assert.match(html, /<link rel="stylesheet" href="\.\.\/transitions\.css" \/>/);
 });

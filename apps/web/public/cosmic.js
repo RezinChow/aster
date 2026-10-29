@@ -27,7 +27,6 @@
   function createWebGLRenderer() {
     const gl = canvas.getContext("webgl", { alpha: false, antialias: false, powerPreference: "low-power" });
     if (!gl || typeof gl.createShader !== "function") return null;
-    const galaxyCenter = [0, 0, 0];
     const starVertex = `
       attribute vec3 aPosition;
       attribute float aSize;
@@ -35,7 +34,6 @@
       attribute float aLayer;
       uniform vec2 uResolution;
       uniform vec3 uCamera;
-      uniform vec3 uGalaxy;
       uniform float uTime;
       uniform float uRatio;
       varying mediump vec4 vColor;
@@ -55,12 +53,11 @@
           float rim = 1.0 - 0.78 * smoothstep(11.5, 14.5, radius);
           float twinkle = 0.72 + 0.28 * sin(uTime * (0.55 + aSize * 4.0) + aPosition.x * 1.7 + aPosition.z * 2.1);
           float farBoost = 1.0 + 0.55 * smoothstep(0.0, 9.0, position.z);
-          position = vec3(cos(angle) * radius, position.y, sin(angle) * radius) + uGalaxy;
+          position = vec3(cos(angle) * radius, position.y, sin(angle) * radius);
           vColor = vec4(aColor.rgb, aColor.a * armBoost * twinkle * farBoost * rim * (0.55 + core * 0.35 + ring * 0.35));
         } else {
           float span = aLayer < 1.5 ? 44.0 : (aLayer < 2.5 ? 108.0 : 204.0);
           position.z = -4.0 - mod(-position.z - 4.0 - uTime * 7.2, span);
-          position += uGalaxy;
           vColor = aColor;
         }
         vec3 view = position - uCamera;
@@ -105,7 +102,6 @@
       precision mediump float;
       uniform vec2 uResolution;
       uniform vec3 uCamera;
-      uniform vec3 uGalaxy;
       uniform float uTime;
       float hash(vec2 p) {
         vec3 value = fract(vec3(p.xyx) * 0.1031);
@@ -174,8 +170,8 @@
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
     const starAttributes = Object.fromEntries(["aPosition", "aSize", "aColor", "aLayer"].map((name) => [name, gl.getAttribLocation(starProgram, name)]));
     const quadAttribute = gl.getAttribLocation(nebulaProgram, "aPosition");
-    const starUniforms = Object.fromEntries(["uResolution", "uCamera", "uGalaxy", "uTime", "uRatio"].map((name) => [name, gl.getUniformLocation(starProgram, name)]));
-    const nebulaUniforms = Object.fromEntries(["uResolution", "uCamera", "uGalaxy", "uTime"].map((name) => [name, gl.getUniformLocation(nebulaProgram, name)]));
+    const starUniforms = Object.fromEntries(["uResolution", "uCamera", "uTime", "uRatio"].map((name) => [name, gl.getUniformLocation(starProgram, name)]));
+    const nebulaUniforms = Object.fromEntries(["uResolution", "uCamera", "uTime"].map((name) => [name, gl.getUniformLocation(nebulaProgram, name)]));
     let field = [];
     let meteor = null;
     let nextMeteorAt = 3.4;
@@ -224,7 +220,6 @@
       gl.useProgram(nebulaProgram);
       gl.uniform2f(nebulaUniforms.uResolution, canvas.width, canvas.height);
       gl.uniform3f(nebulaUniforms.uCamera, ...camera);
-      gl.uniform3f(nebulaUniforms.uGalaxy, ...galaxyCenter);
       gl.uniform1f(nebulaUniforms.uTime, time);
       gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
       gl.vertexAttribPointer(quadAttribute, 2, gl.FLOAT, false, 0, 0);
@@ -255,7 +250,6 @@
       gl.useProgram(starProgram);
       gl.uniform2f(starUniforms.uResolution, canvas.width, canvas.height);
       gl.uniform3f(starUniforms.uCamera, ...camera);
-      gl.uniform3f(starUniforms.uGalaxy, ...galaxyCenter);
       gl.uniform1f(starUniforms.uTime, time);
       gl.uniform1f(starUniforms.uRatio, ratio);
       gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);

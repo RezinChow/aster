@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 import re
 
+SHARED_FILES = (
+    "transitions.css",
+)
 PAGE_FILES = (
     "download/index.html",
     "download/styles.css",
@@ -128,7 +131,7 @@ LEGAL_FILES = (
     "privacy/index.html",
     "legal/styles.css",
 )
-SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES + LEGAL_FILES
+SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES + LEGAL_FILES + SHARED_FILES
 
 REPOSITORY_URL = "https://github.com/aster-ai-lab/aster"
 PAGES_URL = "https://aster-ai-lab.github.io/aster/"
