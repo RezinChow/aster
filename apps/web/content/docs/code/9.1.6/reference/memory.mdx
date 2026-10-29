@@ -13,6 +13,8 @@ export const meta = {
 
 ## 从候选到可召回事实
 
+<PeleAtlasDiagram name="memory-lifecycle" label="候选激活与语义分区发布" description="激活决定事实是否有资格召回；语义刷新为完整 Active 快照建立索引。两步都保留各自的身份与证据。" />
+
 提取产生有证据的候选，不直接获得 Active 召回资格。宿主用 `DurableMemoryActivation::try_new` 构造激活请求，再调用 `activate_candidate`；请求绑定候选 ID、精确 revision、独立决策证据和幂等 key。
 
 建议流程是：读取候选及其来源，核对是否适合长期保留，提交明确激活，再查询当前状态。候选 revision 已变化时重新审查，不要把旧决定套到新内容。

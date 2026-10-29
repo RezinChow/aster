@@ -11,6 +11,8 @@ export const meta = {
 
 先把一条只读任务跑通，再加入写入和执行权限。每章都继续修改 `apps/tutorial-agent`，不需要为每个能力另建一个 Agent。完成基础界面后，后面的章节按需求接入；没有配置的外部服务不会因为读过教程就变得可用。
 
+<TutorialArchitectureDiagram />
+
 ## 先运行参考工程
 
 仓库中的 `apps/tutorial-agent` 是可编译的参考实现，沿用根工作区和锁文件。无密钥演示运行 `cargo run --locked -p tutorial-agent --example offline_tui`；真实模型运行方法与按键见[工程说明](https://github.com/aster-ai-lab/aster/blob/main/apps/tutorial-agent/README.md)。本系列仍按最小版本逐步讲解，完整代码便于比较每一层最终怎样接在一起。

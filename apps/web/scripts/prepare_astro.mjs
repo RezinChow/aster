@@ -27,7 +27,7 @@ if (!check) {
     await mkdir(path.dirname(target), { recursive: true });
     await cp(path.join(webRoot, 'public', name), target);
   }
-  for (const name of ['docs/generated.css', 'docs/search-index.json']) {
+  for (const name of ['docs/generated.css', 'docs/search-index.json', 'docs/atlas']) {
     const target = path.join(publicRoot, name);
     await mkdir(path.dirname(target), { recursive: true });
     await cp(path.join(cacheRoot, name.slice('docs/'.length)), target, { recursive: true });

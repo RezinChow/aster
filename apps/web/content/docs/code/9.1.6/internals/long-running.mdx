@@ -12,6 +12,8 @@ export const meta = {
 宿主按条件唤醒下一轮执行。
 每轮仍使用原有 Run、权限与完成门禁。
 
+<PeleAtlasDiagram name="goal-lifecycle" />
+
 这里把目标的一次执行称为“切片”。
 一个切片对应原运行路径中的一次 Run。
 目标控制层没有另建后台任务引擎。
@@ -51,6 +53,8 @@ export const meta = {
 <SourceWalk name="long-running" />
 
 ## 七种推进决定怎样处理
+
+<PeleAtlasDiagram name="goal-decisions" />
 
 | 决定 | 当前含义 | 宿主的后续处理 |
 | --- | --- | --- |

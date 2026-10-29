@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { prepareWalks } from '../scripts/docs_atlas.mjs';
+import { renderAtlas, prepareWalks } from '../scripts/docs_atlas.mjs';
 import { createElement as h, Fragment } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createSourceReferences } from '../scripts/docs_sources.mjs';
@@ -32,15 +32,128 @@ async function page(t, route, { reduced = false, observe = false } = {}) {
   return { window, document: window.document, timers, observe: (entries) => observer(entries), flush: () => { for (let i = 0; timers.size && i < 20; i++) { const [id, callback] = timers.entries().next().value; timers.delete(id); callback(); } } };
 }
 
-test('prose export retains authored MDX prose without source code', async (t) => {
-  const destination = await mkdtemp(path.join(os.tmpdir(), 'aster-docs-prose-'));
+test('every migrated Pele diagram preserves original labels, node identities, relationships and explanation sources', async () => {
+  const catalog = JSON.parse(await readFile(path.join(root, 'apps/web/content/docs/atlas.json'), 'utf8'));
+  const types = new Set();
+  assert.equal(catalog.diagrams.length, 23);
+  for (const entry of catalog.diagrams) {
+    const directory = path.join(root, 'apps/web/content/docs', entry.product, entry.version);
+    const definition = JSON.parse(await readFile(path.join(directory, '_atlas', `${entry.name}.json`), 'utf8'));
+    const source = await readFile(path.join(directory, '_diagrams', `${entry.name}.mmd`), 'utf8');
+    const original = JSON.parse(execFileSync('git', ['show', `4faf25b927784f03f32777c05c3506228cdcb4cd:apps/web/content/docs/${entry.product}/${entry.version}/_atlas/${entry.name}.json`], { cwd: root, encoding: 'utf8' }));
+    assert.equal(definition.title, original.spec.title);
+    assert.deepEqual(definition.steps, original.steps);
+    const styles = new Map();
+    const result = renderAtlas(source, definition, `${entry.product}/${entry.version}/${entry.name}`, styles);
+    const dom = new JSDOM(result.markup);
+    try {
+      const svg = dom.window.document.querySelector('svg.pele');
+      types.add(svg.getAttribute('aria-roledescription'));
+      assert.equal(svg.getAttribute('role'), 'img');
+      for (const id of svg.getAttribute('aria-labelledby').split(' ')) assert.ok(dom.window.document.getElementById(id)?.textContent.trim());
+      assert.equal(svg.querySelectorAll('[style],style,script,foreignObject,a,image').length, 0);
+      assert.equal(svg.hasAttribute('style'), false);
+      assert.equal(svg.querySelectorAll('[tabindex]').length, 0);
+      assert.ok(styles.size > 0);
+      const originalNodes = original.spec.nodes ?? original.spec.parts ?? original.spec.layers ?? original.spec.participants;
+      assert.deepEqual([...new Set([...svg.querySelectorAll('.pele-node')].map(n => n.getAttribute('data-id')))].sort(), originalNodes.map(n => n.id).sort());
+      for (const node of originalNodes) {
+        const actual = svg.querySelector(`.pele-node[data-id="${node.id}"]`).textContent.replace(/\s/g, '');
+        for (const text of [node.label, node.sub, ...(node.items ?? [])].filter(Boolean)) {
+          assert.ok(source.includes(text), `${entry.name}: original label missing from authored source: ${text}`);
+          assert.ok(actual.includes(text.replace(/\s/g, '')), `${entry.name}: label missing from rendered node: ${text}`);
+        }
+      }
+      assert.equal(svg.querySelectorAll('.pele-edge').length, (original.spec.edges ?? original.spec.messages ?? []).length);
+      for (const relation of original.spec.edges ?? original.spec.messages ?? []) {
+        if (relation[2]) assert.ok(svg.textContent.includes(relation[2]), `${entry.name}: relationship label missing`);
+      }
+      const standalone = new JSDOM(result.svg);
+      assert.equal(standalone.window.document.querySelectorAll('script,image,a,foreignObject').length, 0);
+      assert.equal(standalone.window.document.querySelector('svg title').textContent, definition.title);
+      standalone.window.close();
+    } finally { dom.window.close(); }
+  }
+  assert.deepEqual([...types].sort(), ['block', 'flowchart', 'sequence']);
+});
+
+test('Pele guide refuses missing explanations, invalid Mermaid and references to missing nodes', () => {
+  const definition = { title: 'A', description: 'B', steps: [{ title: 'A', body: 'B', focus: ['missing'] }] };
+  assert.throws(() => renderAtlas('flowchart TB\n node[A]', definition, 'test'), /Unknown Pele focus node/);
+  assert.throws(() => renderAtlas('not a diagram', definition, 'test'));
+  assert.throws(() => renderAtlas('flowchart TB\n node[A]', { title: 'A', description: 'B', steps: [] }, 'test'), /explanatory steps/);
+});
+
+test('prose export reads the Pele guide schema and retains every authored prose unit', async (t) => {
+  const destination = await mkdtemp(path.join(os.tmpdir(), 'aster-pele-prose-'));
   t.after(() => rm(destination, { recursive: true, force: true }));
   const output = execFileSync(process.execPath, ['apps/web/scripts/docs_prose.mjs', destination], { cwd: root, encoding: 'utf8' });
-  assert.match(output, /Extracted \d+ prose units/);
+  assert.match(output, /Extracted 1054 prose units/);
   const prose = await readFile(path.join(destination, 'prose.md'), 'utf8');
-  assert.ok(prose.includes('系统提示词'));
-  assert.ok(prose.includes('ACP'));
+  assert.ok(prose.includes('一份系统提示词由哪些层组成'));
+  assert.ok(prose.includes('ACP 确认请求的完整往返'));
+  assert.ok(prose.includes('软件职责按层排列，不表示进程或部署位置。'));
   assert.ok(!prose.includes('pub struct SystemPromptSlots {'));
+});
+
+test('diagram stepping, keyboard bounds and complete view do not start animation timers', async (t) => {
+  const ui = await page(t, 'code/internals/system-prompts');
+  const figure = ui.document.querySelector('[data-atlas]');
+  const next = figure.querySelector('[data-atlas-action="next"]');
+  const previous = figure.querySelector('[data-atlas-action="previous"]');
+  assert.equal(previous.disabled, true);
+  next.click();
+  assert.equal(figure.querySelector('[aria-current="step"]').dataset.atlasStep, '0');
+  assert.ok(figure.querySelector('.atlas-is-muted'));
+  next.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
+  assert.equal(next.disabled, true);
+  figure.querySelector('[data-atlas-action="all"]').click();
+  assert.equal(figure.querySelectorAll('.atlas-is-muted').length, 0);
+  assert.equal(figure.querySelectorAll('[aria-current="step"]').length, 0);
+  assert.equal(ui.timers.size, 0);
+});
+
+test('requested narration is finite and reduced motion keeps manual controls', async (t) => {
+  const ui = await page(t, 'code/internals/system-prompts');
+  const play = ui.document.querySelector('[data-atlas-action="play"]');
+  const svg = ui.document.querySelector('svg.pele');
+  play.click();
+  assert.equal(play.getAttribute('aria-pressed'), 'true');
+  assert.ok(svg.querySelector('.atlas-is-current'));
+  assert.ok(svg.classList.contains('pele-block'));
+  ui.flush();
+  assert.equal(ui.timers.size, 0);
+  assert.equal(play.getAttribute('aria-pressed'), 'false');
+  assert.equal(ui.document.querySelector('[aria-current="step"]').dataset.atlasStep, '2');
+  const reduced = await page(t, 'code/internals/system-prompts', { reduced: true });
+  assert.equal(reduced.document.querySelector('[data-atlas-action="play"]').hidden, true);
+  reduced.document.querySelector('[data-atlas-action="next"]').click();
+  assert.equal(reduced.timers.size, 0);
+});
+
+test('responsibility blocks remain separate concepts and stepping does not change other figures', async (t) => {
+  const ui = await page(t, 'code/internals');
+  const figure = ui.document.querySelector('[data-atlas="meta-harness"]');
+  assert.ok(figure.querySelector('svg.pele-block'));
+  assert.equal(figure.querySelectorAll('.pele-node').length, 5);
+  assert.equal(figure.querySelectorAll('.pele-edge, [data-atlas-action="assemble"]').length, 0);
+  figure.querySelector('[data-atlas-action="next"]').click();
+  assert.equal(figure.querySelector('[aria-current="step"]').dataset.atlasStep, '0');
+  assert.equal(ui.document.querySelector('[data-atlas="architecture"] [aria-current="step"]'), null);
+});
+
+test('diagram nodes have working pointer and keyboard explanations', async (t) => {
+  const ui = await page(t, 'code/comparison');
+  const figure = ui.document.querySelector('[data-atlas="framework-layers"]');
+  const harness = figure.querySelector('.pele-node[data-id="harness"]');
+  assert.equal(harness.getAttribute('role'), 'button');
+  harness.dispatchEvent(new ui.window.MouseEvent('click', { bubbles: true }));
+  assert.equal(figure.querySelector('[aria-current="step"]').dataset.atlasStep, '1');
+  const application = figure.querySelector('.pele-node[data-id="app"]');
+  application.dispatchEvent(new ui.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  assert.equal(figure.querySelector('[aria-current="step"]').dataset.atlasStep, '0');
+  assert.equal(application.getAttribute('aria-pressed'), 'true');
+  assert.equal(harness.getAttribute('aria-pressed'), 'false');
 });
 
 test('Code Hike token colors remain readable on both code backgrounds', async () => {
@@ -136,15 +249,22 @@ test('new internal reading paths retain explicit product versions rather than de
   }
 });
 
-test('published documents contain no interactive architecture diagrams or retired resources', async () => {
+test('published documents, diagram assets and README exports contain Pele with no retired renderer resources', async () => {
   const { readdir } = await import('node:fs/promises');
-  const names = await readdir(publicRoot, { recursive: true });
-  assert.equal(names.some(name => name.startsWith('atlas/')), false);
-  for (const name of names) {
+  for (const name of await readdir(publicRoot, { recursive: true })) {
     if (!/\.(html|css|js|svg)$/.test(name)) continue;
     const value = await readFile(path.join(publicRoot, name), 'utf8');
-    assert.doesNotMatch(value, /SeeCode|seecode|data-sc-|sc-svg|atlas-assembled|data-atlas|atlas-controls|class="pele/);
+    assert.doesNotMatch(value, /SeeCode|seecode|data-sc-|sc-svg|atlas-assembled/);
   }
+  const catalog = JSON.parse(await readFile(path.join(root, 'apps/web/content/docs/atlas.json'), 'utf8'));
+  for (const entry of catalog.diagrams.filter(e => e.readme)) {
+    const svg = await readFile(path.join(root, 'assets/readme', `${entry.readme}.svg`), 'utf8');
+    assert.match(svg, /class="pele pele-/);
+    assert.doesNotMatch(svg, /SeeCode|seecode|data-sc-|<image/);
+  }
+  const assets = await readdir(path.join(publicRoot, 'atlas'));
+  assert.equal(assets.length, 23);
+  assert.ok(assets.every(name => name.endsWith('.svg')));
 });
 
 test('Spotlight focus, wrapping and source range controls remain local to each code panel', async (t) => {

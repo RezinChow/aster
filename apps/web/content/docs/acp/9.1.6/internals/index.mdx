@@ -11,6 +11,8 @@ export const meta = {
 Core 接纳执行、调用模型、治理工具并检查完成。
 协议适配器把运行事件送回客户端。
 
+<PeleAtlasDiagram name="acp-boundary" />
+
 例如，用户在终端提交日期导出修复。
 终端发送文本，ACP 找到对应会话。
 Core 执行任务，ACP 翻译事件。
@@ -29,6 +31,8 @@ Core 执行任务，ACP 翻译事件。
 客户端需要结合对应的 Core 状态显示结果。
 
 ## 从连接到一轮执行
+
+<PeleAtlasDiagram name="protocol-lifecycle" />
 
 客户端先调用 `initialize`。
 随后创建或恢复会话，再提交 `session/prompt`。

@@ -7,6 +7,8 @@ export const meta = {
 
 ## 分开渲染不同更新
 
+<PeleAtlasDiagram name="event-routing" label="事件投影与 Run 观测" description="会话更新负责可见内容，可选执行观测负责 Run 与模型轮次状态；两者保留各自身份，最后等待原 prompt 终态。" />
+
 代理把 Core 事件适配为 ACP session/update。客户端至少按 sessionId 与工具调用 ID 建立状态，不要把所有更新追加成一段聊天文本。
 
 | 更新 | 界面处理 |

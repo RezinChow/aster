@@ -18,6 +18,8 @@ export const meta = {
 
 ## 工具确认怎样展示
 
+<PeleAtlasDiagram name="permission-roundtrip" label="一次工具确认的往返" description="图示描述需要人工确认的调用。批准绑定原请求，原权限与沙箱约束仍成立；超时与断线不会产生批准。" />
+
 代理通过 ACP request_permission 请求用户选择。每项保留 sessionId、toolCallId、工具名、参数和风险原因。返回代理提供的 optionId，不要合成另一个“等价”选项。
 
 通常包含 allow-once 与 reject-once；只有可学习的 Bash 规则才提供 allow-always。界面应明确后者是在当前工作区保存具体规则，不是对所有未来命令无限授权。复杂命令不应通过截取首词来扩大许可。

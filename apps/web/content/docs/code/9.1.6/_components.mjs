@@ -1,6 +1,35 @@
 import { readFileSync } from 'node:fs';
 import { createElement as h } from 'react';
 import { table } from '../../../../scripts/docs_components.mjs';
+import { PeleAtlasDiagram } from '../../../../scripts/docs_atlas.mjs';
+
+const definitions = [
+  ['architecture', 'FIG. 01 · 运行时架构', '终端与桌面通过 ACP 接入 Core，Rust 应用直接使用 SDK。会话调用模型和受控工具，并把结果写入事实日志。'],
+  ['workflow', 'FIG. 02 · 执行循环', '模型根据工具结果决定下一步。工具调用先经过权限检查；返回结果前，还需要检查完成条件并等待资源清理。'],
+  ['meta-harness', 'FIG. 05 · Meta Harness 的接入方式', '配方与宿主注册表一起装配组件；完整 Assembler 提供组件树时优先。选中的树共用原有会话、事实日志和 Core 检查。'],
+  ['tutorial-architecture', 'FIG. 06 · 终端智能体的模块分工', '界面消费键盘与运行事件；宿主持有会话、确认管理器和存储，Core 负责受控执行与完成检查。'],
+  ['tutorial-permissions', 'FIG. 07 · 权限与确认的分工', '权限策略先决定拒绝、允许或询问。确认面板回答的是准确的一次工具调用，超时不会产生批准。'],
+  ['rsi-cycle', 'FIG. 08 · 递归改进的实验闭环', '宿主固定评估依据，检查并运行候选，根据完整证据决定采纳或回退。Meta Harness 提供可替换的执行过程。'],
+];
+
+function codeDiagram(name) {
+  const entry = definitions.find(([id]) => id === name);
+  if (!entry) throw new Error(`Unknown Code diagram: ${name}`);
+  return h(PeleAtlasDiagram, { name, label: entry[1], description: entry[2] });
+}
+
+export function ArchitectureDiagram() {
+  return codeDiagram('architecture');
+}
+
+export function WorkflowDiagram() {
+  return codeDiagram('workflow');
+}
+
+export function VerificationDiagram() {
+  return h(PeleAtlasDiagram, { name: 'verification-revision', label: '修改与验证的版本关联' });
+}
+
 export function Principles() {
   return h('div', { className: 'principles' }, ...[
     ['01', '执行工具', '检查模型请求的调用是否获准，再执行工具。'],
@@ -21,6 +50,22 @@ export function CapabilityCards() {
   ].map(([tag, title, text]) => h('div', { key: tag }, h('span', { className: 'mini-label' }, tag), h('strong', null, title), h('p', null, text))));
 }
 
+export function MetaHarnessDiagram() {
+  return codeDiagram('meta-harness');
+}
+
+export function TutorialArchitectureDiagram() {
+  return codeDiagram('tutorial-architecture');
+}
+
+export function TutorialPermissionDiagram() {
+  return codeDiagram('tutorial-permissions');
+}
+
+export function RsiCycleDiagram() {
+  return codeDiagram('rsi-cycle');
+}
+
 export function CompletionStates() {
   return table('完成状态的含义', ['状态', '何时出现', '含义'], [
     ['Narrative', '没有工作区修改，且无其他未解决事项', '本轮可以用最终答复结束'],
@@ -28,6 +73,10 @@ export function CompletionStates() {
     ['Waived', '宿主或用户明确接受尚未验证的本次修改', '允许结束，但不代表验证通过'],
     ['Incomplete', '缺少检查结果、操作结果不明或子任务尚未处理完', '任务还不能算完成'],
   ]);
+}
+
+export function StackDiagram() {
+  return h(PeleAtlasDiagram, { name: 'framework-layers', label: '应用、Harness 与编排的职责' });
 }
 
 export function FrameworkTable() {

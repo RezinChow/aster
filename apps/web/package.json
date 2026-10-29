@@ -19,6 +19,7 @@
     "esbuild": "0.25.12",
     "hast-util-from-html": "2.0.3",
     "hast-util-to-html": "9.0.5",
+    "pele": "1.10.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "remark-gfm": "4.0.1"
