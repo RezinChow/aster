@@ -9,8 +9,6 @@ export const meta = {
 
 前三章只允许 `read` 和 `ls`。现在允许读取自动执行，修改和命令执行则需要确认。把权限决策交给 `PermissionPolicy`，把“用户怎样回答”交给 `ConfirmationManager`。
 
-<TutorialPermissionDiagram />
-
 权限检查的顺序是 Deny、Allow、Ask、默认决策。因此同一个工具不能同时在 Allow 和 Ask 里期待后者生效。界面也不能因为用户按过一次“允许”，就替下一次不同参数的调用自动批准。
 
 ## 在运行层保留确认管理器

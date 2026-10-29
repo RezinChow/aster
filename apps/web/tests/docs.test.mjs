@@ -67,10 +67,8 @@ test('two products and two versions keep content, navigation, source refs and de
       await mkdir(directory, { recursive: true });
       if (version.components) {
         await writeFile(path.join(directory, '_components.mjs'), `export function VersionNote() { return ${JSON.stringify('helper-' + version.id)}; }`);
-        await mkdir(path.join(directory, '_diagrams'));
-        await writeFile(path.join(directory, '_diagrams/same.mmd'), `flowchart TB\naccTitle: Version diagram\naccDescr: Scoped source\nA[Diagram ${version.id}] --> B[End node]\n`);
       }
-      for (const chapter of version.pages) await writeFile(path.join(directory, `${chapter.file}.mdx`), `export const meta = {title:${JSON.stringify(project.title + ' ' + version.id)},label:"Page",description:"Fixture",updated:"2026-10-26"};\n\n## Content\n\n${project.id}-${version.id}-${chapter.file}\n\n[Source](https://github.com/aster-ai-lab/aster/blob/main/crates/code/core/src/lib.rs)\n${version.components ? '\n<VersionNote />\n\n<PeleDiagram name="same" label="Scoped diagram" description="Versioned diagram source" />\n' : ''}`);
+      for (const chapter of version.pages) await writeFile(path.join(directory, `${chapter.file}.mdx`), `export const meta = {title:${JSON.stringify(project.title + ' ' + version.id)},label:"Page",description:"Fixture",updated:"2026-10-26"};\n\n## Content\n\n${project.id}-${version.id}-${chapter.file}\n\n[Source](https://github.com/aster-ai-lab/aster/blob/main/crates/code/core/src/lib.rs)\n${version.components ? '\n<VersionNote />\n' : ''}`);
     }
   }
   await buildDocs({ entries, contentRoot, outputRoot });
@@ -92,19 +90,16 @@ test('two products and two versions keep content, navigation, source refs and de
   assert.ok(old.querySelector('.resource-links a').href.includes('/tree/alpha-v1/'));
   assert.ok(old.querySelector('.docs-version').textContent.includes('Alpha 1.0'));
   assert.ok(old.querySelector('.prose').textContent.includes('helper-1.0'));
-  assert.ok(old.querySelector('.pele').textContent.includes('Diagram 1.0'));
   const current = await read('alpha/2.0/new-only/');
   const oldChoice = current.querySelector('.docs-switcher:last-child a[href$="alpha/1.0/"]');
   assert.ok(oldChoice.textContent.includes('此版本无本篇'));
   assert.ok(current.querySelector('.docs-switcher:first-child a[href$="beta/1.0/"]'));
   assert.ok(current.querySelector('.prose').textContent.includes('helper-2.0'));
-  assert.ok(current.querySelector('.pele').textContent.includes('Diagram 2.0'));
   const alias = await read('alpha/guide/');
   assert.ok(alias.querySelector('.prose').textContent.includes('alpha-2.0-guide'));
   assert.ok(alias.querySelector('link[rel=canonical]').href.endsWith('/docs/alpha/2.0/guide/'));
   const previous = await readFile(path.join(outputRoot, 'alpha/1.0/guide/index.html'), 'utf8');
   await writeFile(path.join(contentRoot, 'alpha/2.0/guide.mdx'), (await readFile(path.join(contentRoot, 'alpha/2.0/guide.mdx'), 'utf8')) + '\nOnly version two changed.\n');
-  await writeFile(path.join(contentRoot, 'alpha/2.0/_diagrams/same.mmd'), 'flowchart TB\naccTitle: Version diagram\naccDescr: Scoped source\nA[Changed version two] --> B[End node]\n');
   await buildDocs({ entries, contentRoot, outputRoot });
   assert.equal(await readFile(path.join(outputRoot, 'alpha/1.0/guide/index.html'), 'utf8'), previous);
   const updatedIndex = JSON.parse(await readFile(path.join(outputRoot, 'search-index.json'), 'utf8'));
@@ -145,8 +140,7 @@ test('MDX builds deterministically and refuses stale generated pages', async (t)
   const outputRoot = await mkdtemp(path.join(os.tmpdir(), 'aster-mdx-'));
   t.after(() => rm(outputRoot, { recursive: true, force: true }));
   const files = await buildDocs({ outputRoot });
-  const atlas = JSON.parse(await readFile(path.join(root, 'apps/web/content/docs/atlas.json'), 'utf8'));
-  assert.equal(files.length, pages.length + 1 + atlas.diagrams.length + atlas.diagrams.filter((entry) => entry.readme).length + 1);
+  assert.equal(files.length, pages.length + 2);
   await buildDocs({ check: true, outputRoot });
   const original = await readFile(files[0], 'utf8');
   await writeFile(files[0], '<h1>stale</h1>');
@@ -200,22 +194,6 @@ test('the generated syntax palette meets 4.5:1 text contrast against its light b
   for (const color of colors) {
     const [dark, light] = [luminance(color), luminance(background)].sort((a, b) => a - b);
     assert.ok((light + 0.05) / (dark + 0.05) >= 4.5, `${color} fails code-text contrast on ${background}`);
-  }
-});
-
-test('Pele renders current architecture figures with labels and extracted styles', async (t) => {
-  for (const [route, name, type] of [['code/', 'architecture', 'flowchart'], ['code/workflow/', 'workflow', 'flowchart'], ['code/meta-harness/', 'meta-harness', 'block'], ['code/tutorial/', 'tutorial-architecture', 'flowchart'], ['code/tutorial/permissions/', 'tutorial-permissions', 'sequence'], ['code/design/rsi/', 'rsi-cycle', 'flowchart'], ['code/workflow/', 'context-assembly', 'flowchart'], ['code/reference/run-control/', 'run-control', 'sequence'], ['code/reference/governance/', 'completion-gate', 'flowchart'], ['code/reference/memory/', 'memory-lifecycle', 'flowchart'], ['acp/', 'architecture', 'flowchart'], ['acp/protocol/', 'protocol-lifecycle', 'sequence'], ['acp/permissions/', 'permission-roundtrip', 'sequence'], ['acp/events/', 'event-routing', 'sequence']]) {
-    const dom = new JSDOM(await readFile(path.join(publicRoot, 'docs', route, 'index.html'), 'utf8'));
-    t.after(() => dom.window.close());
-    const svg = dom.window.document.querySelector(`.atlas-figure[data-atlas="${name}"] svg.pele-${type}`);
-    assert.ok(svg, route);
-    assert.equal(svg.getAttribute('role'), 'img');
-    assert.ok(svg.querySelector('title').textContent.trim());
-    assert.ok(svg.querySelector('desc').textContent.trim());
-    assert.equal(svg.querySelectorAll('[style], style, script, foreignObject, a').length, 0);
-    assert.equal(svg.hasAttribute('style'), false);
-    assert.ok(svg.getAttribute('class').includes('pele-style-'));
-    assert.equal(svg.querySelectorAll('image').length, 0);
   }
 });
 
@@ -286,7 +264,7 @@ test('the terminal-agent tutorial has twelve ordered chapters and project-local 
   }
 });
 
-test('generated documents preserve project URLs, active navigation and accessible diagrams without JavaScript', async (t) => {
+test('generated documents preserve project URLs, active navigation and accessible content without JavaScript', async (t) => {
   await buildDocs({ check: true });
   for (const page of pages) {
     const source = await readFile(path.join(publicRoot, 'docs', page.route, 'index.html'), 'utf8');

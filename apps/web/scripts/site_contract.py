@@ -94,9 +94,7 @@ DOCS_ROUTES = documentation_routes(json.loads(
     (Path(__file__).resolve().parents[1] / "content/docs/catalog.json").read_text(encoding="utf-8")))
 DOCS_PAGES = tuple(DOCS_ROUTES)
 
-ATLAS = json.loads((Path(__file__).resolve().parents[1] / "content/docs/atlas.json").read_text(encoding="utf-8"))
-ATLAS_FILES = tuple(f"docs/atlas/{entry['product']}-{entry['name']}.svg" for entry in ATLAS["diagrams"])
-DOCS_FILES = DOCS_PAGES + ("docs/styles.css", "docs/generated.css", "docs/navigation.js", "docs/search.js", "docs/search-index.json") + ATLAS_FILES
+DOCS_FILES = DOCS_PAGES + ("docs/styles.css", "docs/generated.css", "docs/navigation.js", "docs/search.js", "docs/search-index.json")
 DOCS_REFERENCE_URLS = frozenset((
     "https://developers.openai.com/blog/codex-as-a-platform",
     "https://code.claude.com/docs/en/agent-sdk/overview",

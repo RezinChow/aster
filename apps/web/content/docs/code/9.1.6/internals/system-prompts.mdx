@@ -11,8 +11,6 @@ Core 代码判定模型提出的动作能否执行。
 两者分别处理“应该做什么”和“实际允许什么”。
 模型读到“验证结果”，也要产生真实检查记录。
 
-<PeleAtlasDiagram name="prompt-stack" />
-
 默认提示文件位于 `crates/code/core/prompts/`。
 Rust 常量用 `include_str!` 编入提示文本。
 因此，修改磁盘上的模板后需要重新构建程序。

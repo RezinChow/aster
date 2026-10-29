@@ -11,8 +11,6 @@ export const meta = {
 
 先把一条只读任务跑通，再加入写入和执行权限。每章都继续修改 `apps/tutorial-agent`，不需要为每个能力另建一个 Agent。完成基础界面后，后面的章节按需求接入；没有配置的外部服务不会因为读过教程就变得可用。
 
-<TutorialArchitectureDiagram />
-
 ## 阅读前准备
 
 你需要能阅读 Rust 的 `async`、`Result` 和 `Arc`，并准备一份能够连接模型的可信 ACL 配置。所有 Cargo 命令都在本仓库根目录执行，沿用根工作区、锁文件和固定 Rust 工具链。练习包使用本地 `a3s-code-core`，不从包仓库安装另一个 SDK。

@@ -5,8 +5,6 @@ export const meta = {
   label: '执行流程',
 };
 
-<WorkflowDiagram />
-
 ## 01 建立工作区会话
 
 开始任务前，`Agent` 加载 ACL 配置，`AgentSession` 确定本次会话使用的工作区、模型、工具和权限。终端和桌面通过 ACP 调用 Core；Rust 应用可以直接使用 `send` 或 `stream`。

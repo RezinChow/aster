@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { readFile, readdir, mkdir, writeFile, unlink } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { createElement as h, useContext } from 'react';
 import { highlight, Pre, InnerLine, InnerToken } from 'codehike/code';
@@ -8,45 +7,9 @@ import { fromHtml } from 'hast-util-from-html';
 import { toHtml } from 'hast-util-to-html';
 import { extractStyles } from './docs_markup.mjs';
 import highContrast from '@shikijs/themes/github-light-high-contrast';
-import { DiagramScope, renderPele } from './docs_diagrams.mjs';
+import { DiagramScope } from './docs_diagrams.mjs';
 
 const safeName = (name) => typeof name === 'string' && /^[a-z][a-z0-9-]*$/.test(name);
-
-export function renderAtlas(source, definition, identity, styles = new Map()) {
-  if (!definition.title || !definition.description || !definition.steps?.length || definition.steps.some((step) => !step.title || !step.body)) throw new Error('Atlas needs a title, description and explanatory steps');
-  const result = renderPele(source, identity, styles, definition);
-  for (const step of definition.steps) for (const id of step.focus ?? []) {
-    if (!result.nodeIds.has(id)) throw new Error(`Unknown Pele focus node: ${id}`);
-  }
-  return result;
-}
-
-export function PeleAtlasDiagram({ name, label, description }) {
-  const scope = useContext(DiagramScope);
-  if (!scope?.chapter.version || !safeName(name)) throw new Error('Atlas needs a version and safe name');
-  const { chapter, contentRoot, styles, sources } = scope;
-  const root = path.join(contentRoot, chapter.project.id, chapter.version.id);
-  const definition = JSON.parse(readFileSync(path.join(root, '_atlas', `${name}.json`), 'utf8'));
-  const source = readFileSync(path.join(root, '_diagrams', `${name}.mmd`), 'utf8');
-  const { markup } = renderAtlas(source, definition, `${chapter.project.id}/${chapter.version.id}/${name}`, styles);
-  const depth = chapter.route.split('/').filter(Boolean).length;
-  const docsRoot = '../'.repeat(depth) || './';
-  return h('figure', { className: 'diagram pele-diagram atlas-figure reading-lab', 'data-atlas': name },
-    h('figcaption', null, h('span', { className: 'diagram-kicker' }, '架构图'), h('span', { className: 'figure-label' }, label || definition.title), description || definition.description),
-    h('div', { className: 'atlas-controls', hidden: true },
-      h('div', { className: 'walk-arrows' }, h('button', { type: 'button', 'data-atlas-action': 'previous', 'aria-label': '上一步' }, '←'), h('button', { type: 'button', 'data-atlas-action': 'next', 'aria-label': '下一步' }, '→')),
-      h('span', { className: 'atlas-position', 'data-atlas-position': true }, '完整图示'),
-      h('button', { type: 'button', 'data-atlas-action': 'play', 'aria-pressed': false }, '播放讲解'),
-      h('button', { type: 'button', 'data-atlas-action': 'all' }, '查看全图'),
-      h('button', { type: 'button', 'data-lab-expand': true }, '放大 ↗')),
-    h('div', { className: 'diagram-hint', 'aria-hidden': true }, '左右滑动查看完整图示 ↔'),
-    h('div', { className: 'diagram-scroll', tabIndex: 0, role: 'region', 'aria-label': `${definition.title}，可横向滚动`, dangerouslySetInnerHTML: { __html: markup } }),
-    h('ol', { className: 'atlas-steps' }, ...definition.steps.map((step, index) => h('li', { key: index, 'data-atlas-focus': (step.focus ?? []).join(' ') },
-      h('button', { type: 'button', disabled: true, className: 'atlas-step', 'data-atlas-step': index }, h('span', { className: 'step-number' }, String(index + 1).padStart(2, '0')), h('span', { className: 'lab-step-label' }, step.title)),
-      h('p', null, step.body), step.source && h(sources.SourceRef, step.source)))),
-    h('p', { className: 'atlas-status sr-only', role: 'status', 'aria-live': 'polite' }),
-    h('p', { className: 'atlas-credit' }, h('span', null, '选择说明可聚焦对应节点'), h('a', { href: `${docsRoot}atlas/${chapter.project.id}-${name}.svg`, download: true }, '下载 SVG ↗')));
-}
 
 export async function prepareWalks(directory, sources, styles) {
   let files;
@@ -112,30 +75,4 @@ export function SourceWalk({ name }) {
     h('div', { className: 'walk-stops' }, ...stops),
     h('p', { className: 'walk-status sr-only', role: 'status', 'aria-live': 'polite' }),
     h('p', { className: 'walk-footnote' }, '源码与本文版本一致，保留原始行号。'));
-}
-
-export async function buildAtlasAssets({ contentRoot, outputRoot, check, repositoryRoot }) {
-  let catalog;
-  try { catalog = JSON.parse(await readFile(path.join(contentRoot, 'atlas.json'), 'utf8')); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
-  const files = [];
-  const emit = async (target, value) => {
-    if (check) { if (await readFile(target, 'utf8') !== value) throw new Error(`Stale atlas asset: ${target}`); }
-    else { await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, value); }
-    files.push(target);
-  };
-  for (const entry of catalog.diagrams) {
-    const root = path.join(contentRoot, entry.product, entry.version);
-    const definition = JSON.parse(await readFile(path.join(root, '_atlas', `${entry.name}.json`), 'utf8'));
-    const source = await readFile(path.join(root, '_diagrams', `${entry.name}.mmd`), 'utf8');
-    const { svg } = renderAtlas(source, definition, `${entry.product}/${entry.version}/${entry.name}`);
-    await emit(path.join(outputRoot, 'atlas', `${entry.product}-${entry.name}.svg`), svg);
-    if (entry.readme) await emit(path.join(repositoryRoot, 'assets/readme', `${entry.readme}.svg`), svg);
-  }
-  for (const name of ['seecode-symbol.png', 'seecode-word.png']) {
-    const obsolete = path.join(outputRoot, 'atlas', name);
-    try { await readFile(obsolete); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
-    if (check) throw new Error(`Obsolete diagram watermark: ${obsolete}`);
-    await unlink(obsolete);
-  }
-  return files;
 }
