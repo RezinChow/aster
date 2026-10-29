@@ -70,7 +70,9 @@
         gl_Position = vec4(clip, 0.0, depth);
         vNear = aLayer > 0.5 ? 1.0 - smoothstep(8.0, 42.0, depth) : 0.0;
         vTravel = normalize(clip + vec2(0.0001));
-        float size = clamp(aSize * uResolution.y * 1.15 / depth, 0.55 * uRatio, 12.0 * uRatio);
+        float pointScale = aLayer < 0.5 ? 1.75 : 1.3;
+        float minSize = aLayer < 0.5 ? 0.85 : 0.6;
+        float size = clamp(aSize * uResolution.y * pointScale / depth, minSize * uRatio, 14.0 * uRatio);
         gl_PointSize = size * (1.0 + vNear * 1.8);
         float fog = exp(-depth * 0.0055);
         float arrival = smoothstep(4.0, 12.0, depth);
@@ -289,7 +291,7 @@
         spread: (random() - 0.5) * 0.9,
         depth: 0.2 + random() * 0.8,
         phase: random() * Math.PI * 2,
-        size: 0.35 + random() * 1.25,
+        size: 0.45 + random() * 1.65,
         tone: random()
       }));
     }
