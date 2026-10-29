@@ -4,7 +4,14 @@
   "model": "kimi/k3.1-pro",
   "checkpoint_count": 153,
   "domain_count": 16,
-  "claim": "仅所列合同和所链接运行有证据；最新完整批次为 Windows 35/35、Linux 34/35，失败和独立复跑均保留。场景数不换算为整域完成率，未覆盖项目仍须完成。",
+  "claim": "仅所列合同和所链接运行有证据；最新完整 35 项批次为 Windows 34/35、Linux 33/35，反例与独立复跑均保留。新增启动边界单独绑定最终源码，不替代完整批次或 153 项验收。",
+  "status_counts": {
+    "explicitly_unavailable": 1,
+    "partial": 75,
+    "pending": 59,
+    "verified_for_listed_contract": 18
+  },
+  "verified_percent": 11.76,
   "checkpoints": [
     {
       "id": "F01.01",
@@ -179,23 +186,197 @@
     {
       "id": "F01.04",
       "requirement": "companion 缺失、版本/源码不匹配、无法执行：给出原因并保持可退出，不回落到另一产品",
-      "status": "pending",
-      "observations": [],
-      "remaining": "尚未建立本检查点全部条件的双平台端到端证据。"
+      "status": "verified_for_listed_contract",
+      "observations": [
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-startup-errors/report.json",
+          "sha256": "5c8930b90c040030a9ce12f998da8953112879ac9549c9fcea76116fed76ab52",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-pc-windows-msvc",
+          "script_sha256": "bf5ee5d7a014dd3faae617a698c3eb0ce2d5ac2d00610c81f61aa43e31e0f1a8",
+          "native_cases": [
+            "missing-companion",
+            "mismatched-companion",
+            "unexecutable-companion"
+          ]
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-startup-errors/report.json",
+          "sha256": "d6b60a6012dc0625fc74c25ba233343d6777d46eb3bc6529559edecc5aa49e33",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-unknown-linux-gnu",
+          "script_sha256": "bf5ee5d7a014dd3faae617a698c3eb0ce2d5ac2d00610c81f61aa43e31e0f1a8",
+          "native_cases": [
+            "missing-companion",
+            "mismatched-companion",
+            "unexecutable-companion"
+          ]
+        }
+      ],
+      "remaining": "",
+      "counterexamples": [
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-unexecutable-initial/report.json",
+          "sha256": "ba043c15fba74cc6f886db83e14b888c39874355815ad6659d5db4e57e12adbe",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "script_sha256": "dda23dbb66855b171bb1b2afbe23e891789ec608ee2415d5e33143917b380e30",
+          "native_case": "unexecutable-companion"
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-unexecutable-initial/report.json",
+          "sha256": "9f81c3daf2dce14fc0f8c3c6e7aac407c52c07a6da05f51525f567d4bf8340c6",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "script_sha256": "dda23dbb66855b171bb1b2afbe23e891789ec608ee2415d5e33143917b380e30",
+          "native_case": "unexecutable-companion"
+        }
+      ]
     },
     {
       "id": "F01.05",
       "requirement": "ACL 缺失、语法错误、模型不存在：区分首次配置路径和配置错误，不静默改用其他模型",
-      "status": "pending",
-      "observations": [],
-      "remaining": "尚未建立本检查点全部条件的双平台端到端证据。"
+      "status": "verified_for_listed_contract",
+      "observations": [
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-startup-errors/report.json",
+          "sha256": "5c8930b90c040030a9ce12f998da8953112879ac9549c9fcea76116fed76ab52",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-pc-windows-msvc",
+          "script_sha256": "bf5ee5d7a014dd3faae617a698c3eb0ce2d5ac2d00610c81f61aa43e31e0f1a8",
+          "native_cases": [
+            "missing-acl",
+            "invalid-acl",
+            "unknown-model"
+          ]
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-startup-errors/report.json",
+          "sha256": "d6b60a6012dc0625fc74c25ba233343d6777d46eb3bc6529559edecc5aa49e33",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-unknown-linux-gnu",
+          "script_sha256": "bf5ee5d7a014dd3faae617a698c3eb0ce2d5ac2d00610c81f61aa43e31e0f1a8",
+          "native_cases": [
+            "missing-acl",
+            "invalid-acl",
+            "unknown-model"
+          ]
+        }
+      ],
+      "remaining": "",
+      "counterexamples": [
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-invalid-acl/report.json",
+          "sha256": "1fcfd1894adf75f3e5d8f5e713b8a2d2a5acfd738b42208b1d1c6b12ceef71ec",
+          "source_pair": "aster-cli-pair-v1:cce6babdd0286057a56ad1677bb6154237444994:x86_64-pc-windows-msvc",
+          "script_sha256": "bd5584fd409b3f41288f6e293e6395e12da3a93b70aed58a6731e81d70d04f85",
+          "native_case": "invalid-acl"
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-invalid-acl-initial/report.json",
+          "sha256": "d3985da4daa7f20f9e7da5c1c2719b188c35546799c0cef9ec096e3f4fdcac64",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "script_sha256": "bd5584fd409b3f41288f6e293e6395e12da3a93b70aed58a6731e81d70d04f85",
+          "native_case": "invalid-acl"
+        }
+      ]
     },
     {
       "id": "F01.06",
       "requirement": "TTY 与非 TTY：交互/非交互路由明确，不能卡在不可操作的信任或权限界面",
-      "status": "pending",
-      "observations": [],
-      "remaining": "尚未建立本检查点全部条件的双平台端到端证据。"
+      "status": "verified_for_listed_contract",
+      "observations": [
+        {
+          "platform": "windows",
+          "file": "windows/full-35-ui-tail-readiness/permission-cancel.json",
+          "sha256": "1f98b9d84439c2e5ef027a227279a430ea3019d520cec95dfd40a9071f1ab4db",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "oracle_count": 3,
+          "named_oracles": [
+            "source-pair",
+            "permission-cancel",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        },
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-startup-errors/report.json",
+          "sha256": "5c8930b90c040030a9ce12f998da8953112879ac9549c9fcea76116fed76ab52",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-pc-windows-msvc",
+          "script_sha256": "bf5ee5d7a014dd3faae617a698c3eb0ce2d5ac2d00610c81f61aa43e31e0f1a8",
+          "native_cases": [
+            "headless-json",
+            "headless-relative-cwd"
+          ]
+        },
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-confirmation-cancel/report.json",
+          "sha256": "0d8d98de99a0e32b5b73343d37b64c8986963d04e9e188db7a3dd50c5a029324",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-pc-windows-msvc",
+          "script_sha256": "882cb4fc4ab2291adde37c8d185c6ec24948088a75a4cde35e1d04fe79d57b6f",
+          "native_cases": [
+            "scheduler-confirmation-cancel"
+          ]
+        },
+        {
+          "platform": "linux",
+          "file": "linux/full-35-ui-tail-readiness/permission-cancel.json",
+          "sha256": "d3d55f34a85bd64b03704acf28f278e29d90d3c60375408672ee29e9ff4efcdc",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "oracle_count": 3,
+          "named_oracles": [
+            "source-pair",
+            "permission-cancel",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-startup-errors/report.json",
+          "sha256": "d6b60a6012dc0625fc74c25ba233343d6777d46eb3bc6529559edecc5aa49e33",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-unknown-linux-gnu",
+          "script_sha256": "bf5ee5d7a014dd3faae617a698c3eb0ce2d5ac2d00610c81f61aa43e31e0f1a8",
+          "native_cases": [
+            "headless-json",
+            "headless-relative-cwd"
+          ]
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-confirmation-cancel/report.json",
+          "sha256": "6c88ea60a12ff262b598bd089246d6625daa9ff21236b36e649968030d8a7dc2",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-unknown-linux-gnu",
+          "script_sha256": "882cb4fc4ab2291adde37c8d185c6ec24948088a75a4cde35e1d04fe79d57b6f",
+          "native_cases": [
+            "scheduler-confirmation-cancel"
+          ]
+        }
+      ],
+      "remaining": "",
+      "qualification_note": "调度器在 confirmation.answered=false 后结束，尚未进入工具准备/执行；原工具回执预期不适用的测试失败和原脚本仍保留，不作为功能失败或成功证据。",
+      "excluded_evaluations": [
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-non-tty-permission/report.json",
+          "sha256": "1673f87a011590472b0e9dfb701aaaecbf4d3d384657cdaeecffd16d4a4b7f2b",
+          "source_pair": "aster-cli-pair-v1:cce6babdd0286057a56ad1677bb6154237444994:x86_64-pc-windows-msvc",
+          "script_sha256": "b7dd134ae84e36fe30403fdf927cc1f48c26f1cd199367482b6e80497d778394",
+          "native_case": "non-tty-permission"
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-non-tty-permission/report.json",
+          "sha256": "d3061e379ca2a08692a2f8c09237103c7e9370d402c35eb1c286c1d5bc1a12ba",
+          "source_pair": "aster-cli-pair-v1:cce6babdd0286057a56ad1677bb6154237444994:x86_64-unknown-linux-gnu",
+          "script_sha256": "b7dd134ae84e36fe30403fdf927cc1f48c26f1cd199367482b6e80497d778394",
+          "native_case": "non-tty-permission"
+        }
+      ]
     },
     {
       "id": "F01.07",
@@ -500,9 +681,47 @@
             "quit"
           ],
           "metadata_record_count": 0
+        },
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-startup-errors/report.json",
+          "sha256": "5c8930b90c040030a9ce12f998da8953112879ac9549c9fcea76116fed76ab52",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-pc-windows-msvc",
+          "script_sha256": "bf5ee5d7a014dd3faae617a698c3eb0ce2d5ac2d00610c81f61aa43e31e0f1a8",
+          "native_cases": [
+            "headless-relative-cwd"
+          ]
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-startup-errors/report.json",
+          "sha256": "d6b60a6012dc0625fc74c25ba233343d6777d46eb3bc6529559edecc5aa49e33",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-unknown-linux-gnu",
+          "script_sha256": "bf5ee5d7a014dd3faae617a698c3eb0ce2d5ac2d00610c81f61aa43e31e0f1a8",
+          "native_cases": [
+            "headless-relative-cwd"
+          ]
         }
       ],
-      "remaining": "实际中文/空格文件与相对工具路径已验证；相对 --cwd 和其他平台路径形式仍待验证。"
+      "remaining": "两平台中文/空格相对 --cwd 的 headless 真实模型请求已修复验证，正确目录产生精确 user.message；交互 TUI 的相对启动及其他平台路径形式仍待验证。",
+      "counterexamples": [
+        {
+          "platform": "windows",
+          "file": "windows/native-cli-relative-cwd/report.json",
+          "sha256": "5c5e45662fa9b1dcfb62045a2d406bea88f01c72b9f9c0b67c4f42d7c076e272",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "script_sha256": "78762716f0789244499c4d25f4cf0eb0526a4c3588b022f741df3fe022da0b7f",
+          "native_case": "headless-relative-cwd"
+        },
+        {
+          "platform": "linux",
+          "file": "linux/native-cli-relative-cwd/report.json",
+          "sha256": "86a55598253b9025020d4d8245cb485fb5837f8c8b66308fea906b8f1b1834d5",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "script_sha256": "78762716f0789244499c4d25f4cf0eb0526a4c3588b022f741df3fe022da0b7f",
+          "native_case": "headless-relative-cwd"
+        }
+      ]
     },
     {
       "id": "F02.05",
@@ -726,9 +945,93 @@
             "quit"
           ],
           "metadata_record_count": 0
+        },
+        {
+          "platform": "windows",
+          "file": "windows/full-35-ui-tail-readiness/draft-edit-controls.json",
+          "sha256": "29743c37b326c46a82bbef59bd8d2fcf91ee2dd5bde276e1e444dc507cda6765",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "oracle_count": 11,
+          "named_oracles": [
+            "source-pair",
+            "draft-redraw",
+            "draft-redraw",
+            "undo-redo",
+            "draft-redraw",
+            "stash-pop",
+            "draft-redraw",
+            "draft-redraw",
+            "settled-turn",
+            "exact-edited-prompt",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        },
+        {
+          "platform": "windows",
+          "file": "windows/startup-errors-pilot/draft-edit-controls.json",
+          "sha256": "da4bb9bfc1f2aa67d3743ee2936111e5973332560c535a202de70eada92a1afd",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-pc-windows-msvc",
+          "oracle_count": 11,
+          "named_oracles": [
+            "source-pair",
+            "draft-redraw",
+            "draft-redraw",
+            "undo-redo",
+            "draft-redraw",
+            "stash-pop",
+            "draft-redraw",
+            "draft-redraw",
+            "settled-turn",
+            "exact-edited-prompt",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        },
+        {
+          "platform": "linux",
+          "file": "linux/full-35-ui-tail-readiness/draft-edit-controls.json",
+          "sha256": "eddf66c85baa6b2023ee72ea88ebfb0875cd76536a0e2be248bbbaa57e740111",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "oracle_count": 11,
+          "named_oracles": [
+            "source-pair",
+            "draft-redraw",
+            "draft-redraw",
+            "undo-redo",
+            "draft-redraw",
+            "stash-pop",
+            "draft-redraw",
+            "draft-redraw",
+            "settled-turn",
+            "exact-edited-prompt",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        },
+        {
+          "platform": "linux",
+          "file": "linux/startup-errors-pilot/draft-edit-controls.json",
+          "sha256": "bdd7d0b246e13f37e42030c467bd11f32f4f90ce43a684f8c675d99e43482429",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-unknown-linux-gnu",
+          "oracle_count": 11,
+          "named_oracles": [
+            "source-pair",
+            "draft-redraw",
+            "draft-redraw",
+            "undo-redo",
+            "draft-redraw",
+            "stash-pop",
+            "draft-redraw",
+            "draft-redraw",
+            "settled-turn",
+            "exact-edited-prompt",
+            "quit"
+          ],
+          "metadata_record_count": 0
         }
       ],
-      "remaining": "光标、词/行删除已验证；选区编辑仍待验证。 最新 Linux 完整批次在 Ctrl+W 后 200 ms 的屏幕断言失败，单独复跑通过；输入与显示同步的稳定性仍待验证。",
+      "remaining": "原单次按键与精确提交断言保持；可观察屏幕状态替代固定延时后，双平台完整批次及后续独立试跑通过。选区编辑仍待验证。",
       "counterexamples": [
         {
           "platform": "linux",
@@ -807,9 +1110,93 @@
             "quit"
           ],
           "metadata_record_count": 0
+        },
+        {
+          "platform": "windows",
+          "file": "windows/full-35-ui-tail-readiness/draft-edit-controls.json",
+          "sha256": "29743c37b326c46a82bbef59bd8d2fcf91ee2dd5bde276e1e444dc507cda6765",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "oracle_count": 11,
+          "named_oracles": [
+            "source-pair",
+            "draft-redraw",
+            "draft-redraw",
+            "undo-redo",
+            "draft-redraw",
+            "stash-pop",
+            "draft-redraw",
+            "draft-redraw",
+            "settled-turn",
+            "exact-edited-prompt",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        },
+        {
+          "platform": "windows",
+          "file": "windows/startup-errors-pilot/draft-edit-controls.json",
+          "sha256": "da4bb9bfc1f2aa67d3743ee2936111e5973332560c535a202de70eada92a1afd",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-pc-windows-msvc",
+          "oracle_count": 11,
+          "named_oracles": [
+            "source-pair",
+            "draft-redraw",
+            "draft-redraw",
+            "undo-redo",
+            "draft-redraw",
+            "stash-pop",
+            "draft-redraw",
+            "draft-redraw",
+            "settled-turn",
+            "exact-edited-prompt",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        },
+        {
+          "platform": "linux",
+          "file": "linux/full-35-ui-tail-readiness/draft-edit-controls.json",
+          "sha256": "eddf66c85baa6b2023ee72ea88ebfb0875cd76536a0e2be248bbbaa57e740111",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "oracle_count": 11,
+          "named_oracles": [
+            "source-pair",
+            "draft-redraw",
+            "draft-redraw",
+            "undo-redo",
+            "draft-redraw",
+            "stash-pop",
+            "draft-redraw",
+            "draft-redraw",
+            "settled-turn",
+            "exact-edited-prompt",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        },
+        {
+          "platform": "linux",
+          "file": "linux/startup-errors-pilot/draft-edit-controls.json",
+          "sha256": "bdd7d0b246e13f37e42030c467bd11f32f4f90ce43a684f8c675d99e43482429",
+          "source_pair": "aster-cli-pair-v1:189982670423c6c055335d5e701b491d295583e5:x86_64-unknown-linux-gnu",
+          "oracle_count": 11,
+          "named_oracles": [
+            "source-pair",
+            "draft-redraw",
+            "draft-redraw",
+            "undo-redo",
+            "draft-redraw",
+            "stash-pop",
+            "draft-redraw",
+            "draft-redraw",
+            "settled-turn",
+            "exact-edited-prompt",
+            "quit"
+          ],
+          "metadata_record_count": 0
         }
       ],
-      "remaining": "Unicode 单行的撤销、重做、清空、暂存已验证；多行组合仍待验证。 最新 Linux 完整批次在 Ctrl+W 后 200 ms 的屏幕断言失败，单独复跑通过；输入与显示同步的稳定性仍待验证。",
+      "remaining": "Unicode 单行撤销、重做、清空及暂存通过；保留原失败和无效的整行 Unicode 显示匹配试验。多行组合仍待验证。",
       "counterexamples": [
         {
           "platform": "linux",
@@ -3801,9 +4188,41 @@
             "quit"
           ],
           "metadata_record_count": 0
+        },
+        {
+          "platform": "windows",
+          "file": "windows/ls-search-43ce-isolated/ls-search-contracts.json",
+          "sha256": "294bb387ae09b6f1f2197e96a8af4caf20639abd3bc9cd0f401d2fee5bd83abd",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "oracle_count": 13,
+          "named_oracles": [
+            "source-pair",
+            "settled-turn",
+            "ls-bounded-order",
+            "settled-turn",
+            "search-unsupported-combination",
+            "settled-turn",
+            "search-context",
+            "settled-turn",
+            "search-bounded-page",
+            "settled-turn",
+            "settled-turn",
+            "search-no-match",
+            "quit"
+          ],
+          "metadata_record_count": 0
         }
       ],
-      "remaining": "目录优先排序与 limit=2 的真实结果已验证；全部路径、工作区边界和目录条目类型仍待覆盖。"
+      "remaining": "目录优先排序与 limit=2 的真实结果已验证；全部路径、工作区边界和目录条目类型仍待覆盖。 最新 Windows 批次在 search count 断言失败，同源码单独复跑通过，不能据此声称稳定通过。",
+      "counterexamples": [
+        {
+          "platform": "windows",
+          "file": "windows/full-35-ui-tail-readiness/ls-search-contracts.json",
+          "sha256": "b13203ea5803a34764fac6d22b37d09e9fab73a4cca734d0caeb210d79df2654",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "result": "reproduced_failure"
+        }
+      ]
     },
     {
       "id": "F07.03",
@@ -3855,9 +4274,41 @@
             "quit"
           ],
           "metadata_record_count": 0
+        },
+        {
+          "platform": "windows",
+          "file": "windows/ls-search-43ce-isolated/ls-search-contracts.json",
+          "sha256": "294bb387ae09b6f1f2197e96a8af4caf20639abd3bc9cd0f401d2fee5bd83abd",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "oracle_count": 13,
+          "named_oracles": [
+            "source-pair",
+            "settled-turn",
+            "ls-bounded-order",
+            "settled-turn",
+            "search-unsupported-combination",
+            "settled-turn",
+            "search-context",
+            "settled-turn",
+            "search-bounded-page",
+            "settled-turn",
+            "settled-turn",
+            "search-no-match",
+            "quit"
+          ],
+          "metadata_record_count": 0
         }
       ],
-      "remaining": "真实未知内容、限定目录、上下文、分页 cursor、无匹配及不支持组合的拒绝已验证；位置/全部范围边界仍待覆盖。"
+      "remaining": "真实未知内容、限定目录、上下文、分页 cursor、无匹配及不支持组合的拒绝已验证；位置/全部范围边界仍待覆盖。 最新 Windows 批次在 search count 断言失败，同源码单独复跑通过，不能据此声称稳定通过。",
+      "counterexamples": [
+        {
+          "platform": "windows",
+          "file": "windows/full-35-ui-tail-readiness/ls-search-contracts.json",
+          "sha256": "b13203ea5803a34764fac6d22b37d09e9fab73a4cca734d0caeb210d79df2654",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-pc-windows-msvc",
+          "result": "reproduced_failure"
+        }
+      ]
     },
     {
       "id": "F07.04",
@@ -4116,7 +4567,7 @@
           "metadata_record_count": 0
         }
       ],
-      "remaining": "已有真实失败脚本的 exit 7、双输出流、原生 cwd、含空格脚本名和继续请求证据；历史模型回答遗漏仍保留反例，最终同源码双平台批次及全部引用形式仍待验证。",
+      "remaining": "工具回执的 exit 7、双输出及 cwd 有真实证据，但最新 Linux 批次及单独复跑的最终模型答复均遗漏输出；仍须解决回答与实际工具结果不一致及其他引用形式。",
       "counterexamples": [
         {
           "platform": "windows",
@@ -4137,6 +4588,20 @@
           "file": "linux/owed-guidance-native-shell-isolated/shell-nonzero-contract.json",
           "sha256": "51487e97c3fcccb05564b3767c42cfade66d10a156012165cbfb7a1d41d0f477",
           "source_pair": "aster-cli-pair-v1:07cc0ea17bde1d8ce19f6b562362ad721ce9cdd3:x86_64-unknown-linux-gnu",
+          "result": "reproduced_failure"
+        },
+        {
+          "platform": "linux",
+          "file": "linux/full-35-ui-tail-readiness/shell-nonzero-contract.json",
+          "sha256": "5e6237d0b4dcdb0d78dbff639708136612114bde724b57eafe89d5879f5de4b7",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "result": "reproduced_failure"
+        },
+        {
+          "platform": "linux",
+          "file": "linux/shell-43ce-isolated/shell-nonzero-contract.json",
+          "sha256": "baf049ccf0656e3b9362798dc432dc55f6800d3858cd8153d6615adf1d7cd462",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
           "result": "reproduced_failure"
         }
       ]
@@ -4432,9 +4897,34 @@
             "quit"
           ],
           "metadata_record_count": 0
+        },
+        {
+          "platform": "linux",
+          "file": "linux/deny-43ce-isolated/yolo-explicit-deny.json",
+          "sha256": "17f28c611487091869d7185e5b78d108fa382c2d10864dd34d979d63d6835024",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "oracle_count": 6,
+          "named_oracles": [
+            "source-pair",
+            "settled-turn",
+            "explicit-deny",
+            "settled-turn",
+            "usable-after-denial",
+            "quit"
+          ],
+          "metadata_record_count": 0
         }
       ],
-      "remaining": "Normal 与 YOLO 已验证；Auto 是明确禁用入口，不作为可用功能计数。"
+      "remaining": "Normal 与 YOLO 已验证；Auto 是明确禁用入口，不作为可用功能计数。 最新 Linux 批次没有进入 write 工具调用，无法验证拒绝；同源码单独复跑的真实拒绝与后续读取通过。",
+      "counterexamples": [
+        {
+          "platform": "linux",
+          "file": "linux/full-35-ui-tail-readiness/yolo-explicit-deny.json",
+          "sha256": "ea94099243b57686f92c01c2fcdba747aa294eb4df897a274fb66321e93e2cb0",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "result": "reproduced_failure"
+        }
+      ]
     },
     {
       "id": "F08.02",
@@ -4797,8 +5287,34 @@
       "id": "F08.10",
       "requirement": "平台 sandbox 真实拦截越界文件/进程能力，拒绝原因可见，不能仅用模型拒绝代替",
       "status": "pending",
-      "observations": [],
-      "remaining": "尚未建立本检查点全部条件的双平台端到端证据。"
+      "observations": [
+        {
+          "platform": "linux",
+          "file": "linux/deny-43ce-isolated/yolo-explicit-deny.json",
+          "sha256": "17f28c611487091869d7185e5b78d108fa382c2d10864dd34d979d63d6835024",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "oracle_count": 6,
+          "named_oracles": [
+            "source-pair",
+            "settled-turn",
+            "explicit-deny",
+            "settled-turn",
+            "usable-after-denial",
+            "quit"
+          ],
+          "metadata_record_count": 0
+        }
+      ],
+      "remaining": "尚未建立本检查点全部条件的双平台端到端证据。 最新 Linux 批次没有进入 write 工具调用，无法验证拒绝；同源码单独复跑的真实拒绝与后续读取通过。",
+      "counterexamples": [
+        {
+          "platform": "linux",
+          "file": "linux/full-35-ui-tail-readiness/yolo-explicit-deny.json",
+          "sha256": "ea94099243b57686f92c01c2fcdba747aa294eb4df897a274fb66321e93e2cb0",
+          "source_pair": "aster-cli-pair-v1:43ce1a064098dff30e187665d4bcce5ed4cca316:x86_64-unknown-linux-gnu",
+          "result": "reproduced_failure"
+        }
+      ]
     },
     {
       "id": "F08.11",

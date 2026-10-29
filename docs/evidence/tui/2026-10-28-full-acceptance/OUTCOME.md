@@ -4,13 +4,23 @@ Status: in progress. Goal completion is not established by the historical ten
 tests, by menu visibility, or by a passing scenario count. Each feature below
 requires its actual effects and both platform results to be audited.
 
-Latest fully executed same-source batch: Windows 35/35 (1417.58 s), Linux
-34 passed / 1 failed (1645.04 s), pair `32b8c01e...`. The failed Linux draft
-control case passes independently (13.43 s), but its batch failure is retained.
+Latest fully executed same-source batch: Windows 34 passed / 1 failed
+(1461.98 s), Linux 33 passed / 2 failed (1589.20 s), pair `43ce1a06...`.
+Independent repetitions pass Windows search and Linux explicit denial;
+Linux shell final-answer output omission fails again independently.
+The preceding pair `32b8c01e...` batch was Windows 35/35, Linux 34/35.
 The preceding fully green two-platform baseline is 31/31 each, pair
 `d0bfd7fb...`. This is a bounded progress landing; the 153-checkpoint campaign
-remains incomplete. See `FINAL-RUNS.json`, `LIBRARY-FAILURES.json` and the
+remains incomplete. See `RUNS-43CE.json`, `FINAL-RUNS.json`, `LIBRARY-FAILURES.json` and the
 native-cancellation section for exact claims and counterexamples.
+
+The startup follow-up pair `18998267...` qualifies 9 native CLI contracts per
+platform plus one native TUI draft-control case per platform. Configuration
+tests pass 25/25 on Windows and Linux; the isolated cwd regression passes
+1/1 on each. These focused runs do not replace the full 35-entry batch.
+`STARTUP-RUNS.json` binds frozen graders, binary hashes and exact reports.
+The strict checkpoint index now verifies 18/153 (11.76%); 75 remain partial,
+59 pending, and one explicitly unavailable. Full acceptance remains open.
 
 The original operator-owned `./.a3s/config.acl` selects `kimi/k3.1-pro` for
 live inference. It is never copied into fixtures or evidence. Temporary
@@ -1489,3 +1499,91 @@ spacing exception: 759661 bytes, SHA-256
 `9775085742f3a1cd05da5af15a1b17fc67f2262c56b34c4127c0a67f02167d6a`,
 reverse check passed. Its 159-file UTF-8/LF audit passes again. The CLI source
 digest remains `32b8c01e...`; no product source changes follow the live run.
+
+## Native startup and observable input follow-up (2026-10-29)
+
+The draft-control driver now waits at most eight seconds for the observable
+negative screen condition after one original key operation. It does not send
+an extra key or change the expected raw user message, model or turn deadline.
+The first full-paragraph Unicode display matcher was invalid on Windows:
+physical-screen reconstruction did not retain the space next to a combining
+character. That pilot failure is retained. The corrected matcher uses the
+original prefix and an explicitly supplied visible tail marker; final raw
+UTF-8 message equality remains unchanged. The resulting pair-43ce full batch
+passes draft editing on both platforms, and the final pair passes its focused
+native draft case on Windows (21.02 s) and Linux (14.24 s).
+
+Pair-43ce's Windows search case fails a count assertion in the full batch and
+passes independently (166.83 s). Linux explicit denial does not reach the
+required write preparation in its batch and passes independently (95.66 s).
+Linux shell preserves the real exit 7 and both stream tokens in its tool
+receipt, but the final assistant answer omits those outputs. It fails again
+independently (39.76 s). All three failures and their repetitions are retained;
+no prompt, model, timeout or final-answer assertion is changed to pass them.
+
+Native CLI probing finds that relative --cwd changes the process directory
+but remains relative in PagerArgs. Headless startup then canonicalizes the
+same relative path under the new directory and fails with OS error 2 on both
+platforms. apply_cwd now resolves and retains the absolute path at the original
+launch boundary. The child-process hermetic test exercises Unicode and spaces,
+launch-relative debug/socket paths, repeated application, missing paths and a
+file used as a directory, without changing another parallel test's cwd.
+
+A malformed ACP companion originally reported only an OS executable-format
+error. The paired build check now identifies the ACP companion and directs
+users to rebuild or reinstall both executables together. Missing, mismatched
+and malformed native companions are tested separately; each exits before a
+model or tool call. Temporary bundle executables have native PE/ELF headers
+where appropriate, and no external-agent override or other-product state is
+used.
+
+Malformed ACL syntax originally reported a line and column without the actual
+source path. The error now includes the participating ACL source paths. A
+first context-chain implementation accidentally hid the original reason from
+error.to_string(): the unchanged goal_control refusal regression fails in
+both complete config groups and again independently. The final implementation
+retains that reason together with the new paths. Both config groups pass
+25/25, including the original failure and two new actual-loader diagnostics
+cases. These diagnostic tests also retain file bytes and do not include the
+fixture credential in the reported error.
+
+The final native CLI packet qualifies eight startup cases per platform:
+non-TTY JSON output, Unicode/space relative cwd, missing/mismatched/malformed
+ACP companion, missing ACL, malformed ACL, and an undeclared model. The two
+positive requests use the original ACL and kimi/k3.1-pro; fault cases use an
+explicit missing/synthetic ACL or a deliberately undeclared model. The
+original ACL remains byte-identical. Source IDs and binary hashes are bound
+in STARTUP-RUNS.json, and all original failed probes remain available.
+
+A separate non-TTY permission probe initially expected tool.prepared and a
+denied tool receipt. Actual scheduler source ends before preparation when
+confirmation.answered is false (crates/effect/src/coding.rs); this assumption
+was wrong. Its failed reports and exact frozen grader are retained and excluded
+from qualification. A separate scheduler-confirmation contract verifies the
+original user message, a real model-requested write, the matching call ID in
+the rejected confirmation, zero prepared/executed tools, no file, the scheduler's
+denied terminal, one completed turn and normal non-TTY process exit. It passes
+on Windows and Linux with the same input and frozen grader. This is an oracle
+correction justified by the actual protocol, not a product permission bypass.
+
+The follow-up integrates upstream main through 8e521909e; Studio is initialized
+at ee723a124699525f528cc413d5c7bf7eba916cc0. Those upstream changes do not alter
+any paired CLI build input. The CLI source digest stays
+189982670423c6c055335d5e701b491d295583e5. The final source-only patch against that
+landing base is 12436 bytes, SHA-256
+3df36b92d1208ba52089d5e56a546adbb62ce0acb36c26d077c07b5f18c9f20b,
+and passes reverse checking. Its six owned Rust files pass UTF-8/LF with no CR
+or BOM. The original dirty checkout and its index are not used for landing.
+
+Final follow-up checks pass the nine Linux workspace guards, native Windows
+staged line endings (6/6), and cargo fmt --all -- --check in WSL after the latest
+Studio pin. Windows cargo fmt --all reaches OS error 206 (command-line length),
+which is retained as a tooling failure and is not reported as a formatting pass.
+The mutable checkpoint index generator explicitly writes UTF-8/LF bytes to
+avoid Windows-only whole-file CRLF churn; immutable probe reports, raw logs and
+source patches retain their original bytes. The exact provider-secret scan
+passes; its retained startup-provider-secret-scan-final.log records the final count.
+
+The actual Windows and Linux checkpoint generators produce identical UTF-8/LF
+bytes (SHA-256 890f49de2404428f33b7b00ae9778ce2b00b58501841444a625e2465daacc851).
+The independent byte comparison is retained in source/checkpoint-cross-platform-repro.json.

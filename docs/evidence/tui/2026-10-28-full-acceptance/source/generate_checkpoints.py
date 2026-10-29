@@ -178,8 +178,93 @@ for point in ('F16.03', 'F16.04'):
         evidence(platform, 'full-35-qualification-final', 'send-now-help-capability')
         for platform in ('windows', 'linux')
     ])
-result = {'schema': 'aster.tui.checkpoints.v1', 'complete': False, 'model': 'kimi/k3.1-pro', 'checkpoint_count': len(rows), 'domain_count': 16, 'claim': '仅所列合同和所链接运行有证据；最新完整批次为 Windows 35/35、Linux 34/35，失败和独立复跑均保留。场景数不换算为整域完成率，未覆盖项目仍须完成。', 'checkpoints': rows}
-(CAMPAIGN / 'CHECKPOINTS.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+for platform, case, points in [
+    ('windows', 'ls-search-contracts', ('F07.02', 'F07.03')),
+    ('linux', 'yolo-explicit-deny', ('F08.01', 'F08.10')),
+    ('linux', 'shell-nonzero-contract', ('F07.07',)),
+]:
+    for point in points:
+        by_id[point].setdefault('counterexamples', []).append(counterexample(platform, 'full-35-ui-tail-readiness', case))
+by_id['F07.07']['counterexamples'].append(counterexample('linux', 'shell-43ce-isolated', 'shell-nonzero-contract'))
+by_id['F07.07']['remaining'] = '工具回执的 exit 7、双输出及 cwd 有真实证据，但最新 Linux 批次及单独复跑的最终模型答复均遗漏输出；仍须解决回答与实际工具结果不一致及其他引用形式。'
+for point in ('F07.02', 'F07.03'):
+    by_id[point]['observations'].append(evidence('windows', 'ls-search-43ce-isolated', 'ls-search-contracts'))
+    by_id[point]['remaining'] += ' 最新 Windows 批次在 search count 断言失败，同源码单独复跑通过，不能据此声称稳定通过。'
+for point in ('F08.01', 'F08.10'):
+    by_id[point]['observations'].append(evidence('linux', 'deny-43ce-isolated', 'yolo-explicit-deny'))
+    by_id[point]['remaining'] += ' 最新 Linux 批次没有进入 write 工具调用，无法验证拒绝；同源码单独复跑的真实拒绝与后续读取通过。'
+for point, remaining in [
+    ('F03.04', '原单次按键与精确提交断言保持；可观察屏幕状态替代固定延时后，双平台完整批次及后续独立试跑通过。选区编辑仍待验证。'),
+    ('F03.05', 'Unicode 单行撤销、重做、清空及暂存通过；保留原失败和无效的整行 Unicode 显示匹配试验。多行组合仍待验证。'),
+]:
+    by_id[point]['observations'].extend([
+        evidence(platform, phase, 'draft-edit-controls')
+        for platform in ('windows', 'linux')
+        for phase in ('full-35-ui-tail-readiness', 'startup-errors-pilot')
+    ])
+    by_id[point]['remaining'] = remaining
+
+
+def native_evidence(platform, phase, cases):
+    relative = f'{platform}/{phase}/report.json'
+    raw = (CAMPAIGN / relative).read_bytes()
+    data = json.loads(raw)
+    assert data['all_passed'] and data['config_unchanged']
+    assert data['source_pair'].split(':')[1] == '189982670423c6c055335d5e701b491d295583e5'
+    found = {item['case']: item for item in data['cases']}
+    for case in cases:
+        item = found[case]
+        assert item['result'] == 'pass' and not item['timed_out']
+        if case == 'scheduler-confirmation-cancel':
+            assert item['confirmation_cancelled_before_execution'] and item['no_file_effect']
+            assert item['model_requested_tools'] == ['write'] and item['confirmation_answers'] == [False]
+    return {'platform': platform, 'file': relative, 'sha256': hashlib.sha256(raw).hexdigest(),
+            'source_pair': data['source_pair'], 'script_sha256': data['script_sha256'], 'native_cases': cases}
+
+
+for point, cases in [
+    ('F01.04', ['missing-companion', 'mismatched-companion', 'unexecutable-companion']),
+    ('F01.05', ['missing-acl', 'invalid-acl', 'unknown-model']),
+]:
+    by_id[point]['status'] = 'verified_for_listed_contract'
+    by_id[point]['remaining'] = ''
+    by_id[point]['observations'] = [native_evidence(platform, 'native-cli-startup-errors', cases) for platform in ('windows', 'linux')]
+by_id['F01.06']['status'] = 'verified_for_listed_contract'
+by_id['F01.06']['remaining'] = ''
+by_id['F01.06']['observations'] = [
+    item for platform in ('windows', 'linux') for item in [
+        evidence(platform, 'full-35-ui-tail-readiness', 'permission-cancel'),
+        native_evidence(platform, 'native-cli-startup-errors', ['headless-json', 'headless-relative-cwd']),
+        native_evidence(platform, 'native-cli-confirmation-cancel', ['scheduler-confirmation-cancel']),
+    ]
+]
+by_id['F01.06']['qualification_note'] = '调度器在 confirmation.answered=false 后结束，尚未进入工具准备/执行；原工具回执预期不适用的测试失败和原脚本仍保留，不作为功能失败或成功证据。'
+by_id['F02.04']['observations'].extend([
+    native_evidence(platform, 'native-cli-startup-errors', ['headless-relative-cwd']) for platform in ('windows', 'linux')
+])
+by_id['F02.04']['remaining'] = '两平台中文/空格相对 --cwd 的 headless 真实模型请求已修复验证，正确目录产生精确 user.message；交互 TUI 的相对启动及其他平台路径形式仍待验证。'
+
+
+def native_counterexample(platform, phase, case):
+    relative = f'{platform}/{phase}/report.json'
+    raw = (CAMPAIGN / relative).read_bytes()
+    data = json.loads(raw)
+    assert data['config_unchanged'] and not data['all_passed']
+    item = next(item for item in data['cases'] if item['case'] == case)
+    assert item['result'] == 'fail'
+    return {'platform': platform, 'file': relative, 'sha256': hashlib.sha256(raw).hexdigest(),
+            'source_pair': data['source_pair'], 'script_sha256': data['script_sha256'], 'native_case': case}
+
+
+for platform in ('windows', 'linux'):
+    by_id['F01.04'].setdefault('counterexamples', []).append(native_counterexample(platform, 'native-cli-unexecutable-initial', 'unexecutable-companion'))
+    phase = 'native-cli-invalid-acl' if platform == 'windows' else 'native-cli-invalid-acl-initial'
+    by_id['F01.05'].setdefault('counterexamples', []).append(native_counterexample(platform, phase, 'invalid-acl'))
+    by_id['F02.04'].setdefault('counterexamples', []).append(native_counterexample(platform, 'native-cli-relative-cwd', 'headless-relative-cwd'))
+    by_id['F01.06'].setdefault('excluded_evaluations', []).append(native_counterexample(platform, 'native-cli-non-tty-permission', 'non-tty-permission'))
+counts = {status: sum(row['status'] == status for row in rows) for status in sorted({row['status'] for row in rows})}
+result = {'schema': 'aster.tui.checkpoints.v1', 'complete': False, 'model': 'kimi/k3.1-pro', 'checkpoint_count': len(rows), 'domain_count': 16, 'claim': '仅所列合同和所链接运行有证据；最新完整 35 项批次为 Windows 34/35、Linux 33/35，反例与独立复跑均保留。新增启动边界单独绑定最终源码，不替代完整批次或 153 项验收。', 'status_counts': counts, 'verified_percent': round(counts.get('verified_for_listed_contract', 0) * 100 / len(rows), 2), 'checkpoints': rows}
+(CAMPAIGN / 'CHECKPOINTS.json').write_bytes((json.dumps(result, ensure_ascii=False, indent=2) + '\n').encode('utf-8'))
 reopened = json.loads((CAMPAIGN / 'CHECKPOINTS.json').read_text(encoding='utf-8'))
 assert [row['id'] for row in reopened['checkpoints']] == [row['id'] for row in rows]
 print(json.dumps({'checkpoints':len(rows),'domains':16,'successful_evidence_files':len(cache),'complete':False}))
