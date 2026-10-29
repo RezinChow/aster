@@ -1,5 +1,5 @@
 export const meta = {
-  "title": "跑通请求、更新、取消和恢复",
+  "title": "ACP 请求、更新、取消与恢复",
   "description": "标准处理入口、请求关联、模式切换和会话恢复。",
   "label": "协议与会话生命周期",
   "updated": "2026-10-28"
@@ -65,7 +65,7 @@ session/load 使用真实保存的会话 ID 和准入 cwd。重放可能包含�
 
 加载入口是 <SourceRef path="crates/code/acp/src/agent.rs" match="async fn load_session(">load_session</SourceRef>；工作区与恢复身份的准入见 <SourceRef path="crates/code/acp/src/agent/resume.rs" match="pub(super) async fn admit_resume(">admit_resume</SourceRef>。
 
-模型上下文压缩不应删掉 UI 的完整转录。较长历史使用[会话目录与分页](../sessions/)，不要只靠加载时的可见消息拼出“完整历史”。
+模型上下文压缩不应删除 UI 的完整转录。较长历史使用[会话目录与分页](../sessions/)，不要只靠加载时的可见消息拼出“完整历史”。
 
 ## 验收
 

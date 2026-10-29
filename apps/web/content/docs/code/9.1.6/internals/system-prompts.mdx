@@ -1,5 +1,5 @@
 export const meta = {
-  title: '系统提示词如何装配，哪些约束由代码执行',
+  title: '系统提示词装配与代码约束',
   description: '默认提示文件、SystemPromptSlots、角色选择、工作策略、验证清单与本轮语言。',
   label: '系统提示词设计', updated: '2026-10-28',
 };
@@ -60,8 +60,8 @@ Rust 常量用 `include_str!` 编入提示文本。
 宿主未指定时，主会话保留 GeneralPurpose。
 本地检测结果只写入调试记录。
 
-因此，看到“计划”一词不代表主会话切成只读角色。
-阅读注释时，应继续核对实际调用路径。
+“计划”一词不代表主会话切成只读角色。
+阅读注释时，应核对实际调用路径。
 角色权限叠加的入口是
 <SourceRef path="crates/code/core/src/prompts.rs" match="pub fn uses_readonly_tool_contract">只读角色判定</SourceRef>。
 
