@@ -44,7 +44,7 @@
         if (aLayer < 0.5) {
           float radius = length(position.xz);
           float initialAngle = atan(position.z, position.x);
-          float angularVelocity = 0.10 / max(radius / 5.0, 0.35);
+          float angularVelocity = 0.22 / max(radius / 5.0, 0.35);
           float angle = initialAngle + uTime * angularVelocity;
           float arm = sin(2.0 * angle - 3.4 * log(max(radius, 0.4)) - uTime * 0.14);
           float armBoost = 0.18 + 0.82 * smoothstep(-0.35, 0.9, arm);
@@ -53,14 +53,15 @@
           float rim = 1.0 - 0.78 * smoothstep(11.5, 14.5, radius);
           float twinkle = 0.72 + 0.28 * sin(uTime * (0.55 + aSize * 4.0) + aPosition.x * 1.7 + aPosition.z * 2.1);
           float farBoost = 1.0 + 0.55 * smoothstep(0.0, 9.0, position.z);
-          float cycle = 0.5 + 0.5 * sin(uTime * 0.45);
-          float spread = 0.78 + cycle * 0.42;
-          float density = 1.15 - cycle * 0.3;
+          float cycle = 0.5 + 0.5 * sin(uTime * 0.65);
+          float spread = 0.68 + cycle * 0.60;
+          float density = 1.25 - cycle * 0.35;
           position = vec3(cos(angle) * radius * spread, position.y, sin(angle) * radius * spread);
           vColor = vec4(aColor.rgb, aColor.a * armBoost * twinkle * farBoost * rim * density * (0.55 + core * 0.35 + ring * 0.35));
         } else {
           float span = aLayer < 1.5 ? 44.0 : (aLayer < 2.5 ? 108.0 : 204.0);
-          position.z = -4.0 - mod(-position.z - 4.0 - uTime * 7.2, span);
+          float speed = aLayer < 1.5 ? 18.0 : (aLayer < 2.5 ? 10.0 : 6.0);
+          position.z = -4.0 - mod(-position.z - 4.0 - uTime * speed, span);
           vColor = aColor;
         }
         vec3 view = position - uCamera;
@@ -80,7 +81,7 @@
         float fog = exp(-depth * 0.0055);
         float arrival = smoothstep(4.0, 12.0, depth);
         float shimmer = 0.78 + 0.22 * sin(uTime * 0.7 + aPosition.x * 0.31 + aPosition.z * 0.17);
-        float luminance = aLayer < 0.5 ? 2.6 : 1.35;
+        float luminance = aLayer < 0.5 ? 3.4 : 2.1;
         vColor.a = min(1.0, vColor.a * luminance) * fog * arrival * shimmer;
       }
     `;
@@ -182,10 +183,10 @@
     let nextMeteorAt = 3.4;
 
     function colorFor(tone) {
-      if (tone > 0.94) return [0.94, 0.91, 1.0];
-      if (tone > 0.72) return [0.68, 0.57, 1.0];
-      if (tone > 0.42) return [0.46, 0.34, 0.88];
-      return [0.28, 0.19, 0.58];
+      if (tone > 0.94) return [1.0, 0.97, 1.0];
+      if (tone > 0.72) return [0.82, 0.72, 1.0];
+      if (tone > 0.42) return [0.62, 0.46, 1.0];
+      return [0.42, 0.30, 0.85];
     }
 
     function buildStars() {
@@ -321,20 +322,20 @@
       context.clearRect(0, 0, width, height);
       drawBackground();
       const scale = Math.min(width, height) / 15;
-      const cycle = 0.5 + 0.5 * Math.sin(time * 0.45);
-      const spread = 0.78 + cycle * 0.42;
+      const cycle = 0.5 + 0.5 * Math.sin(time * 0.65);
+      const spread = 0.68 + cycle * 0.60;
       stars.forEach((star) => {
-        const speed = 0.1 / Math.max(star.radius / 5, 0.35);
+        const speed = 0.22 / Math.max(star.radius / 5, 0.35);
         const armAngle = star.arm * Math.PI + Math.log(star.radius) * 1.7 + Math.PI / 4;
         const angle = (star.scattered ? star.angle : armAngle + star.spread) + time * speed;
         const x = width / 2 + Math.cos(angle) * star.radius * spread * scale + pointerX * star.depth;
         const y = height / 2 + Math.sin(angle) * star.radius * spread * scale * 0.42 + pointerY * star.depth;
-        const twinkle = 0.35 + (Math.sin(time * 0.65 + star.phase) * 0.5 + 0.5) * 0.55;
+        const twinkle = 0.55 + (Math.sin(time * 0.65 + star.phase) * 0.5 + 0.5) * 0.45;
         const rim = 1 - Math.min(0.78, star.radius / 18);
-        const alpha = twinkle * rim * (1.15 - cycle * 0.3);
-        if (star.tone > 0.72) context.fillStyle = `rgba(185,157,255,${alpha})`;
-        else if (star.tone > 0.4) context.fillStyle = `rgba(123,83,224,${alpha})`;
-        else context.fillStyle = `rgba(73,48,148,${alpha})`;
+        const alpha = twinkle * rim * (1.25 - cycle * 0.35);
+        if (star.tone > 0.72) context.fillStyle = `rgba(207,184,255,${alpha})`;
+        else if (star.tone > 0.4) context.fillStyle = `rgba(151,113,250,${alpha})`;
+        else context.fillStyle = `rgba(98,69,190,${alpha})`;
         context.beginPath();
         context.arc(x, y, star.size * (0.7 + star.depth * 0.45), 0, Math.PI * 2);
         context.fill();

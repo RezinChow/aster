@@ -192,17 +192,18 @@ test('cosmic pointer parallax is small and touch does not move the star field', 
   env.advance(100);
   const after = env.state.arcs.at(-1);
   assert.notDeepEqual(after, before);
-  assert.ok(Math.abs(after[0] - before[0]) < 2);
-  assert.ok(Math.abs(after[1] - before[1]) < 2);
+  const control = setup();
+  control.intersect(true);
+  control.advance(0);
+  control.advance(100);
+  const neutral = control.state.arcs.at(-1);
+  assert.ok(Math.abs(after[0] - neutral[0]) < 2);
+  assert.ok(Math.abs(after[1] - neutral[1]) < 2);
   const touch = setup();
   touch.intersect(true);
   touch.advance(0);
   touch.section.dispatch('pointermove', { clientX: 1200, clientY: 900, pointerType: 'touch' });
   touch.advance(100);
-  const control = setup();
-  control.intersect(true);
-  control.advance(0);
-  control.advance(100);
   assert.deepEqual(touch.state.arcs.at(-1), control.state.arcs.at(-1));
 });
 
@@ -219,13 +220,13 @@ test('cosmic gathers and expands smoothly in an endless cycle', () => {
   env.advance(0);
   const initial = sampleRadius();
   const radii = [];
-  for (let now = 64; now <= 28672; now += 64) {
+  for (let now = 64; now <= 20480; now += 64) {
     env.advance(now);
     if (now % 1024 === 0) radii.push(sampleRadius());
   }
-  assert.equal(radii.length, 28);
-  const first = radii.slice(0, 14);
-  const second = radii.slice(14);
+  assert.equal(radii.length, 20);
+  const first = radii.slice(0, 10);
+  const second = radii.slice(10);
   const range = values => ({ min: Math.min(...values), max: Math.max(...values) });
   const one = range(first);
   const two = range(second);
