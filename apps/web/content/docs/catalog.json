@@ -915,6 +915,120 @@
       ]
     },
     {
+      "id": "memory",
+      "title": "Aster Memory",
+      "label": "记忆与向量索引",
+      "description": "使用 a3s-memory 保存 MemoryItem、证据化记忆节点和调用方向量索引。",
+      "defaultVersion": "0.1.5",
+      "versions": [
+        {
+          "id": "0.1.5",
+          "label": "0.1.5 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Memory 产品概览",
+              "description": "存储、证据化 Repository、向量索引和宿主边界"
+            },
+            {
+              "slug": "repository/",
+              "file": "repository",
+              "label": "存储与 Repository",
+              "title": "Memory 存储与 Repository",
+              "description": "MemoryItem、证据生命周期、修订和持久化"
+            },
+            {
+              "slug": "retrieval/",
+              "file": "retrieval",
+              "label": "向量检索与验证",
+              "title": "Memory 向量检索与验证",
+              "description": "精确 Top-K、SQLite、修订 CAS 和测试"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
+      "id": "event",
+      "title": "Aster Event",
+      "label": "事件发布订阅",
+      "description": "使用 a3s-event 通过统一 EventBus 接入 Memory、NATS、Iggy 或自定义 Provider。",
+      "defaultVersion": "0.4.0",
+      "versions": [
+        {
+          "id": "0.4.0",
+          "label": "0.4.0 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Event 产品概览",
+              "description": "Provider、发布订阅、持久化和交付边界"
+            },
+            {
+              "slug": "integration/",
+              "file": "integration",
+              "label": "发布订阅接入",
+              "title": "Event 发布订阅接入",
+              "description": "EventBus、Subject、订阅和自定义 Provider"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "交付与验证",
+              "title": "Event 交付与运行验证",
+              "description": "Ack、DLQ、加密、Broker 限制和故障测试"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
+      "id": "lane",
+      "title": "Aster Lane",
+      "label": "优先级任务调度",
+      "description": "使用 a3s-lane 管理优先级 Lane、类型化队列、持久 Job Backend 和 Worker 租约。",
+      "defaultVersion": "0.5.1",
+      "versions": [
+        {
+          "id": "0.5.1",
+          "label": "0.5.1 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Lane 产品概览",
+              "description": "优先级 Lane、类型化队列和 Job Backend"
+            },
+            {
+              "slug": "integration/",
+              "file": "integration",
+              "label": "队列与调度",
+              "title": "Lane 队列与调度接入",
+              "description": "Command、PriorityQueue、LaneConfig 和生命周期"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "可靠性与验证",
+              "title": "Lane 可靠性与运行验证",
+              "description": "DLQ、持久化、Worker 租约、指标和恢复"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
       "id": "sandbox",
       "title": "Aster Sandbox",
       "label": "隔离与执行",
