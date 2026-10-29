@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createElement as h } from 'react';
 import { table } from '../../../../scripts/docs_components.mjs';
 import { PeleAtlasDiagram } from '../../../../scripts/docs_atlas.mjs';
+import { PeleDiagram } from '../../../../scripts/docs_diagrams.mjs';
 
 const definitions = [
   ['architecture', 'FIG. 01 · 运行时架构', '终端与桌面通过 ACP 接入 Core，Rust 应用直接使用 SDK。会话调用模型和受控工具，并把结果写入事实日志。'],
@@ -52,6 +53,18 @@ export function CapabilityCards() {
 
 export function MetaHarnessDiagram() {
   return codeDiagram('meta-harness');
+}
+
+export function MetaHarnessDefinitionDiagram() {
+  return h(PeleDiagram, { name: 'meta-harness-definition', label: 'Meta Harness 是什么', description: 'Meta Harness 装配可替换的执行组件。会话与事实日志保持不变，Core 的固定约束始终生效。' });
+}
+
+export function MetaHarnessWhyDiagram() {
+  return h(PeleDiagram, { name: 'meta-harness-why', label: '为什么需要 Meta Harness', description: '直接修改执行程序需要重新核对整套约束。组合组件可以保留固定运行边界，只比较执行策略的差异。' });
+}
+
+export function MetaHarnessRuntimeDiagram() {
+  return h(PeleDiagram, { name: 'meta-harness-runtime', label: 'Meta Harness 的工作原理', description: '组件从事实重建状态，调度器选择动作，Core 检查动作，结果再写回事实日志。' });
 }
 
 export function TutorialArchitectureDiagram() {
