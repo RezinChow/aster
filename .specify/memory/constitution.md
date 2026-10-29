@@ -230,6 +230,15 @@ sheet is the only edge travel. The contract is `DESIGN.md` §6
 
 ## Development Workflow
 
+`AGENTS.md` carries the actionable Rust and cross-platform implementation and
+review rules; development standards §17 explains the Microsoft adaptation.
+Apply them to new and materially changed handwritten code within
+the owning path's regime. Record confirmed legacy findings and coverage limits;
+do not infer whole-tree compliance from searches or lint success. This workflow
+does not authorize a public API, workspace, allocator, or toolchain migration.
+Preserve supported target baselines and record native verification for affected
+platforms; cross-compilation does not establish runtime compatibility.
+
 A behavior change lands with its hermetic test and, when recorded,
 `docs/evidence/<domain>/<date-slug>/OUTCOME.md`. A structural
 migration lands as one commit. Bounded epics may use the spec-kit

@@ -43,3 +43,7 @@
 /docs/evidence/tui/2026-10-28-full-acceptance/**/*.log whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab,cr-at-eol
 /docs/evidence/tui/2026-10-28-full-acceptance/source/*-owned.patch whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /docs/evidence/tui/2026-10-28-full-acceptance/windows/windows-metadata-experiment.patch whitespace=-blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Preserve raw rustfmt context lines and the CLI help output byte-for-byte.
+/docs/evidence/governance/2026-10-29-microsoft-rust-guidelines/focused-format.log -text whitespace=-blank-at-eol
+/docs/evidence/governance/2026-10-29-microsoft-rust-guidelines/format.log -text whitespace=-blank-at-eof
