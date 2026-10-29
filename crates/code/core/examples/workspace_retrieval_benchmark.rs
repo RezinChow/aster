@@ -238,7 +238,7 @@ async fn benchmark_hybrid_search(
             max_text_bytes: MAX_CATALOG_BYTES,
             max_index_bytes: MAX_CATALOG_BYTES,
         })
-        .with_rerank_options(rerank);
+        .with_rerank_options(rerank.clone());
     let agent = Agent::from_config(benchmark_config()?).await?;
     let session_started = Instant::now();
     let session = agent
