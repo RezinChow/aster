@@ -61,6 +61,7 @@ button, summary, a { -webkit-tap-highlight-color: transparent; }
 .chapter-nav a, .mobile-navigation nav a { display: flex; align-items: center; gap: 13px; margin: 3px 0; padding: 8px 12px; border-radius: 8px; color: var(--body); }
 .chapter-nav a:hover, .mobile-navigation nav a:hover { background: #f7f7f7; }
 .chapter-nav a[aria-current], .mobile-navigation a[aria-current] { background: var(--selected); color: var(--ink); font-weight: 500; }
+.nav-home-icon { width: 14px; color: var(--muted); font-size: 16px; line-height: 1; text-align: center; }
 .nav-number { color: #8a8a8a; font: 11px var(--mono); }
 .docs-resources { flex-shrink: 0; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
 .resource-links a { display: block; padding: 7px 0; color: var(--muted); }
