@@ -813,6 +813,82 @@
           "components": "_components"
         }
       ]
+    },
+    {
+      "id": "vec",
+      "title": "Aster Vec",
+      "label": "向量与全文检索",
+      "description": "在进程内保存文档与向量，使用派生索引提供候选，并通过精确重排返回确定性结果。",
+      "defaultVersion": "0.1.8",
+      "versions": [
+        {
+          "id": "0.1.8",
+          "label": "0.1.8 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Vec 产品概览",
+              "description": "向量与全文检索、精确重排和持久化边界"
+            },
+            {
+              "slug": "integration/",
+              "file": "integration",
+              "label": "接入指南",
+              "title": "Vec 接入",
+              "description": "Collection、Schema、CRUD、向量和全文查询"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "运行与验证",
+              "title": "Vec 运行与验证",
+              "description": "WAL、资源上限、维护、平台和性能证据"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
+    },
+    {
+      "id": "apofasi",
+      "title": "Aster Apofasi",
+      "label": "类型化决策",
+      "description": "使用词法或神经 System-1 引擎返回 choice、score 和 noul 类型化答案。",
+      "defaultVersion": "0.1.1",
+      "versions": [
+        {
+          "id": "0.1.1",
+          "label": "0.1.1 · 当前源码",
+          "sourceRef": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+          "pages": [
+            {
+              "slug": "",
+              "file": "index",
+              "label": "产品概览",
+              "title": "Aster Apofasi 产品概览",
+              "description": "类型化决策、执行路径、路由和宿主边界"
+            },
+            {
+              "slug": "integration/",
+              "file": "integration",
+              "label": "接入指南",
+              "title": "Apofasi 接入",
+              "description": "请求、答案、置信度、门禁和 checkpoint 路由"
+            },
+            {
+              "slug": "operations/",
+              "file": "operations",
+              "label": "推理与验证",
+              "title": "Apofasi 推理与验证",
+              "description": "checkpoint、设备、feature 和性能证据"
+            }
+          ],
+          "components": "_components"
+        }
+      ]
     }
   ]
 }
