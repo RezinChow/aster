@@ -130,12 +130,12 @@
       const projected=field.map(p=>scenePoint(project(p,width,height),width,height));
       mesh.forEach(([from,to],i)=>{
         const a=projected[from],b=projected[to],depth=(a.depth+b.depth+2)/4;
-        context.beginPath();context.moveTo(a.x,a.y);context.lineTo(b.x,b.y);context.strokeStyle=`rgba(145,173,181,${.006+depth*.026})`;context.lineWidth=.45;context.stroke();
-        if(animated()&&i%3===0){const t=(elapsed/(7800+i%7*900)+i*.271)%1;context.beginPath();context.arc(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,.55,0,Math.PI*2);context.fillStyle=`rgba(166,197,196,${.08+depth*.2})`;context.fill();}
+        context.beginPath();context.moveTo(a.x,a.y);context.lineTo(b.x,b.y);context.strokeStyle=`rgba(145,173,181,${.012+depth*.04})`;context.lineWidth=.6;context.stroke();
+        if(animated()&&i%3===0){const t=(elapsed/(7800+i%7*900)+i*.271)%1;context.beginPath();context.arc(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,.55,0,Math.PI*2);context.fillStyle=`rgba(166,197,196,${.14+depth*.28})`;context.fill();}
       });
       projected.forEach((p,i)=>{
-        const depth=(p.depth+1)/2;context.beginPath();context.arc(p.x,p.y,.45+depth*.8,0,Math.PI*2);
-        context.fillStyle=`rgba(${i%17===0?'176,205,138':i%11===0?'167,147,191':'160,188,197'},${.09+depth*.25})`;context.fill();
+        const depth=(p.depth+1)/2;context.beginPath();context.arc(p.x,p.y,.55+depth*1.1,0,Math.PI*2);
+        context.fillStyle=`rgba(${i%17===0?'176,205,138':i%11===0?'167,147,191':'160,188,197'},${.16+depth*.38})`;context.fill();
       });
       for(const {from,to}of labelLeaders){
         context.beginPath();context.moveTo(from.x,from.y);context.lineTo(to.x,to.y);context.strokeStyle='rgba(179,199,214,.25)';context.lineWidth=.65;context.setLineDash([2,3]);context.stroke();context.setLineDash([]);
@@ -145,7 +145,7 @@
         context.beginPath();context.moveTo(a.x,a.y);
         for(let n=1;n<=24;n++){const p=curve(a,b,n/24,bend);context.lineTo(p.x,p.y);}
         context.setLineDash(info?.kind==='reject'?[5,4]:info?.kind==='evidence'?[2,4]:[]);
-        context.strokeStyle=`rgba(${color},${lit?.8:.32})`;context.lineWidth=lit?1.25:.8;context.stroke();context.setLineDash([]);
+        context.strokeStyle=`rgba(${color},${lit?.9:.5})`;context.lineWidth=lit?1.5:1.0;context.stroke();context.setLineDash([]);
         if(info){
           const tip=curve(a,b,.61,bend),tail=curve(a,b,.58,bend),angle=Math.atan2(tip.y-tail.y,tip.x-tail.x),size=4.2;
           context.beginPath();context.moveTo(tip.x+Math.cos(angle)*size,tip.y+Math.sin(angle)*size);context.lineTo(tip.x-Math.cos(angle-.6)*size,tip.y-Math.sin(angle-.6)*size);context.lineTo(tip.x-Math.cos(angle+.6)*size,tip.y-Math.sin(angle+.6)*size);context.fillStyle=`rgba(${color},.9)`;context.fill();

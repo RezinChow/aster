@@ -101,7 +101,7 @@
 .harness-demo[data-mode=rsi].is-enhanced .hd-result,
 .harness-demo[data-mode=rsi].is-enhanced .hd-count { display:none; }
 .harness-demo[data-mode=rsi].is-enhanced .hd-layout { display:block; }
-.harness-demo[data-mode=rsi].is-enhanced .hd-stage { height:680px; container-type:size; background:radial-gradient(ellipse at 54% 46%,#18232e45,transparent 65%),linear-gradient(145deg,#0b0e11,#090b0d); }
+.harness-demo[data-mode=rsi].is-enhanced .hd-stage { height:680px; container-type:size; background:radial-gradient(ellipse at 54% 46%,#22324855,transparent 65%),linear-gradient(145deg,#10161b,#0b1015); }
 .hd-toolbar { position:relative; z-index:8; display:flex; align-items:center; gap:16px; min-height:64px; padding:12px 24px; border-bottom:1px solid #ffffff0a; }
 .harness-demo[data-mode=rsi].is-enhanced .hd-toolbar .hd-case-picker { position:relative; inset:auto; min-width:0; }
 .harness-demo[data-mode=rsi].is-enhanced .hd-toolbar .hd-case-picker .hd-cases { position:absolute; top:100%; left:0; }
@@ -328,8 +328,8 @@
   .hd-edge-label { max-width:110px; white-space:normal; font-size:10px; }
 }
 
-.harness-demo[data-mode=rsi].is-enhanced .hd-node { width:max-content; max-width:calc(100% - 20px); color:#d6dfe7; border-color:#c4d4e32b; background:linear-gradient(135deg,#1a222bed,#10161cf2); font-family:Ubuntu,'PingFang SC','Microsoft YaHei',sans-serif; font-weight:400; box-shadow:inset 0 1px 0 #ffffff08,0 4px 14px #0003; }
-.harness-demo[data-mode=rsi].is-enhanced .hd-node:not(.is-active):not(:hover):not(:focus-visible) { background:#10161ce8; border-color:#c4d4e31e; }
+.harness-demo[data-mode=rsi].is-enhanced .hd-node { width:max-content; max-width:calc(100% - 20px); color:#e4edf5; border-color:#c4d4e355; background:linear-gradient(135deg,#1a222bed,#10161cf2); font-family:Ubuntu,'PingFang SC','Microsoft YaHei',sans-serif; font-weight:400; box-shadow:inset 0 1px 0 #ffffff08,0 4px 14px #0003; }
+.harness-demo[data-mode=rsi].is-enhanced .hd-node:not(.is-active):not(:hover):not(:focus-visible) { background:#10161ce8; border-color:#c4d4e338; }
 .harness-demo[data-mode=rsi].is-enhanced .hd-node > i { color:var(--node-color,#b9c4cb); box-shadow:0 0 10px currentColor; }
 .hd-node[data-kind=component] { --node-color:#b5a0e6; }
 .hd-node[data-kind=session] { --node-color:#76b9d1; }
