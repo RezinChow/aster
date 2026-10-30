@@ -30,6 +30,7 @@ mod no_count_limit;
 mod program_failure_receipts;
 mod revalidation;
 mod sandbox_availability;
+mod tool_call_fidelity;
 mod work_policy;
 
 struct CountingText {
@@ -245,6 +246,7 @@ async fn fact_log_session_send_projects_the_skill_catalog() {
 struct RecordedRequest {
     tools: Vec<String>,
     messages: Vec<Message>,
+    system: Option<String>,
 }
 
 struct ScriptedClient {
@@ -272,12 +274,13 @@ impl LlmClient for ScriptedClient {
     async fn complete(
         &self,
         messages: &[Message],
-        _system: Option<&str>,
+        system: Option<&str>,
         tools: &[ToolDefinition],
     ) -> anyhow::Result<LlmResponse> {
         self.seen.lock().unwrap().push(RecordedRequest {
             tools: tools.iter().map(|tool| tool.name.clone()).collect(),
             messages: messages.to_vec(),
+            system: system.map(str::to_owned),
         });
         let mut responses = self.responses.lock().unwrap();
         if responses.len() > 1 {

@@ -90,3 +90,102 @@ fn kimi_long_bracketed_unicode_paste_is_submitted_exactly_once() {
     tui.quit();
     tui.finish();
 }
+
+#[test]
+#[ignore = "requires the paired source build and original kimi/k3.1-pro ACL"]
+fn kimi_multiline_mode_inserts_literal_newlines_before_manual_submission() {
+    let mut tui = LiveTui::new("multiline-manual-enter");
+    tui.launch_default(&[]);
+    tui.wait_for("Aster", 45);
+    tui.session_id();
+    tui.dismiss();
+    tui.command("/multiline");
+    tui.wait_for("Multiline:", 8);
+    let lines = [
+        "Do not call tools. Reply exactly MULTILINE-MANUAL-OK.",
+        "第二行：中文 λ e\u{301}.",
+        "第三行：保留逐键换行。",
+    ];
+    for (index, line) in lines.iter().enumerate() {
+        tui.bytes(line.as_bytes());
+        tui.wait_for(line, 8);
+        if index < lines.len() - 1 {
+            tui.bytes(b"\r");
+            tui.pump(200);
+            assert_not_submitted(&tui);
+            tui.record(
+                "manual-enter-newline",
+                "bare Enter in multiline mode keeps the draft local",
+            );
+        }
+    }
+    let prompt = lines.join("\n");
+    let before = tui.facts().len();
+    tui.bytes(b"\x1b\r");
+    let facts = tui.settle_turn(before, &prompt, None);
+    assert!(tui.assistant_text(&facts).contains("MULTILINE-MANUAL-OK"));
+    assert!(!facts.iter().any(|fact| fact["type"] == "tool.prepared"));
+    tui.record(
+        "multiline-manual-enter",
+        "literal bare-Enter newlines and Unicode text reach one exact model request",
+    );
+    tui.quit();
+    tui.finish();
+}
+
+#[test]
+#[ignore = "requires the paired source build and original kimi/k3.1-pro ACL"]
+fn kimi_normal_mode_alt_and_backslash_enter_insert_literal_newlines() {
+    let mut tui = LiveTui::new("multiline-alt-backslash");
+    tui.launch_default(&[]);
+    tui.wait_for("Aster", 45);
+    tui.session_id();
+    tui.dismiss();
+    let lines = [
+        "Do not call tools. Reply exactly ALT-BACKSLASH-OK.",
+        "ALT 行：中文 λ e\u{301}.",
+        "BACKSLASH 行：左右 \\ / <> &.",
+    ];
+    tui.bytes(lines[0].as_bytes());
+    tui.wait_for(lines[0], 8);
+    tui.bytes(b"\x1b\r");
+    tui.pump(200);
+    assert_not_submitted(&tui);
+    tui.record(
+        "alt-enter-newline",
+        "Alt+Enter in normal mode keeps the draft local",
+    );
+    tui.bytes(lines[1].as_bytes());
+    tui.wait_for(lines[1], 8);
+    tui.bytes(b"\\\r");
+    tui.pump(200);
+    assert_not_submitted(&tui);
+    tui.record(
+        "backslash-enter-newline",
+        "backslash then Enter keeps the draft local",
+    );
+    tui.bytes(lines[2].as_bytes());
+    tui.wait_for(lines[2], 8);
+    assert_not_submitted(&tui);
+    let prompt = lines.join("\n");
+    let before = tui.facts().len();
+    tui.bytes(b"\r");
+    let facts = tui.settle_turn(before, &prompt, None);
+    assert!(tui.assistant_text(&facts).contains("ALT-BACKSLASH-OK"));
+    assert!(!facts.iter().any(|fact| fact["type"] == "tool.prepared"));
+    tui.record(
+        "multiline-alt-backslash",
+        "Alt+Enter and backslash-continuation produce one exact multiline model request",
+    );
+    tui.quit();
+    tui.finish();
+}
+
+fn assert_not_submitted(tui: &LiveTui) {
+    assert!(!tui.facts().iter().any(|fact| {
+        matches!(
+            fact["type"].as_str(),
+            Some("user.message" | "model.turn" | "tool.prepared")
+        )
+    }));
+}

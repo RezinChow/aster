@@ -164,3 +164,66 @@ fn native_end_fence_keeps_submit_out_of_the_paste() {
     assert_eq!(result[1], end);
     assert_eq!(result[2], submit);
 }
+
+#[test]
+fn paste_fragments_preserve_a_following_esc_press() {
+    let paste = TimedInputEvent::now(Event::Paste("session-id".into()));
+    let trailing_text = key(KeyCode::Char('a'), KeyEventKind::Press, KeyModifiers::NONE);
+    let esc = key(KeyCode::Esc, KeyEventKind::Press, KeyModifiers::NONE);
+    let result = coalesce_live_keys(vec![paste, trailing_text, esc.clone()], false, false);
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[0].event, Event::Paste("session-ida".into()));
+    assert_eq!(result[1], esc);
+}
+
+#[test]
+fn native_single_line_paste_stays_text_in_picker() {
+    let text = "e1234567-1234-1234-1234-123456789abc".to_string();
+    let events = text
+        .chars()
+        .flat_map(|character| {
+            [
+                key(
+                    KeyCode::Char(character),
+                    KeyEventKind::Press,
+                    KeyModifiers::NONE,
+                ),
+                key(
+                    KeyCode::Char(character),
+                    KeyEventKind::Release,
+                    KeyModifiers::NONE,
+                ),
+            ]
+        })
+        .collect();
+    let result = coalesce_live_keys_with_single_line(events, false, false, true);
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].event, Event::Paste(text));
+}
+
+#[tokio::test(start_paused = true)]
+async fn native_paste_detection_tolerates_input_record_gap() {
+    let (tx, mut input_rx) = tokio::sync::mpsc::unbounded_channel();
+    tx.send(key(
+        KeyCode::Char('e'),
+        KeyEventKind::Release,
+        KeyModifiers::NONE,
+    ))
+    .unwrap();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        tx.send(key(
+            KeyCode::Char('1'),
+            KeyEventKind::Press,
+            KeyModifiers::NONE,
+        ))
+        .unwrap();
+    });
+    let mut batch = vec![key(
+        KeyCode::Char('e'),
+        KeyEventKind::Press,
+        KeyModifiers::NONE,
+    )];
+    assert!(detect_paste(&mut batch, &mut input_rx).await);
+    assert_eq!(batch.len(), 3);
+}

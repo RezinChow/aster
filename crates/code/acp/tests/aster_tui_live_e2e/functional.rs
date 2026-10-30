@@ -82,6 +82,80 @@ fn kimi_multiline_unicode_and_prompt_history() {
 
 #[test]
 #[ignore = "requires the paired Aster/ACP build and original kimi/k3.1-pro ACL"]
+fn kimi_history_recall_edit_and_resubmit_uses_exact_draft() {
+    let mut tui = LiveTui::new("history-edit-resubmit");
+    tui.launch_default(&[]);
+    tui.wait_for("Aster", 45);
+    let id = tui.session_id();
+    tui.dismiss();
+    let initial = "Do not call tools. Reply with the exact history token. Token ORIGINAL-HISTORY.";
+    let first = tui.turn(initial, None);
+    assert!(tui.assistant_text(&first).contains("ORIGINAL-HISTORY"));
+    assert!(!first.iter().any(|fact| fact["type"] == "tool.prepared"));
+
+    tui.dismiss();
+    tui.bytes(b"\x1b[A");
+    tui.wait_for(" history ─", 8);
+    tui.bytes(b"\r");
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        tui.pump(80);
+        let recalled = tui.physical_screen();
+        if recalled.lines().any(|line| {
+            let row = line.trim_start();
+            (row.starts_with("│ ❯") || row.starts_with("│ >")) && row.contains("Do not call tools.")
+        }) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "history did not repopulate the composer\n{recalled}"
+        );
+    }
+    tui.record(
+        "history-recall",
+        "the previous prompt is restored into the composer without another request",
+    );
+    assert_eq!(
+        tui.facts()
+            .iter()
+            .filter(|fact| fact["type"] == "user.message")
+            .count(),
+        1
+    );
+    tui.bytes(b"\x17");
+    tui.pump(200);
+    tui.bytes(b"EDITED-HISTORY.");
+    tui.wait_for("EDITED-HISTORY.", 8);
+    tui.record(
+        "history-edit",
+        "the recalled draft is edited locally before explicit resubmission",
+    );
+    let edited = initial.replace("ORIGINAL-HISTORY.", "EDITED-HISTORY.");
+    let before = tui.facts().len();
+    tui.bytes(b"\r");
+    let second = tui.settle_turn(before, &edited, None);
+    assert!(tui.assistant_text(&second).contains("EDITED-HISTORY"));
+    assert!(!second.iter().any(|fact| fact["type"] == "tool.prepared"));
+    assert_eq!(tui.session_id(), id);
+    tui.dismiss();
+    let prompts = tui
+        .facts()
+        .into_iter()
+        .filter(|fact| fact["type"] == "user.message")
+        .filter_map(|fact| fact["payload"]["text"].as_str().map(str::to_owned))
+        .collect::<Vec<_>>();
+    assert_eq!(prompts, vec![initial.to_owned(), edited.clone()]);
+    tui.record(
+        "history-edit-resubmit",
+        "the exact recalled and edited drafts are two distinct requests in order on the same session",
+    );
+    tui.quit();
+    tui.finish();
+}
+
+#[test]
+#[ignore = "requires the paired Aster/ACP build and original kimi/k3.1-pro ACL"]
 fn kimi_plan_read_then_yolo_verified_write() {
     let mut tui = LiveTui::new("plan-read-write");
     let token = format!("PLAN-READ-{}", uuid::Uuid::new_v4());
@@ -429,6 +503,307 @@ fn kimi_preferences_apply_after_restart_and_sessions_remain_distinct() {
     tui.record(
         "restart-kimi",
         "new parent session completes a real Kimi read after preference reload",
+    );
+    tui.quit();
+    tui.finish();
+}
+
+#[test]
+#[ignore = "requires the paired Aster/ACP build and original kimi/k3.1-pro ACL"]
+fn kimi_new_session_isolated_from_previous_history_permissions_and_runtime() {
+    let mut tui = LiveTui::new("session-isolation");
+    tui.launch_default(&[]);
+    tui.wait_for("Aster", 45);
+    let first_id = tui.session_id();
+    tui.dismiss();
+    tui.command("/yolo");
+    tui.wait_for("yolo", 8);
+    let initial = "Do not call tools. Reply only FIRST-SESSION-OK.";
+    let first = tui.turn(initial, None);
+    assert!(tui.assistant_text(&first).contains("FIRST-SESSION-OK"));
+    let first_path = tui
+        .files(&tui.workspace.join(".a3s"), "jsonl")
+        .into_iter()
+        .find(|path| path.file_stem().and_then(|name| name.to_str()) == Some(first_id.as_str()))
+        .expect("the original session fact log exists");
+    let original_bytes = std::fs::read(&first_path).unwrap();
+
+    tui.command("/new");
+    let second_id = tui.session_id();
+    assert_ne!(first_id, second_id, "/new reused the previous session id");
+    let info = tui.wait_for("Turn: 0", 8);
+    assert!(info.contains("Context: 0"));
+    assert!(!info.to_lowercase().contains("yolo"));
+    tui.dismiss();
+    let fresh = tui.physical_screen();
+    assert!(!fresh.contains("FIRST-SESSION-OK"));
+    assert!(!fresh.contains("[stop]") && !fresh.contains("Ctrl+c:cancel"));
+    assert!(!tui
+        .facts()
+        .iter()
+        .any(|fact| { matches!(fact["type"].as_str(), Some("user.message" | "model.turn")) }));
+    assert_eq!(std::fs::read(&first_path).unwrap(), original_bytes);
+    tui.record(
+        "fresh-session-isolated",
+        "new id, empty context and composer, default permissions and idle runtime; old fact log bytes unchanged",
+    );
+
+    let second = tui.turn("Do not call tools. Reply only SECOND-SESSION-OK.", None);
+    let answer = tui.assistant_text(&second);
+    assert!(answer.contains("SECOND-SESSION-OK"));
+    assert!(!answer.contains("FIRST-SESSION-OK"));
+    assert!(!second.iter().any(|fact| fact["type"] == "tool.prepared"));
+    assert_eq!(std::fs::read(&first_path).unwrap(), original_bytes);
+    tui.record(
+        "session-isolation",
+        "the second session completes independently without inheriting the first session's history or state",
+    );
+    tui.quit();
+    tui.finish();
+}
+
+fn open_home_resume_picker(tui: &mut LiveTui) -> String {
+    let screen = tui.physical_screen();
+    let (row, column) = screen
+        .lines()
+        .enumerate()
+        .find_map(|(row, line)| {
+            let column = line.find("Resume session")?;
+            Some((row + 1, line[..column].chars().count() + 1))
+        })
+        .expect("welcome contains the clickable Resume session row");
+    tui.bytes(format!("\x1b[<0;{column};{row}M").as_bytes());
+    tui.pump(80);
+    tui.bytes(format!("\x1b[<0;{column};{row}m").as_bytes());
+    tui.pump(500);
+    tui.physical_screen()
+}
+
+#[test]
+#[ignore = "requires the paired Aster/ACP build and original kimi/k3.1-pro ACL"]
+fn kimi_home_picker_cancel_and_return_preserves_existing_session() {
+    let mut tui = LiveTui::new("home-return");
+    tui.launch_default(&[]);
+    tui.wait_for("Aster", 45);
+    let original_id = tui.session_id();
+    tui.dismiss();
+    let initial = "Do not call tools. Reply only HOME-ORIGINAL-OK.";
+    let first = tui.turn(initial, None);
+    assert!(tui.assistant_text(&first).contains("HOME-ORIGINAL-OK"));
+    let fact_log = tui
+        .files(&tui.workspace.join(".a3s"), "jsonl")
+        .into_iter()
+        .find(|path| path.file_stem().and_then(|name| name.to_str()) == Some(original_id.as_str()))
+        .expect("the original session fact log exists");
+    let original_bytes = std::fs::read(&fact_log).unwrap();
+    let original_fact_count = tui.facts().len();
+    let marker = std::fs::read_to_string(fact_log.parent().unwrap().join("session.json")).unwrap();
+    assert!(marker.contains("\"sessionKind\": \"interactive\""));
+    tui.record("session-kind-marker", &tui.redact(&marker));
+    tui.command("/home");
+    let welcome = tui.wait_for("Resume session", 10);
+    assert!(welcome.contains("New worktree"));
+    assert_eq!(tui.facts().len(), original_fact_count);
+    assert_eq!(tui.files(&tui.workspace.join(".a3s"), "jsonl").len(), 1);
+    assert_eq!(std::fs::read(&fact_log).unwrap(), original_bytes);
+    tui.record(
+        "home-welcome",
+        "/home reaches the welcome screen without creating a session or changing the original fact log",
+    );
+
+    open_home_resume_picker(&mut tui);
+    let picker = tui.wait_for("Esc:back", 8);
+    assert!(picker.contains("Resume session"));
+    tui.bytes(b"\x1b");
+    let cancelled = tui.wait_for("New worktree", 8);
+    assert!(!cancelled.contains("Esc:back"));
+    assert_eq!(tui.facts().len(), original_fact_count);
+    assert_eq!(tui.files(&tui.workspace.join(".a3s"), "jsonl").len(), 1);
+    assert_eq!(std::fs::read(&fact_log).unwrap(), original_bytes);
+    tui.record(
+        "home-picker-cancelled",
+        "closing the picker preserves the original session and creates no model turn or session fact log",
+    );
+
+    open_home_resume_picker(&mut tui);
+    tui.wait_for("Esc:back", 8);
+    tui.bytes(b"\r");
+    tui.wait_for("HOME-ORIGINAL-OK", 15);
+    assert_eq!(tui.session_id(), original_id);
+    tui.dismiss();
+    assert_eq!(tui.facts().len(), original_fact_count);
+    assert_eq!(tui.files(&tui.workspace.join(".a3s"), "jsonl").len(), 1);
+    assert_eq!(std::fs::read(&fact_log).unwrap(), original_bytes);
+    tui.record(
+        "home-return-restored",
+        "the original id and transcript return without a new session, model request or history mutation",
+    );
+
+    let second = tui.turn("Do not call tools. Reply only HOME-RETURNED-OK.", None);
+    assert!(tui.assistant_text(&second).contains("HOME-RETURNED-OK"));
+    assert!(!second.iter().any(|fact| fact["type"] == "tool.prepared"));
+    tui.record(
+        "home-return-usable",
+        "the returned original session completes a fresh real Kimi turn",
+    );
+    tui.quit();
+    tui.finish();
+}
+
+#[test]
+#[ignore = "requires the paired Aster/ACP build and original kimi/k3.1-pro ACL"]
+fn kimi_session_info_matches_backend_identity_mode_turn_and_usage() {
+    let mut tui = LiveTui::new("session-info-contract");
+    let proxy = std::path::PathBuf::from(
+        std::env::var_os("A3S_CODE_ACP_TRACE_PROXY").expect("transparent ACP trace proxy"),
+    );
+    tui.trace_acp(&proxy);
+    tui.launch_default(&[]);
+    tui.wait_for("Aster", 45);
+    let id = tui.session_id();
+    let info = tui.wait_for("Context:", 8);
+    let marker_path = a3s_code_core::session_folder::find_session_dir(&tui.workspace, &id)
+        .unwrap()
+        .expect("new session has a persisted marker")
+        .join("session.json");
+    let marker: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(marker_path).unwrap()).unwrap();
+    assert_eq!(marker["id"].as_str(), Some(id.as_str()));
+    let backend_cwd = marker["workspace"].as_str().unwrap();
+    assert_eq!(
+        std::path::Path::new(backend_cwd).canonicalize().unwrap(),
+        tui.workspace.canonicalize().unwrap()
+    );
+    assert!(info.contains("Session ID:"), "{info}");
+    assert!(info.contains(&id), "{info}");
+    assert!(info.contains("Working directory:"), "{info}");
+    assert!(info.contains(backend_cwd), "{info}");
+    let config_path =
+        std::path::PathBuf::from(std::env::var_os("A3S_CONFIG_FILE").expect("explicit host ACL"));
+    let config = a3s_code_core::CodeConfig::from_file(&config_path).unwrap();
+    let (provider, model) = config.default_model_config().unwrap();
+    let model_id = format!("{}/{}", provider.name, model.id);
+    assert_eq!(model_id, "kimi/k3.1-pro");
+    assert!(info.contains(&format!("Model: {model_id}")), "{info}");
+    let configured_window = (model.limit.context > 0).then_some(model.limit.context as usize);
+    let context_total =
+        a3s_code_core::context_window_for_model(None, configured_window, &model_id, true, 200_000)
+            as u64;
+    assert!(context_total > 0);
+    assert!(info.contains("Turn: 0"), "{info}");
+    assert!(
+        info.contains(&format!("Context: 0 / {context_total} tokens (0%)")),
+        "{info}"
+    );
+    assert!(info.contains("Mode: default"), "{info}");
+    let backend = tui.acp_session_info(&id, 0);
+    assert_eq!(backend["sessionId"].as_str(), Some(id.as_str()));
+    assert_eq!(backend["cwd"].as_str(), Some(backend_cwd));
+    assert_eq!(backend["model"].as_str(), Some(model_id.as_str()));
+    assert_eq!(backend["permissionPosture"].as_str(), Some("default"));
+    assert_eq!(backend["context"]["used"].as_u64(), Some(0));
+    assert_eq!(backend["context"]["total"].as_u64(), Some(context_total));
+    tui.record(
+        "session-info-empty",
+        "persisted identity/cwd, configured model, default mode and zero turn/context match",
+    );
+    tui.dismiss();
+
+    let first = tui.turn("Do not call tools. Reply only SESSION-INFO-FIRST-OK.", None);
+    assert!(tui.assistant_text(&first).contains("SESSION-INFO-FIRST-OK"));
+    assert!(!first.iter().any(|fact| fact["type"] == "tool.prepared"));
+    let facts = tui.facts();
+    let turns = facts
+        .iter()
+        .filter(|fact| fact["type"] == "user.message")
+        .count();
+    assert_eq!(turns, 1);
+    tui.command("/session-info");
+    let backend = tui.acp_session_info(&id, 1);
+    assert_eq!(backend["permissionPosture"].as_str(), Some("default"));
+    assert_eq!(backend["turns"].as_u64(), Some(1));
+    assert_eq!(backend["context"]["turnCount"].as_u64(), Some(1));
+    assert_eq!(backend["context"]["total"].as_u64(), Some(context_total));
+    let used = backend["context"]["used"].as_u64().unwrap();
+    assert!(used > 0);
+    let usage_pct = (used as f64 / context_total as f64 * 100.0).round() as u8;
+    assert_eq!(
+        backend["context"]["usagePct"].as_u64(),
+        Some(u64::from(usage_pct))
+    );
+    let info = tui.wait_for("Turn: 1", 8);
+    assert!(
+        info.contains(&format!(
+            "Context: {used} / {context_total} tokens ({usage_pct}%)"
+        )),
+        "{info}"
+    );
+    assert!(info.contains("Mode: default"), "{info}");
+    tui.record(
+        "session-info-first-turn",
+        &format!("actual user turns={turns}, provider usage={used}/{context_total} ({usage_pct}%), mode=default"),
+    );
+    tui.dismiss();
+
+    tui.command("/yolo");
+    tui.wait_for("yolo", 8);
+    tui.command("/session-info");
+    tui.wait_for("Mode: yolo", 8);
+    let info = tui.wait_for("Turn: 1", 8);
+    assert!(
+        info.contains(&format!(
+            "Context: {used} / {context_total} tokens ({usage_pct}%)"
+        )),
+        "{info}"
+    );
+    let backend = tui.acp_session_info(&id, 1);
+    assert_eq!(backend["permissionPosture"].as_str(), Some("yolo"));
+    assert_eq!(backend["context"]["used"].as_u64(), Some(used));
+    tui.record(
+        "session-info-yolo",
+        "the real permission-mode transition is reflected without changing turn or usage",
+    );
+    tui.dismiss();
+
+    let second = tui.turn(
+        "Do not call tools. Reply only SESSION-INFO-SECOND-OK.",
+        None,
+    );
+    assert!(tui
+        .assistant_text(&second)
+        .contains("SESSION-INFO-SECOND-OK"));
+    assert!(!second.iter().any(|fact| fact["type"] == "tool.prepared"));
+    let facts = tui.facts();
+    let turns = facts
+        .iter()
+        .filter(|fact| fact["type"] == "user.message")
+        .count();
+    assert_eq!(turns, 2);
+    tui.command("/session-info");
+    let backend = tui.acp_session_info(&id, 2);
+    assert_eq!(backend["permissionPosture"].as_str(), Some("yolo"));
+    assert_eq!(backend["turns"].as_u64(), Some(2));
+    assert_eq!(backend["context"]["turnCount"].as_u64(), Some(2));
+    assert_eq!(backend["context"]["total"].as_u64(), Some(context_total));
+    let cumulative_used = backend["context"]["used"].as_u64().unwrap();
+    assert!(cumulative_used > used);
+    let used = cumulative_used;
+    let usage_pct = (used as f64 / context_total as f64 * 100.0).round() as u8;
+    tui.wait_for("Turn: 2", 8);
+    let info = tui.wait_for("Context:", 8);
+    assert!(
+        info.contains(&format!(
+            "Context: {used} / {context_total} tokens ({usage_pct}%)"
+        )),
+        "{info}"
+    );
+    assert!(info.contains("Mode: yolo"), "{info}");
+    tui.dismiss();
+    assert_eq!(tui.session_id(), id);
+    tui.dismiss();
+    tui.record(
+        "session-info-second-turn",
+        &format!("same id, actual user turns={turns}, cumulative provider usage={used}/{context_total} ({usage_pct}%), mode=yolo"),
     );
     tui.quit();
     tui.finish();

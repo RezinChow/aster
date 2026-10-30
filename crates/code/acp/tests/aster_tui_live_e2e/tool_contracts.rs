@@ -25,6 +25,63 @@ fn one_result(facts: &[Value], name: &str) -> Value {
 
 #[test]
 #[ignore = "requires the paired source build and original kimi/k3.1-pro ACL"]
+fn kimi_plan_search_exec_deny_preserves_workspace_bytes() {
+    let mut tui = LiveTui::new("plan-search-exec-deny");
+    let token = format!("PLAN-SEARCH-{}", uuid::Uuid::new_v4());
+    let input = format!("PLAN-ANCHOR\n{token}\n");
+    let path = tui.workspace.join("planning-search.txt");
+    std::fs::write(&path, &input).unwrap();
+    tui.launch(&["--plan"]);
+    tui.wait_for("Aster", 45);
+    tui.session_id();
+    tui.dismiss();
+    let searched = tui.turn(
+        "Call search exactly once with mode='grep', query='PLAN-ANCHOR', path='planning-search.txt' and context=1. Omit limit and cursor. Reply with the exact matching line and its following context line. Do not call any other tool or modify files.",
+        None,
+    );
+    let result = one_result(&searched, "search");
+    assert_eq!(result["exit_code"], 0);
+    assert!(result["text"].as_str().unwrap().contains(&token));
+    assert!(tui.assistant_text(&searched).contains(&token));
+    assert_eq!(std::fs::read(&path).unwrap(), input.as_bytes());
+    tui.record(
+        "plan-actual-search",
+        "explicit Plan admits one actual search and returns the unseen context token without changing the fixture",
+    );
+    let script = if cfg!(windows) {
+        "[IO.File]::WriteAllText('plan-exec-result.txt', 'SHOULD-NOT-EXIST')"
+    } else {
+        "printf SHOULD-NOT-EXIST > plan-exec-result.txt"
+    };
+    let prompt = format!(
+        "Use the bash tool exactly once to run {script}. If access is denied, report the actual error without retrying. Do not call any other tool."
+    );
+    let denied = tui.turn(&prompt, None);
+    let calls = denied
+        .iter()
+        .filter(|fact| fact["type"] == "tool.prepared")
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1, "a real exec admission attempt is required");
+    assert_eq!(calls[0]["payload"]["prepared"]["tool_name"], "bash");
+    let receipts = denied
+        .iter()
+        .filter(|fact| fact["type"] == "tool.result")
+        .collect::<Vec<_>>();
+    assert_eq!(receipts.len(), 1);
+    assert_eq!(receipts[0]["payload"]["receipt"]["outcome"], "denied");
+    assert!(!tui.workspace.join("plan-exec-result.txt").exists());
+    assert_eq!(std::fs::read(&path).unwrap(), input.as_bytes());
+    tui.record(
+        "plan-side-effect-exec-denied",
+        "the real bash admission is denied in Plan, creates no output file, and preserves the exact source bytes",
+    );
+    tui.checkpoint_session("plan-search-exec-deny");
+    tui.quit();
+    tui.finish();
+}
+
+#[test]
+#[ignore = "requires the paired source build and original kimi/k3.1-pro ACL"]
 fn kimi_ls_and_search_use_actual_scoped_bounded_workspace_results() {
     let mut tui = LiveTui::new("ls-search-contracts");
     let dir = tui.workspace.join("中文 目录");
