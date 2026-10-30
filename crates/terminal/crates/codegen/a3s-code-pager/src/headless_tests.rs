@@ -78,7 +78,7 @@ fn reap_request_for_task_kills_with_session_scope() {
     let session_id = acp::SessionId::new("sess-1");
     let work = super::BackgroundWork::Task("task-42".into());
     let request = super::reap_request_for_work(&work, &session_id).unwrap();
-    assert_eq!(request.method.as_ref(), "x.ai/task/kill");
+    assert_eq!(request.method.as_ref(), "a3s/task/kill");
     let params: serde_json::Value = serde_json::from_str(request.params.get()).unwrap();
     assert_eq!(
         params.get("sessionId").and_then(|v| v.as_str()),
@@ -104,7 +104,7 @@ fn numeric_task_id_is_decoded_tracked_and_reaped() {
     let raw = serde_json::value::to_raw_value(&payload).unwrap();
     let (tx, _rx) = tokio::sync::oneshot::channel();
     let notif = a3s_acp_lib::AcpArgs {
-        request: acp::ExtNotification::new("x.ai/task_backgrounded", raw.into()),
+        request: acp::ExtNotification::new("a3s/task_backgrounded", raw.into()),
         response_tx: tx,
     }
     .boxed();
@@ -119,7 +119,7 @@ fn numeric_task_id_is_decoded_tracked_and_reaped() {
     );
     let session_id = acp::SessionId::new("sess-1");
     let request = super::reap_request_for_work(&work, &session_id).unwrap();
-    assert_eq!(request.method.as_ref(), "x.ai/task/kill");
+    assert_eq!(request.method.as_ref(), "a3s/task/kill");
     let params: serde_json::Value = serde_json::from_str(request.params.get()).unwrap();
     assert_eq!(params.get("taskId").and_then(|v| v.as_str()), Some("4242"));
     assert_eq!(
@@ -137,7 +137,7 @@ fn reap_request_for_subagent_cancels_with_typed_id() {
     let session_id = acp::SessionId::new("sess-1");
     let work = super::BackgroundWork::Subagent("sub-7".into());
     let request = super::reap_request_for_work(&work, &session_id).unwrap();
-    assert_eq!(request.method.as_ref(), "x.ai/subagent/cancel");
+    assert_eq!(request.method.as_ref(), "a3s/subagent/cancel");
     let params: serde_json::Value = serde_json::from_str(request.params.get()).unwrap();
     assert_eq!(
         params.get("subagentId").and_then(|v| v.as_str()),
@@ -157,7 +157,7 @@ fn drain_records_task_backgrounded_delivered_at_exit() {
     let (resp_tx, _resp_rx) = tokio::sync::oneshot::channel();
     tx.send(a3s_acp_lib::AcpClientMessage::ExtNotification(
         a3s_acp_lib::AcpArgs {
-            request: acp::ExtNotification::new("x.ai/task_backgrounded", raw.into()),
+            request: acp::ExtNotification::new("a3s/task_backgrounded", raw.into()),
             response_tx: resp_tx,
         },
     ))
@@ -403,7 +403,7 @@ async fn worktree_create_opens_session_at_worktree_subdirectory() {
     let Some((method, params)) = log.ext.first() else {
         panic!("expected an ext call: {:?}", log.ext);
     };
-    assert_eq!(method, "x.ai/git/worktree/create_from_worktree_sync");
+    assert_eq!(method, "a3s/git/worktree/create_from_worktree_sync");
     assert_eq!(
         params.get("sourceWorktreePath").and_then(|v| v.as_str()),
         Some(launch_cwd.to_string_lossy().as_ref())
@@ -535,7 +535,7 @@ async fn worktree_resume_loads_reported_session_without_re_restoring_code() {
     let Some((method, params)) = log.ext.first() else {
         panic!("expected an ext call: {:?}", log.ext);
     };
-    assert_eq!(method, "x.ai/git/worktree/resume_session");
+    assert_eq!(method, "a3s/git/worktree/resume_session");
     assert_eq!(
         params.get("sessionId").and_then(|v| v.as_str()),
         Some("orig")
@@ -562,7 +562,7 @@ async fn worktree_resume_loads_reported_session_without_re_restoring_code() {
     let meta = meta.as_ref().unwrap();
     assert_eq!(meta.get("noReplay").and_then(|v| v.as_bool()), Some(true));
     assert!(
-        meta.get("x.ai/restore_code").is_none(),
+        meta.get("a3s/restore_code").is_none(),
         "load must not request code restore a second time"
     );
     assert!(log.new_sessions.is_empty());
@@ -849,7 +849,7 @@ fn handler_answers_ext_method_instead_of_dropping() {
     let raw = serde_json::value::to_raw_value(&serde_json::json!({})).unwrap();
     let (tx, mut rx) = tokio::sync::oneshot::channel();
     let msg = a3s_acp_lib::AcpClientMessage::ExtMethod(a3s_acp_lib::AcpArgs {
-        request: acp::ExtRequest::new("x.ai/ask_user_question", raw.into()),
+        request: acp::ExtRequest::new("a3s/ask_user_question", raw.into()),
         response_tx: tx,
     });
     let mut emitter = super::HeadlessEmitter::new(super::OutputFormat::Json, false);

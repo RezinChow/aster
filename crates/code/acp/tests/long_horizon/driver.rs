@@ -93,7 +93,7 @@ impl acp::Client for Client {
     }
 
     async fn ext_notification(&self, args: acp::ExtNotification) -> acp::Result<()> {
-        let value = if args.method.as_ref() == "x.ai/turn/outcome" {
+        let value = if args.method.as_ref() == "a3s/turn/outcome" {
             serde_json::json!({"method":args.method,"params":args})
         } else {
             serde_json::json!({"method":args.method,"paramsOmitted":true})

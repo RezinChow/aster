@@ -14,7 +14,7 @@ export const meta = {
 | auto | 已知读取可直接进行，修改仍按风险询问 | 风险判断与 deny 不消失 |
 | yolo | 自动批准相应执行请求 | 显式 deny 和底层授权仍保留 |
 
-客户端通过 session/set_mode 或 `x.ai/permission_posture` 修改。后者还能传显式 deny。严格使用闭集值；不能根据按钮文案或模型文字猜 modeId。`a3sTurn.planFirst` 只限制本轮计划行为，不改掉存储的权限模式。
+客户端通过 session/set_mode 或 `a3s/permission_posture` 修改。后者还能传显式 deny。严格使用闭集值；不能根据按钮文案或模型文字猜 modeId。`a3sTurn.planFirst` 只限制本轮计划行为，不改掉存储的权限模式。
 
 ## 工具确认怎样展示
 
