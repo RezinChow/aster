@@ -253,7 +253,7 @@ struct ReinitOutcome {
 struct AgentLoadOutcome {
     agent_id: super::agent::AgentId,
     success: bool,
-    /// `x.ai/runningPromptId` from the reload response: the turn another client is driving mid-reconnect.
+    /// `a3s/runningPromptId` from the reload response: the turn another client is driving mid-reconnect.
     /// Adopted at finalize (mirrors the `SessionLoaded` adoption in `dispatch.rs`).
     running_prompt_id: Option<String>,
     /// Persistent-memory implementation pinned by the re-spawned actor.

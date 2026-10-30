@@ -668,7 +668,7 @@ async fn session_info_body(
     .expect("session info params");
     let response = acp::Agent::ext_method(
         conn,
-        acp::ExtRequest::new("x.ai/session/info", std::sync::Arc::from(params)),
+        acp::ExtRequest::new("a3s/session/info", std::sync::Arc::from(params)),
     )
     .await
     .expect("session info");
@@ -1202,7 +1202,7 @@ async fn shipped_agent_session_wire() {
             .expect("params");
             acp::Agent::ext_method(
                 agent.conn.as_ref(),
-                acp::ExtRequest::new("x.ai/compact_conversation", std::sync::Arc::from(params)),
+                acp::ExtRequest::new("a3s/compact_conversation", std::sync::Arc::from(params)),
             )
             .await
             .expect("compact");

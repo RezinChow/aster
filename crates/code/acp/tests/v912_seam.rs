@@ -506,7 +506,7 @@ async fn v912_session_posture_and_deny() {
 
             let fresh = ext(
                 &agent,
-                "x.ai/session/info",
+                "a3s/session/info",
                 serde_json::json!({ "sessionId": session.0.as_ref() }),
             )
             .await;
@@ -526,7 +526,7 @@ async fn v912_session_posture_and_deny() {
             }
             let still_default = ext(
                 &agent,
-                "x.ai/session/info",
+                "a3s/session/info",
                 serde_json::json!({ "sessionId": session.0.as_ref() }),
             )
             .await;
@@ -538,7 +538,7 @@ async fn v912_session_posture_and_deny() {
             for retired in ["always-approve", "force"] {
                 let detail = ext_err(
                     &agent,
-                    "x.ai/permission_posture",
+                    "a3s/permission_posture",
                     serde_json::json!({
                         "sessionId": session.0.as_ref(),
                         "posture": retired
@@ -557,7 +557,7 @@ async fn v912_session_posture_and_deny() {
             }
             let after_reject = ext(
                 &agent,
-                "x.ai/session/info",
+                "a3s/session/info",
                 serde_json::json!({ "sessionId": session.0.as_ref() }),
             )
             .await;
@@ -575,7 +575,7 @@ async fn v912_session_posture_and_deny() {
                 set_mode(&agent, &session, mode).await;
                 let info = ext(
                     &agent,
-                    "x.ai/session/info",
+                    "a3s/session/info",
                     serde_json::json!({ "sessionId": session.0.as_ref() }),
                 )
                 .await;
@@ -591,7 +591,7 @@ async fn v912_session_posture_and_deny() {
 
             let admitted = ext(
                 &agent,
-                "x.ai/permission_posture",
+                "a3s/permission_posture",
                 serde_json::json!({
                     "sessionId": session.0.as_ref(),
                     "posture": "yolo",
@@ -713,7 +713,7 @@ async fn v912_compact_keeps_obligations() {
             }
             let compacted = ext(
                 &agent,
-                "x.ai/compact_conversation",
+                "a3s/compact_conversation",
                 serde_json::json!({ "sessionId": session.0.as_ref() }),
             )
             .await;
@@ -887,7 +887,7 @@ async fn v912_completion_gate_keeps_path() {
             set_mode(&agent, &session, "yolo").await;
             let info = ext(
                 &agent,
-                "x.ai/session/info",
+                "a3s/session/info",
                 serde_json::json!({ "sessionId": session.0.as_ref() }),
             )
             .await;

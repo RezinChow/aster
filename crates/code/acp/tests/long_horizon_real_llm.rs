@@ -80,7 +80,7 @@ async fn real_native_file_workflow_multiple_user_turns() {
                 let source_policy = task.read("policy.json").map_err(|_| "fixture_policy")?;
                 let event_start = driver.capture.lock().unwrap().events.len();
                 let answer = driver.prompt(&session,&format!("Revision {revision}: Read README.md, current order.json and policy.json. Update report.json to satisfy the stated contract. Preserve all source files and unrelated user work. Use native read/edit tools only; do not run commands or code. Finish with a concise account of the current result.")).await?;
-                let outcome = driver.capture.lock().unwrap().events.iter().skip(event_start).find(|event| event["method"] == "x.ai/turn/outcome" && event["params"]["sessionId"] == session.0.as_ref()).map(|event| event["params"]["outcome"].clone());
+                let outcome = driver.capture.lock().unwrap().events.iter().skip(event_start).find(|event| event["method"] == "a3s/turn/outcome" && event["params"]["sessionId"] == session.0.as_ref()).map(|event| event["params"]["outcome"].clone());
                 let attested = outcome.as_ref().is_some_and(|outcome| outcome["terminal"] == "verified" && outcome["status"] == "passed");
                 let correct = task.check(&expected);
                 let sources_preserved = task.read("order.json").ok().as_ref() == Some(&source_order) && task.read("policy.json").ok().as_ref() == Some(&source_policy);

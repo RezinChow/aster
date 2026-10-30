@@ -248,7 +248,7 @@ impl A3sCodeAgent {
         };
         let _ = client
             .ext_notification(acp::ExtNotification::new(
-                "x.ai/session_notification",
+                "a3s/session_notification",
                 raw.into(),
             ))
             .await;
@@ -286,7 +286,7 @@ impl A3sCodeAgent {
             return;
         };
         let _ = client
-            .ext_notification(acp::ExtNotification::new("x.ai/turn/outcome", raw.into()))
+            .ext_notification(acp::ExtNotification::new("a3s/turn/outcome", raw.into()))
             .await;
     }
 

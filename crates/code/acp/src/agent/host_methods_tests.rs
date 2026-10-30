@@ -19,20 +19,20 @@ fn protocol_and_unknown_methods_are_outside_the_host_set() {
         "a3s/goal",
         "a3s/goal/unknown",
         "a3s/review",
-        "x.ai/session",
-        "x.ai/session/infos",
-        "x.ai/permission_posture/set",
+        "a3s/session",
+        "a3s/session/infos",
+        "a3s/permission_posture/set",
         "_meta/unknown",
         "",
     ] {
         assert_eq!(HostMethod::parse(wire), None, "{wire}");
     }
     assert_eq!(
-        HostMethod::parse("x.ai/compact_conversation/start"),
+        HostMethod::parse("a3s/compact_conversation/start"),
         Some(HostMethod::CompactConversation)
     );
     assert_eq!(
-        HostMethod::parse("x.ai/interject/cancel"),
+        HostMethod::parse("a3s/interject/cancel"),
         Some(HostMethod::Interject)
     );
 }

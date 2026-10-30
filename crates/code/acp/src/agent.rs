@@ -152,7 +152,7 @@ impl TurnQueue {
 }
 
 /// Sessions whose `session/load` has started and not yet inserted a live
-/// session. `x.ai/session/info` waits here. A lookup that runs first answers
+/// session. `a3s/session/info` waits here. A lookup that runs first answers
 /// `unknown session id` while the pager is still on "Loading session".
 struct InflightSessionLoads {
     open: std::sync::Mutex<HashMap<String, watch::Sender<bool>>>,
@@ -957,7 +957,7 @@ struct TurnState {
     delta_text: String,
     end_text: Option<String>,
     /// The completion-gate terminal from the run's End event, forwarded to
-    /// the client as an `x.ai/turn/outcome` notification just before the
+    /// the client as an `a3s/turn/outcome` notification just before the
     /// prompt response resolves (so it precedes the terminal marker).
     end_outcome: Option<serde_json::Value>,
     stop_reason: Option<acp::StopReason>,
