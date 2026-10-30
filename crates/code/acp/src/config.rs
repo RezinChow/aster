@@ -76,8 +76,14 @@ pub fn load_launch_config_with_imports(
                 .iter()
                 .map(|layer| layer.acl.as_str())
                 .collect::<Vec<_>>();
-            let mut config = CodeConfig::from_acl_layers(&layer_acls)
-                .map_err(|error| anyhow!("failed to parse merged A3S ACL: {error}"))?;
+            let mut config = CodeConfig::from_acl_layers(&layer_acls).map_err(|error| {
+                let sources = layers
+                    .iter()
+                    .map(|layer| layer.path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                anyhow!("failed to parse merged A3S ACL from {sources}: {error}")
+            })?;
             // Layered documents may re-declare a provider; the later
             // (workspace) layer must overlay the earlier (user) one instead
             // of shadowing it — otherwise a workspace default_model silently
@@ -688,6 +694,7 @@ fn apply_default_model_env(config: &mut CodeConfig) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    mod diagnostics;
     mod execution_capabilities;
     mod goal_control;
     use super::*;

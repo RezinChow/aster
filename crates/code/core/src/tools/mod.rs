@@ -498,16 +498,28 @@ impl ToolResult {
 
 impl From<ToolOutput> for ToolResult {
     fn from(output: ToolOutput) -> Self {
+        let exit_code = tool_output_exit_code(&output);
         Self {
             name: String::new(),
             output: output.content,
-            exit_code: if output.success { 0 } else { 1 },
+            exit_code,
             metadata: output.metadata,
             images: output.images,
             error_kind: output.error_kind,
             trust: output.trust,
         }
     }
+}
+
+fn tool_output_exit_code(output: &ToolOutput) -> i32 {
+    output
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.get("exit_code"))
+        .and_then(serde_json::Value::as_i64)
+        .and_then(|code| i32::try_from(code).ok())
+        .filter(|code| (*code == 0) == output.success)
+        .unwrap_or(if output.success { 0 } else { 1 })
 }
 
 /// Tool executor with workspace sandboxing
@@ -871,3 +883,6 @@ impl ToolExecutor {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod exit_code_tests;

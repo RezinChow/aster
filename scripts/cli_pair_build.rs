@@ -16,6 +16,7 @@ pub fn stamp(root: &Path) -> io::Result<()> {
             "apps/aster",
             "crates/code",
             "crates/terminal",
+            "crates/third-party/crossterm",
             "Cargo.toml",
             "Cargo.lock",
             "rust-toolchain.toml",

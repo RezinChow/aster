@@ -96,9 +96,8 @@ pub fn register_builtins(
     }
     if capabilities.exec {
         registry.register_builtin(Arc::new(bash::BashTool));
-        // WC-BG1: background execution rides the same exec capability gate
-        // as bash — it spawns shell commands.
-        registry.register_builtin(Arc::new(background::BackgroundTool::default()));
+        // Background execution is registered by `ToolRegistry::set_sandbox`
+        // only after the backend confirms its streaming and cancellation contract.
     }
     let retrieval = workspace_services.workspace_retrieval();
     let semantic_enabled = capabilities.read && retrieval.is_some();
@@ -460,6 +459,7 @@ mod tests {
             "edit",
             "patch",
             "bash",
+            "background",
             "git",
             "download",
             "code_symbols",
@@ -472,5 +472,45 @@ mod tests {
                 "{absent} must stay absent when its capability is off"
             );
         }
+    }
+
+    #[test]
+    fn background_registration_follows_the_sandbox_backend() {
+        struct Backend(bool);
+
+        #[async_trait::async_trait]
+        impl crate::sandbox::BashSandbox for Backend {
+            fn supports_background_execution(&self) -> bool {
+                self.0
+            }
+
+            async fn exec_command(
+                &self,
+                _: &str,
+                _: &str,
+            ) -> anyhow::Result<crate::sandbox::SandboxOutput> {
+                unreachable!("registration must not execute commands")
+            }
+
+            async fn shutdown(&self) {}
+        }
+
+        let temp = tempfile::tempdir().unwrap();
+        let services = WorkspaceServices::local(temp.path());
+        let registry = ToolRegistry::new(temp.path().to_path_buf());
+        register_builtins(&registry, &services);
+        assert!(!registry.contains("background"));
+
+        registry.set_sandbox(Arc::new(Backend(false)));
+        assert!(!registry.contains("background"));
+        assert!(!registry
+            .definitions()
+            .iter()
+            .any(|definition| definition.name == "background"));
+
+        registry.set_sandbox(Arc::new(Backend(true)));
+        assert!(registry.contains("background"));
+        registry.set_sandbox(Arc::new(Backend(false)));
+        assert!(!registry.contains("background"));
     }
 }

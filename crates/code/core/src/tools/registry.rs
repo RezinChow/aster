@@ -478,8 +478,34 @@ impl ToolRegistry {
     /// Set a sandbox executor so that `bash` tool calls use the sandbox even
     /// when executed without an explicit `ToolContext` (i.e., via `execute()`).
     pub fn set_sandbox(&self, sandbox: std::sync::Arc<dyn crate::sandbox::BashSandbox>) {
-        let mut ctx = write_or_recover(&self.context);
-        *ctx = ctx.clone().with_sandbox(sandbox);
+        {
+            let mut ctx = write_or_recover(&self.context);
+            *ctx = ctx.clone().with_sandbox(sandbox);
+        }
+        self.sync_background_registration();
+    }
+
+    fn sync_background_registration(&self) {
+        let context = self.context();
+        let available = context.workspace_services.capabilities().exec
+            && context
+                .sandbox
+                .as_ref()
+                .is_some_and(|sandbox| sandbox.supports_background_execution());
+        if available {
+            if !self.contains("background") {
+                self.register_builtin(Arc::new(
+                    super::builtin::background::BackgroundTool::default(),
+                ));
+            }
+            return;
+        }
+
+        // Backend replacement can revoke a capability that was visible before.
+        let mut tools = write_or_recover(&self.tools);
+        let mut builtins = write_or_recover(&self.builtins);
+        tools.remove("background");
+        builtins.remove("background");
     }
 
     /// Set environment overrides used by subprocess-backed tools when executed
@@ -513,15 +539,18 @@ impl ToolRegistry {
         let prepared = self.prepare_output_with_context(name, args, ctx).await?;
         let transform_binding = prepared.transform_binding;
         let mut result = match prepared.output {
-            Some(output) => Ok(ToolResult {
-                name: name.to_string(),
-                output: output.content,
-                exit_code: if output.success { 0 } else { 1 },
-                metadata: output.metadata,
-                images: output.images,
-                error_kind: output.error_kind,
-                trust: crate::tools::ToolResultTrustV1::WorkspaceData,
-            }),
+            Some(output) => {
+                let exit_code = super::tool_output_exit_code(&output);
+                Ok(ToolResult {
+                    name: name.to_string(),
+                    output: output.content,
+                    exit_code,
+                    metadata: output.metadata,
+                    images: output.images,
+                    error_kind: output.error_kind,
+                    trust: crate::tools::ToolResultTrustV1::WorkspaceData,
+                })
+            }
             None => Ok(ToolResult::error(name, format!("Unknown tool: {name}"))),
         };
 

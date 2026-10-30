@@ -274,7 +274,7 @@ async fn actual_harness_reads_through_bidirectional_acp_and_refuses_invalid_obse
             });
             let text = run(host, &root, true).await;
             assert_eq!(
-                serde_json::from_str::<Value>(&text).unwrap()["text"],
+                crate::test_support::successful_tool_json(&text)["text"],
                 "unsaved text"
             );
             assert_eq!(
@@ -305,10 +305,7 @@ async fn actual_harness_reads_through_bidirectional_acp_and_refuses_invalid_obse
                     probe: None,
                 });
                 let text = run(host, &root, true).await;
-                assert!(
-                    serde_json::from_str::<Value>(&text).is_err(),
-                    "unvalidated document content entered the Harness"
-                );
+                crate::test_support::assert_failed_tool_text(&text);
             }
         })
         .await;
@@ -447,7 +444,26 @@ async fn workspace_replaced_during_read_cannot_accept_old_host_observation() {
                 .unwrap()
                 .forget();
             let retired = root.with_extension("retired");
-            std::fs::rename(&root, &retired).unwrap();
+            let moved = std::fs::rename(&root, &retired);
+            #[cfg(windows)]
+            if let Err(error) = &moved {
+                // The live Windows fact-log handles can refuse the rename
+                // before a replacement workspace or stale reply can exist.
+                assert!(matches!(error.raw_os_error(), Some(5 | 32)), "{error}");
+                assert!(!retired.exists());
+                assert_eq!(std::fs::read_to_string(root.join("note.txt")).unwrap(), "original disk");
+                release.add_permits(1);
+                let result = tokio::time::timeout(Duration::from_secs(3), run).await.unwrap().unwrap();
+                assert!(result.is_ok(), "the unchanged workspace must remain usable: {result:?}");
+                let text = model.result.lock().unwrap().clone().unwrap();
+                assert_eq!(crate::test_support::successful_tool_json(&text)["text"], "unsaved text");
+                assert_eq!(std::fs::read_to_string(root.join("note.txt")).unwrap(), "original disk");
+                session.close().await;
+                bridge.stop();
+                for task in io { task.abort(); }
+                return;
+            }
+            moved.unwrap();
             std::fs::create_dir(&root).unwrap();
             std::fs::write(root.join("note.txt"), "replacement disk").unwrap();
             release.add_permits(1);
@@ -578,7 +594,7 @@ async fn actual_harness_acp_reads_native_unsaved_document_across_process_boundar
         probe.call(json!({"harness":{"operation":"bind","root":root,"session":"document-session"}}));
         let host = Rc::new(Host { value:Value::Null, seen:Semaphore::new(0), release:None, probe:Some(Mutex::new(probe)) });
         let text = run(host, &root, true).await;
-        let value: Value = serde_json::from_str(&text).unwrap();
+        let value = crate::test_support::successful_tool_json(&text);
         assert_eq!(value["text"], "native unsaved editor text");
         assert_eq!(value["documentId"], opened["snapshot"]["documentId"]);
         assert_eq!(value["version"], 2);
@@ -604,7 +620,7 @@ async fn actual_harness_accepts_bound_advisory_diagnostics_and_refuses_forged_pu
         response["diagnostics"] = json!([publication]);
         let host = |value| Rc::new(Host { value, seen:Semaphore::new(0), release:None, probe:None });
         let accepted = run(host(response.clone()), &root, true).await;
-        let accepted: Value = serde_json::from_str(&accepted).unwrap();
+        let accepted = crate::test_support::successful_tool_json(&accepted);
         assert_eq!(accepted["diagnostics"][0]["items"][0]["message"], "bounded finding");
         assert_eq!(accepted["diagnosticsComplete"], false);
         let mut invalid = Vec::new();
@@ -619,7 +635,7 @@ async fn actual_harness_accepts_bound_advisory_diagnostics_and_refuses_forged_pu
         let mut split = response.clone(); split["snapshot"]["text"] = json!("🙂x"); split["diagnostics"][0]["items"][0]["end"]["character"] = json!(1); invalid.push(split);
         for value in invalid {
             let refused = run(host(value), &root, true).await;
-            assert!(serde_json::from_str::<Value>(&refused).is_err(), "{refused}");
+            crate::test_support::assert_failed_tool_text(&refused);
             assert!(!refused.contains("bounded finding"), "{refused}");
         }
     }).await;

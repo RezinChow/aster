@@ -223,6 +223,17 @@
       "note": "Published Power main merges the existing H200/native-storage branch and upstream WorkBuddy metadata compatibility; adds managed native Xolotl lifecycle, bounded readiness, DSpark/FP4 KV configuration, and shared OpenAI tool compatibility. Root workspace retains the lockfile and local dependencies."
     },
     {
+      "package": "crossterm",
+      "version": "0.28.1",
+      "path": "crates/third-party/crossterm",
+      "source": "https://crates.io/api/v1/crates/crossterm/0.28.1/download",
+      "revision": "492b764f9f132d302903ff6f2f55e96c1b8cd0ec",
+      "source_archive_sha256": "829d955a0bb380ef178a640b91779e3987da38c9aea133b20614cfed8cdea9c6",
+      "license": "MIT",
+      "license_text": "crates/third-party/crossterm/LICENSE",
+      "note": "Retains upstream package name, version, public API, source, examples and notices. A narrow Windows parser patch emits committed Alt-code characters as text presses; ordinary key releases remain releases. The local package is unpublished and uses the root workspace and lockfile. Sources are formatted with the pinned root toolchain."
+    },
+    {
       "package": "serde-saphyr",
       "version": "0.0.16",
       "path": "crates/third-party/serde-saphyr",
@@ -3924,5 +3935,90 @@
     "managed_policy": "docs/evidence/gateway/2026-10-25-neural-auto-readiness/selected-auto-policy.acl",
     "source_base_revision": "d97ab61b430115253949ec7dac59f9603646b6a1",
     "private_acl_or_credentials_imported": false
+  },
+  "aster_tui_windows_integration_20261028": {
+    "aster_version": "0.1.4",
+    "core_version": "9.1.6",
+    "acp_version": "9.1.6",
+    "public_code_main_revision": "cfaa22e8f1fca7ad1bfe132ac97ce7be930071f2",
+    "public_code_main_version": "9.1.4",
+    "source": "Aster-authored Windows observation and verification integration over the maintained local Code sources",
+    "model": "kimi/k3.1-pro",
+    "evidence": "docs/evidence/tui/2026-10-28-kimi-k31-source-integration/OUTCOME.md",
+    "private_acl_or_credentials_imported": false
+  },
+  "aster_tui_linux_qualification_20261028": {
+    "aster_version": "0.1.4",
+    "core_version": "9.1.6",
+    "acp_version": "9.1.6",
+    "target": "x86_64-unknown-linux-gnu",
+    "host": "Ubuntu 24.04.3 LTS on WSL2",
+    "source": "Maintained local Aster/Code sources with Aster-authored Unix PTY test adapters",
+    "source_pair_build_id": "aster-cli-pair-v1:09f5a18bf9767c1da42011f8a2314d1609691344:x86_64-unknown-linux-gnu",
+    "model": "kimi/k3.1-pro",
+    "evidence": "docs/evidence/tui/2026-10-28-wsl-linux-k31-source-integration/OUTCOME.md",
+    "private_acl_or_credentials_imported": false
+  },
+  "web_documentation_atlas_20261028": {
+    "path": "apps/web/vendor/seecode",
+    "source": "https://github.com/Aryanutkarsh/SeeCode",
+    "revision": "bf91328450796dcb87f49fb2f37a8acd85d87c52",
+    "version": "0.6.2",
+    "license": "MIT",
+    "archive_sha256": "40b0d7b9839e58281e59507ba3b816ddb7dcf206a23a175b15c1634c7c8def8f",
+    "source_modified": false,
+    "integration": "apps/web/scripts/docs_atlas.mjs",
+    "codehike": {
+      "version": "1.1.0",
+      "source": "https://github.com/code-hike/codehike",
+      "integrity": "sha512-hOxqmTHjiOxhlcVEuDTCoAQ8TW358HVrNKlOwuKcnbwkuTpbGtwj5TnQ7AZjnZiQvJ3LeXohrd1E7qfYYN0Rdg=="
+    },
+    "runtime_source_ref": "8729d7c84a2d887c61dc206ba47bf8a63425e768",
+    "evidence": "docs/evidence/web/2026-10-28-code-documentation-atlas/OUTCOME.md",
+    "retired_at": "2026-10-29",
+    "replacement": "web_documentation_pele_20261029"
+  },
+  "web_documentation_pele_20261029": {
+    "source": "https://github.com/obsidianmd/pele",
+    "documentation": "https://pele.run/",
+    "version": "1.10.0",
+    "license": "MIT",
+    "integrity": "sha512-hDMEM+GQ01pZin8tst3PRXGeB/xFATvXBreHHtjx2glSNAQ7nHFq7EbMuNJGTbqkYgueWPboLjyUBsAudsb1qQ==",
+    "integration": "apps/web/scripts/docs_diagrams.mjs",
+    "diagram_catalog": "apps/web/content/docs/atlas.json",
+    "replaces": "web_documentation_atlas_20261028",
+    "diagrams": 23,
+    "readme_exports": 6,
+    "evidence": "docs/evidence/web/2026-10-29-pele-diagram-migration/OUTCOME.md"
+  },
+  "web_documentation_spotlight_20261029": {
+    "reference": "https://codehike.org/docs/layouts/spotlight",
+    "codehike": {
+      "version": "1.1.0",
+      "source": "https://github.com/code-hike/codehike",
+      "integrity": "sha512-hOxqmTHjiOxhlcVEuDTCoAQ8TW358HVrNKlOwuKcnbwkuTpbGtwj5TnQ7AZjnZiQvJ3LeXohrd1E7qfYYN0Rdg==",
+      "uses": [
+        "Pre",
+        "focus annotations",
+        "utils/token-transitions"
+      ],
+      "license": "MIT",
+      "license_text": "apps/web/licenses/codehike-MIT.txt"
+    },
+    "diff": {
+      "version": "5.2.2",
+      "license": "BSD-3-Clause",
+      "license_text": "apps/web/licenses/diff-BSD-3-Clause.txt"
+    },
+    "esbuild": {
+      "version": "0.25.12",
+      "existing_repository_use": "packages/intelligent-ui/package.json"
+    },
+    "source": [
+      "apps/web/scripts/docs_atlas.mjs",
+      "apps/web/scripts/docs_navigation.mjs",
+      "apps/web/scripts/docs_diagrams.mjs"
+    ],
+    "evidence": "docs/evidence/web/2026-10-29-spotlight-reading-experience/OUTCOME.md"
   }
 }

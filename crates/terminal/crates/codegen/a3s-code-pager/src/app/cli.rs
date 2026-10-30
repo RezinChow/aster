@@ -643,8 +643,8 @@ pub struct PagerArgs {
         hide = true
     )]
     pub no_memory: bool,
-    /// Run a memory flush after the headless turn (or instead of a prompt when resuming). Calls `x.ai/memory/flush` and waits for the flush LLM.
-    /// resuming). Calls `x.ai/memory/flush` and waits for the flush LLM.
+    /// Run a memory flush after the headless turn (or instead of a prompt when resuming). Calls `a3s/memory/flush` and waits for the flush LLM.
+    /// resuming). Calls `a3s/memory/flush` and waits for the flush LLM.
     /// Headless only: `/flush` as `-p` text is not a reliable flush trigger.
     #[arg(long = "memory-flush", hide = true)]
     pub memory_flush: bool,
@@ -838,9 +838,17 @@ impl PagerArgs {
             self.debug_file = Some(anchor_to_launch_dir(file, launch_dir));
         }
         if let Some(ref cwd) = self.cwd {
-            std::env::set_current_dir(cwd).map_err(|e| {
-                anyhow::anyhow!("Failed to set working directory to {:?}: {}", cwd, e)
-            })?;
+            // Downstream session and agent startup resolve this path again.
+            // Retain its absolute location before changing the process cwd.
+            let absolute = dunce::canonicalize(cwd)
+                .and_then(|path| {
+                    std::env::set_current_dir(&path)?;
+                    Ok(path)
+                })
+                .map_err(|e| {
+                    anyhow::anyhow!("Failed to set working directory to {:?}: {}", cwd, e)
+                })?;
+            self.cwd = Some(absolute);
         }
         Ok(self)
     }
@@ -1025,6 +1033,9 @@ impl PagerArgs {
         self.plan && !self.no_plan
     }
 }
+#[cfg(test)]
+#[path = "cli_cwd_tests.rs"]
+mod cwd_tests;
 #[cfg(test)]
 mod tests {
     use super::*;

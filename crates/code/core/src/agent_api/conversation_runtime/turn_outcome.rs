@@ -168,6 +168,11 @@ pub(super) fn gate_result(
     goal_attestation: Option<&[crate::verification::VerificationReport]>,
 ) -> std::result::Result<AgentResult, anyhow::Error> {
     match &parts.surface {
+        // The original controls have been sealed before this call. A cancelled
+        // Run is published by that original owner as Cancelled; its interrupted
+        // narrative must not append an accountable completion boundary or cover
+        // prior effects. Preserve the result for retained interrupted history.
+        Some(surface) if surface.cancel.is_cancelled() => Ok(result),
         Some(surface) => gate_surface_result(surface, result, goal_attestation),
         None => Ok(result),
     }
@@ -262,9 +267,9 @@ pub(super) async fn prepare_pinned(
                 "scoped Agent Run has no capability binding".into(),
             ));
         };
-        let cognitive = cognitive_binding_for_projection(session, capability_run.projection());
+        let package = package_binding_for_projection(session, capability_run.projection());
         let run = match RunControlState::from_session(session)
-            .start_run_with_bindings(prompt, cognitive.clone(), binding.clone())
+            .start_run_with_bindings(prompt, package.clone(), binding.clone())
             .await
         {
             Ok(run) => {
@@ -276,12 +281,12 @@ pub(super) async fn prepare_pinned(
                 return Err(error);
             }
         };
-        if let Some(binding) = cognitive {
+        if let Some(binding) = package {
             session
                 .run_store
                 .record_event(
                     run.id(),
-                    crate::agent::AgentEvent::CognitiveContextBound { binding },
+                    crate::agent::AgentEvent::PackageContextBound { binding },
                 )
                 .await;
         }

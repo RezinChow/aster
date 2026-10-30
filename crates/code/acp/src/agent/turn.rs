@@ -12,7 +12,17 @@ impl A3sCodeAgent {
         let mut text = Vec::new();
         for block in prompt {
             match block {
-                acp::ContentBlock::Text(content) => text.push(content.text.as_str()),
+                acp::ContentBlock::Text(content) => {
+                    if content
+                        .meta
+                        .as_ref()
+                        .is_some_and(|meta| meta.contains_key("bash_command"))
+                    {
+                        return Err(acp::Error::invalid_params()
+                            .data("Direct shell commands are unavailable with the Code backend."));
+                    }
+                    text.push(content.text.as_str());
+                }
                 acp::ContentBlock::Image(_) => return Err(unsupported("image")),
                 acp::ContentBlock::Audio(_) => return Err(unsupported("audio")),
                 acp::ContentBlock::Resource(_) => return Err(unsupported("resource")),
@@ -256,33 +266,7 @@ impl A3sCodeAgent {
                 let used = snapshot.reported_prompt_tokens as u64;
                 let size = session.context_window_tokens() as u64;
                 if used > 0 && size > 0 {
-                    // The wire struct has no output/cache fields, so the
-                    // complete accounting rides _meta (the ACP extensibility
-                    // channel) for clients that sum costs (#15).
-                    let mut update = acp::UsageUpdate::new(used, size);
-                    let meta = serde_json::Map::from_iter([
-                        (
-                            "completionTokens".to_string(),
-                            serde_json::json!(snapshot.reported_completion_tokens),
-                        ),
-                        (
-                            "totalTokens".to_string(),
-                            serde_json::json!(snapshot.reported_total_tokens),
-                        ),
-                        (
-                            "cacheReadTokens".to_string(),
-                            serde_json::json!(snapshot.reported_cache_read_tokens),
-                        ),
-                        (
-                            "cacheWriteTokens".to_string(),
-                            serde_json::json!(snapshot.reported_cache_write_tokens),
-                        ),
-                        (
-                            "callSequence".to_string(),
-                            serde_json::json!(snapshot.call_sequence),
-                        ),
-                    ]);
-                    update.meta = Some(meta);
+                    let update = usage_update(&snapshot, size, &session.durable_transcript());
                     self.emit(acp::SessionNotification::new(
                         session_id.clone(),
                         acp::SessionUpdate::UsageUpdate(update),
@@ -589,7 +573,9 @@ impl A3sCodeAgent {
                         self.goals.lock().await.remove(session_id.0.as_ref());
                         let reply = match self.goal_language(session_id).await {
                             crate::goal::GoalLanguage::Chinese => "\n目标已完成并清除。\n".into(),
-                            crate::goal::GoalLanguage::English => format!("\ngoal achieved and cleared ({total_steps} steps, {duration_ms} ms): {goal}\n"),
+                            crate::goal::GoalLanguage::English => format!(
+                                "\ngoal achieved and cleared ({total_steps} steps, {duration_ms} ms): {goal}\n"
+                            ),
                         };
                         self.emit_text(session_id, &reply).await;
                     }
@@ -646,8 +632,8 @@ impl A3sCodeAgent {
     /// Return `Cancelled` without awaiting a stuck public join.
     ///
     /// A short drain lets a tool that is already waiting append `cancelled`.
-    /// `cancel_and_settle` then aborts the inner fact worker. The public join
-    /// is only a waiter; the turn lock stays with it until that waiter ends.
+    /// The original worker must finish its capability cleanup and release
+    /// proof. The public join retains the turn lock while that happens.
     pub(super) async fn leave_cancelled_turn(
         &self,
         session_id: &acp::SessionId,
@@ -692,12 +678,6 @@ impl A3sCodeAgent {
                 }
             }
         }
-        let _idle = session
-            .cancel_and_settle(
-                crate::turn_cancel::CANCEL_SETTLE_GRACE,
-                crate::turn_cancel::CANCEL_ABORT_GRACE,
-            )
-            .await;
         self.settle_public_join(join, turn_permit).await;
         self.close_run_observation(state).await;
         tracing::info!(target: "perf_probe", "turn_cancel_return");
@@ -778,7 +758,7 @@ pub(super) fn should_emit_end_text(saw_text: bool, text: &str) -> bool {
     !saw_text && !text.is_empty()
 }
 
-/// The `x.ai/turn/outcome` notification payload carrying how the run closed
+/// The `a3s/turn/outcome` notification payload carrying how the run closed
 /// at the completion gate, so the client's terminal marker can say more than
 /// a duration. Fields are additive; clients ignore unknown keys.
 pub(super) fn turn_outcome_payload(
@@ -845,6 +825,74 @@ pub(super) fn worker_join_failure(join_error: tokio::task::JoinError) -> String 
     format!("turn worker died: {detail}")
 }
 
+fn estimated_user_message_tokens(messages: &[a3s_code_core::Message]) -> usize {
+    let bytes = messages
+        .iter()
+        .filter(|message| message.role == "user" && message.transcript_visibility.is_product())
+        .map(|message| {
+            message.role.len()
+                + 4
+                + message
+                    .content
+                    .iter()
+                    .map(|block| match block {
+                        a3s_code_core::llm::ContentBlock::Text { text } => text.len(),
+                        _ => 0,
+                    })
+                    .sum::<usize>()
+        })
+        .sum::<usize>();
+    bytes.saturating_add(3) / 4
+}
+
+fn usage_update(
+    snapshot: &a3s_code_core::harness_evidence::ModelUsageSnapshotV1,
+    size: u64,
+    transcript: &[a3s_code_core::Message],
+) -> acp::UsageUpdate {
+    // The wire struct has no output/cache fields, so the complete accounting
+    // rides _meta. Context composition is explicitly an estimate, not billing.
+    let mut update = acp::UsageUpdate::new(snapshot.reported_prompt_tokens as u64, size);
+    let estimated_user_tokens = estimated_user_message_tokens(transcript);
+    update.meta = Some(serde_json::Map::from_iter([
+        (
+            "completionTokens".to_string(),
+            serde_json::json!(snapshot.reported_completion_tokens),
+        ),
+        (
+            "totalTokens".to_string(),
+            serde_json::json!(snapshot.reported_total_tokens),
+        ),
+        (
+            "cacheReadTokens".to_string(),
+            serde_json::json!(snapshot.reported_cache_read_tokens),
+        ),
+        (
+            "cacheWriteTokens".to_string(),
+            serde_json::json!(snapshot.reported_cache_write_tokens),
+        ),
+        (
+            "callSequence".to_string(),
+            serde_json::json!(snapshot.call_sequence),
+        ),
+        (
+            "estimatedPromptTokens".to_string(),
+            serde_json::json!(snapshot.estimated_prompt_tokens),
+        ),
+        (
+            "estimatedUserTokens".to_string(),
+            serde_json::json!(estimated_user_tokens),
+        ),
+        (
+            "estimatedOtherContextTokens".to_string(),
+            serde_json::json!(snapshot
+                .estimated_prompt_tokens
+                .saturating_sub(estimated_user_tokens)),
+        ),
+    ]));
+    update
+}
+
 #[cfg(test)]
 mod usage_meta_tests {
     use super::*;
@@ -877,34 +925,11 @@ mod usage_meta_tests {
 
     #[test]
     fn the_usage_update_carries_the_full_accounting_in_meta() {
-        let snapshot = snapshot();
-        let used = snapshot.reported_prompt_tokens as u64;
-        let size = 32_768u64;
-        let mut update = acp::UsageUpdate::new(used, size);
-        let meta = serde_json::Map::from_iter([
-            (
-                "completionTokens".to_string(),
-                serde_json::json!(snapshot.reported_completion_tokens),
-            ),
-            (
-                "totalTokens".to_string(),
-                serde_json::json!(snapshot.reported_total_tokens),
-            ),
-            (
-                "cacheReadTokens".to_string(),
-                serde_json::json!(snapshot.reported_cache_read_tokens),
-            ),
-            (
-                "cacheWriteTokens".to_string(),
-                serde_json::json!(snapshot.reported_cache_write_tokens),
-            ),
-            (
-                "callSequence".to_string(),
-                serde_json::json!(snapshot.call_sequence),
-            ),
-        ]);
-        update.meta = Some(meta);
-        let wire = serde_json::to_value(&update).unwrap();
+        let transcript = vec![
+            a3s_code_core::Message::user("你好"),
+            a3s_code_core::Message::user_wire("runtime steering is not a user bubble"),
+        ];
+        let wire = serde_json::to_value(usage_update(&snapshot(), 32_768, &transcript)).unwrap();
         assert_eq!(wire["used"], 90);
         assert_eq!(wire["size"], 32_768);
         assert_eq!(wire["_meta"]["completionTokens"], 40);
@@ -912,5 +937,8 @@ mod usage_meta_tests {
         assert_eq!(wire["_meta"]["cacheReadTokens"], 10);
         assert_eq!(wire["_meta"]["cacheWriteTokens"], 5);
         assert_eq!(wire["_meta"]["callSequence"], 7);
+        assert_eq!(wire["_meta"]["estimatedPromptTokens"], 100);
+        assert_eq!(wire["_meta"]["estimatedUserTokens"], 4);
+        assert_eq!(wire["_meta"]["estimatedOtherContextTokens"], 96);
     }
 }

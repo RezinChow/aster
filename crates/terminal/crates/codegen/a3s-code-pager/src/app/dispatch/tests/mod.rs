@@ -7,6 +7,7 @@ mod jump;
 mod mid_text_btw;
 mod mid_text_goal;
 mod modes;
+mod modes_code;
 mod notes;
 mod permissions;
 mod prompt;
@@ -703,7 +704,7 @@ fn fork_test_app() -> AppView {
     app.agents.get_mut(&AgentId(0)).unwrap().current_branch = Some("main".into());
     app
 }
-/// Build a minimal `AcpArgs<acp::ExtRequest>` for an `x.ai/ask_user_question` ext-method request.
+/// Build a minimal `AcpArgs<acp::ExtRequest>` for an `a3s/ask_user_question` ext-method request.
 /// Returns the args and the receiver half of the response oneshot so the test can assert the handler completes the ACP roundtrip.
 fn make_ask_user_question_args(
     tool_call_id: &str,
@@ -732,7 +733,7 @@ fn make_ask_user_question_args(
     };
     let (tx, rx) = tokio::sync::oneshot::channel();
     let ext = acp::ExtRequest::new(
-        "x.ai/ask_user_question",
+        "a3s/ask_user_question",
         serde_json::value::to_raw_value(&req)
             .expect("serialize AskUserQuestionExtRequest")
             .into(),

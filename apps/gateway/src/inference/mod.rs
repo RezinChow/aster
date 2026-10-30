@@ -4,6 +4,8 @@ mod access_error;
 mod authorization;
 mod console_catalog;
 mod decision;
+#[cfg(feature = "neural")]
+mod decision_apofasi;
 mod decision_cache;
 mod decision_flights;
 mod decision_plane;
@@ -39,6 +41,8 @@ pub(crate) use decision::{
     DecisionResponse, DecisionResult, DecisionService, DecisionStepPart, DecisionVisibleTurn,
     DECISION_REQUEST_LIMIT_BYTES,
 };
+#[cfg(feature = "neural")]
+pub(crate) use decision_apofasi::ApofasiDecisionService;
 pub(crate) use decision_cache::{
     ChosenGroup, DecisionReason, FrozenDecision, TurnDecisionCache, TurnIdentity,
 };

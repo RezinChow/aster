@@ -446,14 +446,16 @@ pub enum InferenceDecisionProtocol {
     #[default]
     Decisions,
     OpenaiChat,
+    Apofasi,
 }
 impl InferenceDecisionProtocol {
     pub fn parse(value: &str) -> Result<Self, String> {
         match value {
             "decisions" => Ok(Self::Decisions),
             "openai_chat" => Ok(Self::OpenaiChat),
+            "apofasi" => Ok(Self::Apofasi),
             _ => Err(format!(
-                "unknown decision protocol '{value}'; expected decisions or openai_chat"
+                "unknown decision protocol '{value}'; expected decisions, openai_chat, or apofasi"
             )),
         }
     }
@@ -461,6 +463,7 @@ impl InferenceDecisionProtocol {
         match self {
             Self::Decisions => "decisions",
             Self::OpenaiChat => "openai_chat",
+            Self::Apofasi => "apofasi",
         }
     }
     pub const fn is_default(&self) -> bool {

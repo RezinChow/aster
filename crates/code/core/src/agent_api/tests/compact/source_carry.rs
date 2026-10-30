@@ -230,14 +230,14 @@ async fn automatic_compaction_uses_admitted_source_in_actual_next_input() {
                 .with_work_policy(policy.clone())
                 .with_auto_compact(true)
                 .with_auto_compact_threshold(0.5)
-                .with_max_context_tokens(256),
+                .with_max_context_tokens(16_384),
         )
         .unwrap();
     finish_stream(
         &session,
         &format!(
             "## Goal\nVerify the existing callers\n{}",
-            "reference data ".repeat(100)
+            "reference data ".repeat(3_000)
         ),
     )
     .await;

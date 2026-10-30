@@ -1133,7 +1133,7 @@ pub(super) fn dispatch_send_prompt_submission(
         return effects;
     } else {
         // Server-authoritative immediate send (plain prompt only)
-        // The agent appends it to its authoritative `pending_inputs` (turn starts never overlap) and drives the drain via `x.ai/queue/changed`
+        // The agent appends it to its authoritative `pending_inputs` (turn starts never overlap) and drives the drain via `a3s/queue/changed`
         // So the chips are cleared ONLY when the suggestion actually sends or enqueues
         agent.release_hook_block_hold();
         if is_follow_up && agent.session.session_id.is_some() {
@@ -1310,6 +1310,10 @@ pub(super) fn dispatch_send_prompt_submission(
 /// Enqueue a bash command and try to drain immediately.
 /// Bash commands go through the same enqueue/drain pipeline as normal prompts, just with `QueueEntryKind::BashCommand`. No scrollback block is pushed here; the execute block from the shell IS the visual entry.
 pub(super) fn dispatch_send_bash_command(app: &mut AppView, command: String) -> Vec<Effect> {
+    if app.is_a3s_code {
+        app.show_toast("Direct shell commands are unavailable with the Code backend.");
+        return vec![];
+    }
     if app.reconnect_pending {
         app.show_toast(RECONNECTING_NOTICE);
         return vec![];
@@ -1481,7 +1485,7 @@ pub(super) fn handle_prompt_response(
                     }
                 }
                 // This prompt's RPC resolved without becoming the running turn (removed, cancelled, rewound)
-                // Retire its optimistic echo so a later `x.ai/queue/changed` broadcast can't re-pin a stale placeholder and reorder the queue
+                // Retire its optimistic echo so a later `a3s/queue/changed` broadcast can't re-pin a stale placeholder and reorder the queue
                 if let Some(sid) = agent.session.session_id.as_ref().map(|s| s.0.to_string()) {
                     retire_optimistic_echo(
                         &mut app.optimistic_prompt_echoes,

@@ -88,7 +88,7 @@ pub struct HeadlessOptions {
     pub wait_for_background: bool,
     /// Max time to wait for background work to finish after the first turn ends.
     pub background_wait_timeout: Duration,
-    /// After the prompt (or instead of one when resuming), run `x.ai/memory/flush`.
+    /// After the prompt (or instead of one when resuming), run `a3s/memory/flush`.
     pub memory_flush: bool,
     /// CLI `--experimental-memory` / `--no-memory` override for the headless agent.
     pub memory_enabled_override: Option<bool>,
@@ -189,7 +189,7 @@ impl HeadlessEmitter {
             self.emit_line(&line);
         }
     }
-    /// Render an `x.ai/*` lifecycle notification for the active format.
+    /// Render an `a3s/*` lifecycle notification for the active format.
     fn on_lifecycle(&mut self, event: Lifecycle) {
         match self.format {
             OutputFormat::Plain => eprint_line(&event.plain_message()),
@@ -482,6 +482,8 @@ async fn authenticate(
 fn build_headless_init_request(
     rules: Option<&str>,
     system_prompt_override: Option<&str>,
+    allow: &[String],
+    deny: &[String],
 ) -> acp::InitializeRequest {
     let mut meta = serde_json::json!({
         "clientType": HEADLESS_CLIENT_TYPE,
@@ -496,6 +498,9 @@ fn build_headless_init_request(
                 "systemPromptOverride".into(),
                 serde_json::json!(system_prompt_override),
             );
+        }
+        if let Some(rules) = crate::acp::cli_permission_rules_meta(allow, deny) {
+            obj.insert("permissionRules".into(), rules);
         }
         obj.insert(
             "startupHints".into(),
@@ -535,7 +540,7 @@ async fn open_session(
                     let mut m = acp::Meta::new();
                     m.insert("noReplay".into(), serde_json::Value::Bool(true));
                     if let Some(rc) = restore_code {
-                        m.insert("x.ai/restore_code".into(), serde_json::Value::Bool(rc));
+                        m.insert("a3s/restore_code".into(), serde_json::Value::Bool(rc));
                     }
                     Some(m)
                 }),
@@ -622,7 +627,7 @@ async fn fork_then_open(
     }
     let fork_params = serde_json::value::to_raw_value(&payload)
         .map_err(|e| anyhow::anyhow!("serialize fork params: {e}"))?;
-    let req = acp::ExtRequest::new("x.ai/session/fork", fork_params.into());
+    let req = acp::ExtRequest::new("a3s/session/fork", fork_params.into());
     let resp = acp_send(req, acp_tx).await?;
     if let Some(err) = fork_response_error(resp.0.get()) {
         anyhow::bail!("fork failed: {err}");
@@ -926,6 +931,8 @@ pub async fn run_single_turn(
     let init_req = build_headless_init_request(
         options.rules.as_deref(),
         options.system_prompt_override.as_deref(),
+        &options.allow_rules,
+        &options.deny_rules,
     );
     a3s_code_telemetry::startup::enter(crate::acp::StartupPhase::AcpInitialize);
     let init_resp: acp::InitializeResponse = match acp_send(init_req, &acp_tx).await {
@@ -1483,7 +1490,7 @@ pub async fn run_single_turn(
     }
     outcome
 }
-/// Invoke `x.ai/memory/flush` and wait for the flush LLM to finish.
+/// Invoke `a3s/memory/flush` and wait for the flush LLM to finish.
 async fn run_headless_memory_flush(
     acp_tx: &AcpAgentTx,
     acp_rx: &mut AcpClientRx,
@@ -1494,7 +1501,7 @@ async fn run_headless_memory_flush(
     let params = serde_json::json!({ "session_id": session_id.0.to_string() });
     let raw = serde_json::value::to_raw_value(&params)
         .map_err(|e| anyhow::anyhow!("serialize memory flush params: {e}"))?;
-    let request = acp::ExtRequest::new("x.ai/memory/flush", raw.into());
+    let request = acp::ExtRequest::new("a3s/memory/flush", raw.into());
     let mut flush_fut = Box::pin(acp_send(request, acp_tx));
     let t0 = Instant::now();
     let mut ttf_logged = true;
@@ -1555,13 +1562,13 @@ fn reap_request_for_work(
 ) -> serde_json::Result<acp::ExtRequest> {
     let (method, params) = match work {
         BackgroundWork::Subagent(id) => (
-            "x.ai/subagent/cancel",
+            "a3s/subagent/cancel",
             serde_json::value::to_raw_value(&CancelSubagentRequest {
                 subagent_id: id.clone(),
             })?,
         ),
         BackgroundWork::Task(id) => (
-            "x.ai/task/kill",
+            "a3s/task/kill",
             serde_json::value::to_raw_value(&KillTaskRequest {
                 session_id: session_id.0.to_string(),
                 task_id: id.clone(),
@@ -1873,6 +1880,9 @@ mod background_lifecycle_tests;
 #[cfg(test)]
 #[path = "headless/missing_sidecar_tests.rs"]
 mod missing_sidecar_tests;
+#[cfg(test)]
+#[path = "headless/permission_rules_tests.rs"]
+mod permission_rules_tests;
 #[cfg(test)]
 #[path = "headless_tests.rs"]
 mod tests;
