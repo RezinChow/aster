@@ -71,8 +71,29 @@ previously qualified site: [staging](node24-staging.json.gz).
 The original parent and Studio HEADs and indexes remain unchanged:
 [preservation check](worktree-preservation.json).
 
-Actual successful deployment and public URL verification will be recorded
-after the corrected GitHub Pages run completes. GitHub reports the local
+## Successful deployment and public verification
+
+The corrected source commit is `1debf0633be9323403d879cf2eb9fee745ac8833`.
+It was signed locally and fast-forwarded to remote main. Its
+[Pages run](https://github.com/aster-ai-lab/aster/actions/runs/41038684320)
+completed successfully, including both validation and deployment:
+[run receipt](deployment.json), [complete CI log](pages-success.log.gz).
+The CI log independently records **20 Python and 133 JavaScript tests** passing.
+Its [306-file staging manifest](ci-staging.json.gz) equals the pinned-runtime
+local staging manifest exactly.
+
+The public site is <https://aster-ai-lab.github.io/aster/>.
+At `2026-10-30T10:16:12Z`, all **306 public files**, including the homepage,
+accepted galaxy JavaScript and CSS, and all **254 documentation URLs**,
+returned HTTP 200 and SHA-256 hashes identical to the locally qualified and
+CI-staged bytes. No cache-busting query was needed. The site contains
+**18 products and 140 source pages**. This also carries the tested product
+menu order, ACL/Flow guides, diagrams, search records and version aliases to
+the public site. [Per-file public verification](public-verification.json).
+
+The follow-up evidence commit changes only this evidence directory; it does
+not change deployed assets or trigger another Pages build. The deployment
+source remains the corrected source commit above. GitHub reports the local
 signing key as `unknown_key`; this record does not claim GitHub Verified status.
 
 ## Explicitly not claimed
