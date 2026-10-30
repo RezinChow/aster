@@ -1,5 +1,5 @@
 export const meta = {
-  "title": "ACP 扩展与宿主元数据参考",
+  "title": "ACP 扩展与宿主元数据",
   "description": "标准协议之外，代理接受哪些请求、发出哪些通知，以及谁提供元数据。",
   "label": "协议参考与能力索引",
   "updated": "2026-10-26"
@@ -21,7 +21,7 @@ export const meta = {
 | --- | --- | --- |
 | 请求 | session/request_permission | 工具确认，或带 question 标记的业务提问 |
 | 请求 | a3s/form/request | 结构化表单，正常结果为 values 对象 |
-| 通知 | session/update | 文本、工具、计划、命令、模式等标准更新 |
+| 通知 | session/update | 文本、工具、计划、命令和模式更新 |
 | 通知 | _a3s/execution/observe | 可选的 Run 与模型轮次观测 |
 | 请求 | fs/read_text_file | 已声明客户端文本读取能力，富观测使用 a3sDocument 元数据 |
 | 请求 | a3s/document/release_run | 释放该 sessionId / runId 的原文档引用 |

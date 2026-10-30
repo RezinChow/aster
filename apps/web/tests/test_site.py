@@ -18,7 +18,7 @@ from urllib.request import urlopen
 WEB_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(WEB_ROOT / "scripts"))
 from check_site import check_site
-from site_contract import BRAND_FILES, DOCS_FILES, DOCS_PAGES, DOWNLOAD_MANIFEST, HOME_FILES, LEGAL_FILES, SITE_FILES, documentation_pages
+from site_contract import BRAND_FILES, DOCS_FILES, DOCS_PAGES, DOWNLOAD_MANIFEST, HOME_FILES, LEGAL_FILES, SHARED_FILES, SITE_FILES, documentation_pages
 from stage_site import stage_site
 
 SCREENSHOTS = tuple(f"download/screenshots/{name}.png" for name in ("workspace", "office", "review", "lineage"))
@@ -42,10 +42,10 @@ class SiteTest(unittest.TestCase):
         self.public = self.root / "public"
         self.page = self.public / "download/index.html"
         self.page.parent.mkdir(parents=True)
-        for name in BRAND_FILES + HOME_FILES + DOCS_FILES + LEGAL_FILES:
+        for name in BRAND_FILES + HOME_FILES + DOCS_FILES + LEGAL_FILES + SHARED_FILES:
             destination = self.public / name
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(WEB_ROOT / "public" / name, destination)
+            shutil.copy2(WEB_ROOT / "dist" / name, destination)
         downloads = "".join(f'<a href="{item[4]}">{item[0]} {item[1]} {item[2]} {item[3]}</a>' for item in DOWNLOAD_MANIFEST)
         self.html = ('<!doctype html><html lang="zh-CN"><head><title>Aster</title>'
                      '<link rel="stylesheet" href="styles.css">'

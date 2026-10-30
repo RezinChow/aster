@@ -15,7 +15,7 @@ import zlib
 
 from site_contract import DOCS_FILES, DOCS_PAGES, DOCS_ROUTES, DOCS_REFERENCE_URLS, DOWNLOAD_MANIFEST, DOWNLOAD_BRAND_FILES, FONT_FILES, HOME_FILES, LEGAL_FILES, PAGE_FILES, PAGES_URL, REPOSITORY_URL, SCREENSHOT_FILES, SITE_FILES
 
-PUBLIC_ROOT = Path(__file__).resolve().parents[1] / "public"
+PUBLIC_ROOT = Path(__file__).resolve().parents[1] / "dist"
 DOWNLOAD_URLS = frozenset(item[4] for item in DOWNLOAD_MANIFEST)
 VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 
@@ -466,14 +466,14 @@ def check_docs(root):
         return name
 
     for name, nodes in pages.items():
-        if sum(node.tag == "script" for node in nodes) != 1:
+        if sum(node.tag == "script" for node in nodes) != 2:
             raise ValueError("unsupported documentation script count")
         for node in nodes:
             if node.tag == "script":
                 src = node.attrs.get("src", "")
                 if node.children or set(node.attrs) != {"src", "defer"}:
                     raise ValueError("unsupported documentation script")
-                if local_url(src, name) != "docs/navigation.js":
+                if local_url(src, name) not in {"docs/navigation.js", "docs/search.js"}:
                     raise ValueError("unsupported documentation script")
             if node.tag in {"select", "datalist", "style", "iframe", "base", "object", "embed"}:
                 raise ValueError(f"unsupported documentation element: {node.tag}")

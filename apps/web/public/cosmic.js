@@ -27,7 +27,6 @@
   function createWebGLRenderer() {
     const gl = canvas.getContext("webgl", { alpha: false, antialias: false, powerPreference: "low-power" });
     if (!gl || typeof gl.createShader !== "function") return null;
-    const galaxyCenter = [24, 12, -96];
     const starVertex = `
       attribute vec3 aPosition;
       attribute float aSize;
@@ -35,7 +34,6 @@
       attribute float aLayer;
       uniform vec2 uResolution;
       uniform vec3 uCamera;
-      uniform vec3 uGalaxy;
       uniform float uTime;
       uniform float uRatio;
       varying mediump vec4 vColor;
@@ -43,32 +41,48 @@
       varying mediump float vNear;
       void main() {
         vec3 position = aPosition;
-        if (aLayer > 0.5) {
+        if (aLayer < 0.5) {
+          float radius = length(position.xz);
+          float initialAngle = atan(position.z, position.x);
+          float angularVelocity = 0.22 / max(radius / 5.0, 0.35);
+          float angle = initialAngle + uTime * angularVelocity;
+          float arm = sin(2.0 * angle - 3.4 * log(max(radius, 0.4)) - uTime * 0.14);
+          float armBoost = 0.18 + 0.82 * smoothstep(-0.35, 0.9, arm);
+          float core = 1.0 - smoothstep(1.2, 10.0, radius);
+          float ring = smoothstep(6.0, 10.0, radius) * (1.0 - smoothstep(11.0, 14.0, radius));
+          float rim = 1.0 - 0.78 * smoothstep(11.5, 14.5, radius);
+          float twinkle = 0.72 + 0.28 * sin(uTime * (0.55 + aSize * 4.0) + aPosition.x * 1.7 + aPosition.z * 2.1);
+          float farBoost = 1.0 + 0.55 * smoothstep(0.0, 9.0, position.z);
+          float cycle = 0.5 + 0.5 * sin(uTime * 0.65);
+          float spread = 0.68 + cycle * 0.60;
+          float density = 1.25 - cycle * 0.35;
+          position = vec3(cos(angle) * radius * spread, position.y, sin(angle) * radius * spread);
+          vColor = vec4(aColor.rgb, aColor.a * armBoost * twinkle * farBoost * rim * density * (0.55 + core * 0.35 + ring * 0.35));
+        } else {
           float span = aLayer < 1.5 ? 44.0 : (aLayer < 2.5 ? 108.0 : 204.0);
-          position.z = -4.0 - mod(-position.z - 4.0 - uTime * 7.2, span);
-        } else if (aLayer > -0.5) {
-          vec3 local = position - uGalaxy;
-          vec2 disk = vec2(local.x, dot(local.yz, vec2(0.42, 0.9075)));
-          float thickness = dot(local.yz, vec2(0.9075, -0.42));
-          float angle = uTime * 0.018;
-          disk = mat2(cos(angle), sin(angle), -sin(angle), cos(angle)) * disk;
-          position = uGalaxy + vec3(disk.x, disk.y * 0.42 + thickness * 0.9075,
-            disk.y * 0.9075 - thickness * 0.42);
+          float speed = aLayer < 1.5 ? 18.0 : (aLayer < 2.5 ? 10.0 : 6.0);
+          position.z = -4.0 - mod(-position.z - 4.0 - uTime * speed, span);
+          vColor = aColor;
         }
         vec3 view = position - uCamera;
-        float depth = max(0.5, -view.z);
+        float tilt = 0.50;
+        float cy = view.y * cos(tilt) - view.z * sin(tilt);
+        float cz = view.y * sin(tilt) + view.z * cos(tilt);
+        float depth = max(0.5, -cz);
         float aspect = uResolution.x / uResolution.y;
-        vec2 clip = vec2(view.x / aspect, view.y) * 2.3;
+        vec2 clip = vec2(view.x / aspect, cy) * 2.3;
         gl_Position = vec4(clip, 0.0, depth);
         vNear = aLayer > 0.5 ? 1.0 - smoothstep(8.0, 42.0, depth) : 0.0;
         vTravel = normalize(clip + vec2(0.0001));
-        float size = clamp(aSize * uResolution.y * 1.15 / depth,
-          0.55 * uRatio, 12.0 * uRatio);
+        float pointScale = aLayer < 0.5 ? 1.75 : 1.3;
+        float minSize = aLayer < 0.5 ? 0.85 : 0.6;
+        float size = clamp(aSize * uResolution.y * pointScale / depth, minSize * uRatio, 14.0 * uRatio);
         gl_PointSize = size * (1.0 + vNear * 1.8);
         float fog = exp(-depth * 0.0055);
         float arrival = smoothstep(4.0, 12.0, depth);
-        float shimmer = 0.76 + 0.24 * sin(uTime * 0.7 + aPosition.x * 0.31 + aPosition.y * 0.17);
-        vColor = vec4(aColor.rgb, aColor.a * fog * arrival * shimmer);
+        float shimmer = 0.78 + 0.22 * sin(uTime * 0.7 + aPosition.x * 0.31 + aPosition.z * 0.17);
+        float luminance = aLayer < 0.5 ? 3.4 : 2.1;
+        vColor.a = min(1.0, vColor.a * luminance) * fog * arrival * shimmer;
       }
     `;
     const starFragment = `
@@ -94,7 +108,6 @@
       precision mediump float;
       uniform vec2 uResolution;
       uniform vec3 uCamera;
-      uniform vec3 uGalaxy;
       uniform float uTime;
       float hash(vec2 p) {
         vec3 value = fract(vec3(p.xyx) * 0.1031);
@@ -126,30 +139,9 @@
         vec3 nearPoint = uCamera + ray * ((64.0 + uCamera.z) / -ray.z);
         float farCloud = fbm(farPoint.xy * 0.026 + vec2(uTime * 0.002, 0.0));
         float nearCloud = fbm(nearPoint.xy * 0.052 + fbm(nearPoint.xy * 0.03) * 1.4);
-        vec3 color = vec3(0.008, 0.012, 0.027);
-        color += vec3(0.035, 0.075, 0.17) * smoothstep(0.22, 0.7, farCloud);
-        color += vec3(0.10, 0.035, 0.14) * smoothstep(0.3, 0.76, nearCloud) * 0.6;
-
-        vec3 normal = vec3(0.0, 0.9075, -0.42);
-        float denominator = dot(ray, normal);
-        if (abs(denominator) > 0.03) {
-          float distanceToDisk = dot(uGalaxy - uCamera, normal) / denominator;
-          if (distanceToDisk > 0.0) {
-            vec3 local = uCamera + ray * distanceToDisk - uGalaxy;
-            vec2 disk = vec2(local.x, dot(local.yz, vec2(0.42, 0.9075)));
-            float radius = length(disk);
-            if (radius < 56.0) {
-              float angle = atan(disk.y, disk.x);
-              float spiral = 0.5 + 0.5 * cos(3.0 * (angle - radius * 0.14 - uTime * 0.018));
-              float arms = pow(spiral, 12.0) * exp(-radius * 0.048);
-              float dust = 0.25 + 0.75 * fbm(disk * 0.16);
-              float core = exp(-radius * radius * 0.035);
-              float diskFade = 1.0 - smoothstep(32.0, 56.0, radius);
-              color += (vec3(0.12, 0.22, 0.38) * arms * dust
-                + vec3(0.22, 0.21, 0.26) * core) * diskFade;
-            }
-          }
-        }
+        vec3 color = vec3(0.002, 0.002, 0.009);
+        color += vec3(0.07, 0.025, 0.18) * smoothstep(0.22, 0.72, farCloud);
+        color += vec3(0.035, 0.014, 0.085) * smoothstep(0.28, 0.78, nearCloud) * 0.72;
         float vignette = 1.0 - smoothstep(0.4, 0.98, length((uv - 0.5) * vec2(1.0, 0.82)));
         gl_FragColor = vec4(color * vignette, 1.0);
       }
@@ -184,23 +176,24 @@
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
     const starAttributes = Object.fromEntries(["aPosition", "aSize", "aColor", "aLayer"].map((name) => [name, gl.getAttribLocation(starProgram, name)]));
     const quadAttribute = gl.getAttribLocation(nebulaProgram, "aPosition");
-    const starUniforms = Object.fromEntries(["uResolution", "uCamera", "uGalaxy", "uTime", "uRatio"].map((name) => [name, gl.getUniformLocation(starProgram, name)]));
-    const nebulaUniforms = Object.fromEntries(["uResolution", "uCamera", "uGalaxy", "uTime"].map((name) => [name, gl.getUniformLocation(nebulaProgram, name)]));
+    const starUniforms = Object.fromEntries(["uResolution", "uCamera", "uTime", "uRatio"].map((name) => [name, gl.getUniformLocation(starProgram, name)]));
+    const nebulaUniforms = Object.fromEntries(["uResolution", "uCamera", "uTime"].map((name) => [name, gl.getUniformLocation(nebulaProgram, name)]));
     let field = [];
     let meteor = null;
     let nextMeteorAt = 3.4;
 
     function colorFor(tone) {
-      if (tone > 0.88) return [0.84, 0.72, 1.0];
-      if (tone > 0.58) return [0.62, 0.79, 1.0];
-      return [0.94, 0.96, 1.0];
+      if (tone > 0.94) return [1.0, 0.97, 1.0];
+      if (tone > 0.72) return [0.82, 0.72, 1.0];
+      if (tone > 0.42) return [0.62, 0.46, 1.0];
+      return [0.42, 0.30, 0.85];
     }
 
     function buildStars() {
       field = [];
       const aspect = width / Math.max(1, height);
-      const fieldCount = Math.max(480, Math.min(1500, Math.round(width * height / 1000)));
-      const galaxyCount = Math.max(500, Math.min(950, Math.round(width * height / 2000)));
+      const fieldCount = Math.max(6000, Math.min(14000, Math.round(width * height / 100)));
+      const galaxyCount = Math.max(12000, Math.min(28000, Math.round(width * height / 45)));
       for (let index = 0; index < fieldCount; index++) {
         const distribution = random();
         const layer = distribution < 0.14 ? 1 : distribution < 0.48 ? 2 : 3;
@@ -208,33 +201,31 @@
         const x = (random() - 0.5) * span * aspect * 1.5;
         const y = (random() - 0.5) * span * 1.15;
         const z = -4 - random() * span;
-        const radius = 0.055 + random() * 0.085;
+        const radius = 0.04 + random() * 0.07;
         const color = colorFor(random());
-        field.push(x, y, z, radius, ...color, 0.55 + random() * 0.45, layer);
+        field.push(x, y, z, radius, ...color, 0.45 + random() * 0.45, layer);
       }
       for (let index = 0; index < galaxyCount; index++) {
-        const radius = 1 + Math.pow(random(), 0.7) * 44;
-        const angle = (index % 3) * Math.PI * 2 / 3 + radius * 0.14 + (random() - 0.5) * 0.4;
-        const u = Math.cos(angle) * radius;
-        const v = Math.sin(angle) * radius;
-        const thickness = (random() - 0.5) * 1.4;
-        const color = radius < 8 ? [1.0, 0.91, 0.8] : colorFor(random());
-        field.push(galaxyCenter[0] + u, galaxyCenter[1] + v * 0.42 + thickness * 0.9075,
-          galaxyCenter[2] + v * 0.9075 - thickness * 0.42, 0.07 + random() * 0.06,
-          ...color, 0.65 + random() * 0.35, 0);
+        const radius = 0.65 + Math.pow(random(), 0.72) * 13.2;
+        const armAngle = (index % 2) * Math.PI + Math.log(radius) * 1.7 + Math.PI / 4;
+        const angle = random() < 0.18 ? random() * Math.PI * 2 : armAngle + (random() - 0.5) * (0.55 + radius * 0.025);
+        const thickness = (random() - 0.5) * (1.5 - Math.min(1.1, radius / 14));
+        const size = 0.035 + random() * 0.065;
+        const color = colorFor(random());
+        const alpha = 0.52 + random() * 0.48;
+        field.push(Math.cos(angle) * radius, thickness, Math.sin(angle) * radius, size, ...color, alpha, 0);
       }
     }
 
     function draw(time) {
       if (!width || !height) return;
-      const camera = [pointerX * 0.25 + Math.sin(time * 0.07) * 1.8,
-        pointerY * 0.22 + Math.cos(time * 0.05) * 1.1, Math.sin(time * 0.035) * 2.5];
+      const camera = [pointerX * 0.35 + Math.sin(time * 0.07) * 1.4,
+        7.8 + pointerY * 0.3 + Math.cos(time * 0.05) * 0.5, 18 + Math.sin(time * 0.035) * 0.8];
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.disable(gl.BLEND);
       gl.useProgram(nebulaProgram);
       gl.uniform2f(nebulaUniforms.uResolution, canvas.width, canvas.height);
       gl.uniform3f(nebulaUniforms.uCamera, ...camera);
-      gl.uniform3f(nebulaUniforms.uGalaxy, ...galaxyCenter);
       gl.uniform1f(nebulaUniforms.uTime, time);
       gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
       gl.vertexAttribPointer(quadAttribute, 2, gl.FLOAT, false, 0, 0);
@@ -243,8 +234,8 @@
 
       const vertices = field.slice();
       if (time >= nextMeteorAt && !meteor) {
-        meteor = { start: nextMeteorAt, x: 12 + random() * 14, y: 8 + random() * 10,
-          z: -22 - random() * 18, vx: -24 - random() * 12, vy: -8 - random() * 6 };
+        meteor = { start: nextMeteorAt, x: 10 + random() * 9, y: 1 + random() * 5,
+          z: -14 - random() * 8, vx: -18 - random() * 8, vy: -3 - random() * 4 };
       }
       if (meteor) {
         const progress = (time - meteor.start) / 1.3;
@@ -256,7 +247,7 @@
             const t = progress - index * 0.018;
             if (t < 0) continue;
             vertices.push(meteor.x + meteor.vx * t, meteor.y + meteor.vy * t, meteor.z,
-              0.12 * (1 - index / 34), 0.76, 0.87, 1.0,
+              0.09 * (1 - index / 34), 0.72, 0.58, 1.0,
               (1 - index / 30) * Math.sin(progress * Math.PI), -1);
           }
         }
@@ -265,7 +256,6 @@
       gl.useProgram(starProgram);
       gl.uniform2f(starUniforms.uResolution, canvas.width, canvas.height);
       gl.uniform3f(starUniforms.uCamera, ...camera);
-      gl.uniform3f(starUniforms.uGalaxy, ...galaxyCenter);
       gl.uniform1f(starUniforms.uTime, time);
       gl.uniform1f(starUniforms.uRatio, ratio);
       gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);
@@ -285,7 +275,6 @@
     return { draw, rebuild: buildStars };
   }
 
-
   function createCanvasRenderer() {
     let context;
     try {
@@ -295,84 +284,67 @@
     }
     if (!context) return null;
     let stars = [];
-    let meteor = null;
-    let nextMeteorAt = 4.2;
 
     function buildStars() {
-      const count = Math.max(70, Math.min(170, Math.round((width * height) / 8500)));
+      const count = Math.max(480, Math.min(1100, Math.round((width * height) / 1100)));
       stars = Array.from({ length: count }, (_, index) => ({
-        x: random(), y: random(), radius: 0.35 + random() * 1.35,
-        depth: 0.2 + random() * 0.8, phase: random() * Math.PI * 2, blue: index % 5 === 0
+        radius: 0.5 + Math.pow(random(), 0.7) * 12.5,
+        angle: random() * Math.PI * 2,
+        arm: index % 2,
+        scattered: random() < 0.18,
+        spread: (random() - 0.5) * 0.9,
+        depth: 0.2 + random() * 0.8,
+        phase: random() * Math.PI * 2,
+        size: 0.45 + random() * 1.65,
+        tone: random()
       }));
     }
 
     function drawBackground() {
-      context.fillStyle = "#070910";
+      context.fillStyle = "#020208";
       context.fillRect(0, 0, width, height);
       const radius = Math.max(width, height) * 0.82;
-      const blue = context.createRadialGradient(width * 0.18, height * 0.22, 0, width * 0.18, height * 0.22, radius);
-      blue.addColorStop(0, "rgba(54,82,154,0.24)");
-      blue.addColorStop(0.46, "rgba(34,52,105,0.12)");
-      blue.addColorStop(1, "rgba(7,9,16,0)");
-      context.fillStyle = blue;
-      context.fillRect(0, 0, width, height);
-      const violet = context.createRadialGradient(width * 0.84, height * 0.64, 0, width * 0.84, height * 0.64, radius * 0.76);
-      violet.addColorStop(0, "rgba(93,62,135,0.17)");
-      violet.addColorStop(0.55, "rgba(48,38,89,0.08)");
-      violet.addColorStop(1, "rgba(7,9,16,0)");
+      const violet = context.createRadialGradient(width * 0.5, height * 0.52, 0, width * 0.5, height * 0.52, radius);
+      violet.addColorStop(0, "rgba(88,54,173,0.22)");
+      violet.addColorStop(0.52, "rgba(41,22,90,0.11)");
+      violet.addColorStop(1, "rgba(2,2,8,0)");
       context.fillStyle = violet;
       context.fillRect(0, 0, width, height);
-    }
-
-    function drawMeteor(time) {
-      if (time < nextMeteorAt) return;
-      if (!meteor) meteor = { start: nextMeteorAt, x: 0.68 + random() * 0.24, y: 0.06 + random() * 0.2, dx: -0.25 - random() * 0.14, dy: 0.2 + random() * 0.12 };
-      const progress = (time - meteor.start) / 1.15;
-      if (progress >= 1) {
-        meteor = null;
-        nextMeteorAt = time + 5 + random() * 5;
-        return;
-      }
-      const x = (meteor.x + meteor.dx * progress) * width;
-      const y = (meteor.y + meteor.dy * progress) * height;
-      const angle = Math.atan2(meteor.dy * height, meteor.dx * width);
-      const length = 120 + progress * 110;
-      const tailX = x - Math.cos(angle) * length;
-      const tailY = y - Math.sin(angle) * length;
-      const alpha = Math.sin(progress * Math.PI) * 0.8;
-      const trail = context.createLinearGradient(tailX, tailY, x, y);
-      trail.addColorStop(0, "rgba(170,204,255,0)");
-      trail.addColorStop(0.72, `rgba(194,220,255,${alpha * 0.55})`);
-      trail.addColorStop(1, `rgba(255,255,255,${alpha})`);
-      context.strokeStyle = trail;
-      context.lineWidth = 1.6;
-      context.lineCap = "round";
-      context.beginPath();
-      context.moveTo(tailX, tailY);
-      context.lineTo(x, y);
-      context.stroke();
+      const blue = context.createRadialGradient(width * 0.18, height * 0.18, 0, width * 0.18, height * 0.18, radius * 0.72);
+      blue.addColorStop(0, "rgba(52,38,120,0.16)");
+      blue.addColorStop(1, "rgba(2,2,8,0)");
+      context.fillStyle = blue;
+      context.fillRect(0, 0, width, height);
     }
 
     function draw(time) {
       if (!width || !height) return;
       context.clearRect(0, 0, width, height);
       drawBackground();
+      const scale = Math.min(width, height) / 15;
+      const cycle = 0.5 + 0.5 * Math.sin(time * 0.65);
+      const spread = 0.68 + cycle * 0.60;
       stars.forEach((star) => {
-        const drift = (star.x + time * 0.0012 * star.depth) % 1;
-        const x = drift * width + pointerX * star.depth;
-        const y = (star.y + Math.sin(time * 0.08 + star.phase) * 0.004) * height + pointerY * star.depth;
-        const shimmer = 0.22 + (Math.sin(time * (0.65 + star.depth * 0.65) + star.phase) * 0.5 + 0.5) * 0.68;
-        context.fillStyle = star.blue ? `rgba(167,205,255,${shimmer})` : `rgba(244,247,255,${shimmer})`;
+        const speed = 0.22 / Math.max(star.radius / 5, 0.35);
+        const armAngle = star.arm * Math.PI + Math.log(star.radius) * 1.7 + Math.PI / 4;
+        const angle = (star.scattered ? star.angle : armAngle + star.spread) + time * speed;
+        const x = width / 2 + Math.cos(angle) * star.radius * spread * scale + pointerX * star.depth;
+        const y = height / 2 + Math.sin(angle) * star.radius * spread * scale * 0.42 + pointerY * star.depth;
+        const twinkle = 0.55 + (Math.sin(time * 0.65 + star.phase) * 0.5 + 0.5) * 0.45;
+        const rim = 1 - Math.min(0.78, star.radius / 18);
+        const alpha = twinkle * rim * (1.25 - cycle * 0.35);
+        if (star.tone > 0.72) context.fillStyle = `rgba(207,184,255,${alpha})`;
+        else if (star.tone > 0.4) context.fillStyle = `rgba(151,113,250,${alpha})`;
+        else context.fillStyle = `rgba(98,69,190,${alpha})`;
         context.beginPath();
-        context.arc(x, y, star.radius * (0.75 + star.depth * 0.45), 0, Math.PI * 2);
+        context.arc(x, y, star.size * (0.7 + star.depth * 0.45), 0, Math.PI * 2);
         context.fill();
       });
-      drawMeteor(time);
     }
 
     buildStars();
     canvas.dataset.renderer = "canvas";
-    return { draw: draw, rebuild: buildStars, setTransform: (value) => context.setTransform(value, 0, 0, value, 0, 0) };
+    return { draw, rebuild: buildStars, setTransform: (value) => context.setTransform(value, 0, 0, value, 0, 0) };
   }
 
   function selectRenderer() {
@@ -454,8 +426,8 @@
     if (!bounds.width || !bounds.height) return;
     const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
     const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
-    targetX = (x - 0.5) * 12;
-    targetY = (y - 0.5) * 8;
+    targetX = (x - 0.5) * 10;
+    targetY = (y - 0.5) * 6;
   }
 
   canvas.addEventListener?.("webglcontextlost", (event) => {

@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 import re
 
+SHARED_FILES = (
+    "transitions.css",
+)
 PAGE_FILES = (
     "download/index.html",
     "download/styles.css",
@@ -93,7 +96,7 @@ DOCS_PAGES = tuple(DOCS_ROUTES)
 
 ATLAS = json.loads((Path(__file__).resolve().parents[1] / "content/docs/atlas.json").read_text(encoding="utf-8"))
 ATLAS_FILES = tuple(f"docs/atlas/{entry['product']}-{entry['name']}.svg" for entry in ATLAS["diagrams"])
-DOCS_FILES = DOCS_PAGES + ("docs/styles.css", "docs/generated.css", "docs/navigation.js") + ATLAS_FILES
+DOCS_FILES = DOCS_PAGES + ("docs/styles.css", "docs/harness-demo.css", "docs/generated.css", "docs/navigation.js", "docs/search.js", "docs/search-index.json") + ATLAS_FILES
 DOCS_REFERENCE_URLS = frozenset((
     "https://developers.openai.com/blog/codex-as-a-platform",
     "https://code.claude.com/docs/en/agent-sdk/overview",
@@ -128,7 +131,7 @@ LEGAL_FILES = (
     "privacy/index.html",
     "legal/styles.css",
 )
-SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES + LEGAL_FILES
+SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES + LEGAL_FILES + SHARED_FILES
 
 REPOSITORY_URL = "https://github.com/aster-ai-lab/aster"
 PAGES_URL = "https://aster-ai-lab.github.io/aster/"

@@ -31,21 +31,14 @@ export function PeleAtlasDiagram({ name, label, description }) {
   const { markup } = renderAtlas(source, definition, `${chapter.project.id}/${chapter.version.id}/${name}`, styles);
   const depth = chapter.route.split('/').filter(Boolean).length;
   const docsRoot = '../'.repeat(depth) || './';
-  return h('figure', { className: 'diagram pele-diagram atlas-figure reading-lab', 'data-atlas': name },
+  return h('figure', { className: 'diagram pele-diagram atlas-figure', 'data-diagram': name },
     h('figcaption', null, h('span', { className: 'diagram-kicker' }, '架构图'), h('span', { className: 'figure-label' }, label || definition.title), description || definition.description),
-    h('div', { className: 'atlas-controls', hidden: true },
-      h('div', { className: 'walk-arrows' }, h('button', { type: 'button', 'data-atlas-action': 'previous', 'aria-label': '上一步' }, '←'), h('button', { type: 'button', 'data-atlas-action': 'next', 'aria-label': '下一步' }, '→')),
-      h('span', { className: 'atlas-position', 'data-atlas-position': true }, '完整图示'),
-      h('button', { type: 'button', 'data-atlas-action': 'play', 'aria-pressed': false }, '播放讲解'),
-      h('button', { type: 'button', 'data-atlas-action': 'all' }, '查看全图'),
-      h('button', { type: 'button', 'data-lab-expand': true }, '放大 ↗')),
     h('div', { className: 'diagram-hint', 'aria-hidden': true }, '左右滑动查看完整图示 ↔'),
     h('div', { className: 'diagram-scroll', tabIndex: 0, role: 'region', 'aria-label': `${definition.title}，可横向滚动`, dangerouslySetInnerHTML: { __html: markup } }),
-    h('ol', { className: 'atlas-steps' }, ...definition.steps.map((step, index) => h('li', { key: index, 'data-atlas-focus': (step.focus ?? []).join(' ') },
-      h('button', { type: 'button', disabled: true, className: 'atlas-step', 'data-atlas-step': index }, h('span', { className: 'step-number' }, String(index + 1).padStart(2, '0')), h('span', { className: 'lab-step-label' }, step.title)),
+    h('ol', { className: 'atlas-steps' }, ...definition.steps.map((step, index) => h('li', { key: index },
+      h('div', { className: 'atlas-step' }, h('span', { className: 'step-number' }, String(index + 1).padStart(2, '0')), h('span', { className: 'lab-step-label' }, step.title)),
       h('p', null, step.body), step.source && h(sources.SourceRef, step.source)))),
-    h('p', { className: 'atlas-status sr-only', role: 'status', 'aria-live': 'polite' }),
-    h('p', { className: 'atlas-credit' }, h('span', null, '选择说明可聚焦对应节点'), h('a', { href: `${docsRoot}atlas/${chapter.project.id}-${name}.svg`, download: true }, '下载 SVG ↗')));
+    h('p', { className: 'atlas-credit' }, h('a', { href: `${docsRoot}atlas/${chapter.project.id}-${name}.svg`, download: true }, '下载 SVG ↗')));
 }
 
 export async function prepareWalks(directory, sources, styles) {
