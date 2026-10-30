@@ -23,7 +23,7 @@ apps/web/
 
 ## 首页与下载页
 
-首页使用 `content/home.html`、`public/home.css`、`public/home.js` 和 `public/cosmic.js`。首屏保留「Aster，让想法落地」的原位逐字输入，下载区保留昨天优化的三维透视星域、星系、指针视差、Canvas 2D 回退和减少动态模式。
+首页使用 `content/home.html`、`public/home.css`、`public/home.js` 和 `public/cosmic.js`。首屏保留「Aster，让想法落地」的原位逐字输入，下载区保留紫色双旋臂星系、分层穿行星点、循环聚散、半透明玻璃卡片、指针视差、Canvas 2D 回退和减少动态模式。
 
 下载页使用 `content/download.html` 与 `public/download/` 中的静态资源。四张截图来自隔离演示数据；网页本身不提供桌面应用能力。首页和下载页只通过相对路径引用公开资源，兼容 GitHub Pages 的 `/aster/` 项目路径。
 
