@@ -245,11 +245,11 @@ pub(crate) fn plan_decision_definition(plan: &InferenceRoutingPlan) -> DecisionD
             levels: vec![
                 crate::inference::decision::DecisionLevel {
                     id: "simple".into(),
-                    criterion: "one direct step answers it".into(),
+                    criterion: "one direct response, lookup, translation, or explanation completes the request without planning or multi-step analysis".into(),
                 },
                 crate::inference::decision::DecisionLevel {
                     id: "complex".into(),
-                    criterion: "multi-step reasoning is required".into(),
+                    criterion: "multi-step reasoning, comparison, design, debugging, proof, or implementation is required".into(),
                 },
             ],
         },

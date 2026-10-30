@@ -76,6 +76,8 @@ impl CompetenceStore {
 
 pub(crate) struct DecisionPlane {
     service: Option<Arc<dyn DecisionService>>,
+    #[cfg(feature = "neural")]
+    apofasi: Option<Arc<super::ApofasiDecisionService>>,
     cache: Mutex<TurnDecisionCache>,
     flights: super::decision_flights::DecisionFlights,
     competence: CompetenceStore,
@@ -96,11 +98,57 @@ impl DecisionPlane {
     ) -> Self {
         Self {
             service,
+            #[cfg(feature = "neural")]
+            apofasi: None,
             cache: Mutex::new(TurnDecisionCache::new()),
             flights: Default::default(),
             competence: CompetenceStore::default(),
             clock,
         }
+    }
+
+    #[cfg(feature = "neural")]
+    pub(crate) fn from_environment(required: bool) -> Result<Self, super::DecisionError> {
+        let checkpoint = std::env::var_os("A3S_APOFASI_CHECKPOINT");
+        if required && checkpoint.is_none() {
+            return Err(super::DecisionError::Invalid(
+                "apofasi routing requires A3S_APOFASI_CHECKPOINT".into(),
+            ));
+        }
+        let mut plane = Self::dormant();
+        if let Some(checkpoint) = checkpoint {
+            let concurrency = std::env::var("A3S_APOFASI_DECISION_CONCURRENCY")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(2);
+            plane.apofasi = Some(Arc::new(super::ApofasiDecisionService::load(
+                checkpoint,
+                concurrency,
+            )?));
+        }
+        Ok(plane)
+    }
+
+    #[cfg(not(feature = "neural"))]
+    pub(crate) fn from_environment(required: bool) -> Result<Self, super::DecisionError> {
+        if required {
+            return Err(super::DecisionError::Invalid(
+                "apofasi routing requires a gateway built with the neural feature".into(),
+            ));
+        }
+        Ok(Self::dormant())
+    }
+
+    #[cfg(feature = "neural")]
+    pub(crate) fn apofasi(&self) -> Option<Arc<dyn DecisionService>> {
+        self.apofasi
+            .as_ref()
+            .map(|service| service.clone() as Arc<dyn DecisionService>)
+    }
+
+    #[cfg(not(feature = "neural"))]
+    pub(crate) fn apofasi(&self) -> Option<Arc<dyn DecisionService>> {
+        None
     }
 
     fn unavailable(
