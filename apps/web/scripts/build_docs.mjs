@@ -12,7 +12,6 @@ import aclGrammar from './acl.tmLanguage.json' with { type: 'json' };
 import { buildNavigation } from './build_navigation.mjs';
 import { DiagramScope, PeleDiagram, diagramThemeCss } from './docs_diagrams.mjs';
 import { createSourceReferences } from './docs_sources.mjs';
-import { buildDownloads } from './build_releases.mjs';
 import { PeleAtlasDiagram, SourceWalk, prepareWalks, buildAtlasAssets } from './docs_atlas.mjs';
 import { createSearchEntry, serializeSearchIndex } from './docs_search.mjs';
 import * as components from './docs_components.mjs';
@@ -262,7 +261,6 @@ export async function buildDocs({ check = false, outputRoot = path.join(webRoot,
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const args = process.argv.slice(2);
   if (args.some((arg) => arg !== '--check')) throw new Error('Usage: node scripts/build_docs.mjs [--check]');
-  await buildDownloads({ check: args.includes('--check') });
   await buildNavigation({ check: args.includes('--check') });
   await buildDocs({ check: args.includes('--check') });
   console.log(`${args.includes('--check') ? 'Checked' : 'Built'} ${pages.filter((page) => !page.alias).length} MDX documents (${pages.length} routes) and generated CSS.`);

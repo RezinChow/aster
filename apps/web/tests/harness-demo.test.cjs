@@ -4,7 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 const root = path.resolve(__dirname, '../../..');
 const { JSDOM } = require(process.env.JS_DOM_MODULE || path.join(root, 'packages/ui/node_modules/jsdom'));
-const script = fs.readFileSync(path.join(root, 'apps/web/public/docs/navigation.js'), 'utf8');
+const script = fs.readFileSync(path.join(root, 'apps/web/dist/docs/navigation.js'), 'utf8');
 
 function boot(t, page = 'design/rsi', reduce = false, focus = false, measure = false) {
   const html = fs.readFileSync(path.join(root, `apps/web/dist/docs/code/9.1.6/${page}/index.html`), 'utf8');

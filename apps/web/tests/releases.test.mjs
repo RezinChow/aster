@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import test from 'node:test';
-import { selectDownloads, buildDownloads, repository } from '../scripts/build_releases.mjs';
+import { selectDownloads, renderDownloadDocument, repository } from '../scripts/build_releases.mjs';
 
 function release(tag, names, extra = {}) {
   return { tag_name: tag, draft: false, prerelease: false, published_at: '2026-10-28T00:00:00Z', assets: names.map((name) => ({ name, state: 'uploaded', size: 123, browser_download_url: `${repository}/releases/download/${tag}/${name}` })), ...extra };
@@ -44,24 +44,19 @@ test('missing or malformed installation assets refuse rather than selecting anot
   assert.throws(() => selectDownloads(data), /Invalid published asset/);
 });
 
-test('real template generation keeps versions, formats and direct URLs aligned and detects stale output', async (t) => {
+test('real template rendering keeps versions, formats and direct URLs aligned', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aster-download-build-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(path.join(root, 'content'));
-  await mkdir(path.join(root, 'public/download'), { recursive: true });
   const downloads = selectDownloads([...base(), release('desktop-stable', ['Aster-darwin-aarch64-v0.11.0.zip'])]);
   await writeFile(path.join(root, 'content/releases.json'), JSON.stringify({ schema: 'aster.web.downloads.v1', downloads }));
   for (const name of ['home.html', 'download.html']) await writeFile(path.join(root, 'content', name), '<!doctype html><a href="{{download.desktop.macos.url}}">v{{download.desktop.macos.version}} {{download.desktop.macos.format}}</a>');
-  await buildDownloads({ root });
-  const html = await readFile(path.join(root, 'public/index.html'), 'utf8');
+  const html = await renderDownloadDocument('home.html', { root });
   assert.ok(html.includes(`${repository}/releases/download/desktop-stable/Aster-darwin-aarch64-v0.11.0.zip`));
   assert.ok(html.includes('v0.11.0 ZIP'));
-  await buildDownloads({ root, check: true });
-  await writeFile(path.join(root, 'public/index.html'), 'old link');
-  await assert.rejects(buildDownloads({ root, check: true }), /Stale download links/);
   downloads[3].version = '0.10.0';
   await writeFile(path.join(root, 'content/releases.json'), JSON.stringify({ schema: 'aster.web.downloads.v1', downloads }));
-  await assert.rejects(buildDownloads({ root }), /missing matching platform archives/);
+  await assert.rejects(renderDownloadDocument('home.html', { root }), /missing matching platform archives/);
 });
 
 test('published page snapshots expose exactly the six selected stable URLs without browser API requests', async () => {

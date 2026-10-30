@@ -2,6 +2,7 @@ import { cp, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDocs } from './build_docs.mjs';
+import { buildNavigation } from './build_navigation.mjs';
 
 const webRoot = fileURLToPath(new URL('../', import.meta.url));
 const cacheRoot = path.join(webRoot, 'node_modules/.cache/aster-docs');
@@ -16,12 +17,13 @@ const staticFiles = [
   'download/fonts/ubuntu-latin-400-normal.woff2', 'download/fonts/ubuntu-latin-500-normal.woff2', 'download/fonts/ubuntu-latin-700-normal.woff2', 'download/fonts/Ubuntu-LICENSE.txt',
   'tenant/aster/logo.svg', 'tenant/aster/mark-light.png', 'tenant/aster/favicon.png',
   'home.css', 'home.js', 'cosmic.js', 'transitions.css', 'legal/styles.css',
-  'docs/styles.css', 'docs/harness-demo.css', 'docs/navigation.js', 'docs/search.js',
+  'docs/styles.css', 'docs/harness-demo.css', 'docs/search.js',
 ];
 
+if (!check) await rm(publicRoot, { recursive: true, force: true });
+await buildNavigation({ check });
 await buildDocs({ check, outputRoot: cacheRoot });
 if (!check) {
-  await rm(publicRoot, { recursive: true, force: true });
   for (const name of staticFiles) {
     const target = path.join(publicRoot, name);
     await mkdir(path.dirname(target), { recursive: true });

@@ -9,54 +9,15 @@ on:
   push:
     branches: [main]
     paths:
-      - apps/web/public/download/**
-      - apps/web/public/tenant/aster/logo.svg
-      - apps/web/public/tenant/aster/mark-light.png
-      - apps/web/public/tenant/aster/favicon.png
-      - apps/web/public/index.html
-      - apps/web/public/home.css
-      - apps/web/public/home.js
-      - apps/web/public/cosmic.js
-      - apps/web/public/docs/**
-      - apps/web/public/terms/**
-      - apps/web/public/privacy/**
-      - apps/web/public/legal/**
-      - apps/web/content/**
-      - apps/web/vendor/**
+      - apps/web/**
       - assets/readme/**
       - README.md
-      - apps/web/package.json
-      - apps/web/package-lock.json
-      - apps/web/astro.config.mjs
-      - apps/web/src/**
-      - apps/web/scripts/**
-      - apps/web/tests/**
-      - apps/web/README.md
       - .github/workflows/aster-pages.yml
   pull_request:
     paths:
-      - apps/web/public/download/**
-      - apps/web/public/tenant/aster/logo.svg
-      - apps/web/public/tenant/aster/mark-light.png
-      - apps/web/public/tenant/aster/favicon.png
-      - apps/web/public/index.html
-      - apps/web/public/home.css
-      - apps/web/public/home.js
-      - apps/web/public/cosmic.js
-      - apps/web/public/docs/**
-      - apps/web/public/terms/**
-      - apps/web/public/privacy/**
-      - apps/web/public/legal/**
-      - apps/web/content/**
-      - apps/web/vendor/**
+      - apps/web/**
       - assets/readme/**
       - README.md
-      - apps/web/package.json
-      - apps/web/package-lock.json
-      - apps/web/astro.config.mjs
-      - apps/web/src/**
-      - apps/web/scripts/**
-      - apps/web/tests/**
       - .github/workflows/aster-pages.yml
   workflow_dispatch:
 
@@ -87,23 +48,11 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          node apps/web/scripts/build_releases.mjs --refresh
-          npm --prefix apps/web run build
-      - name: Check generated MDX documents
-        run: npm --prefix apps/web run check
-      - name: Test and validate the public site
-        run: |
-          python3 -m unittest discover -s apps/web/tests -p 'test_*.py' -v
-          python3 apps/web/scripts/check_site.py
-          node --check apps/web/public/download/app.js
-          node --check apps/web/public/download/canvas.js
-          node --check apps/web/public/home.js
-          node --check apps/web/public/cosmic.js
+        run: node apps/web/scripts/build_releases.mjs --refresh
       - name: Install isolated public DOM test dependency
         run: npm install --prefix "$RUNNER_TEMP/download-test-deps" --ignore-scripts --no-save --package-lock=false jsdom@26.1.0
-      - name: Test public site interactions
-        run: JS_DOM_MODULE="$RUNNER_TEMP/download-test-deps/node_modules/jsdom" node --test apps/web/tests/download.test.cjs apps/web/tests/canvas.test.cjs apps/web/tests/cosmic.test.cjs apps/web/tests/home.test.cjs apps/web/tests/docs.test.mjs apps/web/tests/atlas.test.mjs apps/web/tests/releases.test.mjs
+      - name: Test and validate the public site
+        run: JS_DOM_MODULE="$RUNNER_TEMP/download-test-deps/node_modules/jsdom" npm --prefix apps/web test
       - name: Stage only the public deployment files
         run: |
           python3 apps/web/scripts/stage_site.py _aster_site
