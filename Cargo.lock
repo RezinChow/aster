@@ -307,6 +307,7 @@ dependencies = [
  "a3s-code-core",
  "a3s-code-mermaid",
  "a3s-embedding",
+ "a3s-form-core",
  "a3s-office",
  "a3s-okf",
  "a3s-use-reconcile",

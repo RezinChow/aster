@@ -13,6 +13,7 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use tokio::process::Command;
 
+pub(crate) mod output_streams;
 #[cfg(windows)]
 pub(crate) mod windows;
 #[cfg(any(windows, test))]
@@ -791,6 +792,7 @@ impl Tool for BashTool {
                 };
 
                 // Combine stdout and stderr the same way the local path does.
+                let streams = output_streams::capture(&result.stdout, &result.stderr);
                 let mut output = result.stdout;
                 if !result.stderr.is_empty() {
                     output.push_str(&result.stderr);
@@ -816,6 +818,7 @@ impl Tool for BashTool {
                             "timeout_ms": timeout_ms,
                             "sandboxed": true,
                             "output": capture_metadata,
+                            "shell_output_streams": streams,
                         }),
                         &span.finish(ctx).await,
                     ));
@@ -830,6 +833,7 @@ impl Tool for BashTool {
                     "exit_code": result.exit_code,
                     "sandboxed": true,
                     "output": capture_metadata,
+                    "shell_output_streams": streams,
                 });
                 if let Some(grant) = grant_metadata {
                     base_metadata["network_grant"] = grant;

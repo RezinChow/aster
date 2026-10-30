@@ -5437,6 +5437,9 @@ fn session_info_fields(
         show_resolved_model,
     );
     push("Model", model_display.to_string(), true);
+    if let Some(mode) = info.permission_posture.as_deref() {
+        push("Mode", mode.to_string(), true);
+    }
     if info.data.show_model_fingerprint
         && let Some(fp) = info.data.model_fingerprint.as_deref()
     {

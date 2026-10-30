@@ -379,6 +379,12 @@ impl A3sCodeAgent {
                     .await
                 {
                     let _ = a3s_code_core::ask_user::answer(&question_id, &text);
+                } else {
+                    // A dismissed question has no answer to wake the core's
+                    // question wait. Cancel its owned turn instead of parking it.
+                    let _ =
+                        acp::Agent::cancel(self, acp::CancelNotification::new(session_id.clone()))
+                            .await;
                 }
             }
             AgentEvent::GoalAchieved {

@@ -18,6 +18,8 @@ pub(super) struct LiveTui {
     editable_config: Option<PathBuf>,
     fixture_env: Vec<(String, String)>,
     binary: PathBuf,
+    companion: PathBuf,
+    acp_trace: Option<PathBuf>,
     pub editor: Option<String>,
     pub submit_keys: Vec<u8>,
     session: Option<String>,
@@ -111,6 +113,8 @@ impl LiveTui {
             home,
             config,
             binary,
+            companion,
+            acp_trace: None,
             editor: None,
             submit_keys: b"\r".to_vec(),
             session: None,
@@ -126,6 +130,9 @@ impl LiveTui {
             evidence: Vec::new(),
             finished: false,
         };
+        if std::env::var("A3S_TUI_LIVE_PROVIDER_DIRECT").as_deref() == Ok("1") {
+            value.set_env("NO_PROXY", "*");
+        }
         value.record("source-pair", &tui_id);
         value
     }
@@ -138,7 +145,27 @@ impl LiveTui {
         self.launch_inner(args, false);
     }
 
+    pub fn set_env(&mut self, name: &str, value: &str) {
+        self.fixture_env.push((name.into(), value.into()));
+    }
+
     fn launch_inner(&mut self, args: &[&str], explicit_normal: bool) {
+        let cwd = self.workspace.clone();
+        self.launch_inner_at(args, explicit_normal, &cwd, &cwd);
+    }
+
+    pub fn launch_relative(&mut self, relative: &Path) {
+        let process_cwd = self.workspace.parent().unwrap().to_path_buf();
+        self.launch_inner_at(&[], true, relative, &process_cwd);
+    }
+
+    fn launch_inner_at(
+        &mut self,
+        args: &[&str],
+        explicit_normal: bool,
+        cli_cwd: &Path,
+        process_cwd: &Path,
+    ) {
         assert!(self.child.is_none());
         let pair = native_pty_system()
             .openpty(PtySize {
@@ -149,12 +176,12 @@ impl LiveTui {
             })
             .unwrap();
         let mut command = CommandBuilder::new(&self.binary);
-        command.args(["--cwd", self.workspace.to_str().unwrap()]);
+        command.args(["--cwd", cli_cwd.to_str().unwrap()]);
         if explicit_normal && !args.contains(&"--plan") {
             command.arg("--no-plan");
         }
         command.args(args);
-        command.cwd(&self.workspace);
+        command.cwd(process_cwd);
         command.env_clear();
         // Carry only OS execution dependencies, never ambient provider/account state.
         for key in [
@@ -306,6 +333,26 @@ impl LiveTui {
         self.redact(&screen.rows(0, cols).collect::<Vec<_>>().join("\n"))
     }
 
+    pub fn palette(&mut self) -> std::collections::BTreeSet<String> {
+        self.screen();
+        let screen = self.parser.screen();
+        let (rows, cols) = screen.size();
+        let mut colors = std::collections::BTreeSet::new();
+        for row in 0..rows {
+            for col in 0..cols {
+                if let Some(cell) = screen.cell(row, col) {
+                    colors.insert(format!("{:?}/{:?}", cell.fgcolor(), cell.bgcolor()));
+                }
+            }
+        }
+        colors
+    }
+
+    pub fn background(&mut self) -> String {
+        self.screen();
+        format!("{:?}", self.parser.screen().cell(0, 0).unwrap().bgcolor())
+    }
+
     pub fn pump(&mut self, millis: u64) -> String {
         let deadline = Instant::now() + Duration::from_millis(millis);
         while Instant::now() < deadline {
@@ -316,11 +363,19 @@ impl LiveTui {
     }
 
     pub fn wait_for(&mut self, needle: &str, seconds: u64) -> String {
+        self.wait_for_inner(needle, seconds, true)
+    }
+
+    pub fn wait_for_unanswered(&mut self, needle: &str, seconds: u64) -> String {
+        self.wait_for_inner(needle, seconds, false)
+    }
+
+    fn wait_for_inner(&mut self, needle: &str, seconds: u64, answer_trust: bool) -> String {
         let deadline = Instant::now() + Duration::from_secs(seconds);
         let mut last = String::new();
         while Instant::now() < deadline {
             last = self.screen();
-            if last.contains("Do you trust the contents of this directory") {
+            if answer_trust && last.contains("Do you trust the contents of this directory") {
                 self.bytes(b"y");
                 self.pump(300);
                 continue;
@@ -388,7 +443,38 @@ impl LiveTui {
             .chars()
             .take(48)
             .collect();
-        self.wait_for(&prefix, 8);
+        if text.starts_with('/') {
+            // A previous refusal can contain the next command as a substring
+            // (/workflows followed by /workflow). Wait for the actual draft.
+            let deadline = Instant::now() + Duration::from_secs(8);
+            loop {
+                self.pump(80);
+                let screen = self.physical_screen();
+                let ready = screen.lines().any(|row| {
+                    let row = row.trim_start();
+                    let boxed = row
+                        .strip_prefix("│ > ")
+                        .or_else(|| row.strip_prefix("│ ❯ "))
+                        .is_some_and(|draft| {
+                            draft.trim_end().trim_end_matches('│').trim_end() == text
+                        });
+                    let minimal = row
+                        .strip_prefix("> ")
+                        .or_else(|| row.strip_prefix("❯ "))
+                        .is_some_and(|draft| draft.trim_end() == text);
+                    boxed || minimal
+                });
+                if ready {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "command did not reach the actual composer\n{screen}"
+                );
+            }
+        } else {
+            self.wait_for(&prefix, 8);
+        }
         self.bytes(&self.submit_keys.clone());
     }
 
@@ -556,6 +642,70 @@ impl LiveTui {
         out
     }
 
+    pub fn trace_acp(&mut self, proxy: &Path) {
+        let dir = self._root.path().join("acp-proxy");
+        std::fs::create_dir(&dir).unwrap();
+        let suffix = std::env::consts::EXE_SUFFIX;
+        let binary = dir.join(format!("aster{suffix}"));
+        let companion = dir.join(format!("a3s-code-acp{suffix}"));
+        std::fs::copy(&self.binary, &binary).unwrap();
+        std::fs::copy(proxy, &companion).unwrap();
+        let trace = self._root.path().join("acp-traffic.jsonl");
+        let target = self.companion.to_string_lossy().into_owned();
+        self.set_env("A3S_CODE_ACP_PROXY_TARGET", &target);
+        self.set_env("A3S_CODE_ACP_TRACE", trace.to_str().unwrap());
+        self.binary = binary;
+        self.acp_trace = Some(trace);
+    }
+
+    pub fn wait_acp_stop(&self, expected: &str) {
+        let trace = self.acp_trace.as_ref().expect("ACP trace is enabled");
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let raw = std::fs::read_to_string(trace).unwrap_or_default();
+            if raw
+                .lines()
+                .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+                .any(|entry| entry["message"]["result"]["stopReason"] == expected)
+            {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "missing actual ACP stop reason {expected}"
+            );
+            std::thread::sleep(Duration::from_millis(40));
+        }
+    }
+
+    pub fn acp_session_info(&self, id: &str, turn: u64) -> Value {
+        let trace = self.acp_trace.as_ref().expect("ACP trace is enabled");
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let raw = std::fs::read_to_string(trace).unwrap_or_default();
+            if let Some(info) = raw
+                .lines()
+                .rev()
+                .filter_map(|line| {
+                    let entry = serde_json::from_str::<Value>(line).ok()?;
+                    let info = entry["message"]["result"]["result"].clone();
+                    (info["sessionId"].as_str() == Some(id)
+                        && info["turnIndex"].as_u64() == Some(turn))
+                    .then_some(info)
+                })
+                .next()
+            {
+                return info;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "missing session info response for {id}, turn {turn}\n{}",
+                self.redact(&raw)
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    }
+
     pub fn assistant_text(&self, facts: &[Value]) -> String {
         facts
             .iter()
@@ -603,7 +753,11 @@ impl LiveTui {
             }
             let facts = self.facts();
             let delta = facts.get(before..).unwrap_or_default();
-            if delta.iter().any(|f| f["type"] == "turn.complete") {
+            if delta.iter().any(|f| f["type"] == "turn.complete")
+                && delta.iter().any(|f| {
+                    f["type"] == "user.message" && f["payload"]["text"].as_str() == Some(prompt)
+                })
+            {
                 let observed = delta.to_vec();
                 let submitted = observed
                     .iter()
@@ -666,20 +820,24 @@ impl LiveTui {
 
     pub fn quit(&mut self) {
         self.command("/quit");
-        let deadline = Instant::now() + Duration::from_secs(15);
+        self.wait_exit(15);
+        self.record("quit", "exit 0");
+    }
+
+    pub fn wait_exit(&mut self, seconds: u64) {
+        let deadline = Instant::now() + Duration::from_secs(seconds);
         loop {
             self.pump(60);
             if let Some(status) = self.child.as_mut().unwrap().try_wait().unwrap() {
-                assert!(status.success(), "quit status {status:?}");
+                assert!(status.success(), "exit status {status:?}");
                 break;
             }
-            assert!(Instant::now() < deadline, "/quit did not exit");
+            assert!(Instant::now() < deadline, "TUI did not exit");
         }
         self.child = None;
         self.master = None;
         self.writer = None;
         self.rx = None;
-        self.record("quit", "exit 0");
     }
 
     pub fn finish(&mut self) {
@@ -710,9 +868,9 @@ impl LiveTui {
                 "tool.prepared" => json!({"identity":p["prepared"]["identity"], "tool":p["prepared"]["tool_name"]}),
                 "tool.result" => {
                     let r = &p["receipt"];
-                    json!({"identity":r["identity"],"prepared_digest":r["prepared_digest"],"outcome":r["outcome"],"effects":r["effects"],"output":r["output"]})
+                    json!({"identity":r["identity"],"prepared_digest":r["prepared_digest"],"outcome":r["outcome"],"effects":r["effects"],"output":r["output"],"scheduler_output_matches_receipt":p["output"]==r["output"]})
                 }
-                "model.turn" => json!({"prompt_tokens":p["prompt_tokens"],"has_text":p["text"].as_str().is_some_and(|v| !v.is_empty()),"tool":p["call"]["name"]}),
+                "model.turn" => json!({"prompt_tokens":p["prompt_tokens"],"has_text":p["text"].as_str().is_some_and(|v| !v.is_empty()),"tool":p["call"]["name"],"call":{"id":p["call"]["id"],"name":p["call"]["name"],"args":p["call"]["args"]},"text":p["text"]}),
                 "turn.complete" | "a3s.goal.created" | "a3s.goal.paused" | "a3s.goal.resumed" | "a3s.goal.cancelled" | "compaction.done" => p.clone(),
                 _ => return None,
             };

@@ -176,6 +176,83 @@ fn kimi_external_editor_save_and_failures_preserve_draft_and_terminal() {
     }
 }
 
+#[test]
+#[ignore = "requires the paired source build and original kimi/k3.1-pro ACL"]
+fn kimi_external_editor_cancel_without_save_preserves_draft_and_terminal() {
+    let mut tui = LiveTui::new("editor-cancel");
+    let original = "Reply with EDITOR-CONTROL-OK. Do not call tools. ORIGINAL-DRAFT";
+    let script = tui.workspace.join(if cfg!(windows) {
+        "editor-cancel.ps1"
+    } else {
+        "editor-cancel.sh"
+    });
+    let marker = tui.workspace.join("editor-cancel-exited");
+    if cfg!(windows) {
+        std::fs::write(
+            &script,
+            format!(
+                "[IO.File]::WriteAllText('{}', 'EXITED'); exit 0",
+                marker.display().to_string().replace('\\', "/")
+            ),
+        )
+        .unwrap();
+        let shell = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+        tui.editor = Some(format!(
+            "\"{}\" -NoProfile -ExecutionPolicy Bypass -File \"{}\"",
+            shell.display().to_string().replace('\\', "/"),
+            script.display().to_string().replace('\\', "/")
+        ));
+    } else {
+        std::fs::write(
+            &script,
+            format!("printf EXITED > '{}'\nexit 0\n", marker.display()),
+        )
+        .unwrap();
+        tui.editor = Some(format!("/bin/sh '{}'", script.display()));
+    }
+    tui.launch_default(&["--minimal"]);
+    tui.wait_for("Aster", 45);
+    tui.session_id();
+    tui.dismiss();
+    paste_draft(&mut tui, original, "ORIGINAL-DRAFT");
+    let before = tui.facts().len();
+    key(&mut tui, b"\x07");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while std::fs::read(&marker)
+        .map(|bytes| bytes != b"EXITED")
+        .unwrap_or(true)
+    {
+        assert!(
+            Instant::now() < deadline,
+            "editor did not write its exit marker"
+        );
+        tui.pump(50);
+    }
+    tui.pump(300);
+    let screen = tui.wait_for("ORIGINAL-DRAFT", 8);
+    assert!(!screen.contains("SAVED-DRAFT"));
+    assert!(!screen.contains("External prompt editor failed"));
+    tui.record(
+        "editor-exit-no-save",
+        "the external editor exited successfully without changing the draft file",
+    );
+    assert_eq!(
+        tui.facts().len(),
+        before,
+        "cancelling sent work before explicit submission"
+    );
+    key(&mut tui, b"\r");
+    let facts = tui.settle_turn(before, original, None);
+    assert!(tui.assistant_text(&facts).contains("EDITOR-CONTROL-OK"));
+    tui.record(
+        "editor-cancel",
+        "normal editor exit without save preserves the exact original draft and restores terminal control",
+    );
+    tui.quit();
+    tui.finish();
+}
+
 fn shortcut_detail(case: &str, query: &str, body: &str, forbidden: &[&str]) {
     let mut tui = LiveTui::new(case);
     tui.launch_default(&[]);
@@ -246,4 +323,116 @@ fn kimi_sessions_help_uses_reachable_entry() {
         "Cancels the current turn",
         &["without cancelling", "merges composer text"],
     );
+}
+
+#[test]
+#[ignore = "requires the paired source build and original kimi/k3.1-pro ACL"]
+fn kimi_selection_replace_and_delete_preserve_unicode_draft() {
+    let mut tui = LiveTui::new("selection-edit-controls");
+    tui.launch_default(&[]);
+    tui.wait_for("Aster", 45);
+    tui.session_id();
+    tui.dismiss();
+    let expected = "Reply with SELECTION-EDIT-OK. Do not call tools. 数据 e\u{301} RIGHT";
+    paste_draft(&mut tui, &expected.replace("RIGHT", "WRONG"), "WRONG");
+    for _ in 0..5 {
+        key(&mut tui, b"\x1b[1;2D");
+    }
+    key(&mut tui, b"RIGHT");
+    wait_absent(&mut tui, "WRONG");
+    assert!(!tui
+        .facts()
+        .iter()
+        .any(|fact| fact["type"] == "user.message"));
+    tui.record(
+        "selection-replace",
+        "typing replaces exactly the keyboard-selected suffix without submitting",
+    );
+    for _ in 0..5 {
+        key(&mut tui, b"\x1b[1;2D");
+    }
+    key(&mut tui, b"\x7f");
+    wait_absent(&mut tui, "RIGHT");
+    paste_draft(&mut tui, "RIGHT", "RIGHT");
+    assert!(!tui
+        .facts()
+        .iter()
+        .any(|fact| fact["type"] == "user.message"));
+    tui.record(
+        "selection-delete",
+        "Backspace deletes only the selected suffix and preserves the Unicode draft",
+    );
+    let before = tui.facts().len();
+    key(&mut tui, b"\r");
+    let facts = tui.settle_turn(before, expected, None);
+    assert!(tui.assistant_text(&facts).contains("SELECTION-EDIT-OK"));
+    assert!(!facts.iter().any(|fact| fact["type"] == "tool.prepared"));
+    tui.record(
+        "selection-edit-controls",
+        "selection replacement and deletion preserve exact Unicode text in one model request",
+    );
+    tui.quit();
+    tui.finish();
+}
+
+#[test]
+#[ignore = "requires the paired source build and original kimi/k3.1-pro ACL"]
+fn kimi_multiline_undo_redo_clear_and_stash_restore_exact_draft() {
+    let mut tui = LiveTui::new("multiline-edit-controls");
+    tui.launch_default(&[]);
+    tui.wait_for("Aster", 45);
+    tui.session_id();
+    tui.dismiss();
+    let lines = [
+        "Do not call tools. Reply exactly MULTILINE-EDIT-OK.",
+        "第二行：中文 λ e\u{301}.",
+        "第三行：UNDO-STASH-CLEAR.",
+    ];
+    for (index, line) in lines.iter().enumerate() {
+        tui.bytes(line.as_bytes());
+        tui.wait_for(line, 8);
+        if index < lines.len() - 1 {
+            key(&mut tui, b"\x1b\r");
+        }
+    }
+    key(&mut tui, b"\x1a");
+    wait_absent(&mut tui, "UNDO-STASH-CLEAR.");
+    key(&mut tui, b"\x1bz");
+    tui.wait_for("UNDO-STASH-CLEAR.", 8);
+    tui.record(
+        "multiline-undo-redo",
+        "undo and redo restore the final line without submitting",
+    );
+    key(&mut tui, b"\x13");
+    wait_absent(&mut tui, "UNDO-STASH-CLEAR.");
+    key(&mut tui, b"\x13");
+    tui.wait_for("UNDO-STASH-CLEAR.", 8);
+    tui.record(
+        "multiline-stash-pop",
+        "stash and pop restore all three lines",
+    );
+    key(&mut tui, b"\x03");
+    wait_absent(&mut tui, "UNDO-STASH-CLEAR.");
+    key(&mut tui, b"\x1a");
+    tui.wait_for("UNDO-STASH-CLEAR.", 8);
+    tui.record(
+        "multiline-clear-undo",
+        "clear and undo restore the complete multiline draft",
+    );
+    assert!(!tui
+        .facts()
+        .iter()
+        .any(|fact| fact["type"] == "user.message"));
+    let prompt = lines.join("\n");
+    let before = tui.facts().len();
+    key(&mut tui, b"\r");
+    let facts = tui.settle_turn(before, &prompt, None);
+    assert!(tui.assistant_text(&facts).contains("MULTILINE-EDIT-OK"));
+    assert!(!facts.iter().any(|fact| fact["type"] == "tool.prepared"));
+    tui.record(
+        "multiline-edit-controls",
+        "multiline undo, redo, clear and stash preserve every Unicode byte in one model request",
+    );
+    tui.quit();
+    tui.finish();
 }
