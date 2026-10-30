@@ -45,6 +45,13 @@ receipts. `manifest.json` records every size/hash. The archive was reopened and 
 10 entries compared byte-for-byte with the collected inputs. Source hashes in the
 receipt bind the three changed Rust files to this qualification.
 
+After integrating main `19300db7df6fa799441fd455c5949b3f875176eb`, the three
+Rust source hashes still match the passing 22-case receipt. The Rust CI matrix now
+runs the actual Shell continuation suite on macOS and Linux, with the override
+removed only from that child command. `ci-contract.json` records the final
+workflow hash, source comparison and successful YAML parse. Remote results are
+pending; the ten-entry test archive remains unchanged.
+
 ## Explicitly not claimed
 
 - Continuation support for the ordinary ACP/Core headless or Studio path.
