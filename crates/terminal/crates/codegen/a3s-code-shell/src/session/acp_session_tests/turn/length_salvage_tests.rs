@@ -1,7 +1,6 @@
 //! Integration tests that run the real turn loop against a scripted Chat Completions backend whose responses end with `finish_reason: "length"`.
 //!
-//! There is deliberately no test of the default agent with the env gate ON: env mutation is process-global and racy in the parallel test binary.
-//! That case gains coverage when the RemoteSettings gate makes the budget injectable.
+//! Default and remote-kill cases use actor settings without mutating process-global environment.
 use super::support::*;
 use super::*;
 use a3s_code_test_support::sse::chat_completion_script_exact;
@@ -247,6 +246,73 @@ fn remote_settings_length_salvage_budget_serde_cells() {
             .expect("kill value");
     assert_eq!(set.length_salvage_budget, Some(0));
 }
+
+#[test]
+fn default_shell_continues_a_length_cut_without_rollout_settings() {
+    assert_eq!(a3s_code_config::env_bool("GROK_LENGTH_SALVAGE"), None);
+    block_on_session(|| {
+        current_thread_local(async {
+            let server = MockInferenceServer::start().await.expect("mock server");
+            server.enqueue_response("/v1/chat/completions", length_sse("one, two, three,"));
+            server.enqueue_response("/v1/chat/completions", stop_sse("four, five, six."));
+            let actor = salvage_test_actor(&server).await;
+            let outcome = run_prompt(&actor, "default-length-continue")
+                .await
+                .expect("the default shell must continue the cut answer");
+            assert_eq!(outcome.stop_reason, acp::StopReason::EndTurn);
+            assert_eq!(server.request_count_for("/v1/chat/completions"), 2);
+            let conversation = actor.chat_state_handle.get_conversation().await;
+            let text = conversation
+                .iter()
+                .map(|item| item.text_content())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let partial = text.find("one, two, three,").expect("partial answer");
+            let complete = text.find("four, five, six.").expect("continued answer");
+            assert!(partial < complete);
+            assert_eq!(text.matches(REMINDER_MARKER).count(), 1);
+            let requests = server.request_bodies();
+            assert_eq!(
+                requests
+                    .last()
+                    .expect("continuation request")
+                    .to_string()
+                    .matches(REMINDER_MARKER)
+                    .count(),
+                1,
+            );
+        });
+    });
+}
+
+#[test]
+fn default_shell_stops_after_two_length_continuations() {
+    assert_eq!(a3s_code_config::env_bool("GROK_LENGTH_SALVAGE"), None);
+    block_on_session(|| {
+        current_thread_local(async {
+            let server = MockInferenceServer::start().await.expect("mock server");
+            for text in ["one,", "two,", "three,"] {
+                server.enqueue_response("/v1/chat/completions", length_sse(text));
+            }
+            server.enqueue_response("/v1/chat/completions", stop_sse("must not be requested"));
+            let actor = salvage_test_actor(&server).await;
+            let outcome = run_prompt(&actor, "default-length-budget")
+                .await
+                .expect("budget exhaustion must settle as truncated");
+            assert_eq!(outcome.stop_reason, acp::StopReason::MaxTokens);
+            assert_eq!(server.request_count_for("/v1/chat/completions"), 3);
+            let conversation = actor.chat_state_handle.get_conversation().await;
+            let text = conversation
+                .iter()
+                .map(|item| item.text_content())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert_eq!(text.matches(REMINDER_MARKER).count(), 1);
+            assert!(!text.contains("must not be requested"));
+        });
+    });
+}
+
 /// With the kill switch on (remote budget 0), a Length response is the legacy non-retryable hard failure.
 /// This is the safety property that an explicit off still hard-fails even though salvage is on by default.
 #[test]

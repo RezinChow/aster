@@ -30,8 +30,6 @@ pub(super) fn resolve_length_salvage_budget(
     if env == Some(true) {
         return Some(DEFAULT_LENGTH_CONTINUE_BUDGET);
     }
-    // Standalone aster has no remote settings channel; without a default every
-    // max_tokens-truncated turn hard-fails, which kills long unattended runs.
     Some(remote.unwrap_or(DEFAULT_LENGTH_CONTINUE_BUDGET))
 }
 
@@ -239,7 +237,7 @@ mod tests {
         assert_eq!(
             resolve_length_salvage_budget(false, None, None),
             Some(DEFAULT_LENGTH_CONTINUE_BUDGET),
-            "standalone builds have no remote tier; salvage must default on so a truncated turn continues instead of hard-failing"
+            "Shell sessions without rollout settings use the built-in continuation budget"
         );
     }
 
