@@ -12,7 +12,7 @@ index 978f927ea4b7f5c05acf990c6cb808187fbc5fd3..b67df58acc8dd11236c2f5ef9269d144
  export declare const dataToCelldata: (data: CellMatrix | undefined) => CellWithRowAndCol[];
  export declare const celldataToData: (celldata: CellWithRowAndCol[], rowCount?: number, colCount?: number) => CellMatrix | null;
 diff --git a/dist/index.esm.js b/dist/index.esm.js
-index 5c9820b1a261305d500e69eeaf350821872beaf4..a72e00f1436eda565f8a04ce6736650a6e1c51a7 100644
+index 5c9820b1a261305d500e69eeaf350821872beaf4..cf421ae890ed0880c705882b8c4aa031713b4b3d 100644
 --- a/dist/index.esm.js
 +++ b/dist/index.esm.js
 @@ -131,6 +131,7 @@ function _unsupportedIterableToArray(r, a) {
@@ -73,6 +73,47 @@ index 5c9820b1a261305d500e69eeaf350821872beaf4..a72e00f1436eda565f8a04ce6736650a
    toolbar: {
      toolbar: "工具栏",
      undo: "撤销",
+@@ -19699,26 +19707,26 @@
+     pageInfoFull: "共${total}条，${totalPage}页，已显示全部数据",
+     sheetIsFocused: "已启用工作表焦点锁定。",
+     sheetNotFocused: "工作表焦点锁定已禁用。",
+-    sheetSrIntro: "要切换工作表焦点以辅助工具栏和其他非工作表导航，请使用 Shift、Control、F。",
++    sheetSrIntro: "要切换工作表焦点以辅助工具栏和其他非工作表导航，请使用 ⇧ + Ctrl + F。",
+     currentCellInput: "当前单元格输入",
+     newSheet: "新表",
+     sheetOptions: "图纸选项",
+     Dropdown: "下拉菜单",
+     zoomIn: "放大",
+     zoomOut: "缩小",
+-    toggleSheetFocusShortcut: "切换表格焦点锁定: Shift, Control, F。",
+-    selectRangeShortcut: "选择范围: Shift, 方向键。",
+-    autoFillDownShortcut: "从首个单元格向下自动填充: Control 或 Meta 键, D。",
+-    autoFillRightShortcut: "从首个单元格向右自动填充: Control 或 Meta 键, R。",
+-    boldTextShortcut: "加粗文本: Control 或 Meta 键, B。",
+-    copyShortcut: "复制: Control 或 Meta 键, C。",
+-    pasteShortcut: "粘贴: Control 或 Meta 键, V。",
+-    undoShortcut: "撤销: Control 或 Meta 键, Z。",
+-    redoShortcut: "重做: Control 或 Meta 键, Shift, Z。",
+-    deleteCellContentShortcut: "删除单元格内容: Delete 或 Backspace。",
+-    confirmCellEditShortcut: "确认编辑并向下移动: Enter。",
+-    moveRightShortcut: "向右移动: Tab。",
+-    moveLeftShortcut: "向左移动: Shift, Tab。",
++    toggleSheetFocusShortcut: "切换表格焦点锁定：⇧ + Ctrl + F。",
++    selectRangeShortcut: "选择范围：⇧ + 方向键。",
++    autoFillDownShortcut: "从首个单元格向下自动填充：Ctrl / ⌘ + D。",
++    autoFillRightShortcut: "从首个单元格向右自动填充：Ctrl / ⌘ + R。",
++    boldTextShortcut: "加粗文本：Ctrl / ⌘ + B。",
++    copyShortcut: "复制：Ctrl / ⌘ + C。",
++    pasteShortcut: "粘贴：Ctrl / ⌘ + V。",
++    undoShortcut: "撤销：Ctrl / ⌘ + Z。",
++    redoShortcut: "重做：Ctrl / ⌘ + ⇧ + Z。",
++    deleteCellContentShortcut: "删除单元格内容：删除键或退格键。",
++    confirmCellEditShortcut: "确认编辑并向下移动：回车键。",
++    moveRightShortcut: "向右移动：制表键。",
++    moveLeftShortcut: "向左移动：⇧ + 制表键。",
+     shortcuts: "键盘快捷键"
+   },
+   currencyDetail: [{
 @@ -52070,10 +52078,10 @@ var zh_tw = {
  var localeObj = {
    en: en,
@@ -1065,7 +1106,7 @@ index 5c9820b1a261305d500e69eeaf350821872beaf4..a72e00f1436eda565f8a04ce6736650a
 -export { CFSplitRange, Canvas, FormulaCache, MAX_ZOOM_RATIO, MIN_ZOOM_RATIO, addSheet, index as api, applyLocation, attrToCssName, autoSelectionFormula, calcSelectionInfo, cancelActiveImgItem, cancelFunctionrangeSelected, cancelNormalSelected, cancelPaintModel, cellFocus, cfSplitRange, changeSheet, chatatABC, checkCF, checkCellIsLocked, checkProtectionAllSelected, checkProtectionFormatCells, checkProtectionSelectLockedOrUnLockedCells, checkboxChange, clearFilter, clearMeasureTextCache, colHasMerged, colLocation, colLocationByIndex, colors, columnCharToIndex, commentBoxProps, compute, computeRowlenArr, confirmMessage, convertCssToStyleList, convertSpanToShareString, copy, createDropCellRange, createFilter, createFilterOptions, createFormulaRangeSelect, createRangeHightlight, dataRangeSelection, datenum_local, defaultContext, defaultFont, defaultSettings, defaultStyle, delFunctionGroup, deleteCellInSave, deleteComment, deleteRowCol, deleteSelectedCellText, deleteSheet, diff, drawArrow, drawLineInfo, dropCellCache, editComment, editSheetName, ensureSheetIndex, error, escapeHTMLTag, escapeScriptTag, execFunctionGroup, execfunction, expandRowsAndColumns, extractFormulaCellOps, filterPatch, fixColumnStyleOverflowInFreeze, fixPositionOnFrozenCells, fixRowStyleOverflowInFreeze, functionCopy, functionHTMLGenerate, functionStrChange, genarate, generateRandomId, generateRandomSheetName, getAllFunctionGroup, getArrowCanvasSize, getBorderInfoCompute, getBorderInfoComputeRange, getCellHyperlink, getCellRowColumn, getCellTextInfo, getCellTopRightPostion, getCellValue, getColMerge, getColorGradation, getCommentBoxByRC, getCommentBoxPosition, getComputeMap, getCurrentRules, getDataArr, getDataBySelectionNoCopy, getDropdownList, getFailureText, getFilterColumnColors, getFilterColumnValues, getFlattenedRange, getFlowdata, getFontSet, getFontStyleByCell, getFrozenHandleLeft, getFrozenHandleTop, getHintText, getHistoryRules, getInlineStringHTML, getInlineStringNoStyle, getMeasureText, getNowDateTime, getNullData, getOptionValue, getOrigincell, getQKBorder, getRange, getRangeArr, getRangeByTxt, getRangetxt, getRealCellValue, getRegExpStr, getRegStr, getRowMerge, getSearchIndexArr, getSelectRange, getSheetByIndex, getSheetIdByName, getSheetIndex, getStyleByCell, getTypeItemHide, getcellFormula, getcellrange, getdatabyselection, getrangeseleciton, goToLink, groupValuesRefresh, handleArrowKey, handleBold, handleBorder, handleCellAreaDoubleClick, handleCellAreaMouseDown, handleClearFormat, handleColFreezeHandleMouseDown, handleColSizeHandleMouseDown, handleColumnHeaderMouseDown, handleContextMenu, handleCopy, handleCurrencyFormat, handleFormatPainter, handleFormulaInput, handleFreeze, handleGlobalEnter, handleGlobalKeyDown, handleGlobalWheel, handleHorizontalAlign, handleItalic, handleKeydownForZoom, handleLink, handleMerge, handleNumberDecrease, handleNumberIncrease, handleOverlayMouseMove, handleOverlayMouseUp, handleOverlayTouchEnd, handleOverlayTouchMove, handleOverlayTouchStart, handlePaste, handlePasteByClick, handlePercentageFormat, handleRowFreezeHandleMouseDown, handleRowHeaderMouseDown, handleRowSizeHandleMouseDown, handleScreenShot, handleSort, handleStrikeThrough, handleSum, handleTextBackground, handleTextColor, handleTextSize, handleUnderline, handleVerticalAlign, handleWithCtrlOrMetaKey, hasChinaword, hasPartMC, hideCRCount, hideDropCellSelection, hideSelected, imageProps, indexToColumnChar, initFreeze, initSheetIndex, inlineStyleAffectAttribute, inlineStyleAffectCssName, insertImage, insertRowCol, insertUpdateFunctionGroup, inverseRowColOptions, isAllSelectedCellsInStatus, isAllowEdit, isFormula, isFunctionRange, isInlineStringCT, isInlineStringCell, isLinkValid, isRealNull, isRealNum, isShowHidenCR, isSupportBoundingBox, is_date, iscelldata, isdatatype, isdatatypemulti, isdatetime, israngeseleciton, jfrefreshgrid, labelFilterOptionState, locale, luckysheetUpdateCell, mergeBorder, mergeCells, mergeMoveMain, mousePosition, moveHighlightCell, moveHighlightRange, moveToEnd, newComment, normalizeSelection, normalizedAttr, normalizedCellAttr, onCellsMove, onCellsMoveEnd, onCellsMoveStart, onCommentBoxMove, onCommentBoxMoveEnd, onCommentBoxMoveStart, onCommentBoxResize, onCommentBoxResizeEnd, onCommentBoxResizeStart, onDropCellSelect, onDropCellSelectEnd, onFormulaRangeDragEnd, onImageMove, onImageMoveEnd, onImageMoveStart, onImageResize, onImageResizeEnd, onImageResizeStart, onRangeSelectionModalMove, onRangeSelectionModalMoveEnd, onRangeSelectionModalMoveStart, onSearchDialogMove, onSearchDialogMoveEnd, onSearchDialogMoveStart, opToPatch, orderbydata, orderbydatafiler, overShowComment, pasteHandlerOfPaintModel, patchToOp, rangeDrag, rangeDragColumn, rangeDragRow, rangeHightlightselected, rangeSetValue, rangeValueToHtml, removeActiveImage, removeEditingComment, removeHyperlink, replace, replaceAll, replaceHtml, rgbToHex, rowHasMerged, rowLocation, rowLocationByIndex, saveFilter, saveHyperlink, saveImage, scrollToFrozenRowCol, scrollToHighlightCell, searchAll, searchNext, selectAll, selectIsOverlap, selectTextContent, selectTextContentCross, selectTitlesMap, selectTitlesRange, selectionCache, selectionCopyShow, seletedHighlistByindex, setCaretPosition, setCellValue, setConditionRules, setDropcownValue, setEditingComment, setFormulaCellInfoMap, showComments, showDropCellSelection, showHideAllComments, showHideComment, showImgChooser, showLinkCard, showSelected, sortDataRange, sortSelection, storeSheetParamALL, toolbarItemClickHandler, toolbarItemSelectedFunc, update, updateCell, updateContextWithCanvas, updateContextWithSheetData, updateDropCell, updateFormat, updateFormatCell, updateInlineStringFormat, updateInlineStringFormatOutside, updateItem, updateMoreCell, updateSheet, validateCellData, validateIdCard, valueIsError, valueShowEs };
 +export { CFSplitRange, Canvas, FormulaCache, MAX_ZOOM_RATIO, MIN_ZOOM_RATIO, addSheet, index as api, applyLocation, attrToCssName, autoSelectionFormula, calcSelectionInfo, cancelActiveImgItem, cancelFunctionrangeSelected, cancelNormalSelected, cancelPaintModel, cellFocus, cfSplitRange, changeSheet, chatatABC, checkCF, checkCellIsLocked, checkProtectionAllSelected, checkProtectionFormatCells, checkProtectionSelectLockedOrUnLockedCells, checkboxChange, clearFilter, clearMeasureTextCache, colHasMerged, colLocation, colLocationByIndex, colors, columnCharToIndex, commentBoxProps, compute, computeRowlenArr, confirmMessage, convertCssToStyleList, convertSpanToShareString, copy, createDropCellRange, createFilter, createFilterOptions, createFormulaRangeSelect, createRangeHightlight, dataRangeSelection, datenum_local, defaultContext, defaultFont, defaultSettings, defaultStyle, delFunctionGroup, deleteCellInSave, deleteComment, deleteRowCol, deleteSelectedCellText, deleteSheet, diff, drawArrow, drawLineInfo, dropCellCache, editComment, editSheetName, ensureSheetIndex, error, escapeHTMLTag, escapeScriptTag, execFunctionGroup, execfunction, expandRowsAndColumns, extractFormulaCellOps, filterPatch, fixColumnStyleOverflowInFreeze, fixPositionOnFrozenCells, fixRowStyleOverflowInFreeze, functionCopy, functionHTMLGenerate, functionStrChange, genarate, generateRandomId, generateRandomSheetName, getAllFunctionGroup, getArrowCanvasSize, getBorderInfoCompute, getBorderInfoComputeRange, getCellHyperlink, getCellRowColumn, getCellTextInfo, getCellTopRightPostion, getCellValue, getColMerge, getColorGradation, getCommentBoxByRC, getCommentBoxPosition, getComputeMap, getCurrentRules, getDataArr, getDataBySelectionNoCopy, getDataVerificationItem, getDropdownList, getFailureText, getFilterColumnColors, getFilterColumnValues, getFlattenedRange, getFlowdata, getFontSet, getFontStyleByCell, getFrozenHandleLeft, getFrozenHandleTop, getHintText, getHistoryRules, getInlineStringHTML, getInlineStringNoStyle, getMeasureText, getNowDateTime, getNullData, getOptionValue, getOrigincell, getQKBorder, getRange, getRangeArr, getRangeByTxt, getRangetxt, getRealCellValue, getRegExpStr, getRegStr, getRowMerge, getSearchIndexArr, getSelectRange, getSheetByIndex, getSheetIdByName, getSheetIndex, getStyleByCell, getTypeItemHide, getcellFormula, getcellrange, getdatabyselection, getrangeseleciton, goToLink, groupValuesRefresh, handleArrowKey, handleBold, handleBorder, handleCellAreaDoubleClick, handleCellAreaMouseDown, handleClearFormat, handleColFreezeHandleMouseDown, handleColSizeHandleMouseDown, handleColumnHeaderMouseDown, handleContextMenu, handleCopy, handleCurrencyFormat, handleFormatPainter, handleFormulaInput, handleFreeze, handleGlobalEnter, handleGlobalKeyDown, handleGlobalWheel, handleHorizontalAlign, handleItalic, handleKeydownForZoom, handleLink, handleMerge, handleNumberDecrease, handleNumberIncrease, handleOverlayMouseMove, handleOverlayMouseUp, handleOverlayTouchEnd, handleOverlayTouchMove, handleOverlayTouchStart, handlePaste, handlePasteByClick, handlePercentageFormat, handleRowFreezeHandleMouseDown, handleRowHeaderMouseDown, handleRowSizeHandleMouseDown, handleScreenShot, handleSort, handleStrikeThrough, handleSum, handleTextBackground, handleTextColor, handleTextSize, handleUnderline, handleVerticalAlign, handleWithCtrlOrMetaKey, hasChinaword, hasPartMC, hideCRCount, hideDropCellSelection, hideSelected, imageProps, indexToColumnChar, initFreeze, initSheetIndex, inlineStyleAffectAttribute, inlineStyleAffectCssName, insertImage, insertRowCol, insertUpdateFunctionGroup, inverseRowColOptions, isAllSelectedCellsInStatus, isAllowEdit, isFormula, isFunctionRange, isInlineStringCT, isInlineStringCell, isLinkValid, isRealNull, isRealNum, isShowHidenCR, isSupportBoundingBox, is_date, iscelldata, isdatatype, isdatatypemulti, isdatetime, israngeseleciton, jfrefreshgrid, labelFilterOptionState, locale, luckysheetUpdateCell, mergeBorder, mergeCells, mergeMoveMain, mousePosition, moveHighlightCell, moveHighlightRange, moveToEnd, newComment, normalizeSelection, normalizedAttr, normalizedCellAttr, onCellsMove, onCellsMoveEnd, onCellsMoveStart, onCommentBoxMove, onCommentBoxMoveEnd, onCommentBoxMoveStart, onCommentBoxResize, onCommentBoxResizeEnd, onCommentBoxResizeStart, onDropCellSelect, onDropCellSelectEnd, onFormulaRangeDragEnd, onImageMove, onImageMoveEnd, onImageMoveStart, onImageResize, onImageResizeEnd, onImageResizeStart, onRangeSelectionModalMove, onRangeSelectionModalMoveEnd, onRangeSelectionModalMoveStart, onSearchDialogMove, onSearchDialogMoveEnd, onSearchDialogMoveStart, opToPatch, orderbydata, orderbydatafiler, overShowComment, pasteHandlerOfPaintModel, patchToOp, rangeDrag, rangeDragColumn, rangeDragRow, rangeHightlightselected, rangeSetValue, rangeValueToHtml, removeActiveImage, removeEditingComment, removeHyperlink, replace, replaceAll, replaceHtml, rgbToHex, rowHasMerged, rowLocation, rowLocationByIndex, saveFilter, saveHyperlink, saveImage, scrollToFrozenRowCol, scrollToHighlightCell, searchAll, searchNext, selectAll, selectIsOverlap, selectTextContent, selectTextContentCross, selectTitlesMap, selectTitlesRange, selectionCache, selectionCopyShow, seletedHighlistByindex, setCaretPosition, setCellValue, setConditionRules, setDropcownValue, setEditingComment, setFormulaCellInfoMap, showComments, showDropCellSelection, showHideAllComments, showHideComment, showImgChooser, showLinkCard, showSelected, sortDataRange, sortSelection, storeSheetParamALL, toolbarItemClickHandler, toolbarItemSelectedFunc, update, updateCell, updateContextWithCanvas, updateContextWithSheetData, updateDropCell, updateFormat, updateFormatCell, updateInlineStringFormat, updateInlineStringFormatOutside, updateItem, updateMoreCell, updateSheet, validateCellData, validateIdCard, valueIsError, valueShowEs };
 diff --git a/dist/index.js b/dist/index.js
-index 04113a18dee9feee28e9434ee3023626c800e7d3..da676e0a4d3deb4e361d5137563712bac86b3edd 100644
+index 04113a18dee9feee28e9434ee3023626c800e7d3..2137420e209922a792402f0c32aa0d0d2be101ea 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -141,6 +141,7 @@ function _unsupportedIterableToArray(r, a) {
@@ -1126,6 +1167,47 @@ index 04113a18dee9feee28e9434ee3023626c800e7d3..da676e0a4d3deb4e361d5137563712ba
    toolbar: {
      toolbar: "工具栏",
      undo: "撤销",
+@@ -19709,26 +19717,26 @@
+     pageInfoFull: "共${total}条，${totalPage}页，已显示全部数据",
+     sheetIsFocused: "已启用工作表焦点锁定。",
+     sheetNotFocused: "工作表焦点锁定已禁用。",
+-    sheetSrIntro: "要切换工作表焦点以辅助工具栏和其他非工作表导航，请使用 Shift、Control、F。",
++    sheetSrIntro: "要切换工作表焦点以辅助工具栏和其他非工作表导航，请使用 ⇧ + Ctrl + F。",
+     currentCellInput: "当前单元格输入",
+     newSheet: "新表",
+     sheetOptions: "图纸选项",
+     Dropdown: "下拉菜单",
+     zoomIn: "放大",
+     zoomOut: "缩小",
+-    toggleSheetFocusShortcut: "切换表格焦点锁定: Shift, Control, F。",
+-    selectRangeShortcut: "选择范围: Shift, 方向键。",
+-    autoFillDownShortcut: "从首个单元格向下自动填充: Control 或 Meta 键, D。",
+-    autoFillRightShortcut: "从首个单元格向右自动填充: Control 或 Meta 键, R。",
+-    boldTextShortcut: "加粗文本: Control 或 Meta 键, B。",
+-    copyShortcut: "复制: Control 或 Meta 键, C。",
+-    pasteShortcut: "粘贴: Control 或 Meta 键, V。",
+-    undoShortcut: "撤销: Control 或 Meta 键, Z。",
+-    redoShortcut: "重做: Control 或 Meta 键, Shift, Z。",
+-    deleteCellContentShortcut: "删除单元格内容: Delete 或 Backspace。",
+-    confirmCellEditShortcut: "确认编辑并向下移动: Enter。",
+-    moveRightShortcut: "向右移动: Tab。",
+-    moveLeftShortcut: "向左移动: Shift, Tab。",
++    toggleSheetFocusShortcut: "切换表格焦点锁定：⇧ + Ctrl + F。",
++    selectRangeShortcut: "选择范围：⇧ + 方向键。",
++    autoFillDownShortcut: "从首个单元格向下自动填充：Ctrl / ⌘ + D。",
++    autoFillRightShortcut: "从首个单元格向右自动填充：Ctrl / ⌘ + R。",
++    boldTextShortcut: "加粗文本：Ctrl / ⌘ + B。",
++    copyShortcut: "复制：Ctrl / ⌘ + C。",
++    pasteShortcut: "粘贴：Ctrl / ⌘ + V。",
++    undoShortcut: "撤销：Ctrl / ⌘ + Z。",
++    redoShortcut: "重做：Ctrl / ⌘ + ⇧ + Z。",
++    deleteCellContentShortcut: "删除单元格内容：删除键或退格键。",
++    confirmCellEditShortcut: "确认编辑并向下移动：回车键。",
++    moveRightShortcut: "向右移动：制表键。",
++    moveLeftShortcut: "向左移动：⇧ + 制表键。",
+     shortcuts: "键盘快捷键"
+   },
+   currencyDetail: [{
 @@ -52080,10 +52088,10 @@ var zh_tw = {
  var localeObj = {
    en: en,
