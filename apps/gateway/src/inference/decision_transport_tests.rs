@@ -35,7 +35,7 @@ fn chat(content: serde_json::Value) -> serde_json::Value {
 #[test]
 fn decision_protocol_is_closed_and_round_trips() {
     use crate::config::InferenceDecisionProtocol as Protocol;
-    for p in [Protocol::Decisions, Protocol::OpenaiChat] {
+    for p in [Protocol::Decisions, Protocol::OpenaiChat, Protocol::Apofasi] {
         assert_eq!(Protocol::parse(p.as_str()).unwrap(), p);
     }
     assert!(Protocol::parse("guessed").is_err());

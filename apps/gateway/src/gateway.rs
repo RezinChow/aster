@@ -255,6 +255,21 @@ async fn build_runtime(
                     "Could not initialize distributed inference runtime: {error}"
                 ))
             })?;
+    let apofasi_required = config.inference.as_ref().is_some_and(|policy| {
+        policy.routes.values().any(|route| {
+            route.models.values().any(|model| {
+                model.routing.as_ref().is_some_and(|plan| {
+                    plan.decision_protocol == crate::config::InferenceDecisionProtocol::Apofasi
+                })
+            })
+        })
+    });
+    let decision_plane = crate::inference::DecisionPlane::from_environment(apofasi_required)
+        .map_err(|error| {
+            GatewayError::Config(format!(
+                "Could not initialize Apofasi decision runtime: {error}"
+            ))
+        })?;
 
     let access_log = Arc::new(crate::observability::access_log::AccessLog::new());
     const ACCESS_LOG_QUEUE_CAPACITY: usize = 4096;
@@ -299,7 +314,7 @@ async fn build_runtime(
             metrics,
             shutdown_timeout: Duration::from_secs(config.shutdown_timeout_secs),
             hosted_function_activations: Arc::new(config.hosted_function_activations.clone()),
-            decision_plane: Arc::new(crate::inference::DecisionPlane::dormant()),
+            decision_plane: Arc::new(decision_plane),
             agent_wake: Arc::new(entrypoint::AgentWakePlane {
                 policies: config.agent_idle_policies.clone(),
                 demand: crate::agent_wake::AgentWakeDemandRegistry::new(),

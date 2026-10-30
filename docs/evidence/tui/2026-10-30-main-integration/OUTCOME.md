@@ -77,5 +77,11 @@ was reviewed: Gateway/Apofasi changes plus a Gateway dependency edge in the
 lockfile, with no Core/ACP source, test, or submodule-pin changes. This upstream
 history is retained by a normal merge before pushing; no force push is used.
 
+After that merge, the Core/ACP format checks, the actual Git regression
+(1 case), the ACP Codex catalog regressions (2 cases / 8 scenarios), and all
+6 dependency guard cases passed again. The incoming merge changed no Core/ACP
+source or regression files. The merge had no conflicts, and staged whitespace
+checks passed.
+
 No official binary release, installed stable replacement, native Linux/macOS
 runtime verification, or full-workspace test result is claimed.
