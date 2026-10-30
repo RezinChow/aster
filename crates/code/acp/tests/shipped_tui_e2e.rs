@@ -5,6 +5,11 @@
 //! `a3s-code-acp`. Palette and launch cases spawn `aster` on a PTY.
 //! Nothing here substitutes a scripted `LlmClient` or the pager's content mock.
 
+// The fixtures are POSIX shell scripts (`#!/bin/sh`, `/bin/sleep`, `/usr/bin/python3`)
+// and the cases set executable modes through `PermissionsExt`, so the file only
+// compiles and runs on Unix. Windows keeps the rest of the crate's tests.
+#![cfg(unix)]
+
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
