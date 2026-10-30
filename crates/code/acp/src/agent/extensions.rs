@@ -92,7 +92,7 @@ impl A3sCodeAgent {
         Ok(acp::ExtResponse::new(raw.into()))
     }
 
-    /// `x.ai/session/info` is the pager's `/session-info` and `/context` source.
+    /// `a3s/session/info` is the pager's `/session-info` and `/context` source.
     /// The pager decodes `ExtMethodResult<SessionInfoResponse>` and treats any
     /// other body, including JSON null, as an invalid response.
     pub(super) async fn handle_session_info(
@@ -185,7 +185,7 @@ impl A3sCodeAgent {
         }
     }
 
-    /// `x.ai/permission_posture` admits a named next-run posture.
+    /// `a3s/permission_posture` admits a named next-run posture.
     ///
     /// Optional `deny` rules are stored on that policy. This method does not
     /// execute a tool or write a caller-supplied path. A later prompt is what
@@ -267,7 +267,7 @@ impl A3sCodeAgent {
         Ok(acp::ExtResponse::new(raw.into()))
     }
 
-    /// `x.ai/session/delete` is the pager's `/delete` confirmation.
+    /// `a3s/session/delete` is the pager's `/delete` confirmation.
     ///
     /// The pager removes its live view only after this returns without an
     /// error. The session directory under the a3s home is what `--continue`

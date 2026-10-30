@@ -14,6 +14,7 @@ How to use, configure, and operate A3S Code.
 - [A3S Code 用户与开发者指南](USER_GUIDE_CN.md)
 - [A3S Code Advanced Developer Manual](ADVANCED_DEVELOPER_MANUAL.md)
 - [A3S Code 高级开发者手册](ADVANCED_DEVELOPER_MANUAL_CN.md)
+- [包命名外部迁移清单](PACKAGE_RENAME_MIGRATION.md)
 - [Durable Memory Integration](DURABLE_MEMORY.md)
 - [Durable engineering: work policy and bound goals](DURABLE_ENGINEERING.md)
 - [Workspace Retrieval Operations](WORKSPACE_RETRIEVAL_OPERATIONS.md)

@@ -1421,7 +1421,10 @@ mod tests {
             assert!(usable_cta(&a).is_none(), "scheme must be rejected: {bad}");
             assert!(promo_cta_target(&[a], &no_hidden()).is_none());
         }
-        for good in ["https://github.com/A3S-Lab/a3s/promo", "http://x.ai/promo"] {
+        for good in [
+            "https://github.com/A3S-Lab/a3s/promo",
+            "http://example.com/promo",
+        ] {
             let a = promo("p", "msg", Some(("Go", good)));
             assert!(usable_cta(&a).is_some(), "scheme must be allowed: {good}");
         }

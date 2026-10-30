@@ -16,7 +16,7 @@
 <p><code>web_fetch</code> 受重定向、响应大小、地址和内容类型限制。PDF 文本提取是 <code>web-fetch-pdf</code> 的特定能力，不等于 Office 的 PDF/OCR 支持。检索结果保留来源链接和日期；结果中的提示注入按外部数据处理。</p>
 <h2 id="代码智能和知识包">代码智能和知识包</h2>
 <p><code>code_symbols</code>、<code>code_navigation</code>、<code>code_diagnostics</code>、<code>code_format</code> 需要宿主提供权威语言服务。没有服务时，模型不能用同名提示补出这个能力。查询和修改都应绑定文档版本；版本已变化时刷新再操作。</p>
-<p><code>cognitive_package_binding()</code> 和 <code>current_cognitive_package_binding()</code> 返回宿主已绑定的认知包身份。它不是任意插件加载器。<code>use_runtime_task</code> 同样需要宿主的 Use 任务 provider、能力范围和生命周期，不能因为目录里有任务说明就宣布可执行。</p>
+<p><code>package_binding()</code> 和 <code>current_package_binding()</code> 返回宿主已绑定的包身份。它不是任意插件加载器。<code>use_runtime_task</code> 同样需要宿主的 Use 任务 provider、能力范围和生命周期，不能因为目录里有任务说明就宣布可执行。</p>
 <h2 id="验收">验收</h2>
 <p>用相同查询分别测试未配置语义后端、正确后端和维度错误；修改命中文件后再查询，确认不会把过期片段当成当前源码。网络测试覆盖重定向与取消；语言服务测试覆盖文档版本冲突。</p>
 <h2 id="实现依据">实现依据</h2>
@@ -24,6 +24,6 @@
 <li><a href="https://github.com/aster-ai-lab/aster/tree/8729d7c84a2d887c61dc206ba47bf8a63425e768/crates/code/core/src/workspace">工作区检索</a></li>
 <li><a href="https://github.com/aster-ai-lab/aster/tree/8729d7c84a2d887c61dc206ba47bf8a63425e768/crates/code/core/src/embedding">Embedding 合同</a></li>
 <li><a href="https://github.com/aster-ai-lab/aster/tree/8729d7c84a2d887c61dc206ba47bf8a63425e768/crates/code/core/src/code_intelligence">代码智能合同</a></li>
-<li><a href="https://github.com/aster-ai-lab/aster/blob/8729d7c84a2d887c61dc206ba47bf8a63425e768/crates/code/core/src/cognitive_context.rs">认知包与 Use 任务</a></li>
+<li><a href="https://github.com/aster-ai-lab/aster/blob/8729d7c84a2d887c61dc206ba47bf8a63425e768/crates/code/core/src/package_context.rs">包与 Use 任务</a></li>
 <li><a href="https://github.com/aster-ai-lab/aster/tree/8729d7c84a2d887c61dc206ba47bf8a63425e768/crates/code/core/src/tools/builtin">网页工具</a></li>
 </ul></div></article><nav class="page-navigation" aria-label="相邻文档"><a href="../../../code/9.1.6/reference/governance/"><span>上一篇</span><strong>权限、Hooks 与验证</strong></a><a href="../../../code/9.1.6/reference/memory/"><span>下一篇</span><strong>记忆、保存与分支 →</strong></a></nav><footer class="docs-footer"><span>Aster 技术文档</span><a href="https://github.com/aster-ai-lab/aster/blob/main/apps/web/content/docs/code/9.1.6/reference/retrieval.mdx">编辑此页 ↗</a></footer></main><aside class="docs-toc"><div class="toc-content"><nav aria-label="本页目录"><p class="nav-label">本页内容</p><a href="#先区分四种来源">先区分四种来源</a><a href="#配置语义检索">配置语义检索</a><a href="#索引运维">索引运维</a><a href="#搜索网页与读取页面">搜索网页与读取页面</a><a href="#代码智能和知识包">代码智能和知识包</a><a href="#验收">验收</a><a href="#实现依据">实现依据</a></nav><div class="toc-note"><span class="mini-label">版本说明</span><p>本文对应 Aster Code 9.1.6 · 当前源码，运行时源码引用 8729d7c84a2d887c61dc206ba47bf8a63425e768。</p></div></div><div class="docs-resources"><div class="resource-links"><p class="nav-label">源码与资料</p><a href="https://github.com/aster-ai-lab/aster/tree/8729d7c84a2d887c61dc206ba47bf8a63425e768/docs">仓库文档 ↗</a><a href="https://github.com/aster-ai-lab/aster/tree/8729d7c84a2d887c61dc206ba47bf8a63425e768/crates">浏览源码 ↗</a></div><div class="docs-version"><span class="version-dot" aria-hidden="true"></span>Aster Code 9.1.6 · 当前源码</div></div></aside></div></body></html>

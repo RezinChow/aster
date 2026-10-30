@@ -191,7 +191,7 @@ async fn an_unknown_extension_method_is_method_not_found() {
     assert!(unknown.get("result").is_none(), "{unknown}");
 
     let known = agent
-        .rpc(json!({"jsonrpc":"2.0","id":4,"method":"_x.ai/session/info",
+        .rpc(json!({"jsonrpc":"2.0","id":4,"method":"_a3s/session/info",
                     "params":{"sessionId": session_id}}))
         .await;
     assert!(known.get("error").is_none(), "{known}");

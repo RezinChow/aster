@@ -758,7 +758,7 @@ pub(super) fn should_emit_end_text(saw_text: bool, text: &str) -> bool {
     !saw_text && !text.is_empty()
 }
 
-/// The `x.ai/turn/outcome` notification payload carrying how the run closed
+/// The `a3s/turn/outcome` notification payload carrying how the run closed
 /// at the completion gate, so the client's terminal marker can say more than
 /// a duration. Fields are additive; clients ignore unknown keys.
 pub(super) fn turn_outcome_payload(

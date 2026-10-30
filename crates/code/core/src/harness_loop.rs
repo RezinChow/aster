@@ -31,7 +31,7 @@ pub enum ForcedStop {
 }
 
 impl ForcedStop {
-    /// Wire name for the `x.ai/turn/outcome` payload; the pager's parser
+    /// Wire name for the `a3s/turn/outcome` payload; the pager's parser
     /// accepts exactly these values.
     pub fn as_str(self) -> &'static str {
         match self {

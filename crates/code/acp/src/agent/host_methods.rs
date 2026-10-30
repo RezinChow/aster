@@ -41,7 +41,7 @@ impl HostMethod {
     ];
 
     /// The wire method, or `None` outside the closed set. Compaction and
-    /// interjection keep their `x.ai/` prefix families.
+    /// interjection keep their `a3s/` prefix families.
     pub(super) fn parse(method: &str) -> Option<Self> {
         Some(match method {
             "a3s/goal/import" => Self::GoalImport,
@@ -54,12 +54,12 @@ impl HostMethod {
             "a3s/review/target" | "a3s/review/admit" | "a3s/review/settle" => Self::Review,
             "a3s/wiki/search" => Self::WikiSearch,
             "a3s/memory/manage" => Self::MemoryManage,
-            "x.ai/session/info" => Self::SessionInfo,
-            "x.ai/session/list" => Self::SessionList,
-            "x.ai/session/delete" => Self::SessionDelete,
-            "x.ai/permission_posture" => Self::PermissionPosture,
-            _ if method.starts_with("x.ai/compact_conversation") => Self::CompactConversation,
-            _ if method.starts_with("x.ai/interject") => Self::Interject,
+            "a3s/session/info" => Self::SessionInfo,
+            "a3s/session/list" => Self::SessionList,
+            "a3s/session/delete" => Self::SessionDelete,
+            "a3s/permission_posture" => Self::PermissionPosture,
+            _ if method.starts_with("a3s/compact_conversation") => Self::CompactConversation,
+            _ if method.starts_with("a3s/interject") => Self::Interject,
             _ => return None,
         })
     }
@@ -73,12 +73,12 @@ impl HostMethod {
             Self::Review => "a3s/review/",
             Self::WikiSearch => "a3s/wiki/search",
             Self::MemoryManage => "a3s/memory/manage",
-            Self::CompactConversation => "x.ai/compact_conversation",
-            Self::Interject => "x.ai/interject",
-            Self::SessionInfo => "x.ai/session/info",
-            Self::SessionList => "x.ai/session/list",
-            Self::SessionDelete => "x.ai/session/delete",
-            Self::PermissionPosture => "x.ai/permission_posture",
+            Self::CompactConversation => "a3s/compact_conversation",
+            Self::Interject => "a3s/interject",
+            Self::SessionInfo => "a3s/session/info",
+            Self::SessionList => "a3s/session/list",
+            Self::SessionDelete => "a3s/session/delete",
+            Self::PermissionPosture => "a3s/permission_posture",
         }
     }
 }
