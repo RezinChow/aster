@@ -177,7 +177,7 @@
         <div class="container hero-container">
           <div class="hero-copy">
             <p class="hero-eyebrow"><span></span> ASTER AGENT WORKSPACE</p>
-            <h1 id="hero-title" aria-label="Aster 让想法落地。Aster 是你需要的全部。" data-typing-title><span class="typing-reserve" aria-hidden="true">Aster<span class="hero-title-tail"> 是你需要的全部</span></span><span class="typing-line" data-typing-line>Aster<span class="hero-title-tail"> 让想法落地</span></span></h1>
+            <h1 id="hero-title" aria-label="Aster，让想法落地" data-typing-title>Aster<span class="hero-title-tail"><span class="hero-comma">，</span>让想法落地</span></h1>
             <p class="hero-description">
               从模型提案，到可验证的任务交付。<br />
               连接你的本地文件、模型和工具，在一个工作区里规划、执行、审查。
@@ -465,18 +465,26 @@
               <a class="download-card" data-platform="macos" href="{{download.desktop.macos.url}}">
                 <span class="platform-icon"><svg class="icon"><use href="#i-apple" /></svg></span>
                 <span class="platform-name">macOS</span>
+                <span class="platform-meta">Apple 芯片 · v{{download.desktop.macos.version}}</span>
+                <span class="download-action">下载 {{download.desktop.macos.format}} <svg class="icon"><use href="#i-arrow" /></svg></span>
               </a>
               <a class="download-card" data-platform="windows" href="{{download.desktop.windows.url}}">
                 <span class="platform-icon"><svg class="icon"><use href="#i-windows" /></svg></span>
                 <span class="platform-name">Windows</span>
+                <span class="platform-meta">x64 · v{{download.desktop.windows.version}}</span>
+                <span class="download-action">下载安装包 <svg class="icon"><use href="#i-arrow" /></svg></span>
               </a>
               <a class="download-card" data-platform="linux" href="{{download.desktop.kylin.url}}">
                 <span class="platform-icon"><svg class="icon"><use href="#i-linux" /></svg></span>
                 <span class="platform-name">Linux</span>
+                <span class="platform-meta">x86_64 · v{{download.desktop.kylin.version}}</span>
+                <span class="download-action">下载 {{download.desktop.kylin.format}} <svg class="icon"><use href="#i-arrow" /></svg></span>
               </a>
               <a class="download-card download-card-cli" href="#cli-downloads">
                 <span class="platform-icon"><svg class="icon"><use href="#i-terminal" /></svg></span>
                 <span class="platform-name">Aster CLI</span>
+                <span class="platform-meta">macOS · Linux · Windows</span>
+                <span class="download-action">选择系统版本 <svg class="icon"><use href="#i-arrow" /></svg></span>
               </a>
             </div>
           </div>

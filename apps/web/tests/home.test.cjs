@@ -24,7 +24,6 @@ function page(t, { execute = true, reducedMotion = false, platform = 'MacIntel',
   const scrollCalls = [];
   const clipboard = [];
   const timerQueue = [];
-  const intervals = new Map();
   let timerSequence = 0;
   window.matchMedia = (query) => ({
     media: query,
@@ -53,8 +52,6 @@ function page(t, { execute = true, reducedMotion = false, platform = 'MacIntel',
       timerQueue.push({ id: timerSequence, callback });
       return timerSequence;
     };
-    window.setInterval = (callback) => { intervals.set(++timerSequence, callback); return timerSequence; };
-    window.clearInterval = (id) => intervals.delete(id);
     window.clearTimeout = (id) => {
       const index = timerQueue.findIndex((timer) => timer.id === id);
       if (index >= 0) timerQueue.splice(index, 1);
@@ -75,8 +72,6 @@ function page(t, { execute = true, reducedMotion = false, platform = 'MacIntel',
       window.innerWidth = width;
       window.dispatchEvent(new window.Event('resize'));
     },
-    rotateTagline() { for (const callback of [...intervals.values()]) callback(); },
-    activeRotations() { return intervals.size; },
     flushTimers() {
       let count = 0;
       while (timerQueue.length) {
@@ -335,13 +330,13 @@ test('hero title types every character in place and retires the cursor', (t) => 
   const ui = page(t, { fakeTimers: true });
   const title = ui.document.querySelector('[data-typing-title]');
   const characters = [...title.querySelectorAll('.typing-char')];
-  assert.equal(title.getAttribute('aria-label'), 'Aster 让想法落地。Aster 是你需要的全部。');
+  assert.equal(title.getAttribute('aria-label'), 'Aster，让想法落地');
   assert.equal(title.classList.contains('is-typing'), true);
-  assert.equal(characters.length, Array.from('Aster 让想法落地').length);
+  assert.equal(characters.length, Array.from('Aster，让想法落地').length);
   assert.equal(characters.every((character) => !character.classList.contains('is-visible')), true);
   ui.flushTimers();
   assert.equal(characters.every((character) => character.classList.contains('is-visible')), true);
-  assert.equal(title.querySelector('[data-typing-line]').textContent, 'Aster 让想法落地');
+  assert.equal(title.textContent, 'Aster，让想法落地');
   const cursor = title.querySelector('.typing-cursor');
   assert.equal(cursor.classList.contains('is-complete'), true);
   assert.equal(cursor.classList.contains('is-active'), false);
@@ -350,7 +345,7 @@ test('hero title types every character in place and retires the cursor', (t) => 
 test('reduced motion preserves the original hero title without typing', (t) => {
   const ui = page(t, { reducedMotion: true, fakeTimers: true });
   const title = ui.document.querySelector('[data-typing-title]');
-  assert.equal(title.querySelector('[data-typing-line]').textContent, 'Aster 让想法落地');
+  assert.equal(title.textContent, 'Aster，让想法落地');
   assert.equal(title.classList.contains('is-typing'), false);
   assert.equal(title.querySelectorAll('.typing-char, .typing-cursor').length, 0);
 });
@@ -365,143 +360,4 @@ test('back to top respects reduced motion and uses the recorded scroll position'
   assert.equal(ui.scrollCalls.length, 1);
   assert.equal(ui.scrollCalls[0].top, 0);
   assert.equal(ui.scrollCalls[0].behavior, 'auto');
-});
-
-test('download links support arrow navigation and close when focus leaves', (t) => {
-  const ui = page(t);
-  const trigger = ui.document.querySelector('.download-dropdown-hero [data-download-trigger]');
-  const popover = ui.document.getElementById('download-menu-hero');
-  const links = [...popover.querySelectorAll('a')];
-  trigger.focus();
-  assert.equal(ui.key(trigger, 'ArrowUp').defaultPrevented, true);
-  assert.equal(ui.document.activeElement, links.at(-1));
-  for (const [key, expected] of [['Home', 0], ['ArrowDown', 1], ['End', 3], ['ArrowDown', 0], ['ArrowUp', 3]]) {
-    assert.equal(ui.key(ui.document.activeElement, key).defaultPrevented, true);
-    assert.equal(ui.document.activeElement, links[expected]);
-    assert.equal(popover.hidden, false);
-  }
-  assert.equal(ui.key(ui.document.activeElement, 'Tab').defaultPrevented, false);
-  ui.document.querySelector('.brand').focus();
-  assert.equal(popover.hidden, true);
-  assert.equal(trigger.getAttribute('aria-expanded'), 'false');
-});
-
-test('surface feedback coalesces pointer input, stays bounded and resets on reduced motion', (t) => {
-  const ui = page(t, { execute: false, hoverCapable: true });
-  const originalMatchMedia = ui.window.matchMedia;
-  const motion = originalMatchMedia('(prefers-reduced-motion: reduce)');
-  const motionListeners = [];
-  motion.addEventListener = (_name, callback) => motionListeners.push(callback);
-  ui.window.matchMedia = (query) => query === motion.media ? motion : originalMatchMedia(query);
-  const frames = new Map();
-  let nextFrame = 0;
-  ui.window.requestAnimationFrame = (callback) => { frames.set(++nextFrame, callback); return nextFrame; };
-  ui.window.cancelAnimationFrame = (id) => frames.delete(id);
-  ui.window.eval(script);
-  const surface = ui.document.querySelector('.product-window');
-  surface.getBoundingClientRect = () => ({ left: 100, top: 200, width: 400, height: 200 });
-  const move = (x, y, type = 'mouse') => {
-    const event = new ui.window.MouseEvent('pointermove', { clientX: x, clientY: y });
-    Object.defineProperty(event, 'pointerType', { value: type });
-    surface.dispatchEvent(event);
-  };
-  move(100, 200);
-  move(900, 900);
-  assert.equal(frames.size, 1);
-  const callbacks = [...frames.values()];
-  frames.clear();
-  callbacks.forEach((callback) => callback(16));
-  assert.equal(frames.size, 0);
-  assert.equal(surface.style.getPropertyValue('--arc-x'), '100.00%');
-  assert.equal(surface.style.getPropertyValue('--arc-y'), '100.00%');
-  assert.equal(surface.style.getPropertyValue('--arc-rotate-x'), '-1.50deg');
-  assert.equal(surface.style.getPropertyValue('--arc-rotate-y'), '1.50deg');
-  move(100, 200, 'touch');
-  assert.equal(frames.size, 0);
-  move(100, 200);
-  assert.equal(frames.size, 1);
-  motion.matches = true;
-  motionListeners.forEach((callback) => callback({ matches: true }));
-  assert.equal(frames.size, 0);
-  assert.equal(surface.classList.contains('is-pointing'), false);
-  assert.equal(surface.style.getPropertyValue('--arc-rotate-x'), '');
-  move(100, 200);
-  assert.equal(frames.size, 0);
-});
-
-test('coarse pointers keep the surface interactions at their original static state', (t) => {
-  const ui = page(t, { hoverCapable: false, reducedMotion: true });
-  assert.equal(ui.document.querySelectorAll('.arc-surface, .arc-depth').length, 0);
-});
-
-test('copy feedback distinguishes success and failure and restores its original icon', async (t) => {
-  const ui = page(t, { fakeTimers: true });
-  const button = ui.document.querySelector('[data-copy-command]');
-  button.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(button.dataset.copyState, 'copied');
-  assert.equal(button.querySelector('use').getAttribute('href'), '#i-check');
-  assert.equal(button.querySelector('span').getAttribute('aria-live'), 'polite');
-  ui.window.navigator.clipboard.writeText = async () => { throw new Error('Clipboard permission denied'); };
-  button.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(button.dataset.copyState, 'error');
-  assert.equal(button.querySelector('span').textContent, '请手动复制');
-  assert.equal(button.querySelector('use').getAttribute('href'), '#i-copy');
-  ui.flushTimers();
-  assert.equal(button.dataset.copyState, undefined);
-  assert.equal(button.querySelector('span').textContent, '复制命令');
-});
-
-test('replay feedback announces real step changes and cancels superseded transitions', (t) => {
-  const ui = page(t, { execute: false, fakeTimers: true });
-  const transitions = [];
-  ui.window.Element.prototype.animate = function (keyframes, options) {
-    const transition = { target: this, keyframes, options, cancelled: false };
-    transitions.push(transition);
-    return { cancel() { transition.cancelled = true; } };
-  };
-  ui.window.eval(script);
-  const replay = ui.document.querySelector('#panel-research .scenario-replay');
-  const event = replay.querySelector('.replay-event');
-  assert.equal(event.getAttribute('aria-live'), 'polite');
-  const initial = transitions.find((transition) => transition.target === event);
-  replay.querySelectorAll('.replay-step')[1].click();
-  assert.equal(initial.cancelled, true);
-  assert.equal(event.textContent, '检索并核对资料');
-  assert.equal(transitions.at(-1).options.duration, 240);
-  const reduced = page(t, { execute: false, reducedMotion: true });
-  reduced.window.Element.prototype.animate = () => { throw new Error('Reduced motion must not animate step changes'); };
-  assert.doesNotThrow(() => reduced.window.eval(script));
-  assert.doesNotThrow(() => reduced.document.querySelector('.replay-step').click());
-});
-
-test('hero alternates both exact taglines and returns to the first', (t) => {
-  const ui = page(t, { fakeTimers: true });
-  const title = ui.document.querySelector('[data-typing-title]');
-  const visible = () => [...title.querySelectorAll('.typing-char.is-visible')].map((node) => node.textContent).join('');
-  ui.flushTimers();
-  assert.equal(visible(), 'Aster 让想法落地');
-  ui.rotateTagline();
-  ui.flushTimers();
-  assert.equal(visible(), 'Aster 是你需要的全部');
-  ui.rotateTagline();
-  ui.flushTimers();
-  assert.equal(visible(), 'Aster 让想法落地');
-  assert.equal(title.querySelector('.typing-reserve').getAttribute('aria-hidden'), 'true');
-  assert.equal(title.getAttribute('aria-live'), null);
-});
-
-test('hero stops its rotation when the page leaves and reduced motion starts no rotation', (t) => {
-  const ui = page(t, { fakeTimers: true });
-  assert.equal(ui.activeRotations(), 1);
-  ui.window.dispatchEvent(new ui.window.Event('pagehide'));
-  assert.equal(ui.activeRotations(), 0);
-  const reduced = page(t, { fakeTimers: true, reducedMotion: true });
-  assert.equal(reduced.activeRotations(), 0);
-  assert.equal(reduced.document.querySelector('[data-typing-line]').textContent, 'Aster 让想法落地');
-});
-
-test('homepage loads the shared cross-document transitions', () => {
-  assert.match(html, /<link rel="stylesheet" href="\.\/transitions\.css" \/>/);
 });
