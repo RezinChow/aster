@@ -56,7 +56,7 @@ npm --prefix apps/web run check
 
 ## 本地开发
 
-从仓库根目录安装独立官网依赖：
+使用与 Pages 工作流相同的 Node.js 24.12.0（内置 npm 11.6.2），从仓库根目录安装独立官网依赖。更新 `package-lock.json` 时也使用此版本，避免不同 npm 版本对可选依赖的处理导致 CI 安装失败。
 
 ```sh
 npm --prefix apps/web ci --workspaces=false --ignore-scripts --no-audit --no-fund
