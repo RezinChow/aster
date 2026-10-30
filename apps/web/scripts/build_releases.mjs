@@ -63,23 +63,27 @@ export async function refreshDownloads({ metadata, root = webRoot } = {}) {
   return downloads;
 }
 
-export async function buildDownloads({ check = false, root = webRoot } = {}) {
+export async function renderDownloadDocument(source, { root = webRoot } = {}) {
   const snapshot = JSON.parse(await readFile(path.join(root, 'content/releases.json'), 'utf8'));
   if (snapshot.schema !== 'aster.web.downloads.v1' || snapshot.downloads.length !== targets.length || snapshot.downloads.some((item, index) => item.key !== targets[index].key)) throw new Error('Invalid download snapshot target order');
   const values = new Map(snapshot.downloads.flatMap((item) => ['url','version','format'].map((field) => [`download.${item.key}.${field}`, item[field]])));
   if (new Set(snapshot.downloads.filter((item) => item.product === 'cli').map((item) => item.version)).size !== 1) throw new Error('Latest CLI release is missing matching platform archives');
+  const template = await readFile(path.join(root, 'content', source), 'utf8');
+  const html = template.replace(/\{\{([^{}]+)\}\}/g, (_, key) => {
+    if (!values.has(key)) throw new Error(`Unknown download placeholder: ${key}`);
+    return values.get(key);
+  });
+  return html.replace('<!doctype html>', '<!doctype html>\n<!-- Generated from content/' + source + ' and releases.json by Astro. -->');
+}
+
+export async function buildDownloads({ check = false, root = webRoot } = {}) {
   for (const [source, destination] of [['home.html', 'index.html'], ['download.html', 'download/index.html']]) {
-    const template = await readFile(path.join(root, 'content', source), 'utf8');
-    const html = template.replace(/\{\{([^{}]+)\}\}/g, (_, key) => {
-      if (!values.has(key)) throw new Error(`Unknown download placeholder: ${key}`);
-      return values.get(key);
-    });
-    const output = html.replace('<!doctype html>', '<!doctype html>\n<!-- Generated from content/' + source + ' and releases.json; run npm --prefix apps/web run build. -->');
+    const output = await renderDownloadDocument(source, { root });
     const target = path.join(root, 'public', destination);
     if (check) { if (await readFile(target, 'utf8') !== output) throw new Error(`Stale download links: ${destination}`); }
     else await writeFile(target, output);
   }
-  return snapshot.downloads;
+  return JSON.parse(await readFile(path.join(root, 'content/releases.json'), 'utf8')).downloads;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

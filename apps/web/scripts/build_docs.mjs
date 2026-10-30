@@ -14,6 +14,7 @@ import { DiagramScope, PeleDiagram, diagramThemeCss } from './docs_diagrams.mjs'
 import { createSourceReferences } from './docs_sources.mjs';
 import { buildDownloads } from './build_releases.mjs';
 import { PeleAtlasDiagram, SourceWalk, prepareWalks, buildAtlasAssets } from './docs_atlas.mjs';
+import { createSearchEntry, serializeSearchIndex } from './docs_search.mjs';
 import * as components from './docs_components.mjs';
 import { projects, documentPages } from './docs_catalog.mjs';
 
@@ -46,9 +47,9 @@ function headingPlugin(toc) {
 }
 
 function chapterNav(docsRoot, chapter, entries) {
-  const home = h('a', { key: 'home', href: docsRoot, 'aria-current': chapter.route === '' ? 'page' : undefined }, '文档首页');
-  if (!chapter.project) return [home, ...entries.map((project) => h('a', { key: project.id, href: `${docsRoot}${project.id}/${project.defaultVersion}/` }, project.title))];
+  if (!chapter.project) return entries.map((project) => h('a', { key: project.id, href: `${docsRoot}${project.id}/${project.defaultVersion}/` }, project.title));
   const { project, version } = chapter;
+  const home = h('a', { key: 'home', className: 'nav-home', href: docsRoot }, h('span', { className: 'nav-home-icon', 'aria-hidden': true }, '←'), '返回文档首页');
   let section;
   return [home, h('div', { key: project.id, className: 'nav-project' }, h('p', { className: 'nav-label' }, `${project.title} · ${version.label}`),
     ...version.pages.flatMap((page, index) => {
@@ -62,9 +63,12 @@ function chapterNav(docsRoot, chapter, entries) {
 function switchers(chapter, docsRoot, entries) {
   if (!chapter.project) return null;
   const { project, version } = chapter;
-  const menu = (label, current, links) => h('details', { className: 'docs-switcher' },
-    h('summary', { 'aria-label': `选择${label}，当前${current}` }, h('span', { className: 'switcher-label' }, label), current, h('span', { 'aria-hidden': true }, '⌄')),
-    h('div', { className: 'switcher-menu' }, ...links));
+  const menu = (label, current, links) => {
+    const menuId = `docs-switcher-${label === '产品' ? 'product' : 'version'}-menu`;
+    return h('details', { className: 'docs-switcher' },
+      h('summary', { 'aria-label': `选择${label}，当前${current}`, 'aria-expanded': 'false', 'aria-controls': menuId }, h('span', { className: 'switcher-label' }, label), h('span', { className: 'switcher-current' }, current), h('span', { className: 'switcher-chevron', 'aria-hidden': true })),
+      h('div', { className: 'switcher-menu', id: menuId }, ...links));
+  };
   return h('div', { className: 'docs-switchers', role: 'group', 'aria-label': '文档产品与版本' },
     menu('产品', project.title, entries.map((entry) => h('a', { key: entry.id, href: `${docsRoot}${entry.id}/${entry.defaultVersion}/`, 'aria-current': entry.id === project.id ? 'true' : undefined }, entry.title))),
     menu('版本', version.label, project.versions.map((entry) => {
@@ -90,6 +94,32 @@ function contentLink(href, chapter, docsRoot) {
   return docsRoot + target.pathname.slice(1) + target.search + target.hash;
 }
 
+function searchDialog(chapter, entries, docsRoot) {
+  const { project, version } = chapter;
+  const versions = [...new Map(entries.flatMap((entry) => entry.versions.map((item) => [item.id, item.label]))).entries()];
+  const filterRow = (label, key, options) => h('div', { className: 'docs-search-filter-row' },
+    h('span', { className: 'docs-search-filter-label' }, label),
+    h('div', { className: 'docs-search-filter-options', role: 'group', 'aria-label': `按${label}筛选` },
+      ...options.map(({ value, text }) => h('button', { key: `${key}-${value}`, type: 'button', className: 'docs-search-filter', [`data-docs-search-${key}`]: value, 'aria-pressed': 'false' }, text))));
+  return h('dialog', {
+    className: 'docs-search-dialog', 'aria-labelledby': 'docs-search-title', 'data-docs-search-dialog': true,
+    'data-current-project': project?.id ?? '', 'data-current-version': version?.id ?? '',
+    'data-docs-root': docsRoot, 'data-index-url': `${docsRoot}search-index.json`,
+  },
+    h('div', { className: 'docs-search-panel' },
+      h('div', { className: 'docs-search-top' },
+        h('strong', { id: 'docs-search-title' }, '搜索 Aster 文档'),
+        h('button', { type: 'button', className: 'docs-search-close', 'data-docs-search-close': true, 'aria-label': '关闭文档搜索' }, '×')),
+      h('div', { className: 'docs-search-query' },
+        h('input', { type: 'search', placeholder: '搜索标题、正文或代码…', autoComplete: 'off', 'data-docs-search-input': true, 'aria-label': '搜索文档', 'aria-controls': 'docs-search-results' }),
+        h('kbd', null, 'ESC')),
+      h('div', { className: 'docs-search-filters' },
+        filterRow('产品', 'project', [{ value: '', text: '全部产品' }, ...entries.map((entry) => ({ value: entry.id, text: entry.title }))]),
+        filterRow('版本', 'version', [{ value: '', text: '全部版本' }, ...versions.map(([value, text]) => ({ value, text }))])),
+      h('p', { className: 'docs-search-status', role: 'status', 'aria-live': 'polite', 'data-docs-search-status': true }, '输入关键词开始搜索。'),
+      h('ol', { id: 'docs-search-results', className: 'docs-search-results', 'aria-label': '搜索结果', 'data-docs-search-results': true })));
+}
+
 function layout(chapter, meta, Content, toc, entries, versionComponents, diagramScope, sources) {
   const docsRoot = '../'.repeat(chapter.route.split('/').filter(Boolean).length) || './';
   const siteRoot = docsRoot + '../';
@@ -107,14 +137,18 @@ function layout(chapter, meta, Content, toc, entries, versionComponents, diagram
       h('title', null, `${meta.title} · Aster 文档`),
       h('link', { rel: 'canonical', href: `https://aster-ai-lab.github.io/aster/docs/${chapter.canonicalRoute}` }),
       h('link', { rel: 'icon', type: 'image/png', href: `${siteRoot}tenant/aster/favicon.png` }),
-      h('link', { rel: 'stylesheet', href: `${docsRoot}styles.css` }), h('link', { rel: 'stylesheet', href: `${docsRoot}generated.css` }),
-      h('script', { src: `${docsRoot}navigation.js`, defer: true })),
+      h('link', { rel: 'stylesheet', href: `${siteRoot}transitions.css` }),
+      h('link', { rel: 'stylesheet', href: `${docsRoot}styles.css` }), h('link', { rel: 'stylesheet', href: `${docsRoot}harness-demo.css` }), h('link', { rel: 'stylesheet', href: `${docsRoot}generated.css` }),
+      h('script', { src: `${docsRoot}navigation.js`, defer: true }), h('script', { src: `${docsRoot}search.js`, defer: true })),
     h('body', null,
       h('a', { className: 'skip-link', href: '#content' }, '跳转到正文'),
       h('header', { className: 'docs-header' },
         h('a', { className: 'docs-brand', href: siteRoot, 'aria-label': 'Aster 首页' }, h('img', { src: `${siteRoot}tenant/aster/logo.svg`, alt: '', width: 30, height: 30 }), 'Aster'),
         h('span', { className: 'header-divider', 'aria-hidden': true }, '/'), h('a', { className: 'docs-wordmark', href: docsRoot }, '文档'),
-        h('nav', { className: 'header-links', 'aria-label': '网站导航' }, h('a', { href: siteRoot }, '官网'), h('a', { href: sourceRepository }, 'GitHub ↗'), h('a', { className: 'download-link', href: `${siteRoot}download/` }, '下载 Aster', h('span', { 'aria-hidden': true }, ' ↗')))),
+        h('nav', { className: 'header-links', 'aria-label': '网站导航' },
+          h('button', { type: 'button', className: 'docs-search-trigger', 'data-docs-search-open': true, 'aria-keyshortcuts': 'Meta+K Control+K' }, '搜索文档', h('kbd', null, '⌘ K')),
+          h('a', { href: siteRoot }, '官网'), h('a', { href: sourceRepository }, 'GitHub ↗'), h('a', { className: 'download-link', href: `${siteRoot}download/` }, '下载 Aster', h('span', { 'aria-hidden': true }, ' ↗')))),
+      searchDialog(chapter, entries, docsRoot),
       h('div', { className: 'docs-layout' },
         h('aside', { className: 'docs-sidebar' },
           h('div', { className: 'sidebar-heading' }, h('span', { className: 'sidebar-mark', 'aria-hidden': true }, '✳'), h('div', null, h('strong', null, '开发者文档'), h('span', null, '架构与接入说明'))),
@@ -146,8 +180,9 @@ function layout(chapter, meta, Content, toc, entries, versionComponents, diagram
             h('div', { className: 'docs-version' }, h('span', { className: 'version-dot', 'aria-hidden': true }), versionLabel))))));
 }
 
-export async function buildDocs({ check = false, outputRoot = path.join(webRoot, 'public/docs'), entries = projects, contentRoot = path.join(webRoot, 'content/docs') } = {}) {
+export async function buildDocs({ check = false, outputRoot = path.join(webRoot, 'node_modules/.cache/aster-docs'), entries = projects, contentRoot = path.join(webRoot, 'content/docs') } = {}) {
   const files = [];
+  const searchDocuments = [];
   const diagramStyles = new Map();
   const componentModules = new Map();
   const sourceCache = new Map();
@@ -183,6 +218,7 @@ export async function buildDocs({ check = false, outputRoot = path.join(webRoot,
     const walkDirectory = chapter.version && path.join(contentRoot, chapter.project.id, chapter.version.id, '_walks');
     if (walkDirectory && !walkCache.has(walkDirectory)) walkCache.set(walkDirectory, await prepareWalks(walkDirectory, sources, diagramStyles));
     const html = '<!doctype html>\n<!-- Generated from content/docs/*.mdx by npm run build. -->\n' + renderToStaticMarkup(layout(chapter, meta, Content, toc, entries, versionComponents, { chapter, contentRoot, styles: diagramStyles, sources, walks: walkCache.get(walkDirectory) }, sources)) + '\n';
+    if (!chapter.alias) searchDocuments.push(createSearchEntry(chapter, meta, html));
     const target = path.join(outputRoot, chapter.route, 'index.html');
     if (check) {
       if (await readFile(target, 'utf8') !== html) throw new Error(`Stale MDX output: ${target}; run npm --prefix apps/web run build`);
@@ -192,6 +228,14 @@ export async function buildDocs({ check = false, outputRoot = path.join(webRoot,
     }
     files.push(target);
   }
+  const searchTarget = path.join(outputRoot, 'search-index.json');
+  const searchIndex = serializeSearchIndex(searchDocuments);
+  if (check) {
+    if (await readFile(searchTarget, 'utf8') !== searchIndex) throw new Error(`Stale search index: ${searchTarget}; run npm --prefix apps/web run build`);
+  } else {
+    await writeFile(searchTarget, searchIndex);
+  }
+  files.push(searchTarget);
   const cssTarget = path.join(outputRoot, 'generated.css');
   const css = '/* Generated by Shiki, Pele and Code Hike; run npm --prefix apps/web run build. */\n' + codeStyles.getCSS() + '\n' + diagramThemeCss + '\n' + [...diagramStyles].map(([name, style]) => `.${name}{${style}}`).join('\n') + '\n';
   if (check) {

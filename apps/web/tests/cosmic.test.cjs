@@ -192,18 +192,48 @@ test('cosmic pointer parallax is small and touch does not move the star field', 
   env.advance(100);
   const after = env.state.arcs.at(-1);
   assert.notDeepEqual(after, before);
-  assert.ok(Math.abs(after[0] - before[0]) < 2);
-  assert.ok(Math.abs(after[1] - before[1]) < 2);
+  const control = setup();
+  control.intersect(true);
+  control.advance(0);
+  control.advance(100);
+  const neutral = control.state.arcs.at(-1);
+  assert.ok(Math.abs(after[0] - neutral[0]) < 2);
+  assert.ok(Math.abs(after[1] - neutral[1]) < 2);
   const touch = setup();
   touch.intersect(true);
   touch.advance(0);
   touch.section.dispatch('pointermove', { clientX: 1200, clientY: 900, pointerType: 'touch' });
   touch.advance(100);
-  const control = setup();
-  control.intersect(true);
-  control.advance(0);
-  control.advance(100);
   assert.deepEqual(touch.state.arcs.at(-1), control.state.arcs.at(-1));
+});
+
+test('cosmic gathers and expands smoothly in an endless cycle', () => {
+  const env = setup();
+  env.intersect(true);
+  const sampleRadius = () => {
+    const arcs = env.state.arcs;
+    assert.ok(arcs.length > 400);
+    const radius = arcs.reduce((sum, arc) => sum + Math.hypot(arc[0] - 600, (arc[1] - 450) / 0.42), 0) / arcs.length;
+    arcs.length = 0;
+    return radius;
+  };
+  env.advance(0);
+  const initial = sampleRadius();
+  const radii = [];
+  for (let now = 64; now <= 20480; now += 64) {
+    env.advance(now);
+    if (now % 1024 === 0) radii.push(sampleRadius());
+  }
+  assert.equal(radii.length, 20);
+  const first = radii.slice(0, 10);
+  const second = radii.slice(10);
+  const range = values => ({ min: Math.min(...values), max: Math.max(...values) });
+  const one = range(first);
+  const two = range(second);
+  assert.ok(one.max > initial * 1.1, JSON.stringify({ initial, one, two }));
+  assert.ok(one.min < initial * 0.85);
+  assert.ok(Math.abs(two.max - one.max) / one.max < 0.03);
+  assert.ok(Math.abs(two.min - one.min) / one.min < 0.03);
 });
 
 test('older browsers without intersection observation keep a static cosmos', () => {
@@ -272,6 +302,24 @@ test('WebGL camera parallax changes with mouse input while touch stays neutral',
   assert.deepEqual([...touch.state.uniforms.uCamera], [...control.state.uniforms.uCamera]);
   assert.ok(after[0] > control.state.uniforms.uCamera[0]);
   assert.ok(after[1] > control.state.uniforms.uCamera[1]);
+});
+
+test('galaxy stars cluster around two logarithmic arms at rest', () => {
+  const env = setup({ webgl: true, reduced: true });
+  env.intersect(true);
+  const vertices = env.state.bufferData.at(-1);
+  let galaxy = 0;
+  let aligned = 0;
+  for (let index = 0; index < vertices.length; index += 9) {
+    if (vertices[index + 8] !== 0) continue;
+    galaxy++;
+    const x = vertices[index];
+    const z = vertices[index + 2];
+    const phase = Math.sin(2 * Math.atan2(z, x) - 3.4 * Math.log(Math.hypot(x, z)));
+    if (phase > 0.25) aligned++;
+  }
+  assert.ok(galaxy > 400);
+  assert.ok(aligned / galaxy > 0.65);
 });
 
 test('unavailable WebGL shaders retain the existing Canvas fallback', () => {

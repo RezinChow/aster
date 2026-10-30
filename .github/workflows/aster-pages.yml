@@ -27,6 +27,8 @@ on:
       - README.md
       - apps/web/package.json
       - apps/web/package-lock.json
+      - apps/web/astro.config.mjs
+      - apps/web/src/**
       - apps/web/scripts/**
       - apps/web/tests/**
       - apps/web/README.md
@@ -51,6 +53,8 @@ on:
       - README.md
       - apps/web/package.json
       - apps/web/package-lock.json
+      - apps/web/astro.config.mjs
+      - apps/web/src/**
       - apps/web/scripts/**
       - apps/web/tests/**
       - .github/workflows/aster-pages.yml

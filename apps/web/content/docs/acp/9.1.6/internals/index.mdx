@@ -1,10 +1,10 @@
 export const meta = {
-  title: 'ACP 把哪些事情交给 Core',
+  title: 'ACP 与 Core 的职责边界',
   description: '按一次客户端请求拆开协议适配、可信宿主、Core 会话和界面事件。',
-  label: '协议原理漫游', updated: '2026-10-28',
+  label: '协议内部机制', updated: '2026-10-28',
 };
 
-## 先把“客户端”与“执行者”分开
+## 客户端与执行者的职责
 
 客户端接收用户输入并显示运行过程。
 `a3s-code-acp` 接收 ACP 消息，再调用 Core。

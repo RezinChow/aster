@@ -1,6 +1,8 @@
 # Aster 官网、文档与下载页
 
-`public/index.html`、`home.css`、`home.js` 和 `cosmic.js` 是 Aster 完整首页，依次展示产品首屏、可切换任务场景、工作连接、安全可控和桌面/CLI 下载。首页沿用 Aster 石墨单色品牌、星环标志与四张真实产品截图，不依赖第三方前端资源。下载区使用 WebGL 绘制三维透视星域，包含螺旋星系盘、深度雾、噪声星云、镜头推进、指针视差和流星拖尾；WebGL 不可用时回退到 Canvas 2D 星空，减少动态效果时仅显示静态画面。
+整站使用 Astro 7.4.4 的静态输出。`src/pages/` 负责首页、下载页、法律页面和文档路由，`astro.config.mjs` 使用独立公开资源缓存，`dist/` 是最终发布目录；旧 `public/` 只保留静态资源，不再存放生成 HTML。
+
+`src/pages/index.astro` 与 `home.css`、`home.js`、`cosmic.js` 组成 Aster 完整首页，依次展示产品首屏、可切换任务场景、工作连接、安全可控和桌面/CLI 下载。首页沿用 Aster 石墨单色品牌、星环标志与四张真实产品截图，不依赖第三方前端资源。下载区使用 WebGL 绘制三维透视星域，包含螺旋星系盘、深度雾、噪声星云、镜头推进、指针视差和流星拖尾；WebGL 不可用时回退到 Canvas 2D 星空，减少动态效果时仅显示静态画面。
 
 `public/download/` 是可独立访问的静态下载网站，使用 HTML、CSS 和 JavaScript，不需要安装前端框架或读取私有桌面源码。品牌图形直接使用 `public/tenant/aster/logo.svg` 和 `mark-light.png`。工作区、Office、审查和产物追溯使用 `screenshots/` 中四张真实产品截图；截图来自原生 Aster 窗口和隔离演示数据，不包含主实例任务或文件，图片本身不代表网页可以执行这些桌面功能。
 
@@ -15,10 +17,10 @@
 从仓库根目录预览：
 
 ```sh
-python3 -m http.server 4188 --bind 127.0.0.1 --directory apps/web/public
+npm --prefix apps/web run dev
 ```
 
-打开 <http://127.0.0.1:4188/> 查看首页；下载页位于 <http://127.0.0.1:4188/download/>，文档总入口位于 <http://127.0.0.1:4188/docs/>，用户协议与隐私政策分别位于 <http://127.0.0.1:4188/terms/>、<http://127.0.0.1:4188/privacy/>。
+Astro 默认在 <http://127.0.0.1:7100/> 提供首页；下载页位于 <http://127.0.0.1:7100/download/>，文档总入口位于 <http://127.0.0.1:7100/docs/>，用户协议与隐私政策分别位于 <http://127.0.0.1:7100/terms/>、<http://127.0.0.1:7100/privacy/>。可用 `npm --prefix apps/web run dev -- --host 127.0.0.1 --port 7100` 显式指定地址。
 
 ## MDX 文档站
 
@@ -41,17 +43,17 @@ scripts/
   docs_components.mjs          # 跨产品共享的展示组件
   docs_diagrams.mjs            # 按当前版本读取源图的 Pele 渲染器
   docs_sources.mjs             # 从 Git 快照定位正文引用，汇总本页源码
-public/docs/
-  index.html
-  code/9.1.5/**/index.html      # 保留的原有版本
-  code/9.1.6/**/index.html      # 当前 Core 文档
-  acp/9.1.6/**/index.html       # 独立 ACP 产品
-  code/**/index.html            # 默认版本的兼容地址
-  styles.css
-  generated.css
+  prepare_astro.mjs            # 准备文档缓存和精确公开资源白名单
+src/pages/
+  index.astro                  # 官网首页
+  download/index.astro         # 下载页
+  terms/index.astro            # 用户协议
+  privacy/index.astro          # 隐私政策
+  docs/[...slug].astro         # 150 条文档路由，读取构建缓存
+dist/                          # Astro 最终静态输出，不写回源码
 ```
 
-MDX 和 React 只在构建时运行。公开页面仅加载一个独立的 navigation.js，按产品、版本在当前标签页保存左侧菜单滚动位置，不拦截链接，也不加载 React。项目导航、移动目录、图示和表格在关闭 JavaScript 后仍可用。SVG 图示与表格可在小屏幕上独立横向滚动，移动导航使用原生 `details` 折叠面板，打印时隐藏站点导航。
+MDX 和 React 只在文档缓存构建时运行，Astro 再按注册表预渲染所有路由。公开页面加载独立的 navigation.js 和 search.js，不加载 React 或 Astro 客户端运行时。navigation.js 按产品、版本在当前标签页保存左侧菜单滚动位置；search.js 按需读取构建时生成的 canonical 全文索引，提供 Cmd/Ctrl+K 搜索、产品与版本过滤和键盘结果导航。项目导航、移动目录、图示和表格在关闭 JavaScript 后仍可用，搜索退化为普通文档导航。SVG 图示与表格可在小屏幕上独立横向滚动，移动导航使用原生 `details` 折叠面板，打印时隐藏站点导航。
 
 Markdown 通过 MDX 官方推荐的 `remark-gfm` 支持 GFM 表格、任务列表、删除线、自动链接和脚注。普通 Markdown 表格与内容组件使用相同的可聚焦横向滚动容器，表头使用语义 scope，对齐通过 CSS 表达；脚注提供往返锚点，任务列表保持静态禁用。
 
@@ -121,7 +123,7 @@ JS_DOM_MODULE="$PWD/target/download-test-deps/node_modules/jsdom" node --test ap
 
 DOM 回归验证交互状态和事件；Canvas 测试用受控绘图上下文和动画时钟验证调度。它们不替代真实浏览器的像素、布局、原生对话框焦点和绘图效果检查。
 
-输出目录必须不存在。脚本只复制首页的四个文件、下载页的四个文件、四张 PNG 截图、三份 Ubuntu 字体及其完整许可证、三个 Aster 品牌文件、两个法律页面及其共享样式，以及文档注册表中的 150 个 HTML 地址（89 篇文档，含默认版本兼容地址）、23 份 SVG、文档样式、生成样式和渐进交互脚本，目前共 198 个文件；根入口是完整首页，`download/`、`docs/`、`terms/` 和 `privacy/` 独立访问，不复制其他租户、MDX 源码、依赖或用户数据。所有资源路径均兼容 GitHub Pages 的 `/aster/` 项目路径。Canvas 是下载页的独立装饰层：减少动态时静态绘制，页面隐藏或首屏离开视口时停止动画，没有第三方绘图库。
+输出目录必须不存在。脚本只复制首页的四个文件、下载页的四个文件、四张 PNG 截图、三份 Ubuntu 字体及其完整许可证、三个 Aster 品牌文件、两个法律页面及其共享样式，以及文档注册表中的 150 个 HTML 地址（89 篇文档，含默认版本兼容地址）、23 份 SVG、文档样式、生成样式、渐进交互脚本和全文索引，目前共 200 个文件；根入口是完整首页，`download/`、`docs/`、`terms/` 和 `privacy/` 独立访问，不复制其他租户、MDX 源码、依赖或用户数据。所有资源路径均兼容 GitHub Pages 的 `/aster/` 项目路径。Canvas 是下载页的独立装饰层：减少动态时静态绘制，页面隐藏或首屏离开视口时停止动画，没有第三方绘图库。
 
 资源清单位于 `scripts/site_contract.py`。截图只允许 `workspace.png`、`office.png`、`review.png` 和 `lineage.png`，每张不超过 2 MiB；检查覆盖 PNG 签名、IHDR 尺寸和头部校验码，并要求 HTML 显式引用四张图片。检查不代替完整图片解码或截图内容审查。字体从本地 Ubuntu 字体包复制，页面使用本地 `@font-face`，`fonts/Ubuntu-LICENSE.txt` 随站点完整发布。下载目录出现其他文件或符号链接会拒绝发布。
 
@@ -129,7 +131,7 @@ DOM 回归验证交互状态和事件；Canvas 测试用受控绘图上下文和
 
 `.github/workflows/aster-pages.yml` 在 `main` 的相关文件变化时部署，也支持手动触发。它仅检出公共仓库，DOM 测试依赖隔离在 runner 临时目录，校验后只上传精确静态目录。Pages 需由仓库管理员启用 GitHub Actions 来源；本脚本不修改远端设置。
 
-浏览器回归在上述 4188 静态服务启动后运行：
+浏览器回归在上述 7100 Astro 开发服务启动后运行：
 
 ```sh
 a3s-test check apps/web/tests/download.acl --json
@@ -141,7 +143,7 @@ a3s-test run apps/web/tests/download.acl --browser-driver standalone --json
 文档浏览回归使用独立的 4192 端口：
 
 ```sh
-python3 -m http.server 4192 --bind 127.0.0.1 --directory apps/web/public
+python3 -m http.server 4192 --bind 127.0.0.1 --directory apps/web/dist
 a3s-test check apps/web/tests/docs.acl --json
 a3s-test run apps/web/tests/docs.acl --browser-driver standalone --json
 ```
