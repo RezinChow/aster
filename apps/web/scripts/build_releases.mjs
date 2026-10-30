@@ -76,16 +76,6 @@ export async function renderDownloadDocument(source, { root = webRoot } = {}) {
   return html.replace('<!doctype html>', '<!doctype html>\n<!-- Generated from content/' + source + ' and releases.json by Astro. -->');
 }
 
-export async function buildDownloads({ check = false, root = webRoot } = {}) {
-  for (const [source, destination] of [['home.html', 'index.html'], ['download.html', 'download/index.html']]) {
-    const output = await renderDownloadDocument(source, { root });
-    const target = path.join(root, 'public', destination);
-    if (check) { if (await readFile(target, 'utf8') !== output) throw new Error(`Stale download links: ${destination}`); }
-    else await writeFile(target, output);
-  }
-  return JSON.parse(await readFile(path.join(root, 'content/releases.json'), 'utf8')).downloads;
-}
-
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const args = process.argv.slice(2);
   let metadataFile;
@@ -96,6 +86,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   if (args.includes('--refresh')) {
     await refreshDownloads({ metadata: metadataFile ? JSON.parse(await readFile(metadataFile, 'utf8')) : undefined });
   }
-  const downloads = await buildDownloads({ check: args.includes('--check') });
-  process.stdout.write(JSON.stringify(downloads.map(({ key, version, tag }) => ({ key, version, tag }))) + '\n');
+  for (const source of ['home.html', 'download.html']) await renderDownloadDocument(source);
+  const snapshot = JSON.parse(await readFile(path.join(webRoot, 'content/releases.json'), 'utf8'));
+  process.stdout.write(JSON.stringify(snapshot.downloads.map(({ key, version, tag }) => ({ key, version, tag }))) + '\n');
 }

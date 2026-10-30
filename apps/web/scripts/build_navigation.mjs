@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -13,8 +13,11 @@ export async function buildNavigation({ check = false } = {}) {
     legalComments: 'inline', banner: { js: `/* Generated from scripts/docs_navigation.mjs by npm run build.\n\n${licenses.join('\n\n')}\n*/` },
   });
   const output = result.outputFiles[0].text;
-  const destination = path.join(root, 'public/docs/navigation.js');
+  const destination = path.join(root, 'node_modules/.cache/astro-public/docs/navigation.js');
   if (check) {
     if (await readFile(destination, 'utf8') !== output) throw new Error('Stale documentation navigation; run npm --prefix apps/web run build');
-  } else await writeFile(destination, output);
+  } else {
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, output);
+  }
 }

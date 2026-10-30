@@ -6,7 +6,7 @@
     "dev": "node scripts/prepare_astro.mjs && ASTRO_TELEMETRY_DISABLED=1 astro dev",
     "build": "node scripts/prepare_astro.mjs && ASTRO_TELEMETRY_DISABLED=1 astro build",
     "check": "npm run build && node scripts/prepare_astro.mjs --check && python3 scripts/check_site.py",
-    "test": "npm run build && node --test tests/docs.test.mjs",
+    "test": "npm run check && python3 -m unittest discover -s tests -p 'test_*.py' -v && node --check public/download/app.js && node --check public/download/canvas.js && node --check public/home.js && node --check public/cosmic.js && node --test tests/*.test.cjs tests/*.test.mjs",
     "preview": "ASTRO_TELEMETRY_DISABLED=1 astro preview"
   },
   "devDependencies": {
