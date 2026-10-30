@@ -126,8 +126,7 @@ fn resolve_codex_home() -> Option<PathBuf> {
             return Some(PathBuf::from(home));
         }
     }
-    let user_home = std::env::var_os("HOME").map(PathBuf::from)?;
-    Some(user_home.join(".codex"))
+    crate::config::user_home().map(|home| home.join(".codex"))
 }
 
 fn load_from_home(home: &Path) -> Result<Option<CodexAccountImport>> {

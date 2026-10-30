@@ -353,9 +353,9 @@ providers \"deepseek\" {
 }
 ";
 
-/// Host home for `~/.a3s`. A non-empty `HOME` wins. Windows leaves `HOME`
+/// Host home for user-owned state. A non-empty `HOME` wins. Windows leaves `HOME`
 /// unset and puts the profile in `USERPROFILE`.
-fn user_home() -> Option<PathBuf> {
+pub(crate) fn user_home() -> Option<PathBuf> {
     for key in ["HOME", "USERPROFILE"] {
         if let Some(value) = std::env::var_os(key).filter(|value| !value.is_empty()) {
             return Some(PathBuf::from(value));
