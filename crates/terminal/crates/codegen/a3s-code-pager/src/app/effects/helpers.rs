@@ -556,6 +556,7 @@ impl SessionFlags {
         if !self.ask_user {
             meta.insert("askUserQuestion".into(), serde_json::json!(false));
         }
+        meta.insert("sessionKind".into(), serde_json::json!("interactive"));
         meta.insert("yoloMode".into(), serde_json::json!(self.yolo_mode));
         meta.insert(
             "autoMode".into(),

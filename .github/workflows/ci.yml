@@ -110,6 +110,10 @@ jobs:
         run: cargo test --locked -p a3s-studio-data-sqlite -p a3s-studio-desktop-contract
       - name: ACP integration
         run: cargo test --locked -p a3s-code-acp --test v912_seam
+      - name: Local Git queries and Codex account discovery
+        run: |
+          cargo test --locked -p a3s-code-core --test git_read_queries
+          cargo test --locked -p a3s-code-acp --test codex_account_stdio
       - name: Core long-task ownership and consent contracts
         run: |
           cargo test --locked -p a3s-code-core --lib -- agent_api::goal_facade::tests fact_control:: goal_control:: hitl:: tool_confirmation:: --test-threads=4
