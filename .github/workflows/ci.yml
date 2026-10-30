@@ -39,7 +39,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler cmake pkg-config libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
       - name: Install macOS build tools
         if: runner.os == 'macOS'
-        run: brew install protobuf just
+        run: brew install protobuf just lld
       - name: Desktop launcher
         if: runner.os == 'macOS'
         run: python3 tests/just_work.py
@@ -101,6 +101,8 @@ jobs:
             feature="$(python3 apps/studio/scripts/studio_product.py "$tenant" feature)"
             cargo build --locked -p a3s-studio --no-default-features --features "$feature"
             cargo test --locked -p a3s-studio --lib --no-default-features --features "$feature" tenant:: -- --test-threads=1
+            cargo test --locked -p a3s-studio --lib --no-default-features --features "$feature" providers:: -- --test-threads=1
+            cargo test --locked -p a3s-studio --lib --no-default-features --features "$feature" agent_plane::computer_use_tests:: -- --test-threads=1
             cargo test --locked -p a3s-studio --lib --no-default-features --features "$feature" app_updater:: -- --test-threads=1
             cargo test --locked -p a3s-studio --lib --no-default-features --features "$feature" bundled_skills:: -- --test-threads=1
           done
