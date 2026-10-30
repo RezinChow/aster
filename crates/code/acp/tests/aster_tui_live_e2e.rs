@@ -17,6 +17,12 @@ mod workflows;
 #[path = "aster_tui_live_e2e/forms.rs"]
 mod forms;
 
+#[path = "aster_tui_live_e2e/questions_and_forms.rs"]
+mod questions_and_forms;
+
+#[path = "aster_tui_live_e2e/forms_catalog.rs"]
+mod forms_catalog;
+
 #[path = "aster_tui_live_e2e/functional.rs"]
 mod functional;
 
@@ -37,6 +43,24 @@ mod stream_controls;
 
 #[path = "aster_tui_live_e2e/tool_contracts.rs"]
 mod tool_contracts;
+
+#[path = "aster_tui_live_e2e/tool_wave.rs"]
+mod tool_wave;
+
+#[path = "aster_tui_live_e2e/coverage_wave.rs"]
+mod coverage_wave;
+
+#[path = "aster_tui_live_e2e/ui_qualified_wave.rs"]
+mod ui_qualified_wave;
+
+#[path = "aster_tui_live_e2e/network_tools_wave.rs"]
+mod network_tools_wave;
+
+#[path = "aster_tui_live_e2e/workspace_trust.rs"]
+mod workspace_trust;
+
+#[path = "aster_tui_live_e2e/file_references.rs"]
+mod file_references;
 
 use driver::LiveTui;
 

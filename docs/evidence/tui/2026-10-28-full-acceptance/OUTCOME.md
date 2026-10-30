@@ -4,23 +4,36 @@ Status: in progress. Goal completion is not established by the historical ten
 tests, by menu visibility, or by a passing scenario count. Each feature below
 requires its actual effects and both platform results to be audited.
 
-Latest fully executed same-source batch: Windows 34 passed / 1 failed
-(1461.98 s), Linux 33 passed / 2 failed (1589.20 s), pair `43ce1a06...`.
-Independent repetitions pass Windows search and Linux explicit denial;
-Linux shell final-answer output omission fails again independently.
-The preceding pair `32b8c01e...` batch was Windows 35/35, Linux 34/35.
-The preceding fully green two-platform baseline is 31/31 each, pair
-`d0bfd7fb...`. This is a bounded progress landing; the 153-checkpoint campaign
-remains incomplete. See `RUNS-43CE.json`, `FINAL-RUNS.json`, `LIBRARY-FAILURES.json` and the
-native-cancellation section for exact claims and counterexamples.
+Latest fully executed same-source batch: Windows 35/35 (1492.90 s), Linux
+35/35 (1760.44 s), pair `a891556b0cee8096b81768f051ce80918e460099`.
+`RUNS-A891.json` binds both native target identities, executable hashes, 41
+case reports per platform and every report digest. Both runs use the original
+operator ACL and exact `kimi/k3.1-pro` model. The earlier `43ce1a06...` and
+`32b8c01e...` counterexamples remain retained. This is a bounded live-suite
+result, not completion of the 153-checkpoint campaign or the full pager
+library. See `RUNS-A891.json`, `RUNS-43CE.json`, `FINAL-RUNS.json` and
+`LIBRARY-FAILURES.json` for those distinct contracts.
 
 The startup follow-up pair `18998267...` qualifies 9 native CLI contracts per
 platform plus one native TUI draft-control case per platform. Configuration
 tests pass 25/25 on Windows and Linux; the isolated cwd regression passes
 1/1 on each. These focused runs do not replace the full 35-entry batch.
 `STARTUP-RUNS.json` binds frozen graders, binary hashes and exact reports.
-The strict checkpoint index now verifies 18/153 (11.76%); 75 remain partial,
-59 pending, and one explicitly unavailable. Full acceptance remains open.
+The strict checkpoint index now verifies 37/153 (24.18%); 62 remain partial,
+53 pending, and one explicitly unavailable. Full acceptance remains open.
+
+The F04.01 follow-up pair `4fe1c6c8c4de5d03acd36b95640201d44a8ce4d3`
+passes `/new` history, permission and runtime isolation on Windows (20.43 s)
+and Linux (26.96 s). Both sessions complete real Kimi turns, the new session
+starts without inherited YOLO, and the original fact-log bytes remain unchanged.
+Three related YOLO/Plan/explicit-deny scenarios also pass on Windows (169.49 s)
+and Linux (187.03 s). Both platforms pass 35 focused `/new` hermetic tests and
+ACP live-test-target Clippy; the pager's unchanged-path Clippy errors and
+Windows ConHost-only toast expectation failures remain separately recorded.
+`source/session-isolation-verification.json` binds the successful reports to
+binary hashes and the verified source patch; the original failures remain in
+`session-isolation-before-fix` on both platforms. This slice is not a new full
+35-scenario batch or completion of the 153-checkpoint campaign.
 
 The original operator-owned `./.a3s/config.acl` selects `kimi/k3.1-pro` for
 live inference. It is never copied into fixtures or evidence. Temporary
@@ -1587,3 +1600,1026 @@ passes; its retained startup-provider-secret-scan-final.log records the final co
 The actual Windows and Linux checkpoint generators produce identical UTF-8/LF
 bytes (SHA-256 890f49de2404428f33b7b00ae9778ce2b00b58501841444a625e2465daacc851).
 The independent byte comparison is retained in source/checkpoint-cross-platform-repro.json.
+
+## 2026-10-29: shell-output continuation and green 35-entry pair
+
+The current candidate records digest-bound stdout/stderr boundaries for native
+sandbox bash receipts. Folded model history labels the two streams only when
+the retained text, byte lengths and SHA-256 values all match; changed, redacted
+or malformed text falls back to the original envelope without acquiring a
+stream identity. The runtime contract retains literal diagnostic arguments and
+requires actual output even for failed commands. Hermetic cases cover Unicode,
+empty and unterminated text, altered metadata and redaction, real exit codes,
+and original tool-call arguments.
+
+The earlier Windows `full-35-batchfix-native` run stopped at a sandbox-backend
+availability failure before `tool.prepared`. The unchanged interruption case
+passes the new `continuation-preflight/` on both platforms, and the complete
+continuation then passes Windows 35/35 in 1492.90 seconds and Linux 35/35 in
+1760.44 seconds. Each platform has 41 case reports because some entry points
+exercise multiple fixture branches. Pair
+`a891556b0cee8096b81768f051ce80918e460099` and every executable/report digest
+are bound in `RUNS-A891.json`. The shell scenario reports actual exit 7, both
+independent output streams and native cwd in the final Kimi answer on both
+platforms, then completes the same-session recovery request. No prompt, model,
+deadline or live grader was changed for this continuation.
+
+After that live batch, a test-only lock-scope correction removed the new
+Clippy warning without changing product code, prompts or live assertions. The
+focused real-scheduler test passes 1/1 on each platform, and Core/ACP `--lib`
+Clippy passes on each platform. Full `--all-targets` Clippy remains red on
+unchanged existing tests: Windows soak integration tests lack `c_void`
+imports, and both platforms retain two `unused_io_amount` errors in
+`llm/http/redirect_tests.rs`. The reruns no longer report the owned
+`tool_call_fidelity` warning. These unrelated existing errors are not hidden or
+waived by the green live batch.
+
+The continuation also retains these successful checks:
+
+- Whole-workspace `cargo fmt --all -- --check` in WSL, followed by focused Core
+  formatting after the test-only scope correction.
+- Line-ending guards 6/6, including a final rerun after evidence generation;
+  internal workspace dependencies 6/6.
+- CLI pair delivery 10/10, release governance 9/9, Linux installer 13/13,
+  Kylin launcher 11 tests with one conditional skip, progress benchmark 8/8,
+  musl linker guards 2/2, and Studio checkout ownership.
+- Current Linux Core library build, plus the exact provider-secret scan over
+  2137 evidence files. The initial wrong-target rlib selection did not execute
+  the scanner and is retained separately from the final passing log.
+
+`source/generate_checkpoints.py` regenerated the index from 104 successful
+evidence files. It retains 153 checkpoints and the existing 18 verified, 75
+partial, 59 pending and one explicitly unavailable distribution, with
+`complete: false`. Windows and Linux reads of the regenerated UTF-8/LF index
+have the same SHA-256
+`a8b3adbc02e9a7fb5dd04f49ae633fc84be4270a90ac2e37134b3bb7eed5c43f`.
+The 35-entry green pair closes the retained shell-output inconsistency for its
+frozen contracts; it does not complete the remaining feature matrix, full
+pager library, physical IME/mouse qualification or release acceptance. No
+completion commit or push is claimed by this continuation.
+
+## 2026-10-29: real TUI workspace-trust acceptance
+
+Local/dev Aster builds intentionally auto-trust workspace content. The two new
+ignored `workspace_trust` scenarios therefore use the existing
+`GROK_TEST_VERSION` test hook to exercise the release-stamped gate without
+adding a product bypass. Each fixture is an isolated Git workspace with a
+`.mcp.json` declaration and a native PowerShell or shell process that writes a
+marker and exits successfully. The short-lived process isolates trust admission
+from MCP handshake behavior; the tests do not claim that the declared server
+implements MCP.
+
+Before acceptance, both platforms show the actual workspace path, no marker,
+no session/model facts and no `trusted_folders.toml`. Acceptance persists one
+grant, starts the declared process and permits a real Kimi read. A real restart
+completes another read without another trust prompt. A second workspace in the
+same isolated home asks again; declining it leaves the original grant
+byte-identical. Separate `n` and Esc branches exit before the marker, model
+work or an acceptance record. Final `trust-acceptance-short-fixture/` batches
+pass Windows 2/2 in 46.68 seconds and Linux 2/2 in 60.53 seconds.
+
+Early retained failures distinguish harness synchronization from product
+behavior. Session-info popups and model footers were not valid readiness
+barriers. The shared live observer now requires the exact current
+`user.message` before accepting `turn.complete`, preventing historical replay
+from settling a new prompt. As a regression check, the existing
+resume/continue model-history scenario also passes on Windows (143.90 seconds)
+and Linux (62.44 seconds). No production source was changed for trust.
+
+The checkpoint generator links the new reports and now records 21 verified, 74
+partial, 57 pending and one explicitly unavailable checkpoint from 110
+successful evidence files. Its Windows and Linux SHA-256 is
+`663a6b5e4c7f5c1a562ae53af1cb730c5f84172486a942d6e49e41e1be0f2df7`.
+F02.01, F02.02 and F02.03 are verified only for their listed contracts;
+provider/workspace ACL authority, path escapes, physical terminal behavior and
+the other 132 non-verified checkpoints remain open.
+
+Both ACP live-test-target Clippy runs pass. Final line-ending guards pass 6/6,
+and the exact provider-secret scan passes over 2269 evidence files.
+
+## 2026-10-29: workspace provider and host-authority boundary
+
+The `workspace-acl-authority` scenario adds a same-name `kimi` provider with a
+synthetic key and an intentionally unusable loopback URL to the workspace ACL.
+The original host ACL remains byte-identical. After trust acceptance, a real
+Kimi read succeeds, proving that the workspace provider did not reroute the
+request or replace host credentials. The same session then requires a real
+write under `--yolo --deny Write(*)`; the write receipt is denied and the
+original file bytes remain unchanged. Thus workspace content cannot relax the
+explicit host deny either. The final focused run passes Windows 1/1 in 53.68
+seconds and Linux 1/1 in 42.59 seconds.
+
+F02.05 is now verified for this listed contract. The index contains 22
+verified, 74 partial, 56 pending and one explicitly unavailable checkpoint
+from 112 successful evidence files, with SHA-256
+`5d3bef1a37ea86ab8d9827866c0b7d7c3be1114f10c7e65d79084ccaf26d4441`.
+Both ACP live-test-target Clippy runs pass, line-ending guards pass 6/6, and
+the exact provider-secret scan passes over 2285 evidence files. Path escapes,
+link/reparse-point behavior and bounded reads remain open under F02.06.
+
+## 2026-10-29: path confinement and bounded reads
+
+Four independent live cases per platform exercise actual read receipts rather
+than model-only refusals. Absolute and `../` escapes fail closed without
+returning the outside secret. A Windows junction and a Linux symlink likewise
+cannot expose the outside file. The large-file read returns exactly twenty
+lines, with `requested_limit=20`, `applied_limit=20`, `returned_lines=20`,
+`next_offset=20` and `eof=false`; line 21 and the later secret are absent. The
+final `path-boundaries-diagnostic/` run passes Windows 1/1 in 62.16 seconds
+and Linux 1/1 in 99.29 seconds.
+
+Independent sessions are required so a previous permission refusal cannot make
+the model skip the next diagnostic. The assertions accept the real plain-text
+`denied` receipt as well as JSON `failed` envelopes, while the bounded success
+continues to require structured range metadata. These harness corrections do
+not change the sandbox or the frozen read outcomes.
+
+F02.06 is now verified for its listed contract. The index has 23 verified, 74
+partial, 55 pending and one explicitly unavailable checkpoint from 120
+successful evidence files, with SHA-256
+`6bb820e0d9267e2f920d18ae5ed7213e6f35f5e45c67e105629e585ebab7827a`.
+Both ACP live-test-target Clippy runs pass, line-ending guards pass 6/6, and
+the exact provider-secret scan passes over 2332 evidence files.
+
+## 2026-10-29: interactive relative cwd with Unicode and spaces
+
+The interactive `relative-cwd` scenario launches the real TUI with a relative
+`--cwd` of `工作 空间`, then reads a token that exists only in that directory.
+The original directory has been renamed, so a successful read proves that UI,
+ACP and the tool all use the relocated workspace rather than the launch parent
+or the previous directory. Windows passes 1/1 in 17.12 seconds and Linux 1/1 in
+21.55 seconds. The original host ACL is unchanged.
+
+The first attempt exposed a test-driver duplicate `--cwd`; a later Linux run
+also retained a stale test executable. These harness results stay separate
+from the final binary-qualified evidence. Source anchors are workspace-relative
+by contract, so the assertions use the actual read result and old/new directory
+state instead of assuming an absolute anchor. No product source changed.
+
+F02.04 is verified for its listed contract, completing all six F02 checkpoint
+contracts. The index has 24 verified, 73 partial, 55 pending and one explicitly
+unavailable checkpoint from 122 successful evidence files, with SHA-256
+`f6a71ca65b84551ac4fe7d1106c216ae600b2b5818199639e9ac11e0bb06f0df`.
+Both ACP live-test-target Clippy runs pass, line-ending guards pass 6/6, and
+the exact provider-secret scan passes over 2380 evidence files.
+
+## 2026-10-29: file references, line ranges and workspace confinement
+
+The file-reference acceptance uses actual fuzzy completion and a real file chip.
+It opens the viewer, selects lines 1-2 and requires the composer to contain
+`@ref-target.txt:1-2`. Missing-file and outside-workspace cases first select a
+real file, then remove it or redirect its parent through a Windows junction or
+Linux symlink. This avoids treating plain text as a file-reference chip.
+
+Before the fix, both platforms silently cancelled a missing-file preview. Both
+also displayed the synthetic outside secret after the parent-directory link was
+redirected. These counterexamples remain under `file-references-before-fix/`
+and `file-references-boundary-before-fix/`; earlier harness-input failures are
+kept separately and are not presented as product defects.
+
+The preview entry now canonicalizes the target, rejects a destination outside
+the session workspace and reports missing or unreadable files. It preserves the
+original relative path for display. The final pair shares source digest
+`be1f1bc23acbd2ecb5c01205657b84d961fa0a16`; its source patch passes reverse
+application checking. Windows passes 3/3 in 14.19 seconds and Linux passes 3/3
+in 24.97 seconds. No case starts model work or changes the original ACL.
+
+Each platform also passes the three new hermetic viewer tests and the two
+existing focus-owner regressions. Both ACP live-test-target Clippy runs pass.
+The full pager Clippy attempt remains red on 30 pre-existing errors in
+unmodified paths, with no diagnostics in the owned paths; it is not reported
+as a passing workspace-wide lint result.
+
+F03.09 is verified for its listed contract. The index has 25 verified, 73
+partial, 54 pending and one explicitly unavailable checkpoint from 128
+successful evidence files, with SHA-256
+`0e55fb764beb7c2921ef83514602f78106e0b3eb335935ccbfa890c8773a828d`.
+Whole-workspace formatting passes under WSL, and both line-ending guards pass
+6/6. Exact provider-secret scans are recorded in
+`source/file-ref-secret-scan-*.log`. Full acceptance remains open.
+
+## 2026-10-29: literal multiline keystrokes
+
+Two new live scenarios use direct key input rather than bracketed paste. In
+multiline mode, bare Enter inserts newlines and Alt+Enter submits. In normal
+mode, Alt+Enter and backslash followed by Enter insert newlines without starting
+model work, then bare Enter submits. Unicode text and every newline must match
+the exact `user.message`, with one settled response and no tool calls.
+
+The existing `be1f1bc2...` product pair passes Windows 2/2 in 21.38 seconds and
+Linux 2/2 in 24.51 seconds. Both ACP live-test-target Clippy runs pass. No
+product source changed for this checkpoint.
+
+F03.02 is verified for its listed contract. The index has 26 verified, 72
+partial, 54 pending and one explicitly unavailable checkpoint from 132
+successful evidence files, with SHA-256
+`65ad7744c6b1f0e15800402ff763d0b8b198de69c0cd6c36e0d1dad9521b2207`.
+Exact provider-secret scans are recorded in
+`source/multiline-secret-scan-*.log`. Full acceptance remains open.
+
+## 2026-10-29: selection and multiline edit controls
+
+The selection scenario uses Shift+Left to select an exact suffix, replaces it,
+then selects and deletes it with Backspace. It does not use a word-deletion
+shortcut as a substitute. Unicode before the selection remains intact, no
+transcript is submitted during editing, and the final request is byte-exact.
+
+The multiline scenario creates three direct-key lines, then exercises undo,
+redo, Ctrl+S stash/pop and clear followed by undo. The final three-line Unicode
+`user.message` is checked byte for byte. Both scenarios use the existing
+`be1f1bc2...` product pair and change no product source.
+
+Selection editing passes Windows 1/1 in 12.01 seconds and Linux 1/1 in 15.71
+seconds. Multiline recovery passes Windows 1/1 in 10.79 seconds and Linux 1/1
+in 24.05 seconds. Both ACP live-test-target Clippy runs pass. Historical draft
+counterexamples remain linked.
+
+F03.04 and F03.05 are verified for their listed contracts. The index has 28
+verified, 70 partial, 54 pending and one explicitly unavailable checkpoint from
+136 successful evidence files, with SHA-256
+`99f60f4649efbf94197caaa3ebf5ee3736ced9c51d53d29370980f494b0ea68d`.
+Exact provider-secret scans are recorded in `source/edit-secret-scan-*.log`.
+Full acceptance remains open.
+
+## 2026-10-30: history recall, edit and resubmission
+
+The new scenario first submits `ORIGINAL-HISTORY`, recalls the actual prompt
+through Up and Enter, deletes the old token, types `EDITED-HISTORY` and submits
+again. The two distinct `user.message` texts must occur once each in order, on
+the same session, with one settled response for each and no tool calls.
+
+An initial harness wait matched `history` in the old transcript and submitted
+before the panel had opened. A subsequent row check used single-line `contents()`
+on Windows instead of the driver's row-preserving `physical_screen()`. Both were
+harness synchronization/parsing errors, not missing product completion events;
+the failed reports already contained the real second `turn.complete`. The final
+scenario waits for the actual panel border and for the original prompt to appear
+in the composer itself. Compile and format failures are retained separately.
+
+The corrected scenario passes Windows 1/1 in 17.23 seconds and Linux 1/1 in
+21.19 seconds. Both ACP live-test-target Clippy runs pass. The original ACL is
+unchanged and no product source changed.
+
+F03.06 is verified for its listed contract. The index has 29 verified, 69
+partial, 54 pending and one explicitly unavailable checkpoint from 138
+successful evidence files, with SHA-256
+`b30fe8990e3fe786b7a6588861e6503cfc461376971143a1811e3e892ae11d06`.
+Exact provider-secret scans are recorded in `source/history-secret-scan-*.log`.
+Full acceptance remains open.
+
+## 2026-10-30: external editor cancel without save
+
+A native PowerShell or shell editor writes only an exit marker and exits with
+status zero; it never writes the temporary prompt file. The marker proves the
+real editor ran and exited. The original draft must remain unchanged and no
+model work may occur before an explicit submission.
+
+The first fixture incorrectly expected a second editor argument. The actual
+editor passes only the prompt path, so the marker was absent; this was a fixture
+bug, not an editor-hang defect. Embedding the marker path in the script fixes
+it. Those failures remain under `editor-cancel-marker-args/`.
+
+The corrected scenario passes Windows 1/1 in 18.21 seconds and Linux 1/1 in
+10.99 seconds. Explicitly submitting the preserved draft then returns a real
+response, proving terminal control was restored. Both ACP live-test-target
+Clippy runs pass. The original ACL and product source are unchanged.
+
+F03.08 is verified for its listed contract. The index has 30 verified, 68
+partial, 54 pending and one explicitly unavailable checkpoint from 140
+successful evidence files, with SHA-256
+`13841dee51faed090b3bd46fc631981ab92e249c079e30bdcd5b4e9727a017fd`.
+Exact provider-secret scans are recorded in `source/editor-secret-scan-*.log`.
+Full acceptance remains open.
+
+## 2026-10-30: current-pair queue and send-now qualification
+
+The existing queue scenario already checks three queued rows: delete the last,
+edit the second, then drain the exact messages and responses once in order. The
+model-stream send-now scenario also covers text typed while a turn is running
+but not yet submitted. Thus the remaining draft and queue-source combinations
+did not need a new scenario; they needed current-pair evidence.
+
+All three scenarios were rerun on the `be1f1bc2...` pair. Queue editing and
+draining passes Windows 1/1 in 61.05 seconds and Linux 1/1 in 61.04 seconds.
+The two send-now scenarios pass Windows 2/2 in 37.37 seconds and Linux 2/2 in
+52.65 seconds. They cover running-tool cancellation without late writes and
+model-stream cancellation followed by one exact settled request. Both ACP
+live-test-target Clippy runs pass; no product source changed.
+
+F03.11 and F06.05 are verified for their listed contracts. The index has 32
+verified, 66 partial, 54 pending and one explicitly unavailable checkpoint from
+146 successful evidence files, with SHA-256
+`5cb6243f80d2050eb6a510ca63f634541812a36b2064f36e70bbbe67e2eb5100`.
+Historical counterexamples remain linked. Exact provider-secret scans are
+recorded in `source/queue-secret-scan-*.log`. Full acceptance remains open.
+
+## 2026-10-30: home picker cancellation and original-session return
+
+The new live scenario creates a real session, opens `/home`, selects `Resume
+session`, cancels with `Esc:back`, then returns to the original session. The
+original ID, transcript and fact log must remain intact, with no extra session
+or model call. A subsequent exact prompt completes a second real Kimi turn in
+that restored session. Windows passes 1/1 in 18.09 seconds and Linux passes 1/1
+in 23.54 seconds on source pair
+`a2188f93f97c2608c63bc3e38e9bf08e32eaedef`.
+
+Two defects were corrected before this result. TUI-created sessions now carry an
+explicit persisted `sessionKind=interactive`; ACP validates this closed field
+and the default catalog excludes unknown or headless records without guessing
+from titles or IDs. The pager also accepts Code's `id` field in addition to its
+existing session-ID aliases, so a returned interactive session is not discarded
+by the picker. New marker/type-conflict, catalog-filter, ID-alias and
+home-return regressions pass on both platforms, alongside focused Core, ACP and
+live-target Clippy checks. The final pair and reverse-checked owned patch are
+bound in `source/home-return-verification.json`. This is not a new complete
+35-scenario batch or completion of the 153-checkpoint campaign.
+
+F04.02 is verified for its listed contract. The index has 34 verified, 64
+partial, 54 pending and one explicitly unavailable checkpoint from 154
+successful evidence files, with SHA-256
+`c326d2fde2e3c55b4c78f9845463a3ebc9cb49d00335b108b274f31ab9903852`.
+Whole-workspace formatting passes under WSL; both line-ending guards pass 6/6.
+Exact provider-secret scans are recorded in `source/home-return-secret-scan-*.log`.
+The unchanged-path pager Clippy errors and recorded native-console assertion
+failures remain separate, unresolved pre-existing issues. Full acceptance
+remains open.
+
+## 2026-10-30: session info agrees with the live backend
+
+The new scenario reads an empty session, completes two real Kimi turns, switches
+to YOLO between them, and checks every `/session-info` field against the actual
+ACP response. A transparent stdio trace proxy forwards `--build-id` and all
+protocol traffic unchanged to the frozen companion. It does not replace the
+model or tools and its raw trace stays in the temporary fixture, not in evidence.
+Both platforms verify ID, canonical cwd, configured model, `permissionPosture`,
+turn counts, context usage, total window and percentage. Windows passes in 31.59
+seconds with 26758/128000 tokens (21%) after turn two; Linux passes in 38.35
+seconds with 26524/128000 tokens (21%). Both exit normally with the original
+ACL unchanged.
+
+The initial frozen runs failed only the mode assertion after ID, cwd, model,
+zero turn and zero context had matched. ACP already returned `permissionPosture`,
+but the shared typed response discarded it and the pager never displayed it.
+`SessionInfoResponse` now accepts that optional canonical value and the
+session-info fields show it as `Mode`; older responses without it remain
+unchanged. Twelve focused session-info regressions pass on each platform.
+Independent verification checks both reports, increasing real usage, frozen
+binary hashes, test sources and the reverse-checked owned patch. Source pair
+`a878a396eca1ee4dac118fe65ecc40d4487ed669` is bound in
+`source/session-info-verification.json`; its patch is 113107 bytes with SHA-256
+`d57a37d5e709b04e794cbf2bd391e6bf927796bf84a890e3f950da99bb1bed84`.
+
+F04.03 is verified for its listed contract. The index has 35 verified, 63
+partial, 54 pending and one explicitly unavailable checkpoint from 152
+successful evidence files, with SHA-256
+`406fdf004ac4fc63a045e6f01bb48137cece8edab6c14d5d8ea3f130d9a4c026`.
+Whole-workspace formatting passes under WSL. Clippy remains red on existing
+unmodified Shell and dependency paths; its diagnostics are retained in the
+platform `session-info-final-pair/shell-clippy*.log` files and are not reported
+as clean. Exact provider-secret scans are recorded in
+`source/session-info-secret-scan-*.log`. This slice is not a new complete
+35-scenario batch or completion of the 153-checkpoint campaign.
+
+## 2026-10-30: continue selects the latest session per workspace
+
+A new live scenario creates A1 in the original workspace, B1 in a second
+workspace, then A2 in the original workspace. All three are interactive sessions
+under one home with real Kimi turns and distinct remembered tokens. `--continue`
+must select A2 for the original workspace and B1 for the second, not simply the
+globally newest session or the older A1. Each restored session recalls its own
+token without any tool call. The older A1 fact log must remain byte-identical.
+Windows passes in 71.19 seconds and Linux in 57.20 seconds; each completes five
+real Kimi turns and five normal exits with the original ACL unchanged.
+
+This needs no product correction: the already qualified
+`a878a396eca1ee4dac118fe65ecc40d4487ed669` pair is reused. The new lifecycle
+source and independent checks are bound in `source/continue-verification.json`.
+The complete current owned patch is retained as `source/continue-owned.patch`
+(116787 bytes, SHA-256
+`759a078df940019d5f138390afa481fb3183bab9928e80c9651a4baaf7e60f07`) and passes
+reverse application checking. The first test-only ownership compile failure is
+retained and is not a product result.
+
+F04.05 is verified for its listed contract. The index has 36 verified, 62
+partial, 54 pending and one explicitly unavailable checkpoint from 154
+successful evidence files, with SHA-256
+`a1ba8f3331bc23735b552366862aca89e61bc4889a51c351f1e83d8269b547ff`.
+Exact provider-secret scans are recorded in `source/continue-secret-scan-*.log`.
+Full acceptance remains open.
+
+## 2026-10-30: session picker preserves command keys and real identity
+
+A new live scenario creates two interactive sessions in one workspace with the
+same title, different UUIDs and different remembered tokens. After resuming the
+newer session, `/home` opens the picker and `/` activates search before pasting
+the complete older UUID. The first Esc leaves search, the second clears the
+query and restores both duplicate-title rows, and the third closes the picker.
+Cancellation creates no third fact log and leaves the newer history byte-identical.
+Reopening the picker and selecting the filtered row restores the older ID; its
+next real Kimi turn recalls the older token without tools, again leaving the
+newer history unchanged. Windows passes in 31.38 seconds and Linux in 41.06
+seconds, each with three real model turns and three normal exits. The original
+ACL remains unchanged.
+
+Both platforms initially failed to cancel the filtered picker. The input event
+merge dropped non-pasteable `Event::Key` values, including Esc, while combining
+paste fragments with native text events. Those keys are now preserved in order.
+The failing input regression produced one event instead of paste plus Esc; after
+the fix, both platforms pass all 9 native-paste regressions and the Welcome
+three-stage Esc state-machine regression. The new pair is
+`dc0b1f6c30f7ae609186c1c699a913e1d67bfb76`. Reports, binary hashes, focused
+checks and the reverse-checked source patch are bound in
+`source/picker-verification.json` and `source/picker-owned.patch`. The original
+failures remain in both `picker-before` directories.
+
+The driver was also corrected without changing the product contract:
+`/session-info` is only queried after the picker closes, and cancellation checks
+history and fact-log counts rather than mistaking Welcome's unused optimistic
+session for the session just left. The final case deliberately activates search
+before pasting. The retained Windows `picker-final-before-search-focus` failure
+shows an unfocused native paste beginning with `e` triggering the expand shortcut;
+that separate input path is not claimed as verified by this result. Intermediate
+harness failures are retained and are not counted as product passes.
+
+F04.06 is verified for its listed contract. The index has 37 verified, 62
+partial, 53 pending and one explicitly unavailable checkpoint from 156
+successful evidence files, with SHA-256
+`b4d13948603b93b44cde3634eab9e535ba6e0fd61cd155f0fb52538638f91bee`.
+Whole-workspace formatting passes under WSL; both line-ending guards pass 6/6.
+Exact provider-secret scans are recorded in `source/picker-secret-scan-*.log`.
+This is not a new complete 35-scenario batch or completion of the 153-checkpoint
+campaign. Full acceptance remains open.
+
+## 2026-10-30: native paste preserves picker query text
+
+The previously unverified unfocused-paste path is now exercised directly. A cold
+launch opens the session picker and pastes a UUID-shaped value beginning with
+`e` four times without first activating search. Every iteration must preserve
+the complete query and must not expand the selected session card. The original
+same-title UUID selection, cancellation and history-recall scenario is rerun in
+the same batch. Windows passes both cases in 45.43 seconds and Linux in 56.57
+seconds, with four explicit query observations and normal exits on each platform.
+The original ACL remains unchanged.
+
+The event trace showed two cooperating causes: a single-line native paste could
+remain ordinary picker command keys, and the initial detector returned as soon as
+it received the first key release, before later text arrived. The detector now
+keeps collecting until text arrives or the fixed deadline expires, while initial
+and continuation quiet windows share the existing 10 ms bound. Single-line paste
+coalescing is enabled only for the Welcome, AgentModal and Dashboard session
+pickers; ordinary editors and a standalone `e` command keep their existing
+behavior. Both platforms pass all 11 native-paste regressions, including an
+immediate-release-plus-delayed-text counterexample. Temporary diagnostic logging
+was removed before the final pair was built.
+
+The final pair is `f44293dfe21600e0f6002752e69f7a90f534be87`. Reports, frozen
+binary hashes and the reverse-checked owned patch are bound in
+`source/picker-release-final-verification.json` and
+`source/picker-release-final-owned.patch`. The original Windows failure and the
+failing Release regression remain retained; intermediate candidate pairs are not
+reported as final passes. Focused Clippy remains red on an existing unused import
+in unmodified `a3s-tty-utils`, recorded in
+`windows/picker-release-final-pair/clippy.log`.
+
+F04.06 remains verified for its listed contract, now including the unfocused
+native-paste path. The index has 37 verified, 62 partial, 53 pending and one
+explicitly unavailable checkpoint from 160 successful evidence files, with
+SHA-256 `703c6e1d14f830e4048550e44913578eed3e48c3a9e3beb62916ac346641ee11`.
+Whole-workspace formatting passes under WSL and both line-ending guards pass
+6/6. Exact provider-secret scans are recorded in
+`source/picker-release-final-secret-scan-*.log`. Full acceptance remains open.
+
+## 2026-10-30 continuation: native terminal gates and background ownership
+
+The continuation retains the 153 original checkpoints, `kimi/k3.1-pro`,
+existing prompts, timeouts and grading assertions. Both native product pairs
+were rebuilt and frozen with source digest
+`e1a37d311f896ceebb6a7a228a0f6a889f15313b`. The source capture is
+`source/continuation-20261030-source.json`, with a reverse-checked 142194-byte
+owned patch and SHA-256
+`3a169a531e4853bd0543dd174513abd3802533eaee5d6c7c40587900c45b881e`.
+
+Removed the unused Windows `AsRawHandle` import and restricted the Linux-only
+runtime-test imports and OOM test mutex import to Linux. The actual
+`a3s-tty-utils` implementation passes strict all-target Clippy on both native
+platforms. Its Windows tests pass 39/39 plus two doctests; Linux tests pass
+75/75 plus two doctests. Logs are retained under each platform's
+`continuation-20261030-gates/`. Whole-workspace formatting passes under WSL
+(`source/continuation-20261030-fmt-before.log`) and both native line-ending
+guards pass 6/6. Full-product strict Clippy still fails on two existing
+`a3s-common` findings (`derivable_impls` and `unnecessary_sort_by`); these
+failures are retained in `continuation-20261030-gates/product-clippy.log`.
+
+The previous background-owner evaluation's Windows failure is retained at
+`windows/background-owner-before/background-session-owner.json`. Its tool
+creates `owner-result.txt`, while the fixed prompt permits only that one tool
+call and the final reply. The completion gate correctly refuses unverified
+workspace mutation. This is not counted as a passing evaluation, and neither
+the prompt nor the completion gate was weakened.
+
+Added a separate read-only background-owner evaluation. It reads an unseen
+fixture token through a real, permission-gated bash call while switching
+between two live sessions. Windows passes: session B's log remains
+byte-identical while A owns the pending permission, single tool result and
+final reply; the fixture bytes remain unchanged. Evidence is
+`windows/continuation-20261030-owner/background-session-read-only-owner.json`.
+An exact resolved-provider-value scan of that report passes. Linux's matching
+evaluation and both platforms' complete 57-entrypoint live regression batches
+are in progress; their retained logs are under
+`<platform>/continuation-20261030-pair/`. The 57-entrypoint test inventory is
+recorded separately and does not replace the 153-checkpoint contract.
+
+Explicitly not claimed: full 153-checkpoint completion, a passing product
+Clippy gate, or whole-pager library qualification. The baseline test failures,
+new failed evaluations and original grading contracts remain available.
+
+### Continuation results: ownership, Plan admission and harness attribution
+
+Both native read-only background-owner evaluations pass: Windows 54.90s and
+Linux 54.56s. `source/continuation-20261030-verification.json` binds their
+reports, paired binaries and terminal gates to the original frozen source.
+F04.07 is verified for its listed contract. The mutation-producing evaluation
+and its completion-gate failure remain separate, retained evaluations.
+
+The original Windows 57-entrypoint batch finishes with **52 passed and 5
+failed**, in 1941.15s. Its unmodified log is
+`windows/continuation-20261030-pair/all-57-run.log`. It is not reported as a
+passing batch. Four failing entrypoints now have independent passing native
+follow-ups on both platforms:
+
+- `session-info-contract`: the batch launcher omitted the required
+  `A3S_CODE_ACP_TRACE_PROXY`. Restored the transparent native relay, retaining
+  its source at `source/acp_trace_proxy.rs`. With the relay configured, the
+  unchanged scenario passes in 28.69s on Windows and 37.20s on Linux, including
+  canonical identity, cwd, mode, turns and actual provider usage.
+- `backend-refusal`: the unchanged independent Windows reproduction also
+  fails at `/workflow`. Its previous `/workflows` refusal contains the next
+  command as a substring, so the driver accepted old screen text as readiness
+  and submitted before the new draft arrived. The driver now waits for the
+  exact draft in the actual boxed or minimal composer, within the existing
+  eight-second timeout. All 42 disabled commands and the unknown command pass
+  on Windows (24.23s) and Linux (35.73s). No prompt or grading assertion changed.
+- `expand`: the original timeout occurs with `/fullscreen` still in the
+  minimal composer and the same command already visible in its footer hint.
+  The corrected input barrier passes the unchanged scenario on Windows
+  (22.08s) and Linux (18.40s).
+- `surface`: the original mouse-restoration assertion fails with
+  `/toggle-mouse-reporting` still in the composer. The corrected driver passes
+  the whole unchanged surface scenario on Windows (139.68s) and Linux
+  (174.75s), including the later minimal/fullscreen transitions.
+
+The fifth original failure is the mutation-producing background-owner
+evaluation described above: the completion gate rejects a mutation with no
+verification. Its original prompt and assertions remain unchanged and the
+failure is not converted to a pass. Supplemental runs are not substituted
+into the original 57-entrypoint totals.
+
+Added a separate Plan search/exec admission scenario. Both platforms really
+search an unseen fixture, then attempt a side-effect-producing bash call.
+The recorded admission is `denied`, the output file remains absent, and the
+fixture bytes remain exact. Windows passes in 79.91s; Linux passes in 83.42s.
+Together with the completed current-pair Plan read/write scenarios, this
+verifies F01.02 and F09.01. Reports and provenance are bound by
+`source/continuation-20261030-plan-verification.json` and
+`source/continuation-20261030-harness-plan.json`.
+
+Only test-driver/scenario sources changed after freezing the product pair;
+the supplemental runs explicitly reuse the frozen `e1a37d3` product. Separate
+test-binary hashes and archived driver versions are retained in
+`source/continuation-20261030-harness-followup.json`,
+`source/continuation-20261030-harness-plan.json` and
+`source/continuation-20261030-controls-verification.json`. A Windows attempt
+to relink the still-running original test executable fails with LNK1104 and
+is retained; the supplemental harnesses are linked to distinct paths instead.
+
+The regenerated 153-checkpoint index now has **40 verified, 60 partial, 52
+pending and one explicitly unavailable**, with SHA-256
+`2a52407518e4263c23d7fab5d2df6e80fd7de315fec25ff0c727fd4c17a2d89b`.
+`source/continuation-20261030-index-audit.json` independently checks all 206
+referenced file hashes and both-platform evidence for every verified contract.
+Whole-workspace formatting after the Plan addition passes under WSL; the
+final driver and all edited Rust files also pass focused rustfmt checks.
+Both native exact resolved-provider-value scans pass, including the campaign
+scan retained in `source/continuation-20261030-campaign-secret-scan-*-final.log`.
+
+The original Linux 57-entrypoint batch is still running. Once it ends, run
+`source/reconcile_continuation_batch.py` to bind both original batch summaries
+and every passing/failing report into `RUNS-E1A57.json`. Full acceptance,
+product strict Clippy and whole-pager qualification remain open.
+
+### 2026-10-30 completed 57-entrypoint batches and native question/form follow-up
+
+The original `e1a37d311f896ceebb6a7a228a0f6a889f15313b` batches have now
+finished on both platforms: **Windows 52 passed / 5 failed in 1941.15s;
+Linux/WSL 54 passed / 3 failed in 2348.20s**. `RUNS-E1A57.json` binds the
+original inventory, logs and passing/failing case reports. Supplemental
+passes do not replace those totals. Four Windows failures were independently
+resolved as input-readiness/proxy harness defects on the same frozen product;
+the Linux write-and-verify startup repro also passed independently. The
+mutation-producing background-owner evaluation still fails on both platforms:
+its fixed prompt permits the write but excludes the verification required by
+the completion gate. That evaluation is retained without changing its prompt
+or weakening the gate.
+
+New real-provider question tests first reproduced a product failure on both
+native platforms: dismissing `ask_user` closed its dialog but left the turn
+waiting for an answer beyond 90 seconds. The ACP question handler now uses
+the existing owned-session cancellation when the permission dialog is
+dismissed. A real in-memory ACP transport regression verifies the cancelled
+stop reason and that another session remains uncancelled. The full regular
+ACP library suites pass on source `70f49387956f5bba7ade5552b9ca82291464886f`:
+Windows **363 passed, 8 ignored**; Linux **398 passed, 8 ignored**. The eight
+existing ignored cases require other live providers, Cursor authentication,
+or Studio and are not counted as passes.
+
+The initial cancellation grader also had a separate defect: it demanded a
+successful `turn.complete` fact, although cancellation intentionally has no
+success completion fact. That grader and its failures remain unchanged.
+A separate test retains the same prompt and checks the actual ACP
+`cancelled` response, idle UI, no synthetic default answer, no success
+completion, and a fresh successful real-model request in the same session.
+Both native platforms pass. Choices, disabled free input and an unseen
+Unicode free-text answer are verified against the actual question ids and
+canonical question-answer payloads. The initial Linux model response that
+asked its second question as plain text instead of calling `ask_user` is
+retained as a model failure.
+
+The complete shared JSON Render component catalog is now exercised: **13
+distinct component types**, including all eight editable fields and native
+text/metric/chart mappings. The actual tool receipts contain exactly eight
+edited typed values, including Unicode text, numeric values, enum and boolean,
+on both platforms. A historical grader expecting integer-only metric display
+and every field to be simultaneously visible is retained as an excluded
+evaluation; a separate native-profile case uses the same source document and
+prompt and checks the shared parser's numeric display and scrollable viewport.
+Unknown component, extra schema version, cyclic document and a document with
+no editable field all produce real tool errors without blank input cards;
+each platform then completes a fresh real-model request.
+
+The 24-required-field test found two small-window product defects at 14x64.
+Five reserved scrollback rows initially hid form fields and actions. A
+form-specific layout can now use those rows and hides competing background
+panes while the form needs the space. After that fix, an invalid submit could
+still scroll the first field error outside the viewport while actions had
+focus. The body scroll target now includes that first error. Both failures
+remain as counterexamples. Focused real-buffer tests pass **25/25 on both
+platforms**, including the visible error and reachable actions; the agent
+layout suite had also passed **54/54 on both** after the first layout fix.
+These focused suites do not qualify the whole pager library.
+
+The unchanged live long-form case now passes on both platforms: each of the
+24 fields and both actions is reachable, invalid submission exposes the
+required error, reverse Tab reaches the preceding field, all 24 exact values
+reach the actual receipt, and cancellation returns no submitted defaults
+before the same session completes a new model request. Final native times
+are **Windows 147.20s / Linux 194.84s**. Required, invalid numeric type,
+minimum, maximum, constrained enum and required boolean tests also pass on
+both platforms (**36.67s / 27.62s**). The earlier Linux constraint-test
+failure was a screen-parser defect: the exact error was visible inside its
+heavy border. The follow-up accepts both native decorative borders while
+retaining the precise error-text and submission assertions.
+
+`RUNS-QUESTIONS-FORMS-20261030.json` independently binds seven selected
+successful live cases per platform across their actual source versions.
+Catalog/question/cancel cases use
+`2484faae030dbb8ee7bd1c765db3ca28ad1988bb`; final constraint and long-form
+cases use `d027629c78e5b0923727fadaae5ba3d8bd41c742`. Each phase retains
+native Windows MZ and Linux ELF Aster/ACP pairs, a separately hashed native
+test executable and an identical 67-entrypoint inventory. That inventory
+includes historical failed graders; no claim is made that all 67 ran
+together or passed. The original model `kimi/k3.1-pro`, operator ACL and
+fixed prompts are preserved.
+
+The final source snapshot records 55 changed source files and a reverse-
+checked 193708-byte patch with SHA-256
+`50ff7b6f73572a7734c6819c3d0f205d061ccc51174e7106aa07772b4ef57738`.
+The earlier 2484 source is explicitly marked as reconstructed from the
+recorded two later layout edits; all 55 archived file hashes and the exact
+shared source digest are independently verified. The new form-core test
+dependency resolves locally; Cargo regenerated the single added lockfile
+dependency edge. Workspace dependency guards pass six tests on each native
+platform. Whole-workspace WSL formatting, both native line-ending guards,
+and both exact resolved-provider-value evidence scans pass. The Windows
+whole-workspace format invocation hits OS error 206 (command line too long);
+its unchanged log is retained. The same formatter passes when explicitly
+checking the six affected product packages (`aster`, ACP, core, pager,
+tty-utils and shell) in one bounded invocation. This does not turn the
+failed Windows whole-workspace invocation into a pass.
+
+The regenerated index is now **46 verified, 57 partial, 49 pending and one
+explicitly unavailable**, still exactly **153 checkpoints / 16 domains**.
+`source/forms-20261030-index-audit.json` checks all 230 referenced file hashes
+and both-platform observations for every verified contract. The index SHA-256
+is `d0708ea53bda49459e65c8ccc6a2e1cfebcf83a5516bc56c389d5e53d209e8d6`.
+F11.01, F11.02, F11.04, F11.05 and F11.08 now have evidence for their listed
+contracts; F11.03 remains partial because step behavior and other property
+combinations are not qualified. The shared parser currently validates a
+`step` parameter but drops it from the field schema; no claim of step
+enforcement is made. Duplicate/late/cross-session form replies, real OS IME,
+remaining Plan flows, reconnect/recovery and the other pending domains remain
+open. Full 153-checkpoint acceptance, product strict Clippy and whole-pager
+qualification are **not complete**.
+
+### 2026-10-30 form reply ownership and step counterexample
+
+The next native source pair is
+`b44752d77fa649bf767498820c1fdb123aaa13ac`, with **56 archived changed source
+files** and matching Windows/Linux **69-entrypoint** harness inventories.
+Only tests and an existing test-helper visibility changed in this increment;
+the prior product fixes are unchanged. The two selected live cases and the
+exact Windows step reprobe are reconciled in
+`RUNS-FORMS-OWNER-STEP-20261030.json`. This is not a claim that all 69 live
+entrypoints ran together.
+
+F11.06 now has both native and handler evidence. The real-provider case
+starts an A form while B is active, preserves B's local draft, completes a
+fresh B model request, returns to A, and presses Enter twice. There is exactly
+one accepted A tool receipt with the unseen Unicode host answer. B has no
+form tool call or A answer and completes another real model turn. Windows
+passes in **44.68s** and Linux in **56.37s**. The actual session identities
+and independently retained A/B facts are checked by the reconciler.
+
+A separate real-handler regression keeps the old A response sender alive
+while new A and B forms both wait. The delayed old answer reaches only the
+old receiver; the new receivers stay empty. Two old resolved notifications
+leave both new cards open. Real application key dispatch submits distinct
+A/B answers to their own receivers, each response channel closes after its
+single delivery, and both displaced drafts are restored exactly. The new
+test passes on Windows (**0.03s**) and Linux (**0.56s**), without a provider
+or copied business logic.
+
+The step test confirms a product defect on both native platforms:
+**a Slider with min=0, max=10 and step=2 accepts level=3 and returns it in a
+successful `ask_user_form` receipt**. The receipt also contains the untouched
+count=2. The intended rejection and editable-draft assertions fail. Windows
+first had an independent model transcription failure: its Button node was
+copied into malformed JSON and the tool correctly rejected that document
+before opening a card (**129.76s**). The original failed evaluation is
+retained. An exact reprobe with the same frozen binaries, test executable,
+prompt and assertions then reaches the actual step defect (**21.01s**).
+Linux reaches the same product defect in its initial run (**30.00s**).
+The later fractional Input-step branch is not reached and is not qualified.
+F11.03 remains partial; the step defect is open and the failing grader has
+not been changed into a passing one.
+
+The index now contains **47 verified, 57 partial, 48 pending and one
+explicitly unavailable**, preserving all **153 checkpoints / 16 domains**.
+`source/forms-20261030-owner-step-index-audit.json` verifies all **237**
+referenced file hashes and both-platform observations for every verified
+contract. Its CHECKPOINTS SHA-256 is
+`b571d982ab362c51a4fefe1a73d17515102782417c9f3d81828c17ab96572258`.
+Full acceptance, the step repair, remaining Plan flows, navigation/recovery,
+child-agent and physical-IME work are still open.
+
+Both exact resolved-provider-value scans pass for the 3744 files present at
+the end of this native increment. The first whole-workspace format check
+finds two ACP test files formatted with edition 2024 style although that
+package declares edition 2021. They are corrected using edition 2021;
+Windows focused formatting now passes. Archived b447 copies formatted by
+the same pinned formatter match the corrected files byte-for-byte, recorded
+in `source/forms-20261030-owner-step-format-only.json`. The current source
+digest after this formatting-only correction is
+`295070d681078ee1833dfe33e733cbb8a1054d7e`; no new runtime pair is claimed
+for it. The completed native results continue to bind the preserved b447
+source and binaries. A final whole-workspace WSL format check is in progress;
+the initial failed format log is retained.
+
+That final whole-workspace WSL format invocation has completed successfully.
+
+### 2026-10-30 batched tool, checklist and real-child acceptance
+
+The next batch adds eight real-provider cases covering patch, Git, batch,
+program, Plan program admission, checklist updates, background shell tasks
+and two delegated child runs. Its native runtime digest is
+`c860e66c1e42149f47a9bfadff219fd6fae2f8fa`; Windows MZ and Linux ELF Aster/ACP
+pairs and matching **77-entrypoint** harness inventories are frozen.
+`source/tool-wave-20261030-source.json` archives 57 changed source files.
+The original result is **Windows 2 passed / 6 failed; Linux 2 passed / 6
+failed**. `RUNS-TOOL-WAVE-20261030.json` preserves all 16 case reports,
+individual exit codes and logs. It does not claim that all 77 entries ran.
+
+Both native batch cases pass (**23.05s / 26.34s**): three read members retain
+their caller ids and input order, two exact unseen successes and one real
+missing-file failure, with `partial_failure`, failed index 1 and separate
+success/failure counts. The program cases also pass (**43.00s / 46.73s**):
+the embedded QuickJS VM really reads an unseen Unicode fixture once and
+returns complete nested receipts, then refuses a write outside its
+`allowed_tools` before dispatch. Registered templates and other limits are
+still open, so F07.16 remains partial.
+
+Several initial failures are harness/evaluation defects, kept separately:
+the original patch prompt excludes bash, although a read does not satisfy
+the unchanged command-verification completion gate; the first Git grader
+expects per-file names from a summary-only status response; the Plan
+program grader parses a real plaintext `denied` receipt as JSON; and the
+checklist/child cases expect an ACP trace that they have not enabled.
+Windows checklist input also reaches the focused todo pane instead of the
+composer. These original evaluations are not changed into passes.
+
+Five distinct follow-up entrypoints retain the applicable inputs and
+business assertions, correct those observer/setup assumptions, and add
+eligible command verification for patch. Their **82-entrypoint** harnesses
+are separately frozen, with source digest
+`b19065d586f0e577498a8a2acb082deef990d26a`. Product sources outside the test
+directory are byte-identical to the c860 snapshot, so both platforms reuse
+their original frozen product pair. Each product binary and build id is
+verified before reuse. Product and test-source digests are recorded
+separately in `harness-source.json`; no product rebuild is claimed.
+
+The follow-up totals are **Windows 2 passed / 3 failed; Linux 4 passed / 1
+failed**. Both platforms pass the actual Plan program policy denial
+(**42.50s / 49.55s**): complete empty effects, no nested write dispatch and
+no output file. The denial is read as its real typed receipt, without
+manufacturing a JSON tool result.
+
+Both real dual-child cases pass (**40.75s / 53.27s**). One parent `task`
+call creates two distinct task ids and child session ids. Each child really
+reads its own unseen fixture and returns an exclusive output and source
+anchor. The actual ACP stream has exactly one start and finish for each
+child, matching parent/child identities and intervening tool progress. Both
+finishes precede the parent's terminal response, and the parent consumes
+both ordered outputs. F15.01 and F15.03 are verified. Child panel selection,
+takeover and the remaining cancellation combinations are not inferred from
+these protocol passes.
+
+The checklist case passes completely on Linux in **51.52s**. Windows passes
+all the same business assertions but initially fails teardown: `/quit` goes
+into the still-focused checklist filter. A new cleanup entrypoint uses the
+documented overlay Space binding after those assertions, then exits cleanly
+in **53.36s**. That separately frozen Windows **83-entrypoint** harness has
+source digest `76fb76a8fb44ff42da5fc6adb5e47643acb0e36e` and still reuses
+the c860 product. The actual native rows show completed `CHECKLIST-SECOND`
+before cancelled `CHECKLIST-FIRST`, with the old row absent; the real ACP
+metadata retains the cancellation state. F07.14 is verified.
+
+Remaining genuine failures and blocked branches in this batch are explicit:
+
+- Windows Git rejects the actual CLI-initialized fixture as not a repository
+  when its path carries the extended canonical prefix. The fixture lives
+  under this worktree's `.tmp`; no user's real Git tree is used for mutation.
+- WSL Git status and exact diff pass. Creating the requested branch also
+  changes the current branch, violating the explicit no-checkout assertion.
+  The later bad-ref branch is not reached. This is retained rather than
+  changing the expected current branch.
+- WSL patch passes single-file, multi-file and conflicting-second-file
+  all-or-nothing checks, independent command verification and exact host
+  byte assertions in **101.80s**. Windows executes the first patch, but the
+  specified PowerShell verification receives
+  `tool_effect_effective_arguments_unapproved`; its later multi-file and
+  conflict branches remain untested. No host waiver or policy weakening is
+  used to obtain a pass.
+- Both background cases execute start/tail/stop/tail and a shell check. The
+  final tail correctly reports that the stopped Run-owned task no longer
+  exists. Parent completion then fails on the same effect digest
+  `37f85931d2dadd52f8095b896f85bcfd85f20beb15f9231ea012df554e5f1790`,
+  whose 23 entries project paths such as `.agents` and `.bashrc` from present
+  to missing. This is a recorded effect projection, not proof that those
+  user paths were actually deleted. Attribution remains open. The planned
+  61-second post-completion late-write observation is not reached and is
+  not counted as passed.
+
+`RUNS-TOOL-WAVE-QUALIFIED-20261030.json` independently verifies the frozen
+harnesses, archived source hashes, reused binaries, all follow-up exit codes,
+native checklist status glyphs and each child's recorded wire lifecycle.
+It links the original failing runs and does not replace their totals.
+
+The complete source matrix remains **153 checkpoints / 16 domains** and now
+contains **51 verified, 63 partial, 38 pending and one explicitly
+unavailable**. `source/tool-wave-20261030-index-audit.json` checks **272**
+referenced file hashes and requires an actual passing case on each platform
+for every verified contract; provenance manifests alone cannot qualify a
+contract. CHECKPOINTS SHA-256 is
+`13b81879019c4302ca2ee0535c55110de6a8337e6f8a0dc921d17ce6deb70ac4`.
+Full acceptance, the remaining registered tools, navigation/clipboard,
+Plan review/recovery and physical IME remain open. Product strict Clippy and
+whole-pager qualification also remain open.
+
+Final verification for this batch passes whole-workspace formatting under
+WSL and the native Windows edition-2021 formatter check for the integration
+test root and its modules. Both exact resolved-provider-value scans pass
+(4023 files observed on Windows, 4024 on Linux; the additional scan log was
+created between the two starts). Reopened artifacts retain the original
+153 source rows, 16 domains, all failing runs and the 51/63/38/1 counts.
+
+
+## 2026-10-30 bounded coverage batch: templates, limits, navigation and settings
+
+The 13 frozen entrypoints ran independently on both native platforms using
+unchanged c860 product pairs and harness source 93f2d3eee01aaf64850b87402628cd2a0813c4e0.
+Windows passed 9/13 in 361.08 seconds; WSL/Linux passed 10/13 in 389.92 seconds.
+The native compiled inventory was 96, not a claim that all 96 entrypoints ran.
+`RUNS-COVERAGE-20261030.json` retains every original outcome. The first Windows
+launcher attempt failed before starting a case because it used Rust's `::`
+namespace in a log filename; the matching Linux compilation was stopped before
+case execution. The portable retry encodes only log filenames as `__`, without
+changing test IDs, prompts, model, budgets or graders. The pre-execution error
+is retained in `source/coverage-20261030-pre-execution-failure.json`.
+
+Actual positive runs cover the seven-step registered repo map, numeric template
+parameter error ownership, a one-call script budget, the 100ms embedded-VM timeout
+and fresh-turn recovery, 256-byte Unicode output truncation, successful staged
+batch bindings and isolated missing-reference failure, and anonymous wiki search
+with actual titles and source URLs. The code-search template passes on WSL.
+On Windows it reports the frozen 10000ms program timeout while its one real search
+receipt succeeds with duration_ms=30048; this original observation remains a
+counterexample rather than being relabeled by raising the budget.
+
+Both read-viewer runs expose a product counterexample: the actual read receipt
+contains all 120 fixture lines including VIEW-ROW-119, but End in the full block
+viewer only reaches approximately line 76 and its final line is cut mid-content.
+`agent/tool_render.rs` limits ACP text previews to 4000 characters. No product
+fix was inserted into this batch, and the later Home/close/reopen assertions were
+not reached.
+
+Three independent profiles correct explicit evaluation mistakes while preserving
+the original 13 tests byte-for-byte. Voice mode defaults on, so the conditional
+hidden-row profile now sets the real public GROK_VOICE_MODE=0 input before startup.
+It checks all 18 backend-inapplicable keys and all three voice keys individually,
+plus two supported local controls and unchanged preferences/facts. The original
+Windows theme grader compares whole-screen foreground color membership, which
+varies with text/chrome; the independent profile observes actual background cell
+(0,0), preview without persistence, Escape restoration, canonical Day commit and
+reset No/Yes. The original WSL Markdown grader assumes two matches, while real
+Thinking adds a third. The independent profile selects the last actual assistant
+match, toggles formatted/raw twice, and verifies exact canonical UTF-8 export.
+All three independent cases pass on both OSes: Windows 3/3 in 74.78 seconds and
+WSL 3/3 in 87.32 seconds. Their native inventory is 99; only these three new cases
+ran in this phase. Harness source is a1208f00e45e87991b37d6eb21d7496cfadb4125.
+`RUNS-COVERAGE-UI-QUALIFIED-20261030.json` binds the original failures and the
+independent profile evidence to the unchanged products.
+
+The unchanged 153-row / 16-domain matrix now has 53 verified, 66 partial,
+33 pending and one explicitly unavailable checkpoint. F12.06 and F16.02 gain
+full listed-contract qualification. Theme preview/reset, public wiki search and
+the failed read viewer gain explicit partial coverage; remaining combinations
+are not marked passed. The matrix audit checks 312 referenced hashes and actual
+passing cases on both platforms for every verified checkpoint. Windows and WSL
+regeneration produce identical UTF-8/LF bytes, SHA-256
+9246c3b5e301eecc7013621ead200d3c4a4eac2bdb06a96885209a4d77cb0d60.
+This is continuing progress, not completion of comprehensive acceptance. Physical
+IME, unresolved partial combinations, product strict Clippy and whole-pager
+qualification remain open.
+
+Final checks pass for the current frozen source: Windows edition-2021 formatting
+and WSL whole-workspace cargo fmt --all -- --check. Both exact resolved-provider
+secret scans pass over 4251 observed files. Native test/build processes have all
+exited. The 59 frozen source files still match their archived hashes; reopened
+run reports, matrix and outcome retain the 53/66/33/1 status counts. Full
+acceptance remains open. See source/coverage-20261030-final-checks.json.
+
+
+## 2026-10-30 native controlled-HTTP coverage and merge handoff
+
+The unchanged c860 native product pairs ran 14 additional independent network
+cases per platform. Initial HTTP_PROXY setup also captured the model's HTTPS
+transport, so both initial 14-case phases fail before any tool dispatch. These
+28 setup failures remain in their original reports. The separate provider-direct
+profile sets only the test process NO_PROXY=* input: the model transport honors
+it, while the tools' explicit safe_http proxy still uses the controlled origin.
+No original ACL, model, prompt, timeout, or grader was changed. The 14-case test
+source remains byte-identical across those two harness snapshots. Provider-direct
+results are Windows 12/14 (842.71s) and WSL 13/14 (520.34s), with inventory 113.
+
+WSL passes exact 65536-byte binary download to a Unicode/space destination,
+SHA-256, and independent shell verification. Both platforms pass existing-file
+refusal, failed hash with overwrite preserving the original bytes, declared size
+limits, HTTP 404, private literal refusal before network, and truncated HTTP body
+cleanup without promoted partial files. Windows itself returns successful
+65536-byte download metadata and an independent host observation confirms exact
+fixture bytes. Its subsequent actual bash Get-Item verification is prepared but
+produces no result before the unchanged 420s observation deadline. The bash tool's
+default command timeout is 120000ms; the precise blocking stage remains open.
+A process initially observed with the same parent PID was later proven older than
+the ACP and therefore a PID-reuse coincidence; it was not changed or killed.
+The original observation and explicit correction are both retained.
+
+Both platforms pass semantic-main extraction, actual Markdown link, source URLs
+visible in native screens, redirect original/final anchors, HTTP 404 and 429,
+real one-second timeout, private URL refusal, and a fresh model turn after each
+fetch error. The original pagination test wrongly counts its JSON-document read
+and artifact read as a single read and is retained as an excluded evaluation.
+An independent inline-read case passes on WSL. On Windows its real artifact read
+receives outcome=denied with tool_effect_effective_arguments_unapproved for the
+URI web_fetch itself returned; the grader subsequently fails to parse that raw
+policy denial as JSON. This underlying Windows policy counterexample is retained.
+A final independent direct-pagination case passes on both platforms, verifying
+exact Unicode slices 0..17 and 17..EOF, source, total length and artifact identity.
+Its source appends to both previous frozen test sources without editing them;
+compiled inventory is 115, and this phase runs only that one new case per OS.
+`RUNS-NETWORK-20261030.json` reconciles all eight phases and retains every failure.
+
+The matrix remains 153 source rows in 16 domains: 53 verified, 68 partial,
+31 pending, one explicitly unavailable. Download and web_fetch now have actual
+positive/negative coverage and precisely identified remaining failures. The new
+index audit checks 388 referenced hashes and actual dual-platform passing cases
+for each verified row. Windows/WSL regeneration is byte-identical UTF-8/LF,
+SHA-256 09e4dd66ef5d95e96159fa565d5d40d94d1c7b804811a097694bc1cd5cc22687.
+Native Windows focused formatting and WSL root cargo fmt --all -- --check pass.
+Comprehensive testing is still incomplete; these historical c860 observations do
+not qualify a different integration product automatically. The user's merge/push
+request is handled on a separate checkout of the latest remote main, preserving
+the original acceptance worktree, evidence bytes and the dirty main workspace.
+
+Pre-commit exact resolved-provider-value scans pass on Windows and WSL over
+4679 observed files each. Byte-identified evidence remains under -text attributes;
+no product binary or original ACL is added to the commit.

@@ -1060,8 +1060,27 @@ impl acp::Agent for A3sCodeAgent {
                     acp::Error::invalid_params().data("native plugin workspace is not admitted")
                 })?;
         }
-        a3s_code_core::session_folder::prepare_session_home(&workspace, &session_id)
-            .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+        let session_kind = match args.meta.as_ref().and_then(|meta| meta.get("sessionKind")) {
+            None => None,
+            Some(serde_json::Value::String(kind)) if kind == "interactive" => {
+                Some(a3s_code_core::session_folder::SessionKind::Interactive)
+            }
+            Some(serde_json::Value::String(kind)) if kind == "headless" => {
+                Some(a3s_code_core::session_folder::SessionKind::Headless)
+            }
+            Some(_) => {
+                return Err(acp::Error::invalid_params().data("unsupported session kind"));
+            }
+        };
+        match session_kind {
+            Some(kind) => a3s_code_core::session_folder::prepare_session_home_with_kind(
+                &workspace,
+                &session_id,
+                kind,
+            ),
+            None => a3s_code_core::session_folder::prepare_session_home(&workspace, &session_id),
+        }
+        .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
         let session_mcp = session_mcp_configs(&args.mcp_servers);
         self.sync_session_mcp_servers(Some(session_id.as_ref()), &args.mcp_servers)
             .await?;
@@ -1545,6 +1564,10 @@ mod reasoning_transport_tests;
 #[cfg(test)]
 #[path = "agent/turn_terminal_tests.rs"]
 mod turn_terminal_tests;
+
+#[cfg(test)]
+#[path = "agent/question_cancel_tests.rs"]
+mod question_cancel_tests;
 
 #[cfg(test)]
 pub(crate) use tests::test_launch;
