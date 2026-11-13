@@ -547,6 +547,9 @@ pub(crate) fn execute(
             tasks
                 .spawn(async move {
                     let mcp_servers = discover_mcp_servers(cwd.clone()).await;
+                    if crate::app::aster_active() {
+                        crate::acp::model_preferences::add_session_selection(&cwd, &acp_session_id, &mut meta).await;
+                    }
                     let _phase = startup::phase_scope(StartupPhase::SessionCreate);
                     ulog::info("session.load.start", Some(&acp_session_id.0), None);
                     let load_started = std::time::Instant::now();
@@ -1538,6 +1541,7 @@ pub(crate) fn execute(
         }
         Effect::CancelTurn {
             session_id,
+            prompt_id,
             cancel_subagents,
             trigger,
             rewind_prompt_id,
@@ -1565,6 +1569,7 @@ pub(crate) fn execute(
                                 cancel_notification_meta(
                                     cancel_subagents,
                                     trigger_str,
+                                    prompt_id.as_deref(),
                                     rewind_prompt_id.as_deref(),
                                 ),
                             ),
@@ -2014,11 +2019,12 @@ pub(crate) fn execute(
             prev_model_id,
         } => {
             let tx = acp_tx.clone();
+            let cwd = cwd.to_path_buf();
             tasks
                 .spawn(async move {
                     let meta = Some([("reasoningEffort".into(), serde_json::json!(effort.map_or("default".to_string(), |value| value.to_string())))].into_iter().collect());
                     let req = acp::SetSessionModelRequest::new(
-                            session_id,
+                            session_id.clone(),
                             model_id.clone(),
                         )
                         .meta(meta);
@@ -2041,6 +2047,11 @@ pub(crate) fn execute(
                             }
                         });
                     let effective_effort = result.as_ref().ok().copied().flatten();
+                    if result.is_ok() && crate::app::aster_active()
+                        && let Err(error) = crate::acp::model_preferences::persist_session(&cwd, session_id, &model_id, effective_effort).await
+                    {
+                        tracing::warn!(%error, "session effort could not be saved");
+                    }
                     let result = result.map(|_| ());
                     TaskResult::SwitchModelComplete {
                         agent_id,
@@ -5005,6 +5016,15 @@ pub(crate) fn execute(
                     }
                 });
         }
+        Effect::RecoverInput { agent_id, session_id, cwd } => {
+            tasks.spawn(async move {
+                let info = aster_shell::session::info::Info {
+                    id: session_id.clone(), cwd: cwd.to_string_lossy().into_owned(),
+                };
+                let result = crate::app::input_recovery::load(info).await.map_err(|e| format!("{e:#}"));
+                TaskResult::InputRecovered { agent_id, session_id, result }
+            });
+        }
         Effect::HydrateSessionMetaFromDisk {
             agent_id,
             session_id,
@@ -5484,7 +5504,11 @@ fn session_info_fields(
     let ctx = &info.data.context;
     push(
         "Context",
-        format!("{} / {} tokens ({}%)", ctx.used, ctx.total, ctx.usage_pct),
+        if ctx.has_usage() {
+            format!("{} / {} tokens ({}%)", ctx.used, ctx.total, ctx.usage_pct)
+        } else {
+            format!("{} token window · Usage not reported", ctx.total)
+        },
         true,
     );
     fields
@@ -5576,6 +5600,7 @@ fn prompt_request_meta(
 pub(crate) fn cancel_notification_meta(
     cancel_subagents: bool,
     trigger: Option<&str>,
+    prompt_id: Option<&str>,
     rewind_prompt_id: Option<&str>,
 ) -> acp::Meta {
     let mut meta = acp::Meta::new();
@@ -5586,10 +5611,12 @@ pub(crate) fn cancel_notification_meta(
             trigger.into(),
         );
     }
-    if let Some(pid) = rewind_prompt_id {
+    if let Some(pid) = prompt_id.or(rewind_prompt_id) {
+        meta.insert("promptId".into(), pid.into());
+    }
+    if rewind_prompt_id.is_some() {
         meta.insert("rewindIfNoOutput".into(), true.into());
         meta.insert("rewindIfPristine".into(), true.into());
-        meta.insert("promptId".into(), pid.into());
     }
     meta
 }

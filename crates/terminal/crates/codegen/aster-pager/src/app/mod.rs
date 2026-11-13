@@ -39,6 +39,7 @@ mod connect_timeout;
 mod csi_filter;
 mod dashboard_session_picker;
 mod dispatch;
+pub(crate) mod input_recovery;
 pub mod roster;
 pub mod session_startup;
 pub(crate) mod session_title_resolve;
@@ -1155,7 +1156,7 @@ pub async fn run(
         startup_typeahead,
     };
     let mut reader_thread = ReaderThread::detached();
-    let result = event_loop::run(
+    let mut result = event_loop::run(
         &mut terminal,
         connection,
         pending_startup,
@@ -1174,7 +1175,7 @@ pub async fn run(
     signal_handler::clear_quit_notify();
     let forced_exit_code = match &result {
         Ok(run_result) if run_result.quit_for_update || run_result.relaunch.is_some() => None,
-        Ok(_) => Some(0),
+        Ok(run_result) => Some(i32::from(run_result.connection_closed)),
         Err(_) => Some(1),
     };
     if let Some(code) = forced_exit_code {
@@ -1187,6 +1188,10 @@ pub async fn run(
         reader_thread,
         current_screen_mode(),
     );
+    let saved_input = match &mut result {
+        Ok(run) => input_recovery::Snapshot::save_all(std::mem::take(&mut run.unsent_input)).await,
+        Err(_) => Ok(()),
+    };
     crate::unified_log::flush_blocking().await;
     drop(agent_guard);
     aster_telemetry::session_ctx::drain_at_process_exit().await;
@@ -1242,6 +1247,10 @@ pub async fn run(
             {
                 let width = crossterm::terminal::size().map_or(80, |(cols, _)| cols as usize);
                 print_exit_resume_hint(&info, width, &mut io::stderr());
+            }
+            saved_input?;
+            if run_result.connection_closed {
+                anyhow::bail!("Agent connection closed");
             }
             Ok(false)
         }

@@ -277,9 +277,12 @@ struct LiveSession {
     /// with). The agent-global manager serves the UNION of all live
     /// sessions' sets, so one session's sync can never delete another's.
     mcp_servers: Vec<aster_core::mcp::McpServerConfig>,
-    /// The client's prompt id for the in-flight turn, echoed on every
-    /// session notification per the ACP prompt-ack contract.
-    active_prompt_id: std::sync::Mutex<Option<String>>,
+}
+
+#[derive(Default)]
+struct TurnGeneration {
+    number: u64,
+    prompt_id: Option<String>,
 }
 
 /// Inputs shared by session creation and in-place replacement. Keeping one
@@ -559,13 +562,15 @@ pub struct AsterCodeAgent {
     model_id: Mutex<String>,
     /// Last `/effort` selection. Applied on every core session open.
     effort: Mutex<Option<EffortLimits>>,
+    launch_model_override: bool,
+    launch_effort_override: bool,
     detected_models: std::sync::RwLock<HashMap<String, model_discovery::DetectedModel>>,
     client_model_discovery: std::cell::Cell<bool>,
     /// Durable `/goal` objectives keyed by ACP session id.
     goals: Mutex<HashMap<String, crate::goal::DurableGoal>>,
     /// Monotonic turn generation per session. `cancel` records the generation
     /// that was in flight, so a late cancel cannot mark the next turn.
-    turn_generation: Mutex<HashMap<String, u64>>,
+    turn_generation: Mutex<HashMap<String, TurnGeneration>>,
     /// Generation `cancel` observed for each session.
     cancelled_generation: Mutex<HashMap<String, u64>>,
     /// Wakes `stream_turn` after `cancel` records the generation.
@@ -616,7 +621,7 @@ fn model_picker_label(provider_name: &str, display_name: &str) -> String {
 
 fn model_picker_description(provider_name: &str) -> String {
     if provider_name == "grok" {
-        "Logged-in Grok account".to_string()
+        "Imported Legacy CLI account".to_string()
     } else if provider_name == "cursor" {
         "Logged-in Cursor account".to_string()
     } else if provider_name == "codex" {
@@ -649,6 +654,8 @@ impl AsterCodeAgent {
             session_loads: InflightSessionLoads::new(),
             model_id: Mutex::new(model_id),
             effort: Mutex::new(effort),
+            launch_model_override: false,
+            launch_effort_override: false,
             goals: Mutex::new(HashMap::new()),
             turn_generation: Mutex::new(HashMap::new()),
             cancelled_generation: Mutex::new(HashMap::new()),
@@ -670,6 +677,12 @@ impl AsterCodeAgent {
         }
     }
 
+    /// Use the explicitly requested launch model when reopening a stored session.
+    pub fn with_launch_model_override(mut self) -> Self {
+        self.launch_model_override = true;
+        self
+    }
+
     /// Set the host's initial reasoning effort; later session model selections still win.
     pub fn with_default_reasoning_effort(mut self, token: &str) -> anyhow::Result<Self> {
         let effort = if token.eq_ignore_ascii_case("default") {
@@ -681,6 +694,7 @@ impl AsterCodeAgent {
             )
         };
         self.effort = Mutex::new(effort);
+        self.launch_effort_override = true;
         self.launch.config.reasoning_effort = Some(aster_core::config::ReasoningEffort::parse(
             effort.map_or("default", |effort| effort.token),
         )?);
@@ -770,6 +784,16 @@ impl AsterCodeAgent {
         self.client.borrow_mut().take();
     }
 
+    /// Settle owned sessions and their durable results before the runtime exits.
+    pub async fn close(&self) {
+        self.stop_document_bridge();
+        // Keep the closed agent installed so pending opens cannot recreate it.
+        let agent = self.core_agent.lock().await;
+        if let Some(agent) = agent.as_ref() {
+            agent.close().await;
+        }
+    }
+
     fn validate_plugin_selection(
         &self,
         meta: Option<&serde_json::Map<String, serde_json::Value>>,
@@ -801,19 +825,14 @@ impl AsterCodeAgent {
 
     /// The in-flight prompt id for this notification's session.
     ///
-    /// A try-lock miss leaves the update unstamped. Falling through to another
-    /// session's id would make the pager drop the update.
+    /// A try-lock miss leaves the update unstamped.
     fn prompt_id_for_session(&self, session_id: &acp::SessionId) -> Option<String> {
         let key = session_id.0.as_ref();
-        let sessions = self.sessions.try_lock().ok()?;
-        let prompt_id = sessions.get(key).and_then(|live| {
-            live.active_prompt_id
-                .lock()
-                .ok()
-                .and_then(|guard| guard.clone())
-        });
-        drop(sessions);
-        prompt_id
+        self.turn_generation
+            .try_lock()
+            .ok()?
+            .get(key)
+            .and_then(|turn| turn.prompt_id.clone())
     }
 
     pub fn set_client(&self, conn: Rc<acp::AgentSideConnection>) {
@@ -919,44 +938,50 @@ impl AsterCodeAgent {
         Ok(options.with_file_session_store(session_store_dir))
     }
 
-    /// Fact counts and token totals for one live session.
+    /// Fact counts and the latest reported model input for one live session.
     async fn snapshot_session_info(
         &self,
         session_id: &str,
-    ) -> acp::Result<Option<(String, String, String, u64, u64, u64)>> {
-        let sessions = self.sessions.lock().await;
-        let Some(live) = sessions.get(session_id) else {
-            return Ok(None);
+    ) -> acp::Result<Option<(String, String, String, u64, Option<u64>, u64)>> {
+        let (session, cwd, model_id, posture) = {
+            let sessions = self.sessions.lock().await;
+            let Some(live) = sessions.get(session_id) else {
+                return Ok(None);
+            };
+            let posture = live
+                .permissions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .posture
+                .as_str()
+                .to_string();
+            (
+                Arc::clone(&live.session),
+                live.workspace.display().to_string(),
+                live.model_id.clone(),
+                posture,
+            )
         };
         // The fact scheduler increments its turn only on `user.message`.
         // Tool rounds and assistant tool lines are other fact kinds, and
         // the folded transcript stores those lines with role=user.
-        let turns = live
-            .session
+        let turns = session
             .user_prompt_count()
             .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
-        let (prompt_tokens, completion_tokens, total_tokens) = live.session.recorded_usage_tokens();
-        let used = if total_tokens > 0 {
-            total_tokens
-        } else {
-            prompt_tokens.saturating_add(completion_tokens)
-        };
-        let total = live.session.context_window_tokens() as u64;
-        let posture = live
-            .permissions
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .posture
-            .as_str()
-            .to_string();
-        Ok(Some((
-            live.workspace.display().to_string(),
-            live.model_id.clone(),
-            posture,
-            turns,
-            used,
-            total,
-        )))
+        let mut used = None;
+        'reported: for run in session.runs().await.into_iter().rev() {
+            if run.session_id != session.id() {
+                continue;
+            }
+            for record in session.run_events(&run.id).await.into_iter().rev() {
+                if let AgentEvent::ModelUsageBound { snapshot } = record.event {
+                    used = Some(snapshot.reported_prompt_tokens as u64);
+                    break 'reported;
+                }
+            }
+        }
+        let total = session.context_window_tokens() as u64;
+        Ok(Some((cwd, model_id, posture, turns, used, total)))
     }
 }
 
@@ -1004,6 +1029,7 @@ struct TurnState {
     /// Tool calls already given a pager row. A later start for the same id
     /// updates that row instead of opening another Run card.
     painted_tools: HashSet<String>,
+    pending_tools: HashSet<String>,
     /// Last model invocation's usage, paired with End's response metadata for measured TPS.
     last_turn_usage: Option<aster_core::llm::TokenUsage>,
     end_usage: Option<aster_core::llm::TokenUsage>,
@@ -1140,3 +1166,7 @@ mod client_permission_tests;
 #[cfg(test)]
 #[path = "agent/turn_input_tests.rs"]
 mod turn_input_tests;
+
+#[cfg(test)]
+#[path = "agent/lifecycle_tests.rs"]
+mod lifecycle_tests;

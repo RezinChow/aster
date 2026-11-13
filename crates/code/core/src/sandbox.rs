@@ -231,6 +231,18 @@ pub trait BashSandbox: Send + Sync {
         Ok(())
     }
 
+    /// Resolve the backend's effective command timeout without starting execution.
+    /// Backends with a stricter policy report that budget for timeout diagnostics.
+    fn effective_timeout_ms(&self, requested_ms: u64) -> anyhow::Result<u64> {
+        Ok(requested_ms)
+    }
+
+    /// Enforce the command deadline and finish owned cleanup before returning.
+    /// Opting in keeps the caller's watchdog from dropping that cleanup future.
+    fn owns_command_deadline(&self) -> bool {
+        false
+    }
+
     /// Execute a shell command inside the sandbox.
     ///
     /// * `command` — the shell command string (passed as `bash -c <command>`).
@@ -248,14 +260,34 @@ pub trait BashSandbox: Send + Sync {
     /// Existing implementations inherit a compatibility adapter that delegates
     /// to [`Self::exec_command`]. Sandboxes that spawn a real process should
     /// override this method so timeout and output-stream semantics are not
-    /// silently lost. The built-in `bash` tool also enforces `timeout_ms` by
-    /// dropping this future at the deadline, so implementations must terminate
-    /// or otherwise contain child processes when their execution future is
-    /// cancelled.
+    /// silently lost. Unless [`Self::owns_command_deadline`] opts in, the
+    /// built-in `bash` tool enforces `timeout_ms` by dropping this future.
+    /// Implementations must terminate or contain child processes when their
+    /// execution future is cancelled.
     async fn exec(&self, request: SandboxCommandRequest) -> anyhow::Result<SandboxExecutionOutput> {
         self.exec_command(&request.command, &request.guest_workspace)
             .await
             .map(Into::into)
+    }
+
+    /// Return an original execution result during cooperative cancellation.
+    /// `Cancelled` requires owned cleanup and an observed original exit code.
+    /// The default preserves custom backends whose cancellation is drop-only.
+    async fn exec_cancellable(
+        &self,
+        request: SandboxCommandRequest,
+        _cancellation: &tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<(
+        SandboxExecutionOutput,
+        crate::tools::OwnedProcessTermination,
+    )> {
+        let output = self.exec(request).await?;
+        let termination = if output.timed_out {
+            crate::tools::OwnedProcessTermination::TimedOut
+        } else {
+            crate::tools::OwnedProcessTermination::Completed
+        };
+        Ok((output, termination))
     }
 
     /// Additional time to settle an executor's startup and owned cleanup.

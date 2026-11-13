@@ -110,6 +110,24 @@ async fn settled_pre_spawn_refusal(
         .with_error_kind(ToolErrorKind::Unsupported { message })
 }
 
+async fn cancelled_command(
+    ctx: &ToolContext,
+    span: CommandSpan,
+    output: String,
+    exit_code: i32,
+    mut metadata: serde_json::Value,
+) -> ToolOutput {
+    metadata["exit_code"] = exit_code.into();
+    metadata["command_cancelled"] = true.into();
+    metadata["output_complete"] = false.into();
+    let paths = span.finish(ctx).await;
+    let result = ToolOutput::error(format!("{output}\n\n[Command cancelled]"))
+        .with_metadata(with_changed_paths(metadata, &paths))
+        .with_error_kind(ToolErrorKind::Cancelled { op: "bash".into() });
+    ctx.record_cancelled_command(exit_code);
+    result
+}
+
 /// A session that dirtied a path owns it. The command is not parsed; ownership
 /// follows the observed delta, including a non-zero exit that still wrote.
 fn claim_dirtied_paths(ctx: &ToolContext, paths: &[String]) {
@@ -739,22 +757,36 @@ impl Tool for BashTool {
                     None
                 };
                 let span = CommandSpan::begin(ctx.workspace.as_path()).await;
+                let effective_timeout_ms = match sandbox.effective_timeout_ms(timeout_ms) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        return Ok(settled_pre_spawn_refusal(ctx, span, error.to_string()).await);
+                    }
+                };
                 let command_env = span.env(ctx.command_env.clone());
-                let execution = sandbox.exec(crate::sandbox::SandboxCommandRequest {
-                    command: command_for_sandbox(command),
-                    guest_workspace: "/workspace".to_string(),
-                    timeout_ms,
-                    output_observer: output_observer.clone(),
-                    env: command_env,
-                });
-                let result = match tokio::time::timeout(
-                    std::time::Duration::from_millis(
-                        timeout_ms.saturating_add(sandbox.execution_overhead_ms()),
-                    ),
-                    execution,
-                )
-                .await
-                {
+                let cancellation = ctx.cancellation_token();
+                let execution = sandbox.exec_cancellable(
+                    crate::sandbox::SandboxCommandRequest {
+                        command: command_for_sandbox(command),
+                        guest_workspace: "/workspace".to_string(),
+                        timeout_ms,
+                        output_observer: output_observer.clone(),
+                        env: command_env,
+                    },
+                    &cancellation,
+                );
+                let execution = if sandbox.owns_command_deadline() {
+                    Ok(execution.await)
+                } else {
+                    tokio::time::timeout(
+                        std::time::Duration::from_millis(
+                            timeout_ms.saturating_add(sandbox.execution_overhead_ms()),
+                        ),
+                        execution,
+                    )
+                    .await
+                };
+                let (result, termination) = match execution {
                     Ok(Err(error))
                         if crate::sandbox::native::is_native_process_lifetime_unqualified(
                             &error,
@@ -779,13 +811,15 @@ impl Tool for BashTool {
                             })
                         });
                         let mut timed_out = ToolOutput::error(format!(
-                            "[Command timed out after {}ms]",
+                            "[Command timed out after {}ms]\n[Command termination was not observed]",
                             timeout_ms
                         ));
                         timed_out.metadata = Some(with_changed_paths(
                             serde_json::json!({
                                 "exit_code": null,
                                 "timeout_ms": timeout_ms,
+                                "observation_incomplete": true,
+                                "output_complete": false,
                                 "sandboxed": isolated,
                                 "output": capture_metadata,
                             }),
@@ -815,15 +849,30 @@ impl Tool for BashTool {
                         "timed_out": summary.timed_out,
                     })
                 });
+                if termination == crate::tools::OwnedProcessTermination::Cancelled {
+                    return Ok(cancelled_command(
+                        ctx,
+                        span,
+                        output,
+                        result.exit_code,
+                        serde_json::json!({
+                            "sandboxed": isolated,
+                            "output": capture_metadata,
+                            "shell_output_streams": streams,
+                        }),
+                    )
+                    .await);
+                }
                 if result.timed_out {
                     let mut timed_out = ToolOutput::error(format!(
                         "{}\n\n[Command timed out after {}ms]",
-                        output, timeout_ms
+                        output, effective_timeout_ms
                     ));
                     timed_out.metadata = Some(with_changed_paths(
                         serde_json::json!({
                             "exit_code": result.exit_code,
-                            "timeout_ms": timeout_ms,
+                            "timeout_ms": effective_timeout_ms,
+                            "requested_timeout_ms": requested_timeout_ms,
                             "sandboxed": isolated,
                             "output": capture_metadata,
                             "shell_output_streams": streams,
@@ -832,7 +881,7 @@ impl Tool for BashTool {
                     ));
                     timed_out.error_kind = Some(ToolErrorKind::Timeout {
                         op: "bash".to_string(),
-                        duration_ms: timeout_ms,
+                        duration_ms: effective_timeout_ms,
                     });
                     return Ok(timed_out);
                 }
@@ -883,17 +932,19 @@ impl Tool for BashTool {
             .expect("bash registered without workspace command runner");
         let span = CommandSpan::begin(ctx.workspace.as_path()).await;
         let command_env = span.env(ctx.command_env.clone());
-        let result = runner
-            .exec(CommandRequest {
-                command: command.to_string(),
-                timeout_ms,
-                output_observer,
-                env: command_env,
-            })
+        let cancellation = ctx.cancellation_token();
+        let (result, termination) = runner
+            .exec_cancellable(
+                CommandRequest {
+                    command: command.to_string(),
+                    timeout_ms,
+                    output_observer,
+                    env: command_env,
+                },
+                &cancellation,
+            )
             .await
             .map_err(|e| anyhow::anyhow!("Workspace bash execution failed: {}", e))?;
-        let changed_paths = span.finish(ctx).await;
-
         let capture_summary = *event_observer.summary.lock().unwrap();
         let capture_metadata = capture_summary.map(|summary| {
             serde_json::json!({
@@ -903,6 +954,20 @@ impl Tool for BashTool {
                 "timed_out": summary.timed_out,
             })
         });
+        if termination == crate::tools::OwnedProcessTermination::Cancelled {
+            return Ok(cancelled_command(
+                ctx,
+                span,
+                result.output,
+                result.exit_code,
+                serde_json::json!({
+                    "sandboxed": false,
+                    "output": capture_metadata,
+                }),
+            )
+            .await);
+        }
+        let changed_paths = span.finish(ctx).await;
 
         if result.timed_out {
             let mut output = ToolOutput::error(format!(

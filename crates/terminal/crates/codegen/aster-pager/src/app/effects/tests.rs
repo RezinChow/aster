@@ -1,5 +1,20 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 use super::*;
+
+#[test]
+fn cancel_metadata_preserves_the_observed_prompt() {
+    let scoped = cancel_notification_meta(false, Some("mouse"), Some("observed"), None);
+    assert_eq!(scoped["promptId"], "observed");
+    assert!(!scoped.contains_key("rewindIfNoOutput"));
+    assert!(!scoped.contains_key("rewindIfPristine"));
+
+    let rewind = cancel_notification_meta(false, None, None, Some("rewound"));
+    assert_eq!(rewind["promptId"], "rewound");
+    assert_eq!(rewind["rewindIfNoOutput"], true);
+    assert_eq!(rewind["rewindIfPristine"], true);
+    assert!(!cancel_notification_meta(true, None, None, None).contains_key("promptId"));
+}
+
 fn nth<T>(xs: &[T], i: usize) -> &T {
     let Some(x) = xs.get(i) else {
         panic!("expected index {i}, len {}", xs.len());
@@ -2872,10 +2887,11 @@ fn format_session_info_api_key_without_env() {
             text.contains("Run `aster login` to use your Aster Code subscription instead."),
             "{text}"
         );
-    assert!(!text.contains("aster"), "{text}");
+    // The brand-cleanup commit added `!text.contains("aster")` here while also
+    // requiring the `aster login` line above; the two cannot both hold.
 }
 #[test]
-fn format_session_info_api_key_auth_suggests_grok_login() {
+fn format_session_info_api_key_auth_suggests_aster_login() {
     let info = make_session_info("auto", None, 1000, 10000);
     let text = format_session_info(&info, None, false, true, true);
     assert!(text.contains("Auth method: API key (ASTER_API_KEY)"), "{text}");
@@ -2886,7 +2902,6 @@ fn format_session_info_api_key_auth_suggests_grok_login() {
         );
     assert!(!text.contains("Also present: ASTER_API_KEY"), "{text}");
     assert!(!text.contains("docs.aster.ai"), "{text}");
-    assert!(!text.contains("aster"), "{text}");
 }
 #[test]
 fn format_session_info_session_only_shows_oauth() {
@@ -2905,6 +2920,15 @@ fn format_session_info_shows_conversation_id_when_present() {
     let text = format_session_info(&info, None, false, false, false);
     assert!(text.contains("Conversation ID: conv_abc123"));
     assert!(text.contains("Session ID: test-session-id"));
+}
+
+#[test]
+fn session_info_preserves_unreported_usage() {
+    let mut info = make_session_info("fixture/model", None, 0, 1000);
+    info.data.context.usage_available = Some(false);
+    let text = format_session_info(&info, None, false, false, false);
+    assert!(text.contains("1000 token window · Usage not reported"), "{text}");
+    assert!(!text.contains("0 /"), "{text}");
 }
 #[test]
 fn format_session_info_displays_returned_permission_posture() {

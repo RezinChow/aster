@@ -142,11 +142,20 @@ struct MockState {
     edit_tool_replies: u64,
     expand_replies: u64,
     ask_tool_replies: u64,
+    queue_release: Option<std::sync::mpsc::Receiver<()>>,
     write_path: String,
     late_path: String,
 }
 
 fn spawn_mock(write_path: &Path, late_path: &Path) -> (SocketAddr, Arc<Mutex<MockState>>) {
+    spawn_mock_with_catalog(write_path, late_path, || {})
+}
+
+fn spawn_mock_with_catalog(
+    write_path: &Path,
+    late_path: &Path,
+    mut on_catalog: impl FnMut() + Send + 'static,
+) -> (SocketAddr, Arc<Mutex<MockState>>) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock");
     let addr = listener.local_addr().expect("mock addr");
     let state = Arc::new(Mutex::new(MockState {
@@ -156,6 +165,7 @@ fn spawn_mock(write_path: &Path, late_path: &Path) -> (SocketAddr, Arc<Mutex<Moc
         edit_tool_replies: 0,
         expand_replies: 0,
         ask_tool_replies: 0,
+        queue_release: None,
         write_path: write_path.display().to_string(),
         late_path: late_path.display().to_string(),
     }));
@@ -166,6 +176,7 @@ fn spawn_mock(write_path: &Path, late_path: &Path) -> (SocketAddr, Arc<Mutex<Moc
             let _ = stream.set_read_timeout(Some(Duration::from_secs(20)));
             if let Some(body) = read_http_body(&mut stream) {
                 if body.is_empty() {
+                    on_catalog();
                     let catalog = serde_json::json!({"data":[{"id":"gpt","context_window":262144,"effort":{"supported_levels":["none","low","high"],"default_level":"high"}},{"id":"alt","context_window":131072,"effort":{"supported_levels":["low"],"default_level":"low"}}]});
                     let _ = write_http(&mut stream, &catalog.to_string());
                     continue;
@@ -173,11 +184,17 @@ fn spawn_mock(write_path: &Path, late_path: &Path) -> (SocketAddr, Arc<Mutex<Moc
                 let response = {
                     let mut guard = shared.lock().expect("mock");
                     guard.bodies.push(body.clone());
-                    decide(&body, &mut guard)
+                    let response = decide(&body, &mut guard);
+                    if session_controls::hold_provider(
+                        &body,
+                        &stream,
+                        &response,
+                        &mut guard.queue_release,
+                    ) {
+                        continue;
+                    }
+                    response
                 };
-                if session_controls::hold_provider(&body, &mut stream) {
-                    continue;
-                }
                 let _ = write_http(&mut stream, &response);
             }
         }
@@ -354,7 +371,7 @@ fn decide(raw: &str, state: &mut MockState) -> String {
     }
     if raw.contains("ASK-ORACLE") && tools {
         if state.ask_tool_replies >= 1 {
-            return reply_text("ok", streaming);
+            return reply_text("ASK-ANSWER-DONE", streaming);
         }
         state.ask_tool_replies = state.ask_tool_replies.saturating_add(1);
         let args = serde_json::json!({
@@ -407,7 +424,9 @@ fn decide(raw: &str, state: &mut MockState) -> String {
     if raw.contains("CONTROL-NEXT") {
         return reply_text("CONTROL-NEXT-DONE", streaming);
     }
-    reasoning::response(&parsed, streaming).unwrap_or_else(|| reply_text("ok", streaming))
+    session_controls::response(&parsed, streaming)
+        .or_else(|| reasoning::response(&parsed, streaming))
+        .unwrap_or_else(|| reply_text("ok", streaming))
 }
 
 fn has_tools(body: &serde_json::Value) -> bool {
@@ -417,16 +436,26 @@ fn has_tools(body: &serde_json::Value) -> bool {
 }
 
 fn returned_form_values(value: &serde_json::Value) -> Option<serde_json::Value> {
-    if value["schema"] == "aster.code.user-form.v1" {
-        return value.get("values").cloned();
+    returned_result(value, "aster.code.user-form.v1")?
+        .get("values")
+        .cloned()
+}
+
+fn returned_result(value: &serde_json::Value, schema: &str) -> Option<serde_json::Value> {
+    if value["schema"] == schema {
+        return Some(value.clone());
     }
     match value {
-        serde_json::Value::Object(fields) => fields.values().find_map(returned_form_values),
-        serde_json::Value::Array(items) => items.iter().find_map(returned_form_values),
+        serde_json::Value::Object(fields) => fields
+            .values()
+            .find_map(|value| returned_result(value, schema)),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .find_map(|value| returned_result(value, schema)),
         serde_json::Value::String(text) => {
             serde_json::from_str(text.strip_prefix("Tool exit code: 0\n").unwrap_or(text))
                 .ok()
-                .and_then(|nested| returned_form_values(&nested))
+                .and_then(|nested| returned_result(&nested, schema))
         }
         _ => None,
     }
@@ -3223,6 +3252,26 @@ fn shipped_tui_launch_resume_and_visible_commands() {
     );
     oracle(PTY_TEST, "compact-empty", "Nothing to compact yet");
 
+    let bodies_before_context = state.lock().expect("mock").bodies.len();
+    pty.write_bytes(b"\x15");
+    pty.type_text("/context");
+    pty.enter();
+    let context = pty.wait_for("Usage not reported", Duration::from_secs(8));
+    assert!(context.contains("token window"), "{context}");
+    assert!(!context.contains("0 /"), "{context}");
+    assert!(!context.contains("100%"), "{context}");
+    assert_eq!(
+        state.lock().expect("mock").bodies.len(),
+        bodies_before_context,
+        "/context started a model turn"
+    );
+    oracle(
+        PTY_TEST,
+        "context-empty",
+        "usage unavailable, no fabricated free budget, zero model requests",
+    );
+    pty.dismiss();
+
     // A new explicit goal uses Core facts and the default bounded driver.
     pty.write_bytes(b"\x15");
     pty.type_text(&format!("/goal {GOAL_OBJECTIVE}"));
@@ -3373,14 +3422,14 @@ fn shipped_tui_launch_resume_and_visible_commands() {
     let bodies_before_theme = state.lock().expect("mock").bodies.len();
     let before_theme = config_texts(&home);
     assert!(
-        !before_theme.contains("grokday"),
-        "theme was already grokday before /theme\n{before_theme}"
+        !before_theme.contains("theme = \"aster-day\""),
+        "theme was already aster-day before /theme\n{before_theme}"
     );
-    pty.type_text("/theme grokday");
+    pty.type_text("/theme aster-day");
     pty.enter();
     assert!(
-        wait_config(&home, "grokday", Duration::from_secs(3)),
-        "theme did not persist grokday\n{}",
+        wait_config(&home, "theme = \"aster-day\"", Duration::from_secs(3)),
+        "theme did not persist aster-day\n{}",
         config_texts(&home)
     );
     assert_eq!(
@@ -3388,7 +3437,7 @@ fn shipped_tui_launch_resume_and_visible_commands() {
         bodies_before_theme,
         "/theme started a model turn"
     );
-    oracle(PTY_TEST, "theme", "grokday, zero model requests");
+    oracle(PTY_TEST, "theme", "aster-day, zero model requests");
 
     pty.write_bytes(b"\x15");
     let before_vim = config_texts(&home);
@@ -3508,9 +3557,11 @@ fn shipped_tui_launch_resume_and_visible_commands() {
     pty.write_bytes(b"\x15");
     pty.type_text("/context");
     pty.enter();
-    let context = pty.wait_for("System prompt", Duration::from_secs(8));
+    let context = pty.wait_for("Reported input", Duration::from_secs(8));
     assert!(
-        context.contains("System prompt") && context.contains("Auto-compact"),
+        !context.contains("System prompt")
+            && !context.contains("Reasoning/overhead")
+            && !context.contains("Auto-compact"),
         "context report missing\n{context}"
     );
     let context_turns = context.lines().find_map(|line| {
@@ -3528,14 +3579,27 @@ fn shipped_tui_launch_resume_and_visible_commands() {
         Some(product_prompts),
         "context Turns is not the {product_prompts} prompts submitted in this session\n{context}"
     );
-    let context_used = context
-        .lines()
-        .any(|line| line.contains("tokens") && line.contains('/') && !line.contains("0 /"));
-    assert!(
+    let context_used = context.lines().find_map(|line| {
+        if !line.contains("tokens") {
+            return None;
+        }
+        line.split_once(" / ")?
+            .0
+            .split_whitespace()
+            .last()?
+            .parse::<u64>()
+            .ok()
+    });
+    assert_eq!(
         context_used,
-        "context after a completed turn still shows no tokens\n{context}"
+        Some(1),
+        "context must show the owned provider fixture's one reported prompt token\n{context}"
     );
-    oracle(PTY_TEST, "context", "turns and tokens");
+    oracle(
+        PTY_TEST,
+        "context",
+        "actual turns, one reported input token, no unmeasured categories or threshold",
+    );
     pty.dismiss();
 
     let before_compact = log_text(&workspace);
@@ -3962,7 +4026,7 @@ fn shipped_tui_ask_user_and_edit_tool_oracles() {
     let home = isolate_dir("pty-ask-edit-home");
     let target = workspace.join("edit-target.txt");
     std::fs::write(&target, "seed-before-edit\n").expect("seed");
-    let (addr, _state) = spawn_mock(&target, &workspace.join("late.txt"));
+    let (addr, state) = spawn_mock(&target, &workspace.join("late.txt"));
     let config = write_acl(&home, &workspace, &format!("http://{addr}/v1"));
     let owned = child_env(&binaries::acp_binary(), &config, &home);
     let env: Vec<(&str, &str)> = owned
@@ -3982,10 +4046,28 @@ fn shipped_tui_ask_user_and_edit_tool_oracles() {
     let card = pty.wait_for("alpha", Duration::from_secs(30));
     assert!(card.contains("beta"), "ask_user options missing\n{card}");
     pty.write_bytes(b"2");
-    let answered = pty.wait_for("ok", Duration::from_secs(30));
-    assert!(
-        answered.contains("ok") || answered.to_ascii_lowercase().contains("beta"),
-        "ask_user did not settle\n{answered}"
+    pty.wait_for("ASK-ANSWER-DONE", Duration::from_secs(30));
+    let schema = aster_core::ask_user::USER_ANSWER_SCHEMA;
+    let body = wait_body_all(
+        &state,
+        &["ASK-ORACLE a choice", schema],
+        Duration::from_secs(10),
+        true,
+    );
+    let request: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let answer = returned_result(&request["messages"], schema).expect("typed question answer");
+    assert_eq!(answer["answer"], "beta");
+    assert_eq!(answer["permission_grant"], false);
+    let answers: Vec<_> = log_text(&workspace)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|fact| fact["type"] == "question.answered")
+        .collect();
+    assert_eq!(answers.len(), 1);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(answers[0]["payload"]["text"].as_str().unwrap())
+            .unwrap(),
+        answer
     );
     oracle(
         "shipped_tui_ask_user_and_edit_tool_oracles",
@@ -4585,14 +4667,22 @@ fn shipped_bound_goal_real_llm() {
     pty.enter();
     let deadline = Instant::now() + Duration::from_secs(300);
     let mut screen = String::new();
+    let mut approval_visible = false;
     while Instant::now() < deadline {
         screen = pty.pump(Duration::from_millis(500));
         if screen.contains("Goal complete.") {
             break;
         }
-        if screen.contains("Yes, proceed") {
+        // Approval dialogs vary by tool ("Allow Execute?", "Allow write?")
+        // and by execution boundary ("Yes, proceed", "Yes, run on host").
+        // The 1/2 select footer is common to all of them. Approve once per
+        // dialog so repeated pumps never send "1" twice.
+        let dialog = screen.contains("1/2:select")
+            && (screen.contains("Yes, proceed") || screen.contains("Yes, run on host"));
+        if dialog && !approval_visible {
             pty.write_bytes(b"1");
         }
+        approval_visible = dialog;
     }
     assert!(screen.contains("Goal complete."), "{screen}");
     let report = std::fs::read_to_string(workspace.join("report.txt")).expect("report.txt");

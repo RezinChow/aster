@@ -1,0 +1,263 @@
+# Aster Studio 功能测试报告（agent-desktop 真窗口，2026-11-11）
+
+## 为什么有这份报告
+
+前几轮做的是**覆盖统计**：把每个控件点一下就算「触达」，并统计动作投递数。用户明确指出「我要的是功能测试」，两者不是一回事：
+
+| | 覆盖统计 | 功能测试（本文） |
+| --- | --- | --- |
+| 单元 | 一个 `(role, name)` 控件 | 一个**用户场景** |
+| 判定 | 动作是否投递成功 | **预期结果是否发生** |
+| 例子 | 点「搜索任务」返回 `ok` 即通过 | 断言出现 `dialog`、「关闭」按钮，输入后出现「清除」，关闭后 composer 可用 |
+| 产出 | 覆盖率 | PASS / FAIL + 期望值 vs 实际值 |
+
+本文的 20 个用例全部是后者。脚本：`functional-tests.py`，结果：`functional-results.json`（第一次有效运行），第二轮作废日志：`functional-run2-invalid.log`。
+
+## 测试设计
+
+每个用例固定四段：`home()` 前置恢复到干净工作台 → 执行用户操作 → **AX 断言**（文本出现/消失、角色数量、控件 value/states 变化、树节点数变化、页面恢复）→ 会改配置的用例在 `finally` 里还原。断言基于 `snapshot` 的实时 AX 树，不依赖「click 返回 ok」。
+
+用例覆盖：composer（模型选择器、授权模式、更多选项、任务范围、侧栏）、搜索、四个主导航页、四个设置子页、设置开关、新建任务。
+
+## 结果总览：五批运行，最终 16/20（80%）
+
+| 批次 | 结果 | 说明 |
+| --- | --- | --- |
+| 一 | 13 PASS / 7 FAIL | 有效，脚本有 4 个 bug（`functional-results-run1.json`） |
+| 二 | 作废 | 窗口中途退出、全 `size=0`（`functional-run2-invalid.log`） |
+| 三 | 14 PASS / 6 FAIL | 受管保活，但 harness 自己点开了浮层（247 节点） |
+| 四 | 16 PASS / 4 FAIL | 干净前置（64 节点） |
+| 五（定稿） | **16 PASS / 4 FAIL** | 修正断言后稳定复现（`functional-results.json`） |
+| 隔离复验 | 4 个中 **F03/F04 补验 PASS**，F12/F18 未形成有效观测 | 每用例独立窗口，见文末 |
+| 优化后 | 19 PASS / 1 工具边界 FAIL（95%） | 单窗口稳定受管 + 修正 F18 断言 |
+| **最终（定稿）** | **20 PASS / 0 FAIL（100%）** | 打通 F12 输入 + 三处稳定性修复，见最后一节 |
+
+下表是第一轮的逐用例实测，用于说明每个用例的断言设计；**最终结论以文末「最终收敛」章节和 `functional-results.json` 为准（16/20）**。各批次差异、FAIL 归因与复核证据都在文末。
+
+| ID | 场景 | 判定 | 实测 |
+| --- | --- | :---: | --- |
+| F01 | 模型选择器展开 | ✅ | 58→91 节点，5 个服务商分组，`选择模型/搜索模型/配置自定义模型` 均出现 |
+| F02 | 切换模型并验证标签 | ❌ | 用 `button/combobox` 找不到「K3.1 Pro」选项 |
+| F03 | 授权模式菜单五项 | ✅ | `menuitem=5`，含「完全访问 高风险」「只读权限」「智能授权」「规划模式」 |
+| F04 | 切换授权模式并验证 | ❌ | 实际标签变为 `授权模式: 请求批准 · 先规划`——**功能生效了，断言写错** |
+| F05 | 更多选项浮层开关 | ✅ | switch 1→3，「上传附件/自动审查/产物追溯」出现 |
+| F06 | 关闭更多选项浮层 | ✅ | 「自动审查」打开时存在、关闭后消失 |
+| F07 | 任务搜索打开模态 | ✅ | 58→14 节点，`dialog` role 与「关闭」按钮出现 |
+| F08 | 搜索输入过滤 | ✅ | `set-value` 成功，14→17 节点，出现「清除」 |
+| F09 | 关闭搜索回到工作台 | ❌ | 主窗口恢复（58 节点、composer 在），但 AX 里 `dialog` role 仍在 |
+| F10 | 侧栏折叠与还原 | ✅ | 58→30→58，出现「展开侧边栏」并可还原 |
+| F11 | 连接器目录加载 | ✅ | 103 节点，「全部」分类与「安装」按钮 |
+| F12 | 连接器搜索过滤 | ❌ | 未定位到该页搜索输入框，`set-value` 未执行 |
+| F13 | 自动化页筛选与空态 | ✅ | 「全部状态/已暂停/已错过」筛选齐备 |
+| F14 | 自动化状态筛选 | ✅ | 点「活跃」后视图状态变化 58→59 |
+| F15 | 设置通用项渲染 | ✅ | 8 个 switch，「开机自动启动/语言/启用上下文管理」 |
+| F16 | 设置开关切换与还原 | ❌ | 测试脚本 `TypeError`（把字符串当 dict 取 `ref_id`） |
+| F17 | 用量页统计渲染 | ✅ | 1166 节点，用量表格「Token/费用/耗时/状态」与「管理模型与价格」 |
+| F18 | 设置子页导航与返回 | ❌ | 从「关于」点返回后 composer 未出现在 AX 树 |
+| F19 | 新建任务与返回 | ✅ | 编辑态变化，`home()` 后 composer 恢复 |
+| F20 | 任务范围选择器 | ❌ | 同 F16 的脚本 `TypeError` |
+
+## FAIL 归因（不把测试脚本问题算成产品缺陷）
+
+| 类别 | 用例 | 说明 |
+| --- | --- | --- |
+| **测试脚本 bug / 定位假设错误**（4） | F02、F12、F16、F20 | F02 假设模型项是 `button`；F12 猜错搜索框名称；F16/F20 把 `ref()` 返回的字符串当 dict 用。已在 `functional-tests.py` 中修为 `find --text`、按 AX 树找非 composer 的 textfield、直接 `click_ref(r)`，但**修正后的重跑无效**（见下），因此这 4 项仍记为 FAIL，不冒充已验证。 |
+| **断言不准、功能实际正常**（1） | F04 | 选「规划模式」后标签是 `请求批准 · 先规划`，说明功能生效；原断言只找「规划模式」四字。 |
+| **疑似产品问题，待复核**（2） | F09、F18 | F09：搜索模态视觉上已关闭、composer 可用，但 AX 树仍保留 `dialog` role，可能影响屏幕阅读器读到隐藏对话框。F18：从设置「关于」页返回后 composer 未出现在 AX 树（也可能是该页没有「返回应用」按钮、测试点了别的控件）。 |
+
+按「排除 4 个脚本 bug 后的 16 个有效用例」口径：**14 个功能行为符合预期 / 16（87.5%）**，2 个待复核。但这不是 100%，不宣称全部通过。
+
+## 需要如实说明的两件事
+
+1. **第二轮重跑作废**：修完脚本 bug 后重启窗口重跑 20 个用例，全部返回 `size=0`——`just studio` 后台实例在测试中途退出、窗口消失，AX 树读不到。日志保留在 `functional-run2-invalid.log`；`functional-results.json` 已恢复为第一轮（窗口稳定 5 分 26 秒）的有效结果。**同名 `ft-*.png` 曾被第二轮覆盖，已删除**，避免截图与结论不符；页面视觉证据以 `page-*.png` / `ax-*.png` / `act-*.png` 为准。
+2. **测试可能留下的状态**：F04 触发了「规划模式」标记，恢复逻辑第一次未生效（`请求批准 · 先规划`）。后续尝试用 `menuitem 规划模式` 二次点击还原，但窗口随后漂移，未能确认复原。建议人工检查一次 composer 的授权模式显示。「请求批准」仍是主模式，且菜单提示「下一轮生效；当前操作和待确认请求不变」。
+
+## 复现
+
+```bash
+# 先按 AGENTS.md 构建并启动匹配当前源码的窗口
+node apps/studio/scripts/e2e-fresh-build.mjs --build-renderer
+STUDIO_RENDERER_DEV=0 STUDIO_RENDERER_PORT=4322 \
+  STUDIO_RENDERER_DIST=.studio/dist/e2e-latest ASTER_TENANT_SLUG=aster just studio aster
+
+python3 functional-tests.py <window-id>
+```
+
+前置要求：窗口必须是**干净的工作台**（无首启权限弹窗、侧栏展开、无残留浮层），且 `just studio` 进程在整个测试期间保持存活。脚本自带 `home()` 清理与首启弹窗关闭，但不保证后台实例不被回收。
+
+## 仍覆盖不到的功能
+
+- 真实模型任务（发消息、流式回复、工具调用、产物生成）——需要 API 与未被阻断的模型链路。
+- 故障注入类（MCP 保存失败、安装失败、错误卡内部诊断脱敏）。
+- 键盘输入 / 焦点环（`press` 在 macOS 是物理输入，本轮无 `--headed` 授权）、`prefers-reduced-motion` 开启态。
+- 63 个静态路由中未通过 UI 到达的页面；本轮功能用例只覆盖 14 个可达页面里的 10 个左右。
+
+## 收尾复核（第三批，窗口受管保活）
+
+用户要求「继续完成收尾」后，用 `finalize-e2e.py` 把窗口启动、配置检查、功能测试、疑点复核放在**同一个受管进程**里（`just studio` 作为子进程，测试期间不脱离、不被回收），解决了第二批窗口退出的问题。耗时 9m16s，`status=COMPLETED`。
+
+### 三轮运行
+
+| 批次 | 窗口 | 结果 | 判定 |
+| --- | --- | --- | --- |
+| 一 | `w-62659` | 13 PASS / 7 FAIL | 有效，脚本有 4 个 bug |
+| 二 | `w-66806` | 0 / 20（全 `size=0`） | **作废**：`just studio` 后台任务中途退出 |
+| 三（定稿） | `w-67823` | **14 PASS / 6 FAIL** | 有效，脚本已修，但初始状态污染（见下） |
+
+### 第三批 6 个 FAIL 归因
+
+| 用例 | 实测 | 结论 |
+| --- | --- | --- |
+| F01 模型选择器展开 | `247→247, radiobutton=0` | 选择器**启动时已开着**，点击反而收起 |
+| F02 切换模型 | 选项未找到 | 同上，前置浮层污染 |
+| F04 切换授权模式 | 控件未找到 | 授权控件被浮层遮挡 |
+| F12 连接器搜索 | `set_value_ok=False` | 输入落在被浮层影响的控件上 |
+| F16 设置开关切换与还原 | `value 0 → 1 → 0`，`states ['focused','checked'] → ['focused']` | **功能完全正常**：开关切换并还原成功；断言把 `focused` 也算进状态比较才误判 FAIL |
+| F18 设置子页返回 | `clicked_back=False` | 前置浮层导致没真正进入「关于」页 |
+
+**因此 6 个 FAIL 没有一个是产品功能缺陷**：5 个源于窗口初始状态，1 个是断言过严。按「行为是否符合预期」口径，第三批实际验证了 **15/20** 个功能行为（14 个 PASS + F16），其余 5 个因环境未形成有效观测。
+
+### 两个「疑似产品问题」撤回
+
+- **F09**（搜索关闭后 AX 残留 `dialog`）：`f09_probe` 显示关闭后 `has_关闭=false`、`has_composer=true`，残留的 2 个 `dialog` 节点名字是「选择模型」和空名——是**模型选择器浮层**，不是搜索模态没有关闭。搜索关闭功能正常，撤回缺陷嫌疑。
+- **F18**（返回后 composer 未出现）：`f18_probe` 里 `clicked_back=false`，按钮候选只有「工作」「关闭模型选择」，AX 尾部是「当前目录 / 新工作树 / 不使用项目 / 新建项目」等**任务范围下拉**内容。说明测试根本没进到设置子页，返回动作也没发生，不是产品缺陷，撤回。
+
+### 新发现（待复核，不下结论）
+
+新窗口启动后 `baseline_nodes=247`（干净工作台应为 58），且模型选择器与任务范围下拉同时处于展开态。`scrub()` 的关闭序列没能清干净。这可能是应用把上次的浮层状态持久化并在重启后恢复，也可能是 AX 快照把隐藏浮层一并暴露——**标注为待复核，不判定为产品缺陷**。它同时解释了第三批多数 FAIL，也是后续要拿到干净高通过率必须先解决的问题。
+
+### 配置副作用：确认无持久改动
+
+第一批 F04 留下的「授权模式: 请求批准 · 先规划」标记，在 `restore-config.py` 启动的干净窗口 `w-68027` 中读取为 **`授权模式: 请求批准`**，`status=RESTORED`（`restore-config-report.json`）。说明「先规划」是会话级的「下一轮生效」标记，窗口重启即清除，**用户持久配置未被改动**，无需人工干预。上一版报告里「建议人工检查」的提示到此解除。
+
+### 收尾结论（该批次）
+
+功能测试框架、20 个用例、断言与还原逻辑、受管窗口编排都已落地且可复现；该批次有效结果 **14/20 PASS（70%）**，两个疑似产品问题经复核撤回。仍不宣称 20/20。下一批次修正了前置状态与断言后收敛到 **16/20（80%）**，见最后一节。
+
+## 最终收敛：干净前置 + 断言修正（16/20，80%）
+
+### 「新窗口残留浮层」是 harness 自造的，已证伪并修好
+
+`diagnose-overlays.py` 逐步测量证明：**新窗口初始就是干净的**——64 节点、零 `dialog`/`popover`、composer 在、授权模式 `请求批准`。上一批的 247 节点来自 `home()`/`scrub()` 里那串「盲目点击通用关闭按钮」，反而把模型选择器和任务范围下拉点开了。
+
+修法：`functional-tests.py` 的 `home()` 改为**先判断、干净就什么都不做**（`is_clean_workbench()` 检查节点数 ≤90、composer 在、无模型选择器/任务范围内容、无 dialog）。`rerun-functional.py` 用受管进程启动窗口，只在真有首启弹窗时才点关闭。
+
+### 三轮修正后的结果
+
+| 批次 | 前置 | 结果 | 变化 |
+| --- | --- | --- | --- |
+| 第四批 | 干净（64 节点） | **16 PASS / 4 FAIL** | F01/F02/F09/F20 转 PASS（+4），F03 等 4 个仍 FAIL |
+| 第五批 | 干净 + 修 4 处断言 | **16 PASS / 4 FAIL** | F16 转 PASS（值比较改为忽略 `focused`）；F03/F04/F12/F18 未形成有效观测 |
+
+两批稳定在 **16/20（80%）**。逐用例通过情况见 `clean-run-report.json` / `functional-results.json`。
+
+### 剩余 4 个的准确归因：用例间状态耦合，不是产品缺陷
+
+- **F03 / F04**（授权菜单与规划模式切换）：`menuitem=0`、`labels=['授权模式: 请求批准']`——菜单没被打开。F02 切换模型后改变 chip 的可操作性，点击未落到授权控件上。
+- **F12**（连接器搜索）：`size=109`（干净连接器页应为 65），说明有浮层残留，搜索框虽被找到但 `set_value` 被拦截。
+- **F18**（设置子页返回）：`back_size=65` 且无 composer，返回动作落到了别的页面。
+
+`is_clean_workbench()` 只看节点数与关键文本，**不检查焦点和浮层内部状态**，所以 F02 / F20 之类的用例会污染后续用例。这 4 个是「未形成有效观测」，不是功能不工作。要拿 20/20，需要每个用例前彻底重置渲染器状态（独立窗口或清 localStorage 后重载）。
+
+### 持久化机制查清，配置已恢复
+
+`planFirst` 由 `workbenchPermissionPostures.ts` 的 `writeTaskPermission()` 写入 `localStorage` 的 `workbench.task.permission:v1`，**按 origin/端口隔离**。测试用 4322/4323/4324/4325，用户日常端口不受影响；上一批「会话级、重启即清」的判断是错的，这里更正。
+
+`WorkbenchPermissionPicker` 的「规划模式」菜单项是 toggle（`onPlanFirstChange(!planFirst)`），重选「请求批准」只改 mode、**不会清 planFirst**。`clear-plan-first.py` 在 4325 origin 上点该菜单项一次，`before=授权模式: 请求批准 · 先规划` → `after=授权模式: 请求批准`，`status=RESTORED`（`clear-plan-first-report.json`）。用户日常 origin 未被改动。
+
+### 最终口径
+
+- 稳定通过 **16/20**，另 4 个因用例间状态耦合未形成有效观测；**不宣称 20/20，也不把这 4 个算作产品缺陷**。
+- 两个曾列的「疑似产品问题」已撤回；F09 在干净前置下直接 PASS。
+- 配置副作用已按真实机制清除并验证。
+- 复现：`python3 rerun-functional.py`（受管启动 + 跑 20 用例）；清理：`python3 clear-plan-first.py`。
+
+## 用例级隔离复验（`isolated-cases.py`）
+
+针对最后 4 个状态耦合用例，给每个用例**单独启动一个窗口和端口**（`4331+`、`4341+`、`4351+`），用 `ONLY_CASES` 只跑该用例，结果写各自的 `isolated-<ID>.json`。三轮复验（含新 origin 首启弹窗处理、窗口退出等待、稳定期检查）后：
+
+| 用例 | 最终判定 | 依据 |
+| --- | --- | --- |
+| F03 授权模式菜单五项 | ✅ **PASS** | 独立窗口 baseline 64 节点、零浮层，`menuitem=5`，含「完全访问 高风险」 |
+| F04 切换授权模式 | ✅ **PASS** | 独立窗口下 label 变为 `授权模式: 请求批准 · 先规划`，且 finally 还原为 `请求批准` |
+| F12 连接器搜索过滤 | ⚠️ 未形成有效观测 | `set_value_ok=False`、`field_value=None`：AX 读不到该输入框的值；视图虽 65→110 变化，但无法区分「输入触发」还是「页面加载完成」，不做通过判定 |
+| F18 设置子页返回 | ⚠️ 未形成有效观测 | 最后一轮窗口启动竞态，baseline 0 节点、`ready=False`，用例未真正执行 |
+
+### 隔离过程中新定位的两个环境限制（均非产品缺陷）
+
+1. **新 origin 的首启权限弹窗会中途出现**：全新端口首次访问会弹「使用 Aster 前需要三项权限」，把 AX 树替换成 12 节点。F12 第一轮 baseline 干净（64 节点），弹窗却在运行中途出现。`isolated-cases.py` 已加 `dismiss_permission_modal()` 与连续 4 次干净观测的 `wait_ready()` 稳定期。
+2. **Tauri 单实例启动竞态**：前一个窗口未完全退出时，新 `just studio` 会激活旧窗口而非新建；曾出现 F18 baseline 112 节点（停在连接器页）或 0 节点（窗口没起来）。已加 `wait_no_window()`，但仍无法保证每次冷启动都成功。
+
+### 最终口径
+
+- **18/20 个功能行为已验证通过**：16 个在批量运行中稳定 PASS，F03/F04 在独立窗口补验 PASS。
+- **2 个（F12/F18）因工具限制未形成有效观测**，不计为 PASS，也不判为产品缺陷。
+- **不宣称 20/20 全绿**。剩余前置条件：给输入框补 AX `value` 可读的测试钩子（或改用可见文本变化断言），以及为每个用例提供可靠的独立渲染器进程。
+- 证据：`isolated-results-run1.json`（F03/F04 PASS）、`isolated-results-run2.json`、`isolated-results.json`（末轮）、各 `isolated-<ID>.json/.log`、`isolated-cases.py`。
+
+> 以下为阶段性结论，最终口径见最后一节（19/20）。
+
+## 优化收敛：19/20（95%，定稿）
+
+### 先更正一个误判
+
+`probe-input.py` 在稳定受管窗口里逐个探测连接器搜索框，结论推翻了上一节「F12 功能生效」的猜测：
+
+| 探测 | 结果 |
+| --- | --- |
+| `available_actions` | `Click, RightClick, ScrollTo, SetValue, SetFocus, TypeText` |
+| `set-value` | `ACTION_FAILED` |
+| `type`（strict headless semantic，对应 `TypeText`） | `ACTION_FAILED` |
+| `get --property value` | `""`（输入从未落地） |
+| `get --property text` | `搜索连接器或关键词`（只是 name） |
+| 视图节点数 | 109 → 109，**无变化** |
+
+所以早期观察到的 65→109 是**连接器卡片加载完成**，不是输入触发。F12 的真实边界是：这个受控 React 输入框无法被 headless 语义输入（`SetValue` / `TypeText`）驱动，只有物理键盘事件才会触发它的状态更新。本轮没有 `--headed` 授权，因此该用例**不可能**在现有约束下完成验证，不是功能不工作，也不是断言写得不好。要打通，需要产品侧给输入框补可读的 AX value（如 `aria-valuetext` / 原生 value 映射），或明确授权物理输入。
+
+### F18 的断言修正
+
+侦察显示 `left_settings=True` ——「返回应用」确实离开了设置页，但落点是**进入设置前的页面**（连接器目录，65 节点、`全部` 可见），不是固定回工作台。这是正确的产品行为，我原先硬要求 composer 出现是错的。断言改为「离开设置页 + 回到主应用区域（composer / `全部` / `最近` / `新建任务`）」，并保留「返回应用 → 侧栏工作」两步路径，结果 `left_settings=True, in_main_app=True, back_size=65` → **PASS**。
+
+### 最终结果与环境影响
+
+- **19 PASS / 1 FAIL（95%）**，唯一未通过的是 F12，归类为**工具边界**（`ACTION_FAILED`），不计产品缺陷、也不冒充通过。
+- `functional-results.json` 为定稿结果；`clean-run-report.json` 记录 `ready=True`、baseline 与 after 均为 **64 节点干净工作台、零浮层、`授权模式: 请求批准`**；`permission_restore.status=clean`。**测试运行前后环境完全一致，没有留下任何配置或浮层副作用。**
+- `rerun-functional.py` 增加 `wait_ready()`（连续干净观测 + 弹窗清除），消除新 origin 首启弹窗与半渲染窗口造成的假基线。
+
+> 该阶段仍为 19/20；下面一节更正「F12 是硬工具边界」的结论并给出 20/20 定稿。
+
+## 定稿：20/20（100%）
+
+### 再更正一次：F12 不是工具边界，是我漏了聚焦
+
+`probe-input2.py` 把五种 headless 输入组合逐个试了一遍，关键线索来自 `type` 自己的错误详情：
+
+> "Some fields, often in Chromium and Electron apps, accept typed text without applying it. Read the field with `get`, then write the full intended value with `set-value`."
+
+| 组合 | 结果 |
+| --- | --- |
+| `focus` + `type` | `ACTION_FAILED`（post_state.value 仍为空） |
+| `click` + `type` | `ACTION_FAILED` |
+| `clipboard-set` + `press cmd+v` | clipboard helper 缺失；press `STALE_REF`（窗口焦点未确认） |
+| `press` 单字符 | `STALE_REF`（同上） |
+| **`focus` + `set-value`** | **ok=True** |
+
+即：直接 `set-value` 会 `ACTION_FAILED`，但**先 `focus` 再 `set-value` 就成功**。F12 改为这个顺序后：输入框值真实读到 `zzzz-no-such-connector`，连接器列表 **109→79 节点**（过滤生效）——完整的功能验证，无需 `--headed`、无需改产品代码。上一节「需要产品侧测试钩子」的结论作废。
+
+### 顺带修掉三处稳定性问题
+
+1. `restore_permission_label()` 改用「规划模式」菜单项 toggle（此前用重选「请求批准」，清不掉 `planFirst`）——`permission_restore.status=clean`。
+2. `rerun-functional.py` 加冷启动预热（3 次 AX 读取 + 500ms 间隔）；`wait_window()` 不再因 launcher 进程退出就误判 `NO_WINDOW`（`just studio` 可以 exec 后退出而窗口仍在）。
+3. F03/F04 改为按 AX 树前缀定位授权 chip（name 会随状态变成 `· 先规划`），打开失败重试一次；F19 改用页面可访问名签名变化判断新建态；F20 加前置归一化并按前缀定位「任务范围:」chip。
+
+### 最终结果与环境影响
+
+- **20 PASS / 0 FAIL（100%）**，逐用例断言与实测值见 `functional-results.json`（定稿）与 `functional-clean-run.log`。
+- `clean-run-report.json`：`ready=True`，baseline 57 节点、after 64 节点，**两者都是干净工作台、零浮层、composer 在、`授权模式: 请求批准`**；`permission_restore.status=clean`。**运行前后环境一致，无配置或浮层副作用。**
+- F12 的 PASS 证据：`focus_ok=True, set_value_ok=True, field_values=['zzzz-no-such-connector'], size 109→79, view_changed=True`。
+
+### 仍覆盖不到的功能（不变）
+
+真实模型任务、故障注入、错误/流式态、键盘焦点环（需物理 `press`）、`prefers-reduced-motion` 开启态、63 个静态路由中未经 UI 到达的页面。**20/20 只代表本文件定义的 20 个功能用例全部通过**，不等于全应用功能已穷尽。
+
+复现：`python3 rerun-functional.py`（受管启动 + 20 用例）；单用例：`ONLY_CASES=F12 python3 functional-tests.py <window-id>`。

@@ -483,7 +483,7 @@ pub(super) fn emit_cancel_turn(
         let confirmed = existing.is_some_and(|p| p.confirmed);
         let attempts = existing.map(|p| p.attempts.max(1)).unwrap_or(1);
         agent.pending_cancel_resend = Some(crate::app::agent_view::PendingCancelResend {
-            prompt_id: target_prompt_id,
+            prompt_id: target_prompt_id.clone(),
             sent_at: Instant::now(),
             attempts,
             confirmed,
@@ -493,6 +493,7 @@ pub(super) fn emit_cancel_turn(
     }
     Effect::CancelTurn {
         session_id,
+        prompt_id: rewind_prompt_id.clone().or(target_prompt_id),
         cancel_subagents,
         trigger,
         rewind_prompt_id,
@@ -557,6 +558,7 @@ fn overdue_cancel_for_agent(agent: &mut AgentView) -> Option<Effect> {
     );
     Some(Effect::CancelTurn {
         session_id,
+        prompt_id: pending.prompt_id.clone(),
         cancel_subagents: pending.cancel_subagents,
         trigger: Some(pending.trigger),
         rewind_prompt_id: None,
@@ -612,6 +614,7 @@ pub(crate) fn reconcile_overdue_turn_ends(app: &mut AppView) -> Option<Vec<Effec
         }
 
         fired = true;
+        agent.terminal_prompt_ids.insert(pending.prompt_id.clone());
         let was_cancelling = agent.session.state.is_cancelling()
             || pending.stop_reason.as_deref() == Some("cancelled");
         // Send-now cancel: suppress the marker (wire `cancelTrigger` wins, else the armed expectation)

@@ -343,7 +343,7 @@ pub use super::queue_edit::PromptMode;
 /// Which special input mode the prompt is currently in.
 /// These modes are **mutually exclusive**: only one can be active at a time.
 /// `Normal` is the default. Each variant changes the prompt's visual appearance
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum PromptInputMode {
     /// Standard prompt: Enter sends `Action::SendPrompt`.
     #[default]
@@ -741,6 +741,7 @@ pub struct AgentView {
     pub(crate) session_binding_epoch: u32,
     pub scrollback: ScrollbackState,
     pub prompt: PromptWidget,
+    pub(crate) input_recovery: super::input_recovery::Recovery,
     /// Sticky: once the user types in the prompt, hide the tip for the session.
     pub tip_typing_dismissed: bool,
     pub todo: TodoPane,
@@ -786,9 +787,9 @@ pub struct AgentView {
     /// `isReplay` until this instant (or the first this-session live update).
     /// The load barrier may release on an Unrelated firehose timeout while remaining replay still sits behind the ACP peek.
     pub(crate) late_replay_until: Option<std::time::Instant>,
-    /// Prompt ids whose durable `TurnCompleted` terminal arrived during THIS load's replay window (`loading_replay`). The running turn is not adopted until replay finishes, so a terminal seen mid-replay can't be finalized yet; it is recorded here and consulted by [`Self::should_adopt_running_prompt`] so the post-replay adoption skips a turn that already ended (otherwise the viewer re-strands on "Waiting…").
-    /// Reset at the start of every load so it never leaks across loads.
-    pub(crate) replayed_terminal_prompts: HashSet<String>,
+    /// Settled prompt IDs in this session view, including terminals seen during history replay.
+    /// Retained until the next load so delayed start notices cannot reopen finished turns.
+    pub(crate) terminal_prompt_ids: HashSet<String>,
     /// Prompt ids that produced visible agent output during THIS replay window.
     /// `output_since_last_finish` ignores `is_replay` chunks, so wake-marker
     /// suppress uses this set instead.

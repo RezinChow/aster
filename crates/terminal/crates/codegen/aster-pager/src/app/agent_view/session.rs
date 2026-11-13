@@ -37,6 +37,7 @@ impl AgentView {
     /// A stale cursor relies on exact-match failure for safety; a stale highwater could dedup-drop the new session's events outright.
     pub(crate) fn bind_session_id(&mut self, session_id: agent_client_protocol::SessionId) {
         if self.session.session_id.as_ref() != Some(&session_id) {
+            self.input_recovery = Default::default();
             self.session_binding_epoch = self.session_binding_epoch.wrapping_add(1);
             self.last_seen_event_id = None;
             self.last_seen_event_seq = None;
@@ -135,6 +136,7 @@ impl AgentView {
             session_binding_epoch: 0,
             scrollback,
             prompt,
+            input_recovery: Default::default(),
             tip_typing_dismissed: false,
             todo: TodoPane::new(),
             tasks: TasksPane::new(),
@@ -151,7 +153,7 @@ impl AgentView {
             session_reload: None,
             unexpected_replay_drops: 0,
             late_replay_until: None,
-            replayed_terminal_prompts: HashSet::new(),
+            terminal_prompt_ids: HashSet::new(),
             replayed_visible_prompts: HashSet::new(),
             replayed_bash_prompts: HashSet::new(),
             failed_wake_marker_for: None,
@@ -598,7 +600,7 @@ impl AgentView {
     pub(crate) fn begin_replay_window(&mut self) {
         self.clear_minimal_btw_lifecycle();
         self.session.loading_replay = true;
-        self.replayed_terminal_prompts.clear();
+        self.terminal_prompt_ids.clear();
         self.replayed_visible_prompts.clear();
         self.replayed_bash_prompts.clear();
         self.unexpected_replay_drops = 0;
@@ -802,7 +804,7 @@ impl AgentView {
     /// Adopting it would re-strand the viewer on "Waiting…".
     pub(crate) fn should_adopt_running_prompt(&self, prompt_id: &str) -> bool {
         crate::app::acp_handler::should_adopt_running_prompt(prompt_id)
-            && !self.replayed_terminal_prompts.contains(prompt_id)
+            && !self.terminal_prompt_ids.contains(prompt_id)
             && !self.is_rewound_prompt(prompt_id)
     }
     /// Whether a wake turn is in flight (streaming or cancelling) while the pane is idle.
@@ -843,7 +845,13 @@ impl AgentView {
     }
     /// Whether Send now can target a local turn or an idle-looking automatic wake.
     pub(crate) fn can_send_now(&self) -> bool {
-        self.session.state.is_turn_running()
+        (self.session.state.is_idle()
+            && self
+                .session
+                .pending_prompts
+                .iter()
+                .any(|prompt| prompt.recovered))
+            || self.session.state.is_turn_running()
             || (self.wake_turn_active() && !self.wake_turn_cancelling())
     }
     /// Single setter for [`RunningWakeTurn`]. No-op unless the pane is idle and not replaying; keeps an in-flight cancel marker for the same id.
@@ -1056,8 +1064,16 @@ impl AgentView {
     /// Turn activity for the status spinner: an implicit "no activity" gap during a running inference turn resolves to an explicit [`WaitingReason`].
     /// `TaskOutput` / `Subagent` waits also get a display subject from live bg-task or subagent state so the spinner can read `{description}…`.
     pub(crate) fn resolve_turn_activity(&self) -> Option<crate::acp::tracker::TurnActivity> {
-        self.resolve_turn_activity_unenriched()
-            .map(|activity| self.enrich_waiting_activity(activity))
+        use crate::acp::tracker::{TurnActivity, WaitingReason};
+        // A send-now arm awaiting its own ack is a display-only wait. Keeping
+        // the synthetic state here preserves the spinner while predicates keep
+        // seeing the tracker's real wait instead of losing it to PromptAck.
+        let activity = if self.send_now_awaiting_current() {
+            Some(TurnActivity::Waiting(WaitingReason::PromptAck))
+        } else {
+            self.resolve_turn_activity_unenriched()
+        };
+        activity.map(|activity| self.enrich_waiting_activity(activity))
     }
     /// Wait detection without display enrichment, for predicates that need the wait's identity and must not churn with view-resolved display state.
     /// [`Self::resolve_turn_activity`] adds the display subject on top.
@@ -1066,9 +1082,6 @@ impl AgentView {
     ) -> Option<crate::acp::tracker::TurnActivity> {
         use crate::acp::tracker::{TurnActivity, WaitingReason};
         use crate::app::agent::AgentState;
-        if self.send_now_awaiting_current() {
-            return Some(TurnActivity::Waiting(WaitingReason::PromptAck));
-        }
         if let Some(activity) = self.session.turn_activity() {
             return Some(activity);
         }
@@ -1279,6 +1292,7 @@ impl AgentView {
         match self.context_state.as_mut() {
             Some(snap) => {
                 snap.used = used;
+                snap.usage_available = Some(true);
                 if total > 0 {
                     snap.total = total;
                 }

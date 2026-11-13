@@ -9,11 +9,12 @@ use super::{
     BashSandbox, NetworkGrant, SandboxCommandRequest, SandboxExecutionOutput, SandboxNetworkMode,
     SandboxOutput,
 };
+use crate::tools::OwnedProcessTermination;
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use ksandbox::{
     CommandRequest, NativeSandbox, NetworkAllowRule, OutputObserver, OutputSummary, PathRule,
-    SandboxPolicy,
+    ResolvedResourceBudget, SandboxPolicy,
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -155,6 +156,15 @@ impl BashSandbox for NativeBashSandbox {
         Ok(())
     }
 
+    fn effective_timeout_ms(&self, requested_ms: u64) -> Result<u64> {
+        ResolvedResourceBudget::resolve(&self.inner.policy().resources, requested_ms)
+            .map(|budget| budget.timeout_ms)
+    }
+
+    fn owns_command_deadline(&self) -> bool {
+        true
+    }
+
     fn supports_background_execution(&self) -> bool {
         // Process-group kill-on-drop and bounded capture. macOS Seatbelt does
         // not reclaim setsid() descendants; escape suites record that gap
@@ -214,6 +224,42 @@ impl BashSandbox for NativeBashSandbox {
             exit_code: output.exit_code,
             timed_out: output.timed_out,
         })
+    }
+
+    async fn exec_cancellable(
+        &self,
+        request: SandboxCommandRequest,
+        cancellation: &tokio_util::sync::CancellationToken,
+    ) -> Result<(SandboxExecutionOutput, OwnedProcessTermination)> {
+        let output_observer = request.output_observer.map(|observer| {
+            Arc::new(BridgedOutputObserver { inner: observer }) as Arc<dyn OutputObserver>
+        });
+        let (output, termination) = self
+            .inner
+            .execute_cancellable(
+                CommandRequest {
+                    command: request.command,
+                    timeout_ms: request.timeout_ms,
+                    output_observer,
+                    env: request.env,
+                },
+                cancellation.cancelled(),
+            )
+            .await?;
+        let termination = match termination {
+            ksandbox::CommandTermination::Completed => OwnedProcessTermination::Completed,
+            ksandbox::CommandTermination::TimedOut => OwnedProcessTermination::TimedOut,
+            ksandbox::CommandTermination::Cancelled => OwnedProcessTermination::Cancelled,
+        };
+        Ok((
+            SandboxExecutionOutput {
+                stdout: output.stdout,
+                stderr: output.stderr,
+                exit_code: output.exit_code,
+                timed_out: output.timed_out,
+            },
+            termination,
+        ))
     }
 
     async fn shutdown(&self) {}

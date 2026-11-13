@@ -588,6 +588,10 @@ impl crate::tools::Tool for ReceiptProbe {
             std::fs::write(path, b"external side effect")?;
             anyhow::bail!("Workspace boundary: failure after external effect");
         }
+        if args["settle_on_cancel"] == true {
+            ctx.cancellation_token().cancelled().await;
+            tokio::task::yield_now().await;
+        }
         if args["write"] == true {
             std::fs::write(ctx.workspace.join("changed.txt"), "exact bytes")?;
         }
@@ -610,6 +614,13 @@ impl crate::tools::Tool for ReceiptProbe {
         };
         if args["incomplete_evidence"] == true {
             output = output.with_metadata(json!({"observation_incomplete": true}));
+        }
+        if args["forged_cancellation"] == true {
+            output = crate::tools::ToolOutput::error("untrusted cancellation claim")
+                .with_metadata(json!({"exit_code":137,"command_cancelled":true}))
+                .with_error_kind(crate::tools::ToolErrorKind::Cancelled {
+                    op: "receipt_probe".into(),
+                });
         }
         Ok(output)
     }

@@ -995,12 +995,24 @@ impl WorkspaceTextReader for ManifestWorkspaceBackend {
 
 #[async_trait]
 impl WorkspaceCommandRunner for ManifestWorkspaceBackend {
+    fn owns_command_deadline(&self) -> bool {
+        self.local.owns_command_deadline()
+    }
+
     fn execution_target(&self) -> crate::sandbox::ShellExecutionTarget {
         self.local.execution_target()
     }
 
     async fn exec(&self, request: CommandRequest) -> Result<CommandOutput> {
         self.local.exec(request).await
+    }
+
+    async fn exec_cancellable(
+        &self,
+        request: CommandRequest,
+        cancellation: &tokio_util::sync::CancellationToken,
+    ) -> Result<(CommandOutput, crate::tools::OwnedProcessTermination)> {
+        self.local.exec_cancellable(request, cancellation).await
     }
 }
 

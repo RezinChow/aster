@@ -191,6 +191,10 @@ pub(super) fn host_bridge_event(event: &crate::agent::AgentEvent) -> bool {
             | crate::agent::AgentEvent::ConfirmationReceived { .. }
             | crate::agent::AgentEvent::ConfirmationTimeout { .. }
             | crate::agent::AgentEvent::UserQuestion { .. }
+            | crate::agent::AgentEvent::ToolExecutionStart { .. }
+            | crate::agent::AgentEvent::ToolOutputDelta { .. }
+            | crate::agent::AgentEvent::ToolEnd { .. }
+            | crate::agent::AgentEvent::PermissionDenied { .. }
     )
 }
 
@@ -380,7 +384,7 @@ impl ToolRunner for ExecutorTools {
             let mut args = call.args.clone();
             if let Some(agent) = tools.agent.as_ref().filter(|_| !tools.pre_tool_hook_resolved) {
                 let session_id = tools.context.session_id.clone().unwrap_or_default();
-                let decision = agent
+                let (decision, _) = agent
                     .fire_pre_tool_use(&session_id, &call.name, &args, Vec::new())
                     .await;
                 if let Some(denial) = decision.denial {
@@ -536,7 +540,6 @@ impl ToolRunner for ExecutorTools {
             tokio::pin!(execution);
             // Forward host events while the tool runs: a tool that waits on the
             // host (ask_user_form) needs its question delivered before it returns.
-            let mut interrupted = false;
             let executed = loop {
                 tokio::select! {
                     biased;
@@ -553,13 +556,14 @@ impl ToolRunner for ExecutorTools {
                         }
                     } => {
                         invocation_cancel.cancel();
-                        interrupted = true;
                         break (&mut execution).await;
                     }
                     event = next_host_event(&mut bridged) => tools.emit(event).await,
                 }
             };
-            if interrupted || executed.as_ref().is_ok_and(|result| matches!(result.error_kind, Some(crate::tools::ToolErrorKind::Cancelled { .. }))) {
+            if executed.as_ref().is_ok_and(|result| matches!(result.error_kind, Some(crate::tools::ToolErrorKind::Cancelled { .. }))
+                && !(result.metadata.as_ref().is_some_and(|metadata| metadata["command_cancelled"] == true)
+                    && tools.context.cancellation_settled(Some(result.exit_code)))) {
                 let message = "cancelled".to_string();
                 tools.emit(crate::agent::AgentEvent::ToolEnd {
                     id: call.id.clone(), name: call.name.clone(), args: Some(args.clone()),

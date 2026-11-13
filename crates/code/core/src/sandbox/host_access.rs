@@ -22,6 +22,10 @@ impl BashSandbox for HostAccessSandbox {
         self.runner.shell_note()
     }
 
+    fn owns_command_deadline(&self) -> bool {
+        self.runner.owns_command_deadline()
+    }
+
     async fn exec_command(&self, command: &str, _workspace: &str) -> anyhow::Result<SandboxOutput> {
         let output = self
             .exec(SandboxCommandRequest {
@@ -58,6 +62,37 @@ impl BashSandbox for HostAccessSandbox {
     }
 
     async fn shutdown(&self) {}
+
+    async fn exec_cancellable(
+        &self,
+        request: SandboxCommandRequest,
+        cancellation: &tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<(
+        SandboxExecutionOutput,
+        crate::tools::OwnedProcessTermination,
+    )> {
+        let (output, termination) = self
+            .runner
+            .exec_cancellable(
+                CommandRequest {
+                    command: request.command,
+                    timeout_ms: request.timeout_ms,
+                    output_observer: request.output_observer,
+                    env: request.env,
+                },
+                cancellation,
+            )
+            .await?;
+        Ok((
+            SandboxExecutionOutput {
+                stdout: output.output,
+                stderr: String::new(),
+                exit_code: output.exit_code,
+                timed_out: output.timed_out,
+            },
+            termination,
+        ))
+    }
 }
 
 #[cfg(test)]

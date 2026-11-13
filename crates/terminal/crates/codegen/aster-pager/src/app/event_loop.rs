@@ -227,6 +227,8 @@ pub(crate) struct TerminalState {
 /// Result of the event loop run.
 pub(crate) struct RunResult {
     pub exit_info: Option<super::ExitInfo>,
+    pub connection_closed: bool,
+    pub unsent_input: Vec<super::input_recovery::Snapshot>,
     pub quit_for_update: bool,
     /// stderr line to print after the TUI is restored (failed Welcome trust save).
     pub trust_quit_error: Option<String>,
@@ -1888,6 +1890,13 @@ pub(crate) async fn run(
         super::event_loop_stall::StallRollup::new(super::event_loop_stall::STALL_REPORT_WINDOW);
     let loop_entry = std::time::Instant::now();
     loop {
+        let mut restored = false;
+        for agent in app.agents.values_mut() {
+            restored |= agent.restore_saved_draft();
+        }
+        if restored {
+            presenter.request(false);
+        }
         if !session_load_barrier.is_empty() && acp_peek.is_none() {
             acp_peek = acp_rx.try_recv().ok();
         }
@@ -2218,7 +2227,11 @@ pub(crate) async fn run(
                     None => acp_rx.recv().await,
                 }
             }, if input_rx.is_empty() => {
-                let Some(msg) = msg else { break };
+                let Some(msg) = msg else {
+                    let mut result = finish_run_with_stall_flush(&mut app, &mut stall_rollup);
+                    result.connection_closed = true;
+                    return Ok(result);
+                };
                 let mut state_changed = acp_handler::handle(msg, &mut app);
                 if !app.pending_effects.is_empty() {
                     let effs = std::mem::take(&mut app.pending_effects);
@@ -3164,6 +3177,12 @@ fn finish_run(app: &mut AppView) -> RunResult {
     });
     RunResult {
         exit_info,
+        connection_closed: false,
+        unsent_input: app
+            .agents
+            .values_mut()
+            .filter_map(super::input_recovery::Snapshot::take)
+            .collect(),
         quit_for_update: app.quit_for_update,
         trust_quit_error: app.trust_quit_error.clone(),
         relaunch: app.relaunch.clone(),
@@ -4100,14 +4119,16 @@ fn process_effects(
             continue;
         };
         let effect_flags = session_flags_for_effect(&flags, app, &eff);
-        let (quit, meta) = effects::execute(
-            eff,
-            tasks,
-            &app.acp_tx,
-            &app.cwd,
-            &effect_flags,
-            progress_tx,
-        );
+        let cwd = match &eff {
+            Effect::SwitchModel { agent_id, .. } => app
+                .agents
+                .get(agent_id)
+                .map(|agent| agent.session.cwd.as_path())
+                .unwrap_or(&app.cwd),
+            _ => &app.cwd,
+        };
+        let (quit, meta) =
+            effects::execute(eff, tasks, &app.acp_tx, cwd, &effect_flags, progress_tx);
         if let Some((seq, abort_handle)) = meta.auth_abort_handle
             && let super::app_view::AuthState::Authenticating {
                 request_seq,

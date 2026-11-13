@@ -44,9 +44,20 @@ pub(crate) fn take_deferred_model_switch(
     if let Some(DeferredModelSwitch {
         model_id,
         mut effort,
+        skip_if_current,
         prev_model_id,
     }) = stashed
     {
+        if skip_if_current
+            && effort.is_none()
+            && cli_effort_token.is_none()
+            && models.current.as_ref() == Some(&model_id)
+        {
+            return DeferredSwitchOutcome {
+                switch: None,
+                effort_error: None,
+            };
+        }
         let effort_error = match cli_effort_token {
             Some("default") => {
                 effort = None;
@@ -67,6 +78,7 @@ pub(crate) fn take_deferred_model_switch(
             switch: Some(DeferredModelSwitch {
                 model_id,
                 effort,
+                skip_if_current,
                 prev_model_id,
             }),
             effort_error,
@@ -89,6 +101,7 @@ pub(crate) fn take_deferred_model_switch(
             switch: Some(DeferredModelSwitch {
                 model_id: current,
                 effort: None,
+                skip_if_current: false,
                 prev_model_id: None,
             }),
             effort_error: None,
@@ -103,6 +116,7 @@ pub(crate) fn take_deferred_model_switch(
             switch: Some(DeferredModelSwitch {
                 model_id: current,
                 effort: Some(effort),
+                skip_if_current: false,
                 prev_model_id: None,
             }),
             effort_error: None,
@@ -622,6 +636,7 @@ pub(in crate::app::dispatch) fn dispatch_delete_current_session_answered(
     let after = after_delete_current_session(app, id);
     let mut effects = vec![Effect::CancelTurn {
         session_id: session_id.clone(),
+        prompt_id: None,
         cancel_subagents: true,
         trigger: None,
         rewind_prompt_id: None,
@@ -2020,7 +2035,11 @@ pub(in crate::app::dispatch) fn handle_switch_model_complete(
                 }
                 agent.session.models.set_current(model_id.clone(), effort);
                 let resolved_effort = agent.session.models.reasoning_effort;
-                if let Some(used) = agent.context_state.as_ref().map(|c| c.used)
+                if let Some(used) = agent
+                    .context_state
+                    .as_ref()
+                    .filter(|c| c.has_usage())
+                    .map(|c| c.used)
                     && let Some(window) = agent.session.models.get_context_window()
                 {
                     agent.apply_context_used(used, window);
@@ -2083,6 +2102,7 @@ pub(in crate::app::dispatch) fn dispatch_agent_type_mismatch_answered(
                 agent.session.deferred_model_switch = Some(DeferredModelSwitch {
                     model_id,
                     effort,
+                    skip_if_current: false,
                     prev_model_id: None,
                 });
             }

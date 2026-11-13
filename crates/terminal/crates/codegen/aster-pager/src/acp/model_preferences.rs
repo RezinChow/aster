@@ -3,12 +3,69 @@
 use std::io::Read;
 use std::path::Path;
 
+use agent_client_protocol as acp;
 use anyhow::{Context, Result, bail};
 use aster_core::CodeConfig;
 use aster_core::config::{ConfigSection, ReasoningEffort, rewrite_acl_sections};
 use aster_shell::sampling::types::ReasoningEffort as PickerEffort;
+use aster_shell::session::{
+    info::Info,
+    storage::{JsonlStorageAdapter, StorageAdapter},
+};
 
 const MAX_PREFERENCE_CONFIG_BYTES: u64 = 1024 * 1024;
+
+pub(crate) async fn persist_session(
+    cwd: &Path,
+    id: acp::SessionId,
+    model: &acp::ModelId,
+    effort: Option<PickerEffort>,
+) -> std::io::Result<()> {
+    let storage = JsonlStorageAdapter::with_root(aster_shell::util::grok_home::grok_home());
+    let info = Info {
+        id,
+        cwd: cwd.to_string_lossy().into_owned(),
+    };
+    storage.init_session(&info, model.clone()).await?;
+    storage
+        .update_current_model_and_agent(&info, model, None, Some(effort))
+        .await
+}
+
+pub(crate) async fn add_session_selection(
+    cwd: &Path,
+    id: &acp::SessionId,
+    meta: &mut Option<acp::Meta>,
+) {
+    let storage = JsonlStorageAdapter::with_root(aster_shell::util::grok_home::grok_home());
+    let info = Info {
+        id: id.clone(),
+        cwd: cwd.to_string_lossy().into_owned(),
+    };
+    let summary = match storage.load_summary(&info).await {
+        Ok(summary) => summary,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => {
+            tracing::warn!(%error, "session model selection could not be read");
+            return;
+        }
+    };
+    let model_id = summary.current_model_id.0.as_ref();
+    if !model_id.contains('/') {
+        return;
+    }
+    let meta = meta.get_or_insert_with(acp::Meta::new);
+    meta.insert("aster/sessionModelId".into(), model_id.into());
+    if let Some(effort) = summary.recorded_reasoning_effort() {
+        meta.insert("reasoningEffortModelId".into(), model_id.into());
+        meta.insert(
+            "reasoningEffort".into(),
+            effort
+                .map_or_else(|| "default".to_string(), |effort| effort.to_string())
+                .into(),
+        );
+    }
+}
 
 pub(crate) async fn persist(model: Option<String>, effort: Option<PickerEffort>) -> Result<()> {
     let path = crate::views::model_config::default_config_path();

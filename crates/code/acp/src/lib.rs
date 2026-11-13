@@ -1,4 +1,4 @@
-//! ACP stdio agent over aster-core 9.2.1.
+//! ACP stdio agent over aster-core 9.2.2.
 //!
 //! Desktop hosts start this process for a session. The Aster terminal
 //! binary links `aster-pager` and `aster-shell` in-process.
@@ -39,7 +39,8 @@ mod workspace_browser;
 pub use agent::AsterCodeAgent;
 pub use config::{
     ensure_user_acl, load_launch_config, load_launch_config_with_admission,
-    load_launch_config_with_imports, trust_workspace_mcp, workspace_mcp_declarations, LaunchConfig,
+    load_launch_config_with_imports, load_launch_config_with_overlays, trust_workspace_mcp,
+    workspace_mcp_declarations, LaunchConfig,
 };
 pub use plugin_selection::PluginSelectionHost;
 

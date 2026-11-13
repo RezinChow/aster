@@ -586,7 +586,11 @@ fn render_minimal_status(
             drain_blocked,
             buttons: None,
             has_running_execute: false,
-            total_tokens: agent.context_state.as_ref().map(|c| c.used),
+            total_tokens: agent
+                .context_state
+                .as_ref()
+                .filter(|c| c.has_usage())
+                .map(|c| c.used),
             session_starting_since: minimal_api::session_starting_since(agent),
             is_bash_turn: agent.bash_turn,
             is_pending_user_input,
@@ -662,7 +666,7 @@ fn render_prompt_info(
         segs.push((label.to_string(), base));
     } else {
         if let Some(model) = agent.session.models.current_model_name() {
-            let label = match agent.session.models.reasoning_effort {
+            let label = match agent.session.models.effective_reasoning_effort() {
                 Some(eff) => format!("{model} ({eff})"),
                 None => model,
             };
@@ -670,19 +674,21 @@ fn render_prompt_info(
         }
         let effective_plan =
             minimal_api::plan_mode_pending(agent).unwrap_or(minimal_api::plan_mode_active(agent));
-        let mode_flag: Option<(&str, Color)> = if effective_plan {
-            Some(("plan", theme.accent_plan))
-        } else if agent.session.is_yolo() {
-            Some(("yolo", theme.accent_verify))
-        } else if agent.session.is_auto() {
-            Some(("auto", theme.accent_system))
-        } else {
-            None
-        };
-        if let Some((label, color)) = mode_flag {
-            segs.push((label.to_string(), base.fg(color)));
+        for flag in aster_pager::views::prompt_widget::mode_flags(
+            effective_plan.then_some("plan"),
+            agent.session.permission_label(),
+            theme,
+        ) {
+            segs.push((
+                flag.text.to_string(),
+                flag.color.map_or(base, |color| base.fg(color)),
+            ));
         }
-        let used = agent.context_state.as_ref().map(|c| c.used);
+        let used = agent
+            .context_state
+            .as_ref()
+            .filter(|c| c.has_usage())
+            .map(|c| c.used);
         let total = agent
             .context_state
             .as_ref()
@@ -696,6 +702,8 @@ fn render_prompt_info(
                 format!("{} / {} ({:.0}%)", fmt_tokens(used), fmt_tokens(total), pct),
                 base,
             ));
+        } else if let Some(total) = total.filter(|&total| total > 0) {
+            segs.push((format!("— / {}", fmt_tokens(total)), base));
         }
     }
     if queued > 0 {
@@ -772,9 +780,13 @@ fn now_millis() -> u128 {
         .unwrap_or(0)
 }
 #[cfg(test)]
+#[path = "live_context_tests.rs"]
+mod context_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    fn agent() -> aster_pager::app::agent_view::AgentView {
+    pub(super) fn agent() -> aster_pager::app::agent_view::AgentView {
         minimal_api::test_agent_view(Some("s1"), std::path::PathBuf::from("/tmp"))
     }
     #[test]
@@ -1119,7 +1131,7 @@ mod tests {
         let mut a = agent();
         let text = render(&a);
         assert!(!text.contains("plan"), "normal shows no flag: {text:?}");
-        assert!(!text.contains("yolo"), "normal: {text:?}");
+        assert!(!text.contains("YOLO"), "normal: {text:?}");
         minimal_api::set_plan_mode_pending(&mut a, Some(true));
         assert!(render(&a).contains("plan"), "plan flag: {:?}", render(&a));
         minimal_api::set_plan_mode_pending(&mut a, None);
@@ -1127,7 +1139,14 @@ mod tests {
         minimal_api::set_yolo_mode_for_test(&mut a.session, true);
         minimal_api::set_auto_mode_for_test(&mut a.session, true);
         let text = render(&a);
-        assert!(text.contains("yolo"), "yolo flag: {text:?}");
+        assert!(text.contains("YOLO"), "yolo flag: {text:?}");
+        minimal_api::set_plan_mode_pending(&mut a, Some(true));
+        let text = render(&a);
+        assert!(
+            text.contains("plan") && text.contains("YOLO"),
+            "plan and permission: {text:?}"
+        );
+        minimal_api::set_plan_mode_pending(&mut a, None);
         minimal_api::set_yolo_mode_for_test(&mut a.session, false);
         let text = render(&a);
         assert!(text.contains("auto"), "auto flag: {text:?}");

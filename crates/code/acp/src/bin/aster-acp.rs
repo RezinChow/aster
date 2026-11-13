@@ -6,7 +6,7 @@ use std::rc::Rc;
 use agent_client_protocol as acp;
 use anyhow::{Context, Result};
 use aster_acp::unattended::{Unattended, DEFAULT_EXECUTION_BUDGET_MS};
-use aster_acp::{load_launch_config_with_imports, AsterCodeAgent, PluginSelectionHost};
+use aster_acp::{load_launch_config_with_overlays, AsterCodeAgent, PluginSelectionHost};
 use aster_core::config::AccountImport;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -16,6 +16,7 @@ mod startup_error;
 struct Args {
     cwd: PathBuf,
     config: Option<PathBuf>,
+    config_overlays: Vec<PathBuf>,
     model: Option<String>,
     import_accounts: Vec<AccountImport>,
     plugin_store: Option<PathBuf>,
@@ -39,6 +40,7 @@ fn parse_args() -> Result<Args> {
 fn parse_args_from(mut args: impl Iterator<Item = String>) -> Result<Args> {
     let mut cwd = std::env::current_dir().context("current_dir")?;
     let mut config: Option<PathBuf> = None;
+    let mut config_overlays = Vec::new();
     let mut model: Option<String> = None;
     let mut import_accounts = Vec::new();
     let mut plugin_store = None;
@@ -99,6 +101,11 @@ fn parse_args_from(mut args: impl Iterator<Item = String>) -> Result<Args> {
                     .ok_or_else(|| anyhow::anyhow!("--cwd requires a path"))?;
                 cwd = PathBuf::from(value);
             }
+            "--config-overlay" => {
+                config_overlays.push(PathBuf::from(
+                    args.next().context("--config-overlay requires a path")?,
+                ));
+            }
             "--config" => {
                 let value = args
                     .next()
@@ -127,7 +134,7 @@ fn parse_args_from(mut args: impl Iterator<Item = String>) -> Result<Args> {
             }
             "--help" | "-h" => {
                 eprintln!(
-                    "Usage: aster-acp [--cwd DIR] [--config FILE] [--model provider/model] [--reasoning-effort LEVEL] [--import-accounts grok,cursor,codex] [--plugin-store DIR]\n\
+                    "Usage: aster-acp [--cwd DIR] [--config FILE] [--config-overlay FILE]... [--model provider/model] [--reasoning-effort LEVEL] [--import-accounts grok,cursor,codex] [--plugin-store DIR]\n\
                      \x20      aster-acp --list-workspace-mcp | --trust-workspace-mcp <ID|all> [--cwd DIR]\n\
                      \x20      aster-acp --unattended [--max-execution-ms MS] [--reasoning-effort LEVEL] [--engineering-policy engineering-v1|none] [--goal-continuation|--no-goal-continuation] [--result-file FILE] [--cwd DIR] [--config FILE] [--model provider/model]\n\
                      New sessions use engineering-v1 by default. Explicit goals use bounded continuation.\n\
@@ -183,6 +190,7 @@ fn parse_args_from(mut args: impl Iterator<Item = String>) -> Result<Args> {
     Ok(Args {
         cwd,
         config,
+        config_overlays,
         model,
         import_accounts,
         plugin_store,
@@ -297,15 +305,16 @@ async fn run() -> Result<()> {
     if let Some(command) = &args.workspace_mcp {
         return run_workspace_mcp_command(&args, command);
     }
-    if let Some(model) = args.model {
+    if let Some(model) = &args.model {
         std::env::set_var("ASTER_DEFAULT_MODEL", model);
     }
     let load_config = || {
         let started = std::time::Instant::now();
-        let loaded = load_launch_config_with_imports(
+        let loaded = load_launch_config_with_overlays(
             args.cwd.clone(),
             args.config.clone(),
             &args.import_accounts,
+            &args.config_overlays,
         );
         tracing::info!(
             target: "aster_acp::retrieval_phase",
@@ -358,6 +367,9 @@ async fn run() -> Result<()> {
     }
     let workspace = launch.workspace.clone();
     let mut agent = AsterCodeAgent::new(launch).with_workspace_admission(admission);
+    if args.model.is_some() {
+        agent = agent.with_launch_model_override();
+    }
     if let Some(effort) = args.reasoning_effort.as_deref() {
         agent = agent.with_default_reasoning_effort(effort)?;
     }
@@ -394,7 +406,7 @@ async fn run() -> Result<()> {
         "ACP phase completed"
     );
     let result = io_task.await;
-    agent.stop_document_bridge();
+    agent.close().await;
     result.context("ACP stdio I/O")?;
     Ok(())
 }

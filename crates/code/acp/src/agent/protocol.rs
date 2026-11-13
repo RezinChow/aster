@@ -256,24 +256,53 @@ impl acp::Agent for AsterCodeAgent {
         }
         let components = crate::harness_assemble::components_from_meta(args.meta.as_ref())
             .map_err(|error| acp::Error::invalid_params().data(error))?;
-        self.admit_studio_documents(args.meta.as_ref());
-        let session_mcp = session_mcp_configs(&args.mcp_servers);
-        self.sync_session_mcp_servers(Some(session_id.as_ref()), &args.mcp_servers)
-            .await?;
         let current = self
             .sessions
             .lock()
             .await
             .get(&session_id)
             .map(|live| (live.model_id.clone(), live.effort));
-        let (model_id, effort) = match current {
+        let restore_selection = current.is_none() && self.unattended.is_none();
+        let (model_id, mut effort) = match current {
             Some(selection) => selection,
-            None => (
-                self.model_id.lock().await.clone(),
-                *self.effort.lock().await,
-            ),
+            None => {
+                let default_model = self.model_id.lock().await.clone();
+                let saved_model = args
+                    .meta
+                    .as_ref()
+                    .filter(|_| restore_selection && !self.launch_model_override)
+                    .and_then(|meta| meta.get("aster/sessionModelId"))
+                    .and_then(serde_json::Value::as_str);
+                if let Some(saved_model) = saved_model.filter(|model| !self.known_model(model)) {
+                    return Err(acp::Error::invalid_params()
+                        .data(format!("saved session model is unavailable: {saved_model}")));
+                }
+                let model_id = saved_model.unwrap_or(&default_model);
+                let effort = if model_id == default_model || self.launch_effort_override {
+                    *self.effort.lock().await
+                } else {
+                    None
+                };
+                (model_id.to_owned(), effort)
+            }
         };
+        self.admit_studio_documents(args.meta.as_ref());
+        let session_mcp = session_mcp_configs(&args.mcp_servers);
+        self.sync_session_mcp_servers(Some(session_id.as_ref()), &args.mcp_servers)
+            .await?;
         self.refresh_model(&model_id, true).await;
+        if restore_selection
+            && !self.launch_effort_override
+            && args
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.get("reasoningEffortModelId"))
+                .and_then(serde_json::Value::as_str)
+                == Some(model_id.as_str())
+        {
+            effort = models::selected_effort(args.meta.as_ref(), effort)?
+                .filter(|saved| self.model_supports_effort(&model_id, saved.token));
+        }
         let plugin_tools = crate::plugin_tools::entries_from_meta(args.meta.as_ref());
         let setup = SessionSetup {
             workspace: workspace.clone(),
@@ -579,12 +608,6 @@ impl acp::Agent for AsterCodeAgent {
             }
             Arc::clone(&live.session)
         };
-        let generation = {
-            let mut generations = self.turn_generation.lock().await;
-            let slot = generations.entry(session_key.clone()).or_insert(0);
-            *slot = slot.saturating_add(1);
-            *slot
-        };
         // Echo the client's prompt id on every notification (the ACP
         // prompt-ack contract): the pager disarms its ack watch on the
         // first update naming the prompt.
@@ -594,15 +617,18 @@ impl acp::Agent for AsterCodeAgent {
             .and_then(|meta| meta.get("promptId"))
             .and_then(|v| v.as_str())
             .map(str::to_string);
+        let generation = {
+            let mut generations = self.turn_generation.lock().await;
+            let slot = generations.entry(session_key.clone()).or_default();
+            slot.number = slot.number.saturating_add(1);
+            slot.prompt_id = client_prompt_id.clone();
+            slot.number
+        };
         if let Some(live) = self.sessions.lock().await.get(&session_key) {
             *live
                 .turn_started
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(turn_started);
-            *live
-                .active_prompt_id
-                .lock()
-                .unwrap_or_else(|p| p.into_inner()) = client_prompt_id.clone();
         }
         {
             let client = self.client.borrow().clone();
@@ -767,13 +793,25 @@ impl acp::Agent for AsterCodeAgent {
 
     async fn cancel(&self, args: acp::CancelNotification) -> acp::Result<()> {
         let session_key = args.session_id.0.to_string();
-        let generation = self
-            .turn_generation
-            .lock()
-            .await
-            .get(&session_key)
-            .copied()
-            .unwrap_or(0);
+        let prompt_id = match args.meta.as_ref().and_then(|meta| meta.get("promptId")) {
+            None => None,
+            Some(serde_json::Value::String(id)) if !id.is_empty() => Some(id.as_str()),
+            Some(_) => {
+                return Err(
+                    acp::Error::invalid_params().data("cancel promptId must be a nonempty string")
+                );
+            }
+        };
+        let generation = {
+            let generations = self.turn_generation.lock().await;
+            let current = generations.get(&session_key);
+            if prompt_id
+                .is_some_and(|id| current.and_then(|turn| turn.prompt_id.as_deref()) != Some(id))
+            {
+                return Ok(());
+            }
+            current.map(|turn| turn.number).unwrap_or(0)
+        };
         self.cancelled_generation
             .lock()
             .await
@@ -790,7 +828,7 @@ impl acp::Agent for AsterCodeAgent {
                 .lock()
                 .await
                 .get(&session_key)
-                .copied()
+                .map(|turn| turn.number)
                 .unwrap_or(0)
                 != generation
             {
