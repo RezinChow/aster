@@ -1,0 +1,21 @@
+popup_open=True
+  --name         total=2 err=None
+     role=group name='e2e-synthetic-1' ref=None states=[]
+     role=statictext name='e2e-synthetic-1' ref=None states=[]
+  --value        total=0 err=None
+  --text         total=28 err=None
+     role=window name='Aster' ref=None states=[]
+     role=group name=None ref=None states=[]
+     role=group name=None ref=None states=['focused']
+     role=group name='Aster' ref=None states=['focused']
+     role=group name='Aster - Web 内容' ref=None states=[]
+     role=group name=None ref=None states=[]
+     role=group name=None ref=None states=[]
+     role=group name=None ref=None states=[]
+     role=group name=None ref=None states=[]
+     role=group name=None ref=None states=[]
+  --description  total=0 err=None
+unnamed actionable refs: 1
+   role=button ref=@sbaz8aollqvoz:e5 text=None
+MODELREF_DONE
+EXIT=0

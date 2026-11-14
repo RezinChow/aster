@@ -1,0 +1,38 @@
+=== F02 run 1 token=中文短句测试02BDA2 ===
+  OK    F02 composer textfield exists
+  OK    F02 Chinese draft read back via AX get - value='中文短句测试02BDA2' method=type --headed
+  OK    F02 typed text visible in live UI - matches=1
+  OK    F02 更多选项 control exists - role=menubutton
+  OK    F02 授权模式 control exists
+F02_L3: PASS
+=== F01 run 1 token=中文短句测试014582 ===
+  OK    F01 draft entered - value='中文短句测试014582'
+  OK    F01 settings click delivered - code=None
+  OK    F01 settings page reached (返回应用 button present)
+  OK    F01 work click delivered
+  FAIL  F01 draft survived cross-page round trip - after='描述任务，输入 / 使用指令或技能，@ 选择工作区文件\n'
+  ASSERTION FAILED: F01 draft survived cross-page round trip
+F01_L3: FAIL
+=== F10 run 1 token=中文短句测试1001EF ===
+  OK    F10 settings click delivered
+  OK    F10 search entry button exists
+  OK    F10 search entry click delivered
+  OK    F10 entry became writable combobox
+  OK    F10 search value round-trips via AX - readback='网络' type_ok=True
+  OK    F10 设置搜索结果 listbox appears - matches=1
+  OK    F10 result option for query appears - matches=1
+  OK    F10 search cleared (value no longer 网络 and results gone) - value=None listbox_matches=0 clear_ok=True
+  OK    F10 settings nav recovered after clear
+F10_L3: PASS
+=== F05 run 1 token=中文短句测试05BA20 ===
+  OK    F05 选择模型 AX entry exists
+  OK    F05 model entry click delivered
+  INFO  F05 nodes_before=41 nodes_after=41 selectable_options=[('menuitem', '系统')]
+  BLOCKED  no selectable model option exposed in AX after opening 选择模型
+F05_L3: BLOCKED
+=== F17 run 1 token=中文短句测试17B98C ===
+  OK    F17 resize-window delivered - code=None
+  OK    F17 snapshot complete after resize
+  OK    F17 sampled bounded content controls after resize - bounded_nodes=9
+  INFO  F17 window_bounds={'height': 700.0, 'width': 900.0, 'x': 26.0, 'y': 26.0} bounded_nodes=9 severe_overflow=[]
+F17_L3: PASS

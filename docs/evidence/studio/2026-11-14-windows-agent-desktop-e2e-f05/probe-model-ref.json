@@ -1,0 +1,115 @@
+{
+  "window_id": "w-120982452",
+  "popup_open": true,
+  "selectors": {
+    "--name": {
+      "ok": true,
+      "error_code": null,
+      "total_matches": 2,
+      "matches": [
+        {
+          "name": "e2e-synthetic-1",
+          "role": "group",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": "e2e-synthetic-1",
+          "role": "statictext",
+          "ref_id": null,
+          "states": []
+        }
+      ]
+    },
+    "--value": {
+      "ok": true,
+      "error_code": null,
+      "total_matches": 0,
+      "matches": []
+    },
+    "--text": {
+      "ok": true,
+      "error_code": null,
+      "total_matches": 28,
+      "matches": [
+        {
+          "name": "Aster",
+          "role": "window",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "group",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "group",
+          "ref_id": null,
+          "states": [
+            "focused"
+          ]
+        },
+        {
+          "name": "Aster",
+          "role": "group",
+          "ref_id": null,
+          "states": [
+            "focused"
+          ]
+        },
+        {
+          "name": "Aster - Web 内容",
+          "role": "group",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "group",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "group",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "group",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "group",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "group",
+          "ref_id": null,
+          "states": []
+        }
+      ]
+    },
+    "--description": {
+      "ok": true,
+      "error_code": null,
+      "total_matches": 0,
+      "matches": []
+    }
+  },
+  "unnamed_actionable": [
+    {
+      "role": "button",
+      "ref_id": "@sbaz8aollqvoz:e5",
+      "text": null
+    }
+  ]
+}

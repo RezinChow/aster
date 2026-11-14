@@ -1,0 +1,7 @@
+{
+  "port": 4399,
+  "model": "e2e-synthetic-1",
+  "bound": "127.0.0.1",
+  "reply": "E2E-SYNTHETIC-REPLY",
+  "note": "synthetic, not a real LLM"
+}

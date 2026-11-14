@@ -1,0 +1,36 @@
+选择模型 ref=@s3ctc9qef2iq86:e1
+selector click ok=True err=None
+--- e2e-synthetic-1 total=0 ---
+--- 选择模型 total=1 ---
+   name='选择模型' role=menubutton ref=@s2ko1ulwlu4oyo:e1 states=[]
+--- E2E-Local total=0 ---
+--- 配置自定义模型 total=0 ---
+--- 搜索模型 total=0 ---
+--- role=radio named=0 ---
+--- role=checkbox named=0 ---
+--- role=menuitem named=1 ---
+   '系统' ref=@s2s8lxj6nlhm5c:e1
+--- role=option named=0 ---
+--- role=menubutton named=20 ---
+   '改为搜索' ref=@s11acapcvetdzz:e17
+   '要打开此链接，请选择一个应用' ref=@s11acapcvetdzz:e19
+   '应用程序可用。安装 ' ref=@s11acapcvetdzz:e20
+   '显示翻译选项' ref=@s11acapcvetdzz:e21
+   '更新此网站的自动配置文件切换首选项' ref=@s11acapcvetdzz:e23
+   '查看虚拟卡号' ref=@s11acapcvetdzz:e24
+   '立即购买，稍后支付' ref=@s11acapcvetdzz:e25
+   '保存地址？' ref=@s11acapcvetdzz:e26
+   '更多操作' ref=@s11acapcvetdzz:e27
+   '搜索任务' ref=@s11acapcvetdzz:e28
+   '更多选项' ref=@s11acapcvetdzz:e29
+   '授权模式: 请求批准' ref=@s11acapcvetdzz:e30
+   '优化提示词' ref=@s11acapcvetdzz:e31
+   '选择模型' ref=@s11acapcvetdzz:e32
+   '任务范围: 选择项目 · 当前目录' ref=@s11acapcvetdzz:e33
+   'Start feedback mode' ref=@s11acapcvetdzz:e34
+   '协作者个人资料照片' ref=@s11acapcvetdzz:e35
+   '协作者个人资料照片' ref=@s11acapcvetdzz:e36
+   '协作者个人资料照片' ref=@s11acapcvetdzz:e37
+   '协作者个人资料照片' ref=@s11acapcvetdzz:e38
+PROBESEL_DONE
+EXIT=0

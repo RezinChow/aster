@@ -1,0 +1,16 @@
+window=w-120982452
+settings click ok=True
+  模型服务             total=1   roles=['button']
+  模型配置             total=1   roles=['button']
+  模型               total=8   roles=['menubutton', 'button', 'button', 'image', 'image', 'image', 'statictext', 'menubutton']
+  选择模型             total=1   roles=['menubutton']
+  设置               total=4   roles=['button', 'button', 'statictext', 'statictext']
+  返回应用             total=1   roles=['button']
+  保存               total=1   roles=['menubutton']
+  网络搜索             total=1   roles=['button']
+  连接器              total=1   roles=['button']
+  技能               total=3   roles=['button', 'textfield', 'statictext']
+  自动化              total=1   roles=['button']
+snapshot_complete=True
+PROBE_DONE
+EXIT=0

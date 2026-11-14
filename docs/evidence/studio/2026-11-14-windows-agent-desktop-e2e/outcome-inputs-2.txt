@@ -1,0 +1,35 @@
+=== corrected headed / input audit ===
+--headed occurrences: 16
+      7 --headed focus
+      9 --headed type
+=== close-app / relaunch records ===
+528:{"case": "F11", "run": 1, "cmd": "agent-desktop close-app Studio.exe --force", "ok": true, "error_code": null, "snapshot_id": null}
+1074:{"case": "F11", "run": 1, "cmd": "agent-desktop close-app Studio.exe --force", "ok": true, "error_code": null, "snapshot_id": null}
+=== PLAN section 9 case specs ===
+57:| **A 直接可做** | F01、F02、F05、F08、F10、F11、F16(UI 部分)、F17 | 有稳定 AX 入口，真窗口断言即可 |
+59:| **C 需产品改造** | F13、F14、F16(L3 抽样) | 实现与 §4 验收不符或分支不可触发 |
+82:| 裁决 F01 | 确认「真窗口 L3 断言满足 L2 最低执行面」后，改 `MATRIX.md` F01 行与结果表，并在 OUTCOME 记录裁决依据。零代码。 |
+83:| 复核 F01 断言完整度 | `draft-navigation-visual-e2e.py` 现在只覆盖「跨页往返草稿保留」。按 §4 补「空草稿不落盘」「切 Tab 后状态保持」两条真窗口断言，避免只凭一条抽样就计入。 |
+89:| **F02** | composer 输入/斜杠命令/附件/队列 | `focus → re-find → type --headed` 输入中文与 `/clear`；`find --name '斜杠命令'`、`get --property value`、`find` 队列 dock 文本 | 命令菜单项与 `promptText` 一致、附件加入后草稿不变、空白输入不落盘 |
+90:| **F05** | 模型选择整链 | `find --role tab` → `find --role tablist` → `set-value` 搜索框过滤 → `press` 上下键 → `get --property value` | 唯一 ModelSelector 实例、选中态/思考强度变更与还原一致 |
+91:| **F08** | 项目/侧栏重排固定 + 重启抽样 | 侧栏 `setPinned/reorder` 对应按钮 → `close-app --force` → `launch` → `find --name` 顺序/固定态 | 重启后顺序与 pin 仍生效（复用 F11 重启骨架） |
+92:| **F10** | 命令面板/全局搜索 | `press cmd+k` 类拉起 → `set-value` 写「搜索设置...」→ `find --count` 结果项 / 空结果态 | 结果可清除、空态文案、恢复开会话 |
+94:| **F17** | 外观矩阵（受限） | `resize-window` 窄窗口 + `snapshot --include-bounds` | 无重叠/溢出；注意 `/settings/appearance` 隐藏，主题切换入口受限，只能做缩放与溢出 |
+104:| **F07** | `agent-desktop launch` 起带 synthetic MCP 的实例（`tests/e2e/capability_mcp.py`） | UI 内发起任务并读回执；**磁盘/HTTP 回读只作 evidence**，照 F11 先例；不复制现有 Playwright `nativeHarness` 形态 |
+113:| **F14** | 可注入的更新通道/清单、`Claim::Busy` 可触发路径、退出守卫的进行中任务前置 | 补 `MainExitGuard` Dialog 断言 + 重启后 DB 旧数据可读；单实例抽样已 PASS |
+155:| 真宿主验证用例 | 7/7 | **10/10**（F08 + F10 两条后；v2 初版记 8/8） |
+164:| `specs/composer-controls-visual-e2e.py` | F02 控件子集，12 条纯语义断言 | 修正时序后**连续 3 次 `COMPOSER_CONTROLS_L3: PASS`** |
+165:| 回归 | 主骨架改动后重跑 F11 | `AGENT_DESKTOP_LAUNCH_L3: PASS (766baa)` |
+197:| F01 | `draft-navigation-visual-e2e.py`（已有） | — | `launch → focus → re-find → type --headed → click 设置 → click 工作 → get value` | 草稿跨页保留；**待补**空草稿不落盘、切 Tab 状态保持 | 已 2×PASS，待补 2 断言 |
+198:| F02 | `composer-controls-visual-e2e.py`（已有） | — | `find composer/更多选项/授权模式/优化提示词/侧栏 switch → click 更多选项 → find 上传附件 → press escape → get value` | 控件存在、附件项在 dialog 下、面板不改草稿 | **3×PASS（子集）** |
+199:| F02 | `composer-input-visual-e2e.py`（待建） | 解锁 frontmost | `focus → type --headed` 中文、`/clear`、Shift+Enter、粘贴 | 中文回读、斜杠菜单项与 `promptText` 一致、队列 dock 文本、空白不落盘 | **阻塞：8.3** |
+202:| F05 | `model-selector-visual-e2e.py` | — | `find --role tab → find --role tablist → set-value 搜索 → press 上下键 → get value` | 唯一实例、过滤/键盘导航、选中态与思考强度还原 | P1 可写（不用键盘输入） |
+205:| F08 | `sidebar-persist-visual-e2e.py`（**已有**） | — | `find 收起侧边栏/展开侧边栏 → toggle → close-app --force → launch → 回读控件名` | 侧栏折叠状态跨真进程重启保持 | **2 PASS / 1 次 host 环境 ERROR**；仅抽样，未覆盖项目/reorder/pin |
+207:| F10 | `settings-search-visual-e2e.py`（**已有**） | — | `click 设置` → `click`「搜索设置...」button → 同一控件变 combobox → `set-value "网络"` → `get value` 回读 | 搜索入口可写可读、值往返一致 | **2 PASS / 1 次 host 环境 FAIL**；仅子集，命令面板/结果项/空态/深链/快捷键未覆盖 |
+208:| F11 | `agent-desktop-launch-e2e.py`（已有） | — | `launch → toggle → 读 ACL → close-app → launch → 回读 → 还原` | 四项必须断言全覆盖 | **已达标，勿回归** |
+211:| F14 | `single-instance-visual-e2e.py`（已有） | — | `launch → 二次 launch → 比对 PID/窗口 ID` | 不产生第二实例 | 已 PASS；**待补** `MainExitGuard` Dialog、更新通道/清单 |
+214:| F17 | `appearance-bounds-visual-e2e.py` | — | `resize-window` 窄窗口 + `snapshot --include-bounds` | 100/125/200% 无重叠溢出 | P1 可写（外观页隐藏，主题切换受限） |
+222:| **P0'** | 补齐 F01 的空草稿/切 Tab 断言（**代码已就绪**：`specs/f01-p0-prime-visual-e2e.py`，静态三关通过；**未执行、无 PASS**） | 0 | 1/17（现状） | 解除 `/bin/ps` 阻塞后连续两次 `F01_P0_PRIME: PASS` |
+223:| **P1-a** | F05 / F08 / F10 / F16(UI) / F17 各一条真窗口断言用例 | +5 | 7/17 | **P0 通过**；这 5 条不依赖 `type --headed` |
+224:| **P1-b** | 解锁 frontmost → 补齐 F02 输入/斜杠命令/队列断言 | +1 | 8/17 | 8.3 + P0 |
+226:| **P3/D** | F13 / F14 / F16(L3) 与 F06/F09/F12/F15 | 0 | — | 产品改造，不在测试侧 |

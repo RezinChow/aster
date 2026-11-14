@@ -1,0 +1,339 @@
+{
+  "window_id": "w-120982452",
+  "selector_click_ok": true,
+  "roles": {
+    "statictext": {
+      "total_matches": 61,
+      "named": [
+        {
+          "name": "无标题",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": "项目",
+          "ref_id": "@s3d47ujxddvqra:e1",
+          "states": []
+        }
+      ]
+    },
+    "group": {
+      "total_matches": 126,
+      "named": [
+        {
+          "name": "Aster",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": "Aster - Web 内容",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": "信息栏容器",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": "Chrome Legacy Window",
+          "ref_id": "@s346v4zs04ism6:e2",
+          "states": []
+        },
+        {
+          "name": "工作导航",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": "项目",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": "最近",
+          "ref_id": null,
+          "states": []
+        }
+      ]
+    },
+    "menuitem": {
+      "total_matches": 1,
+      "named": [
+        {
+          "name": "系统",
+          "ref_id": "@s1tofh9s3dd4ks:e1",
+          "states": [
+            "haspopup"
+          ]
+        }
+      ]
+    },
+    "button": {
+      "total_matches": 19,
+      "named": [
+        {
+          "name": "最小化",
+          "ref_id": "@s2daf4xmutmh6j:e1",
+          "states": []
+        },
+        {
+          "name": "最大化",
+          "ref_id": "@s2daf4xmutmh6j:e2",
+          "states": []
+        },
+        {
+          "name": "还原",
+          "ref_id": "@s2daf4xmutmh6j:e3",
+          "states": []
+        },
+        {
+          "name": "关闭",
+          "ref_id": "@s2daf4xmutmh6j:e4",
+          "states": []
+        },
+        {
+          "name": "工作",
+          "ref_id": "@s2daf4xmutmh6j:e6",
+          "states": []
+        },
+        {
+          "name": "设置",
+          "ref_id": "@s2daf4xmutmh6j:e7",
+          "states": []
+        },
+        {
+          "name": "新建任务",
+          "ref_id": "@s2daf4xmutmh6j:e8",
+          "states": []
+        },
+        {
+          "name": "连接器",
+          "ref_id": "@s2daf4xmutmh6j:e9",
+          "states": []
+        },
+        {
+          "name": "技能",
+          "ref_id": "@s2daf4xmutmh6j:e10",
+          "states": []
+        },
+        {
+          "name": "自动化",
+          "ref_id": "@s2daf4xmutmh6j:e11",
+          "states": []
+        },
+        {
+          "name": "新建项目",
+          "ref_id": "@s2daf4xmutmh6j:e12",
+          "states": []
+        },
+        {
+          "name": "发送",
+          "ref_id": "@s2daf4xmutmh6j:e13",
+          "states": [
+            "disabled"
+          ]
+        },
+        {
+          "name": "对此标签页静音",
+          "ref_id": "@s2daf4xmutmh6j:e14",
+          "states": [
+            "disabled"
+          ]
+        },
+        {
+          "name": "关闭标签页",
+          "ref_id": "@s2daf4xmutmh6j:e15",
+          "states": []
+        },
+        {
+          "name": "新建标签页",
+          "ref_id": "@s2daf4xmutmh6j:e16",
+          "states": []
+        },
+        {
+          "name": "最小化",
+          "ref_id": "@s2daf4xmutmh6j:e17",
+          "states": []
+        },
+        {
+          "name": "最大化",
+          "ref_id": "@s2daf4xmutmh6j:e18",
+          "states": []
+        },
+        {
+          "name": "关闭",
+          "ref_id": "@s2daf4xmutmh6j:e19",
+          "states": []
+        }
+      ]
+    },
+    "option": {
+      "total_matches": 0,
+      "named": []
+    },
+    "listitem": {
+      "total_matches": null,
+      "named": []
+    },
+    "row": {
+      "total_matches": 0,
+      "named": []
+    },
+    "cell": {
+      "total_matches": 0,
+      "named": []
+    },
+    "tab": {
+      "total_matches": 1,
+      "named": [
+        {
+          "name": "Aster - 内存使用率 - 347 MB",
+          "ref_id": "@s2iydazpswmou6:e1",
+          "states": [
+            "selected"
+          ]
+        }
+      ]
+    },
+    "treeitem": {
+      "total_matches": 0,
+      "named": []
+    },
+    "checkbox": {
+      "total_matches": 0,
+      "named": []
+    },
+    "radio": {
+      "total_matches": 0,
+      "named": []
+    },
+    "textfield": {
+      "total_matches": 1,
+      "named": [
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "ref_id": "@s2minwl6ptxm6v:e1",
+          "states": [
+            "focused"
+          ]
+        }
+      ]
+    },
+    "combobox": {
+      "total_matches": 0,
+      "named": []
+    },
+    "menubutton": {
+      "total_matches": 38,
+      "named": [
+        {
+          "name": "改为搜索",
+          "ref_id": "@s3k9c58l5e8anf:e17",
+          "states": []
+        },
+        {
+          "name": "要打开此链接，请选择一个应用",
+          "ref_id": "@s3k9c58l5e8anf:e19",
+          "states": []
+        },
+        {
+          "name": "应用程序可用。安装 ",
+          "ref_id": "@s3k9c58l5e8anf:e20",
+          "states": []
+        },
+        {
+          "name": "显示翻译选项",
+          "ref_id": "@s3k9c58l5e8anf:e21",
+          "states": []
+        },
+        {
+          "name": "更新此网站的自动配置文件切换首选项",
+          "ref_id": "@s3k9c58l5e8anf:e23",
+          "states": []
+        },
+        {
+          "name": "查看虚拟卡号",
+          "ref_id": "@s3k9c58l5e8anf:e24",
+          "states": []
+        },
+        {
+          "name": "立即购买，稍后支付",
+          "ref_id": "@s3k9c58l5e8anf:e25",
+          "states": []
+        },
+        {
+          "name": "保存地址？",
+          "ref_id": "@s3k9c58l5e8anf:e26",
+          "states": []
+        },
+        {
+          "name": "更多操作",
+          "ref_id": "@s3k9c58l5e8anf:e27",
+          "states": []
+        },
+        {
+          "name": "搜索任务",
+          "ref_id": "@s3k9c58l5e8anf:e28",
+          "states": []
+        },
+        {
+          "name": "更多选项",
+          "ref_id": "@s3k9c58l5e8anf:e29",
+          "states": []
+        },
+        {
+          "name": "授权模式: 请求批准",
+          "ref_id": "@s3k9c58l5e8anf:e30",
+          "states": []
+        },
+        {
+          "name": "优化提示词",
+          "ref_id": "@s3k9c58l5e8anf:e31",
+          "states": [
+            "disabled"
+          ]
+        },
+        {
+          "name": "选择模型",
+          "ref_id": "@s3k9c58l5e8anf:e32",
+          "states": []
+        },
+        {
+          "name": "任务范围: 选择项目 · 当前目录",
+          "ref_id": "@s3k9c58l5e8anf:e33",
+          "states": []
+        },
+        {
+          "name": "Start feedback mode",
+          "ref_id": "@s3k9c58l5e8anf:e34",
+          "states": []
+        },
+        {
+          "name": "协作者个人资料照片",
+          "ref_id": "@s3k9c58l5e8anf:e35",
+          "states": []
+        },
+        {
+          "name": "协作者个人资料照片",
+          "ref_id": "@s3k9c58l5e8anf:e36",
+          "states": []
+        },
+        {
+          "name": "协作者个人资料照片",
+          "ref_id": "@s3k9c58l5e8anf:e37",
+          "states": []
+        },
+        {
+          "name": "协作者个人资料照片",
+          "ref_id": "@s3k9c58l5e8anf:e38",
+          "states": []
+        }
+      ]
+    },
+    "link": {
+      "total_matches": 0,
+      "named": []
+    }
+  }
+}

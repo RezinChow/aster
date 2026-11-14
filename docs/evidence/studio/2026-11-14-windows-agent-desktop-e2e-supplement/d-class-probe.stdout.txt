@@ -1,0 +1,68 @@
+{
+  "window_id": "w-100403736",
+  "probe_note": "read-only AX observations; no coverage verdict",
+  "results": {
+    "F09_workspace_tabs_role": {
+      "selector": "role=tab",
+      "total_matches": 1,
+      "ok": true
+    },
+    "F09_workspace_tabs_name": {
+      "selector": "name=工作区",
+      "total_matches": 2,
+      "ok": true
+    },
+    "F15_capture_controls": {
+      "names": {
+        "截图": 0,
+        "录屏": 0,
+        "视觉标注": 0,
+        "标注": 0,
+        "屏幕录制": 0,
+        "Screen recording": 0,
+        "Screenshot": 0
+      },
+      "any_hit": false
+    },
+    "F06_approval_controls": {
+      "names": {
+        "允许": 0,
+        "拒绝": 0,
+        "批准": 0,
+        "始终允许": 0,
+        "Allow": 0,
+        "Deny": 0,
+        "Approve": 0
+      },
+      "any_hit": false
+    },
+    "F12_document_output": {
+      "names": {
+        "保存到文档": 0,
+        "导出文档": 0,
+        "下载文档": 0,
+        "Save to document": 0,
+        "Download": 0
+      },
+      "any_hit": false
+    },
+    "F13_dependencies_entry": {
+      "names": {
+        "依赖": 0,
+        "运行时组件": 0,
+        "Dependencies": 0,
+        "组件安装": 0
+      },
+      "any_hit": false
+    },
+    "F14_update_channel": {
+      "names": {
+        "检查更新": 0,
+        "更新通道": 0,
+        "Check for updates": 0,
+        "退出守卫": 0
+      },
+      "any_hit": false
+    }
+  }
+}

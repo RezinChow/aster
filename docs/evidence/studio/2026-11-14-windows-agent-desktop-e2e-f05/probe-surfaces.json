@@ -1,0 +1,176 @@
+{
+  "window_id": "w-120982452",
+  "selector_click_ok": true,
+  "windows_after": [
+    {
+      "id": "w-120982452",
+      "title": "Aster"
+    }
+  ],
+  "surfaces": {
+    "window": {
+      "model": {
+        "ok": true,
+        "error_code": null,
+        "total_matches": 0,
+        "named": []
+      },
+      "option": {
+        "ok": true,
+        "error_code": null,
+        "total_matches": 0,
+        "named": []
+      },
+      "menuitem": {
+        "ok": true,
+        "error_code": null,
+        "total_matches": 1,
+        "named": [
+          "系统"
+        ]
+      }
+    },
+    "focused": {
+      "model": {
+        "ok": true,
+        "error_code": null,
+        "total_matches": 0,
+        "named": []
+      },
+      "option": {
+        "ok": true,
+        "error_code": null,
+        "total_matches": 0,
+        "named": []
+      },
+      "menuitem": {
+        "ok": true,
+        "error_code": null,
+        "total_matches": 1,
+        "named": [
+          "系统"
+        ]
+      }
+    },
+    "menu": {
+      "model": {
+        "ok": false,
+        "error_code": "WINDOW_NOT_FOUND",
+        "total_matches": null,
+        "named": []
+      },
+      "option": {
+        "ok": false,
+        "error_code": "WINDOW_NOT_FOUND",
+        "total_matches": null,
+        "named": []
+      },
+      "menuitem": {
+        "ok": false,
+        "error_code": "WINDOW_NOT_FOUND",
+        "total_matches": null,
+        "named": []
+      }
+    },
+    "menubar": {
+      "model": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      },
+      "option": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      },
+      "menuitem": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      }
+    },
+    "sheet": {
+      "model": {
+        "ok": false,
+        "error_code": "WINDOW_NOT_FOUND",
+        "total_matches": null,
+        "named": []
+      },
+      "option": {
+        "ok": false,
+        "error_code": "WINDOW_NOT_FOUND",
+        "total_matches": null,
+        "named": []
+      },
+      "menuitem": {
+        "ok": false,
+        "error_code": "WINDOW_NOT_FOUND",
+        "total_matches": null,
+        "named": []
+      }
+    },
+    "popover": {
+      "model": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      },
+      "option": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      },
+      "menuitem": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      }
+    },
+    "alert": {
+      "model": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      },
+      "option": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      },
+      "menuitem": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      }
+    },
+    "toolbar": {
+      "model": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      },
+      "option": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      },
+      "menuitem": {
+        "ok": false,
+        "error_code": "INVALID_ARGS",
+        "total_matches": null,
+        "named": []
+      }
+    }
+  }
+}

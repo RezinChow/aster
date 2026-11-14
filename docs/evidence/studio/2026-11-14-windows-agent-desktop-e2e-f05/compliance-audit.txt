@@ -1,0 +1,31 @@
+=== 2026-11-14 F05 increment compliance audit ===
+total agent-desktop commands logged: 510
+
+--- command counts ---
+  find             313
+  list-windows     129
+  get              21
+  click            16
+  clear            12
+  expand           7
+  snapshot         5
+  screenshot       4
+  set-value        3
+
+--- error codes ---
+  INVALID_ARGS         14
+  ACTION_FAILED        12
+  WINDOW_NOT_FOUND     6
+  AMBIGUOUS_TARGET     1
+
+--- policy checks ---
+  mouse-click / coordinate actions : 0   (expected 0)
+  focus-window                      : 0   (expected 0)
+  Playwright / runtime stub refs    : 0   (expected 0)
+  --headed total                    : 1
+  expand (semantic disclosure)      : 8
+  set-value (settings inputs)       : 3
+
+  All coverage assertions come from agent-desktop AX JSON envelopes;
+  HTTP / git / renderer logs / disk hashes are environment evidence only.
+  The local synthetic model service is NOT a stub suite and NOT a real LLM.

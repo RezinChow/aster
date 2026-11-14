@@ -1,0 +1,15 @@
+=== F05 run 2 token=E2EF054FAE ===
+  OK    F05 popup initially closed
+  OK    F05 model selector menubutton present
+  OK    F05 expand action delivered - code=None
+  OK    F05 model popup opened (AX close control present)
+  OK    F05 configured model visible in selector AX - total_matches=2 name=e2e-synthetic-1
+  OK    F05 chain entry present: 配置自定义模型
+  OK    F05 chain entry present: 跳转到服务商设置界面
+  OK    F05 selector still available after popup opens
+  OK    F05 selector AX text readback - text='选择模型'
+  OK    F05 popup close delivered - code=None
+  OK    F05 popup closed (independent AX readback)
+  OK    F05 workbench recovered (composer ref available)
+F05_L3: PASS
+EXIT2=0

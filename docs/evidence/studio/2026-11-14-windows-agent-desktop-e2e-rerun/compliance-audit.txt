@@ -1,0 +1,33 @@
+=== 2026-11-14 rerun compliance audit ===
+total agent-desktop commands logged: 1271
+
+--- command counts ---
+  list-windows     1004
+  find             174
+  get              26
+  click            20
+  clear            16
+  type             6
+  snapshot         6
+  focus            4
+  resize-window    4
+  toggle           4
+  close-app        4
+  press            2
+  restore          1
+
+--- error codes ---
+  ACTION_FAILED        16
+  TIMEOUT              4
+  STALE_REF            1
+
+--- policy checks ---
+  mouse-click / coordinate actions : 0   (expected 0)
+  focus-window                      : 0   (expected 0)
+  Playwright / runtime stub refs    : 0   (expected 0)
+  --headed total                    : 10
+      type           6
+      focus          4
+
+  All assertions come from agent-desktop AX JSON envelopes;
+  disk hash / logs / HTTP / git are environment evidence only.

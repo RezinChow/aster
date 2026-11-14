@@ -1,0 +1,5 @@
+GET /v1/models            : HTTP 200 ids=['e2e-synthetic-1']
+POST /v1/chat/completions : HTTP 200 content='E2E-SYNTHETIC-REPLY'
+POST (stream=True)        : HTTP 200 sse_complete=True bytes=483
+FIXTURE: USABLE
+note: synthetic local loopback service, NOT a real LLM; used only as an environment precondition

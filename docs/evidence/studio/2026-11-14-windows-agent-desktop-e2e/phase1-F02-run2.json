@@ -1,0 +1,34 @@
+{
+  "case": "F02",
+  "run": 2,
+  "verdict": "PASS",
+  "token": "中文短句测试025C49",
+  "window_id": "w-85395480",
+  "evidence": [
+    {
+      "label": "F02 composer textfield exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F02 Chinese draft read back via AX get",
+      "ok": true,
+      "detail": "value='中文短句测试025C49' method=type --headed"
+    },
+    {
+      "label": "F02 typed text visible in live UI",
+      "ok": true,
+      "detail": "matches=1"
+    },
+    {
+      "label": "F02 更多选项 control exists",
+      "ok": true,
+      "detail": "role=menubutton"
+    },
+    {
+      "label": "F02 授权模式 control exists",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

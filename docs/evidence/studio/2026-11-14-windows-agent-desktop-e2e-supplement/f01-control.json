@@ -1,0 +1,22 @@
+{
+  "control": "F01 single-file gitlink alignment",
+  "file": "src/renderer/components/app/sidebarShortcuts/runtime.tsx",
+  "gitlink": "944864f2775fd75609ea811f28b96e7b96b27552",
+  "original_sha256": "c0cc632a8e841be20e42dd1ce83b9ed84d687fe5dec702ed0ae69aec9ef94330",
+  "aligned_sha256": "a15533848130d261436bccdd33682802233496c4cb27ace7db682b5280d1d375",
+  "file_changed": true,
+  "runs": [
+    {
+      "run": 1,
+      "exit": 1
+    },
+    {
+      "run": 2,
+      "exit": 1
+    }
+  ],
+  "all_pass": false,
+  "restore_rc": 0,
+  "restored_sha256": "c0cc632a8e841be20e42dd1ce83b9ed84d687fe5dec702ed0ae69aec9ef94330",
+  "restore_matches_original": true
+}

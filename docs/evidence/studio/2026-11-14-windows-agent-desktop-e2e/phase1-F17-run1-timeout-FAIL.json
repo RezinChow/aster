@@ -1,0 +1,14 @@
+{
+  "case": "F17",
+  "run": 1,
+  "verdict": "FAIL",
+  "token": "中文短句测试17FD2B",
+  "window_id": "w-85395480",
+  "evidence": [
+    {
+      "label": "F17 resize-window delivered",
+      "ok": false,
+      "detail": "code=TIMEOUT"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "case": "F08",
+  "run": 1,
+  "verdict": "PASS",
+  "token": "WIN087EFD",
+  "window_id": "w-53939168",
+  "evidence": [
+    {
+      "label": "F08 sidebar switch exists in AX",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F08 sidebar toggle delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F08 sidebar state flipped before restart (AX name changed)",
+      "ok": true,
+      "detail": "before=收起侧边栏 expected=展开侧边栏"
+    },
+    {
+      "label": "F08 pre-restart main window present",
+      "ok": true,
+      "detail": "windows=1 ids=['w-348261314']"
+    },
+    {
+      "label": "F08 close-app --force delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F08 old main window gone before relaunch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F08 relaunched main window visible",
+      "ok": true,
+      "detail": "windows=1"
+    },
+    {
+      "label": "F08 restart identity",
+      "ok": true,
+      "detail": "before=[('w-348261314', 68176)] after=(w-53939168,36304) windows_after=1"
+    },
+    {
+      "label": "F08 content AX tree ready after relaunch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F08 sidebar switch observable after restart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F08 sidebar state persisted across restart",
+      "ok": true,
+      "detail": "target=展开侧边栏 observed=展开侧边栏 states=[]"
+    }
+  ]
+}

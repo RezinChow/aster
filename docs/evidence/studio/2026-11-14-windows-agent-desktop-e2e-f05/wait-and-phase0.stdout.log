@@ -1,0 +1,11 @@
+WINDOW w-120982452 pid=50320 after 4 polls
+CONTENT_READY True
+S1 window_id=w-120982452 pid=50320 visible=True minimized=False bounds={'height': 959.0, 'width': 1456.0, 'x': 104.0, 'y': 104.0}
+S0 status_ok=True version=1.2.0 accessibility=granted list_apps_ok=True
+S2 complete=True snapshot_id=s1kp2m9iy8rpv3 composer_matches=2
+S3 onboarding_tokens={'继续': 0, '稍后设置': 0, '跳过': 0, '开始使用': 0, '下一步': 0, '允许': 0}
+CENSUS {"描述任务": 2, "设置": 1, "搜索设置": 0, "选择模型": 1, "运行任务时保持系统唤醒": 0, "收起侧边栏": 1, "展开侧边栏": 0, "更多选项": 1, "授权模式": 1, "新建任务": 1, "连接器": 1, "技能": 3, "自动化": 1, "项目": 7, "最近": 3, "网络搜索": 0, "清除": 0, "工作": 4, "返回应用": 0, "发送": 1}
+S4 screenshot_ok=True format=png size=1442x952 bytes=416524 path=D:\code\aster\docs\evidence\studio\2026-11-14-windows-agent-desktop-e2e-f05\screenshots\phase0-S4-main-window.png
+PHASE0_L3: PASS
+PHASE0_RC 0
+EXIT=0

@@ -1,0 +1,34 @@
+{
+  "case": "F01",
+  "run": 2,
+  "verdict": "PASS",
+  "token": "中文短句测试013CE9",
+  "window_id": "w-85395480",
+  "evidence": [
+    {
+      "label": "F01 draft entered",
+      "ok": true,
+      "detail": "value='中文短句测试013CE9'"
+    },
+    {
+      "label": "F01 settings click delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F01 settings page reached (返回应用 button present)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F01 work click delivered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F01 draft survived cross-page round trip",
+      "ok": true,
+      "detail": "after='中文短句测试013CE9'"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "version": "2.6",
+  "ok": true,
+  "command": "screenshot",
+  "data": {
+    "format": "png",
+    "height": 952,
+    "path": "D:\\code\\aster\\docs\\evidence\\studio\\2026-11-14-windows-agent-desktop-e2e-f05\\screenshots\\selector-open.png",
+    "scale_factor": 1.0,
+    "width": 1442
+  }
+}

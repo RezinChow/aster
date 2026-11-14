@@ -1,0 +1,6 @@
+=== F17 run 2 token=中文短句测试17EAE3 ===
+  OK    F17 resize-window delivered - code=None
+  OK    F17 snapshot complete after resize
+  OK    F17 sampled bounded content controls after resize - bounded_nodes=10
+  INFO  F17 window_bounds={'height': 700.0, 'width': 900.0, 'x': 258.0, 'y': 51.0} bounded_nodes=10 severe_overflow=[]
+F17_L3: PASS

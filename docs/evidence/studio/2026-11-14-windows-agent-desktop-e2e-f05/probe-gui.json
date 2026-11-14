@@ -1,0 +1,278 @@
+{
+  "window_id": "w-120982452",
+  "settings_click_ok": true,
+  "note": "read-only AX reconnaissance, no verdict",
+  "names": {
+    "模型服务": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "模型服务",
+          "role": "button",
+          "ref_id": "@s2xrpasehnqbfx:e1",
+          "states": []
+        }
+      ]
+    },
+    "模型配置": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "模型配置",
+          "role": "button",
+          "ref_id": "@s30wf485lzfll3:e1",
+          "states": []
+        }
+      ]
+    },
+    "模型": {
+      "ok": true,
+      "total_matches": 8,
+      "sample": [
+        {
+          "name": "选择模型",
+          "role": "menubutton",
+          "ref_id": "@s1dxzwjegdxq34:e1",
+          "states": []
+        },
+        {
+          "name": "模型服务",
+          "role": "button",
+          "ref_id": "@s1dxzwjegdxq34:e2",
+          "states": []
+        },
+        {
+          "name": "模型配置",
+          "role": "button",
+          "ref_id": "@s1dxzwjegdxq34:e3",
+          "states": []
+        },
+        {
+          "name": "启用上下文管理: 自动管理对话上下文：转存超长工具输出，并在接近窗口上限时压缩历史。关闭后不做处理，超出模型窗口的请求将失败",
+          "role": "image",
+          "ref_id": "@s1dxzwjegdxq34:e4",
+          "states": []
+        },
+        {
+          "name": "工具输出截断阈值(字符): 超过该字符数的工具输出会被转存为文件并截断，模型可按需读回。任务可单独覆盖",
+          "role": "image",
+          "ref_id": "@s1dxzwjegdxq34:e5",
+          "states": [
+            "offscreen"
+          ]
+        },
+        {
+          "name": "压缩触发阈值: 对话超过可用输入上下文（模型上下文窗口减去预留输出）的该百分比时触发压缩。任务可单独覆盖",
+          "role": "image",
+          "ref_id": "@s1dxzwjegdxq34:e6",
+          "states": [
+            "offscreen"
+          ]
+        },
+        {
+          "name": "压缩模型",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [
+            "offscreen"
+          ]
+        },
+        {
+          "name": "跟随当前模型",
+          "role": "menubutton",
+          "ref_id": "@s1dxzwjegdxq34:e7",
+          "states": [
+            "offscreen"
+          ]
+        }
+      ]
+    },
+    "添加服务商": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "添加提供商": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "提供商名称": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "API 地址": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "配置自定义模型": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "选择模型": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "选择模型",
+          "role": "menubutton",
+          "ref_id": "@s3nw14kzn6crbf:e1",
+          "states": []
+        }
+      ]
+    },
+    "设置": {
+      "ok": true,
+      "total_matches": 4,
+      "sample": [
+        {
+          "name": "设置",
+          "role": "button",
+          "ref_id": "@s1n92npuc41vlv:e1",
+          "states": [
+            "focused"
+          ]
+        },
+        {
+          "name": "搜索设置...",
+          "role": "button",
+          "ref_id": "@s1n92npuc41vlv:e2",
+          "states": []
+        },
+        {
+          "name": "应用的工作区文件夹。未单独设置时使用主目录下的 .aster。",
+          "role": "statictext",
+          "ref_id": null,
+          "states": []
+        },
+        {
+          "name": "仅适用于任务对话；任务可在自身设置中单独覆盖。",
+          "role": "statictext",
+          "ref_id": null,
+          "states": []
+        }
+      ]
+    },
+    "返回应用": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "返回应用",
+          "role": "button",
+          "ref_id": "@s3r07siqog80um:e1",
+          "states": []
+        }
+      ]
+    },
+    "保存": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "保存地址？",
+          "role": "menubutton",
+          "ref_id": "@s30l3bit686t2s:e1",
+          "states": []
+        }
+      ]
+    },
+    "确定": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "取消": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "添加": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型列表": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "自定义": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "服务商": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "网络搜索": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "网络搜索",
+          "role": "button",
+          "ref_id": "@svlhiup57bbtd:e1",
+          "states": []
+        }
+      ]
+    },
+    "连接器": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "连接器",
+          "role": "button",
+          "ref_id": "@s3kvd30zoddvyw:e1",
+          "states": []
+        }
+      ]
+    },
+    "技能": {
+      "ok": true,
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "技能",
+          "role": "button",
+          "ref_id": "@s3u75kmxao6woz:e1",
+          "states": []
+        },
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "textfield",
+          "ref_id": "@s3u75kmxao6woz:e2",
+          "states": []
+        },
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "statictext",
+          "ref_id": null,
+          "states": []
+        }
+      ]
+    },
+    "自动化": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "自动化",
+          "role": "button",
+          "ref_id": "@szdfmzin3doek:e1",
+          "states": []
+        }
+      ]
+    }
+  },
+  "snapshot_complete": true,
+  "snapshot_id": "sk7rg0at75cmk"
+}

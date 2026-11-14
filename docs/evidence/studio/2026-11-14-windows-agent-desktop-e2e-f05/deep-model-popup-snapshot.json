@@ -1,0 +1,1487 @@
+{
+  "version": "2.6",
+  "ok": true,
+  "command": "snapshot",
+  "data": {
+    "app": "Studio.exe",
+    "complete": true,
+    "ref_count": 72,
+    "snapshot_id": "s24pwiaw3jd64d",
+    "tree": {
+      "available_actions": [
+        "SetFocus"
+      ],
+      "children": [
+        {
+          "available_actions": [
+            "SetFocus"
+          ],
+          "children": [
+            {
+              "children": [
+                {
+                  "available_actions": [
+                    "ScrollTo"
+                  ],
+                  "children": [
+                    {
+                      "available_actions": [
+                        "ScrollTo"
+                      ],
+                      "children": [
+                        {
+                          "available_actions": [
+                            "ScrollTo"
+                          ],
+                          "children": [
+                            {
+                              "available_actions": [
+                                "ScrollTo"
+                              ],
+                              "children": [
+                                {
+                                  "available_actions": [
+                                    "ScrollTo"
+                                  ],
+                                  "children": [
+                                    {
+                                      "available_actions": [
+                                        "Click",
+                                        "ScrollTo"
+                                      ],
+                                      "name": "最小化",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "view_2"
+                                      },
+                                      "ref_id": "@s24pwiaw3jd64d:e1",
+                                      "role": "button",
+                                      "role_description": "按钮",
+                                      "subrole": "button"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "Click",
+                                        "ScrollTo"
+                                      ],
+                                      "name": "最大化",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "view_3"
+                                      },
+                                      "ref_id": "@s24pwiaw3jd64d:e2",
+                                      "role": "button",
+                                      "role_description": "按钮",
+                                      "subrole": "button"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "Click",
+                                        "ScrollTo"
+                                      ],
+                                      "name": "还原",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "view_4"
+                                      },
+                                      "ref_id": "@s24pwiaw3jd64d:e3",
+                                      "role": "button",
+                                      "role_description": "按钮",
+                                      "subrole": "button"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "Click",
+                                        "ScrollTo"
+                                      ],
+                                      "name": "关闭",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "view_7"
+                                      },
+                                      "ref_id": "@s24pwiaw3jd64d:e4",
+                                      "role": "button",
+                                      "role_description": "按钮",
+                                      "subrole": "button"
+                                    }
+                                  ],
+                                  "role": "group",
+                                  "role_description": "区域",
+                                  "subrole": "region"
+                                },
+                                {
+                                  "available_actions": [
+                                    "ScrollTo"
+                                  ],
+                                  "children": [
+                                    {
+                                      "available_actions": [
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "ScrollTo"
+                                          ],
+                                          "children": [
+                                            {
+                                              "available_actions": [
+                                                "ScrollTo"
+                                              ],
+                                              "children": [
+                                                {
+                                                  "available_actions": [
+                                                    "Click",
+                                                    "ScrollTo"
+                                                  ],
+                                                  "ref_id": "@s24pwiaw3jd64d:e5",
+                                                  "role": "button",
+                                                  "role_description": "按钮",
+                                                  "subrole": "button"
+                                                },
+                                                {
+                                                  "available_actions": [
+                                                    "Click",
+                                                    "ScrollTo"
+                                                  ],
+                                                  "ref_id": "@s24pwiaw3jd64d:e6",
+                                                  "role": "group",
+                                                  "role_description": "组",
+                                                  "subrole": "group"
+                                                },
+                                                {
+                                                  "available_actions": [
+                                                    "ScrollTo"
+                                                  ],
+                                                  "children": [
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e7",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e8",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e9",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e10",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e11",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e12",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e13",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e14",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e15",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e16",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e17",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e18",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e19",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e20",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e21",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e22",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    }
+                                                  ],
+                                                  "role": "group",
+                                                  "role_description": "区域",
+                                                  "subrole": "region"
+                                                },
+                                                {
+                                                  "available_actions": [
+                                                    "ScrollTo"
+                                                  ],
+                                                  "children": [
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "改为搜索",
+                                                      "ref_id": "@s24pwiaw3jd64d:e23",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e24",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "要打开此链接，请选择一个应用",
+                                                      "ref_id": "@s24pwiaw3jd64d:e25",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "应用程序可用。安装 ",
+                                                      "ref_id": "@s24pwiaw3jd64d:e26",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "显示翻译选项",
+                                                      "native_id": {
+                                                        "kind": "automation_id",
+                                                        "value": "view_1022"
+                                                      },
+                                                      "ref_id": "@s24pwiaw3jd64d:e27",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "ref_id": "@s24pwiaw3jd64d:e28",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "states": [
+                                                        "disabled"
+                                                      ],
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "更新此网站的自动配置文件切换首选项",
+                                                      "ref_id": "@s24pwiaw3jd64d:e29",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "查看虚拟卡号",
+                                                      "ref_id": "@s24pwiaw3jd64d:e30",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "立即购买，稍后支付",
+                                                      "ref_id": "@s24pwiaw3jd64d:e31",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "保存地址？",
+                                                      "ref_id": "@s24pwiaw3jd64d:e32",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "更多操作",
+                                                      "ref_id": "@s24pwiaw3jd64d:e33",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    }
+                                                  ],
+                                                  "role": "group",
+                                                  "role_description": "区域",
+                                                  "subrole": "region"
+                                                }
+                                              ],
+                                              "role": "group",
+                                              "role_description": "组",
+                                              "subrole": "group"
+                                            }
+                                          ],
+                                          "name": "应用栏",
+                                          "native_id": {
+                                            "kind": "automation_id",
+                                            "value": "view_1000"
+                                          },
+                                          "role": "toolbar",
+                                          "role_description": "工具栏",
+                                          "subrole": "toolbar"
+                                        }
+                                      ],
+                                      "role": "group",
+                                      "role_description": "区域",
+                                      "subrole": "region"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "ScrollTo"
+                                          ],
+                                          "children": [
+                                            {
+                                              "available_actions": [
+                                                "ScrollTo"
+                                              ],
+                                              "children": [
+                                                {
+                                                  "available_actions": [
+                                                    "ScrollTo"
+                                                  ],
+                                                  "children": [
+                                                    {
+                                                      "available_actions": [
+                                                        "Scroll",
+                                                        "ScrollTo"
+                                                      ],
+                                                      "children": [
+                                                        {
+                                                          "available_actions": [
+                                                            "Scroll",
+                                                            "ScrollTo",
+                                                            "SetFocus"
+                                                          ],
+                                                          "children": [
+                                                            {
+                                                              "available_actions": [
+                                                                "Click",
+                                                                "ScrollTo"
+                                                              ],
+                                                              "children": [
+                                                                {
+                                                                  "available_actions": [
+                                                                    "Click",
+                                                                    "ScrollTo"
+                                                                  ],
+                                                                  "children": [
+                                                                    {
+                                                                      "available_actions": [
+                                                                        "ScrollTo"
+                                                                      ],
+                                                                      "children": [
+                                                                        {
+                                                                          "available_actions": [
+                                                                            "ScrollTo"
+                                                                          ],
+                                                                          "children": [
+                                                                            {
+                                                                              "available_actions": [
+                                                                                "Click",
+                                                                                "ScrollTo"
+                                                                              ],
+                                                                              "children": [
+                                                                                {
+                                                                                  "available_actions": [
+                                                                                    "Click",
+                                                                                    "ScrollTo",
+                                                                                    "SetFocus"
+                                                                                  ],
+                                                                                  "name": "工作",
+                                                                                  "ref_id": "@s24pwiaw3jd64d:e39",
+                                                                                  "role": "button",
+                                                                                  "role_description": "按钮",
+                                                                                  "subrole": "button"
+                                                                                }
+                                                                              ],
+                                                                              "ref_id": "@s24pwiaw3jd64d:e38",
+                                                                              "role": "group",
+                                                                              "role_description": "组",
+                                                                              "subrole": "group"
+                                                                            },
+                                                                            {
+                                                                              "available_actions": [
+                                                                                "Click",
+                                                                                "ScrollTo"
+                                                                              ],
+                                                                              "children": [
+                                                                                {
+                                                                                  "available_actions": [
+                                                                                    "Click",
+                                                                                    "ScrollTo",
+                                                                                    "SetFocus"
+                                                                                  ],
+                                                                                  "name": "设置",
+                                                                                  "ref_id": "@s24pwiaw3jd64d:e41",
+                                                                                  "role": "button",
+                                                                                  "role_description": "按钮",
+                                                                                  "subrole": "button"
+                                                                                }
+                                                                              ],
+                                                                              "ref_id": "@s24pwiaw3jd64d:e40",
+                                                                              "role": "group",
+                                                                              "role_description": "组",
+                                                                              "subrole": "group"
+                                                                            }
+                                                                          ],
+                                                                          "role": "group",
+                                                                          "role_description": "组",
+                                                                          "subrole": "group"
+                                                                        }
+                                                                      ],
+                                                                      "native_id": {
+                                                                        "kind": "automation_id",
+                                                                        "value": "app-sidebar"
+                                                                      },
+                                                                      "role": "group",
+                                                                      "role_description": "组",
+                                                                      "subrole": "group"
+                                                                    },
+                                                                    {
+                                                                      "available_actions": [
+                                                                        "ScrollTo"
+                                                                      ],
+                                                                      "children": [
+                                                                        {
+                                                                          "available_actions": [
+                                                                            "ScrollTo"
+                                                                          ],
+                                                                          "children": [
+                                                                            {
+                                                                              "available_actions": [
+                                                                                "Click",
+                                                                                "ScrollTo"
+                                                                              ],
+                                                                              "children": [
+                                                                                {
+                                                                                  "available_actions": [
+                                                                                    "ScrollTo"
+                                                                                  ],
+                                                                                  "children": [
+                                                                                    {
+                                                                                      "available_actions": [
+                                                                                        "ScrollTo"
+                                                                                      ],
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "available_actions": [
+                                                                                            "ScrollTo"
+                                                                                          ],
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "available_actions": [
+                                                                                                "ScrollTo"
+                                                                                              ],
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "available_actions": [
+                                                                                                    "ScrollTo"
+                                                                                                  ],
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "Click",
+                                                                                                        "ScrollTo",
+                                                                                                        "SetFocus"
+                                                                                                      ],
+                                                                                                      "name": "新建任务",
+                                                                                                      "ref_id": "@s24pwiaw3jd64d:e44",
+                                                                                                      "role": "button",
+                                                                                                      "role_description": "按钮",
+                                                                                                      "subrole": "button"
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "Expand",
+                                                                                                        "Collapse",
+                                                                                                        "ScrollTo",
+                                                                                                        "Click",
+                                                                                                        "SetFocus"
+                                                                                                      ],
+                                                                                                      "name": "搜索任务",
+                                                                                                      "ref_id": "@s24pwiaw3jd64d:e45",
+                                                                                                      "role": "menubutton",
+                                                                                                      "role_description": "按钮",
+                                                                                                      "subrole": "button"
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "ScrollTo"
+                                                                                                      ],
+                                                                                                      "children_count": 3,
+                                                                                                      "name": "工作导航",
+                                                                                                      "ref_id": "@s24pwiaw3jd64d:e46",
+                                                                                                      "role": "group",
+                                                                                                      "role_description": "导航",
+                                                                                                      "subrole": "navigation"
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "ScrollTo"
+                                                                                                      ],
+                                                                                                      "children_count": 2,
+                                                                                                      "name": "项目",
+                                                                                                      "ref_id": "@s24pwiaw3jd64d:e47",
+                                                                                                      "role": "group",
+                                                                                                      "role_description": "区域",
+                                                                                                      "subrole": "region"
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "ScrollTo"
+                                                                                                      ],
+                                                                                                      "children_count": 2,
+                                                                                                      "name": "最近",
+                                                                                                      "ref_id": "@s24pwiaw3jd64d:e48",
+                                                                                                      "role": "group",
+                                                                                                      "role_description": "区域",
+                                                                                                      "subrole": "region"
+                                                                                                    }
+                                                                                                  ],
+                                                                                                  "role": "group",
+                                                                                                  "role_description": "组",
+                                                                                                  "subrole": "group"
+                                                                                                }
+                                                                                              ],
+                                                                                              "native_id": {
+                                                                                                "kind": "automation_id",
+                                                                                                "value": "workbench-sidebar"
+                                                                                              },
+                                                                                              "role": "group",
+                                                                                              "role_description": "补充",
+                                                                                              "subrole": "complementary"
+                                                                                            },
+                                                                                            {
+                                                                                              "available_actions": [
+                                                                                                "Toggle",
+                                                                                                "ScrollTo",
+                                                                                                "Click",
+                                                                                                "SetFocus"
+                                                                                              ],
+                                                                                              "description": "收起侧边栏",
+                                                                                              "name": "收起侧边栏",
+                                                                                              "placeholder": "收起侧边栏",
+                                                                                              "ref_id": "@s24pwiaw3jd64d:e49",
+                                                                                              "role": "switch",
+                                                                                              "role_description": "切换按钮",
+                                                                                              "states": [
+                                                                                                "checked"
+                                                                                              ],
+                                                                                              "subrole": "button"
+                                                                                            },
+                                                                                            {
+                                                                                              "available_actions": [
+                                                                                                "ScrollTo"
+                                                                                              ],
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "available_actions": [
+                                                                                                    "ScrollTo"
+                                                                                                  ],
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "ScrollTo"
+                                                                                                      ],
+                                                                                                      "children_count": 3,
+                                                                                                      "role": "group",
+                                                                                                      "role_description": "组",
+                                                                                                      "subrole": "group"
+                                                                                                    }
+                                                                                                  ],
+                                                                                                  "role": "group",
+                                                                                                  "role_description": "组",
+                                                                                                  "subrole": "group"
+                                                                                                }
+                                                                                              ],
+                                                                                              "role": "group",
+                                                                                              "role_description": "主要",
+                                                                                              "subrole": "main"
+                                                                                            }
+                                                                                          ],
+                                                                                          "role": "group",
+                                                                                          "role_description": "组",
+                                                                                          "subrole": "group"
+                                                                                        }
+                                                                                      ],
+                                                                                      "native_id": {
+                                                                                        "kind": "automation_id",
+                                                                                        "value": "agent-page"
+                                                                                      },
+                                                                                      "ref_id": "@s24pwiaw3jd64d:e43",
+                                                                                      "role": "group",
+                                                                                      "role_description": "组",
+                                                                                      "subrole": "group"
+                                                                                    }
+                                                                                  ],
+                                                                                  "role": "group",
+                                                                                  "role_description": "组",
+                                                                                  "subrole": "group"
+                                                                                },
+                                                                                {
+                                                                                  "available_actions": [
+                                                                                    "ScrollTo"
+                                                                                  ],
+                                                                                  "children": [
+                                                                                    {
+                                                                                      "available_actions": [
+                                                                                        "ScrollTo",
+                                                                                        "SetFocus"
+                                                                                      ],
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "available_actions": [
+                                                                                            "ScrollTo"
+                                                                                          ],
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "available_actions": [
+                                                                                                "Click",
+                                                                                                "ScrollTo",
+                                                                                                "SetFocus"
+                                                                                              ],
+                                                                                              "name": "关闭模型选择",
+                                                                                              "ref_id": "@s24pwiaw3jd64d:e50",
+                                                                                              "role": "button",
+                                                                                              "role_description": "按钮",
+                                                                                              "subrole": "button"
+                                                                                            }
+                                                                                          ],
+                                                                                          "role": "group",
+                                                                                          "role_description": "章节标题",
+                                                                                          "subrole": "group"
+                                                                                        },
+                                                                                        {
+                                                                                          "available_actions": [
+                                                                                            "ScrollTo"
+                                                                                          ],
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "available_actions": [
+                                                                                                "SetValue",
+                                                                                                "ScrollTo",
+                                                                                                "SetFocus"
+                                                                                              ],
+                                                                                              "description": "搜索模型",
+                                                                                              "name": "搜索模型",
+                                                                                              "ref_id": "@s24pwiaw3jd64d:e51",
+                                                                                              "role": "textfield",
+                                                                                              "role_description": "编辑",
+                                                                                              "states": [
+                                                                                                "focused"
+                                                                                              ],
+                                                                                              "subrole": "textbox"
+                                                                                            }
+                                                                                          ],
+                                                                                          "role": "group",
+                                                                                          "role_description": "组",
+                                                                                          "subrole": "description"
+                                                                                        },
+                                                                                        {
+                                                                                          "available_actions": [
+                                                                                            "ScrollTo"
+                                                                                          ],
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "available_actions": [
+                                                                                                "ScrollTo"
+                                                                                              ],
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "available_actions": [
+                                                                                                    "Select",
+                                                                                                    "ScrollTo",
+                                                                                                    "Click",
+                                                                                                    "SetFocus"
+                                                                                                  ],
+                                                                                                  "name": "全部 1",
+                                                                                                  "ref_id": "@s24pwiaw3jd64d:e52",
+                                                                                                  "role": "tab",
+                                                                                                  "role_description": "选项卡项目",
+                                                                                                  "states": [
+                                                                                                    "selected"
+                                                                                                  ],
+                                                                                                  "subrole": "tab"
+                                                                                                },
+                                                                                                {
+                                                                                                  "available_actions": [
+                                                                                                    "Select",
+                                                                                                    "ScrollTo",
+                                                                                                    "Click",
+                                                                                                    "SetFocus"
+                                                                                                  ],
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "ScrollTo"
+                                                                                                      ],
+                                                                                                      "children_count": 1,
+                                                                                                      "role": "group",
+                                                                                                      "role_description": "组",
+                                                                                                      "subrole": "group"
+                                                                                                    }
+                                                                                                  ],
+                                                                                                  "name": "E2E-Local 1",
+                                                                                                  "ref_id": "@s24pwiaw3jd64d:e53",
+                                                                                                  "role": "tab",
+                                                                                                  "role_description": "选项卡项目",
+                                                                                                  "subrole": "tab"
+                                                                                                }
+                                                                                              ],
+                                                                                              "name": "模型提供方",
+                                                                                              "role": "tablist",
+                                                                                              "role_description": "选项卡",
+                                                                                              "subrole": "tablist"
+                                                                                            }
+                                                                                          ],
+                                                                                          "role": "group",
+                                                                                          "role_description": "组",
+                                                                                          "subrole": "group"
+                                                                                        },
+                                                                                        {
+                                                                                          "available_actions": [
+                                                                                            "SetValue",
+                                                                                            "ScrollTo"
+                                                                                          ],
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "available_actions": [
+                                                                                                "ScrollTo"
+                                                                                              ],
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "available_actions": [
+                                                                                                    "ScrollTo"
+                                                                                                  ],
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "Click",
+                                                                                                        "ScrollTo"
+                                                                                                      ],
+                                                                                                      "children_count": 1,
+                                                                                                      "ref_id": "@s24pwiaw3jd64d:e55",
+                                                                                                      "role": "group",
+                                                                                                      "role_description": "组",
+                                                                                                      "subrole": "group"
+                                                                                                    }
+                                                                                                  ],
+                                                                                                  "role": "group",
+                                                                                                  "role_description": "组",
+                                                                                                  "subrole": "group"
+                                                                                                },
+                                                                                                {
+                                                                                                  "available_actions": [
+                                                                                                    "ScrollTo"
+                                                                                                  ],
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "available_actions": [
+                                                                                                        "ScrollTo"
+                                                                                                      ],
+                                                                                                      "children_count": 1,
+                                                                                                      "role": "group",
+                                                                                                      "role_description": "组",
+                                                                                                      "subrole": "group"
+                                                                                                    }
+                                                                                                  ],
+                                                                                                  "role": "group",
+                                                                                                  "role_description": "组",
+                                                                                                  "subrole": "group"
+                                                                                                }
+                                                                                              ],
+                                                                                              "role": "group",
+                                                                                              "role_description": "组",
+                                                                                              "subrole": "group"
+                                                                                            }
+                                                                                          ],
+                                                                                          "ref_id": "@s24pwiaw3jd64d:e54",
+                                                                                          "role": "listbox",
+                                                                                          "role_description": "列表",
+                                                                                          "subrole": "listbox"
+                                                                                        },
+                                                                                        {
+                                                                                          "available_actions": [
+                                                                                            "Click",
+                                                                                            "ScrollTo",
+                                                                                            "SetFocus"
+                                                                                          ],
+                                                                                          "name": "配置自定义模型",
+                                                                                          "ref_id": "@s24pwiaw3jd64d:e56",
+                                                                                          "role": "button",
+                                                                                          "role_description": "按钮",
+                                                                                          "subrole": "button"
+                                                                                        }
+                                                                                      ],
+                                                                                      "name": "选择模型",
+                                                                                      "native_id": {
+                                                                                        "kind": "automation_id",
+                                                                                        "value": "radix-_r_ek_"
+                                                                                      },
+                                                                                      "role": "window",
+                                                                                      "role_description": "对话框",
+                                                                                      "subrole": "dialog"
+                                                                                    }
+                                                                                  ],
+                                                                                  "role": "group",
+                                                                                  "role_description": "组",
+                                                                                  "subrole": "group"
+                                                                                }
+                                                                              ],
+                                                                              "ref_id": "@s24pwiaw3jd64d:e42",
+                                                                              "role": "group",
+                                                                              "role_description": "组",
+                                                                              "subrole": "group"
+                                                                            }
+                                                                          ],
+                                                                          "role": "group",
+                                                                          "role_description": "组",
+                                                                          "subrole": "group"
+                                                                        }
+                                                                      ],
+                                                                      "role": "group",
+                                                                      "role_description": "主要",
+                                                                      "subrole": "main"
+                                                                    }
+                                                                  ],
+                                                                  "native_id": {
+                                                                    "kind": "automation_id",
+                                                                    "value": "root"
+                                                                  },
+                                                                  "ref_id": "@s24pwiaw3jd64d:e37",
+                                                                  "role": "group",
+                                                                  "role_description": "组",
+                                                                  "subrole": "group"
+                                                                },
+                                                                {
+                                                                  "available_actions": [
+                                                                    "Click",
+                                                                    "ScrollTo"
+                                                                  ],
+                                                                  "children": [
+                                                                    {
+                                                                      "available_actions": [
+                                                                        "ScrollTo"
+                                                                      ],
+                                                                      "children": [
+                                                                        {
+                                                                          "available_actions": [
+                                                                            "ScrollTo"
+                                                                          ],
+                                                                          "children": [
+                                                                            {
+                                                                              "available_actions": [
+                                                                                "ScrollTo"
+                                                                              ],
+                                                                              "children": [
+                                                                                {
+                                                                                  "available_actions": [
+                                                                                    "Expand",
+                                                                                    "Collapse",
+                                                                                    "ScrollTo",
+                                                                                    "Click",
+                                                                                    "SetFocus"
+                                                                                  ],
+                                                                                  "description": "Start feedback mode (⌘⇧F / Ctrl+Shift+F)",
+                                                                                  "name": "Start feedback mode",
+                                                                                  "placeholder": "Start feedback mode (⌘⇧F / Ctrl+Shift+F)",
+                                                                                  "ref_id": "@s24pwiaw3jd64d:e58",
+                                                                                  "role": "menubutton",
+                                                                                  "role_description": "按钮",
+                                                                                  "subrole": "button"
+                                                                                }
+                                                                              ],
+                                                                              "role": "group",
+                                                                              "role_description": "组",
+                                                                              "subrole": "group"
+                                                                            }
+                                                                          ],
+                                                                          "role": "group",
+                                                                          "role_description": "组",
+                                                                          "subrole": "group"
+                                                                        }
+                                                                      ],
+                                                                      "role": "group",
+                                                                      "role_description": "组",
+                                                                      "subrole": "group"
+                                                                    }
+                                                                  ],
+                                                                  "ref_id": "@s24pwiaw3jd64d:e57",
+                                                                  "role": "group",
+                                                                  "role_description": "组",
+                                                                  "subrole": "group"
+                                                                }
+                                                              ],
+                                                              "ref_id": "@s24pwiaw3jd64d:e36",
+                                                              "role": "group",
+                                                              "role_description": "组",
+                                                              "subrole": "group"
+                                                            }
+                                                          ],
+                                                          "name": "Aster",
+                                                          "native_id": {
+                                                            "kind": "automation_id",
+                                                            "value": "RootWebArea"
+                                                          },
+                                                          "ref_id": "@s24pwiaw3jd64d:e35",
+                                                          "role": "document",
+                                                          "role_description": "文档",
+                                                          "states": [
+                                                            "readonly"
+                                                          ],
+                                                          "subrole": "document",
+                                                          "value": "http://127.0.0.1:4318/windows/main/index.html"
+                                                        }
+                                                      ],
+                                                      "name": "Chrome Legacy Window",
+                                                      "native_id": {
+                                                        "kind": "automation_id",
+                                                        "value": "501"
+                                                      },
+                                                      "ref_id": "@s24pwiaw3jd64d:e34",
+                                                      "role": "group",
+                                                      "role_description": "窗格"
+                                                    }
+                                                  ],
+                                                  "role": "group",
+                                                  "role_description": "区域",
+                                                  "subrole": "region"
+                                                }
+                                              ],
+                                              "role": "group",
+                                              "role_description": "区域",
+                                              "subrole": "region"
+                                            }
+                                          ],
+                                          "role": "group",
+                                          "role_description": "区域",
+                                          "subrole": "region"
+                                        }
+                                      ],
+                                      "role": "group",
+                                      "role_description": "区域",
+                                      "subrole": "region"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "SetValue",
+                                            "ScrollTo"
+                                          ],
+                                          "name": "侧面板调整大小图柄(可拖动)",
+                                          "ref_id": "@s24pwiaw3jd64d:e59",
+                                          "role": "slider",
+                                          "role_description": "滑块",
+                                          "subrole": "slider"
+                                        }
+                                      ],
+                                      "role": "group",
+                                      "role_description": "区域",
+                                      "subrole": "region"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "ScrollTo"
+                                          ],
+                                          "children": [
+                                            {
+                                              "available_actions": [
+                                                "ScrollTo"
+                                              ],
+                                              "children": [
+                                                {
+                                                  "available_actions": [
+                                                    "Select",
+                                                    "ScrollTo",
+                                                    "Click"
+                                                  ],
+                                                  "children": [
+                                                    {
+                                                      "available_actions": [
+                                                        "Click",
+                                                        "ScrollTo"
+                                                      ],
+                                                      "name": "对此标签页静音",
+                                                      "ref_id": "@s24pwiaw3jd64d:e61",
+                                                      "role": "button",
+                                                      "role_description": "按钮",
+                                                      "states": [
+                                                        "disabled"
+                                                      ],
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "协作者个人资料照片",
+                                                      "ref_id": "@s24pwiaw3jd64d:e62",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "协作者个人资料照片",
+                                                      "ref_id": "@s24pwiaw3jd64d:e63",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "协作者个人资料照片",
+                                                      "ref_id": "@s24pwiaw3jd64d:e64",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Expand",
+                                                        "Collapse",
+                                                        "ScrollTo",
+                                                        "Click"
+                                                      ],
+                                                      "name": "协作者个人资料照片",
+                                                      "ref_id": "@s24pwiaw3jd64d:e65",
+                                                      "role": "menubutton",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    },
+                                                    {
+                                                      "available_actions": [
+                                                        "Click",
+                                                        "ScrollTo"
+                                                      ],
+                                                      "description": "关闭标签页 ",
+                                                      "name": "关闭标签页",
+                                                      "native_id": {
+                                                        "kind": "automation_id",
+                                                        "value": "view_27"
+                                                      },
+                                                      "ref_id": "@s24pwiaw3jd64d:e66",
+                                                      "role": "button",
+                                                      "role_description": "按钮",
+                                                      "subrole": "button"
+                                                    }
+                                                  ],
+                                                  "description": "127.0.0.1:4318",
+                                                  "name": "Aster - 内存使用率 - 347 MB",
+                                                  "native_id": {
+                                                    "kind": "automation_id",
+                                                    "value": "view_24"
+                                                  },
+                                                  "ref_id": "@s24pwiaw3jd64d:e60",
+                                                  "role": "tab",
+                                                  "role_description": "选项卡项目",
+                                                  "states": [
+                                                    "selected"
+                                                  ],
+                                                  "subrole": "tab"
+                                                }
+                                              ],
+                                              "role": "tablist",
+                                              "role_description": "选项卡",
+                                              "states": [
+                                                "multiselectable"
+                                              ],
+                                              "subrole": "tablist"
+                                            }
+                                          ],
+                                          "native_id": {
+                                            "kind": "automation_id",
+                                            "value": "view_25"
+                                          },
+                                          "role": "group",
+                                          "role_description": "区域",
+                                          "subrole": "region"
+                                        },
+                                        {
+                                          "available_actions": [
+                                            "Click",
+                                            "ScrollTo"
+                                          ],
+                                          "description": "新建标签页 ",
+                                          "name": "新建标签页",
+                                          "native_id": {
+                                            "kind": "automation_id",
+                                            "value": "view_28"
+                                          },
+                                          "ref_id": "@s24pwiaw3jd64d:e67",
+                                          "role": "button",
+                                          "role_description": "按钮",
+                                          "subrole": "button"
+                                        }
+                                      ],
+                                      "name": "标签页栏",
+                                      "role": "tablist",
+                                      "role_description": "选项卡",
+                                      "subrole": "tablist"
+                                    }
+                                  ],
+                                  "role": "group",
+                                  "role_description": "区域",
+                                  "subrole": "region"
+                                }
+                              ],
+                              "role": "group",
+                              "role_description": "区域",
+                              "subrole": "region"
+                            }
+                          ],
+                          "role": "group",
+                          "role_description": "区域",
+                          "subrole": "region"
+                        }
+                      ],
+                      "name": "Aster - Web 内容",
+                      "role": "group",
+                      "role_description": "区域",
+                      "subrole": "region"
+                    }
+                  ],
+                  "name": "Aster",
+                  "role": "group",
+                  "role_description": "窗格",
+                  "states": [
+                    "focused"
+                  ]
+                }
+              ],
+              "role": "group",
+              "role_description": "窗格",
+              "states": [
+                "focused"
+              ]
+            }
+          ],
+          "role": "group",
+          "role_description": "窗格"
+        },
+        {
+          "available_actions": [
+            "SetValue",
+            "SetFocus"
+          ],
+          "children": [
+            {
+              "available_actions": [
+                "SetFocus"
+              ],
+              "children": [
+                {
+                  "available_actions": [
+                    "Click",
+                    "Expand",
+                    "Collapse",
+                    "SetFocus"
+                  ],
+                  "name": "系统",
+                  "ref_id": "@s24pwiaw3jd64d:e69",
+                  "role": "menuitem",
+                  "role_description": "菜单项目",
+                  "states": [
+                    "haspopup"
+                  ]
+                }
+              ],
+              "name": "系统",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "SystemMenuBar"
+              },
+              "role": "menu",
+              "role_description": "菜单栏"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "最小化",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Minimize-Restore"
+              },
+              "ref_id": "@s24pwiaw3jd64d:e70",
+              "role": "button",
+              "role_description": "按钮"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "最大化",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Maximize-Restore"
+              },
+              "ref_id": "@s24pwiaw3jd64d:e71",
+              "role": "button",
+              "role_description": "按钮"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "关闭",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Close"
+              },
+              "ref_id": "@s24pwiaw3jd64d:e72",
+              "role": "button",
+              "role_description": "按钮"
+            }
+          ],
+          "native_id": {
+            "kind": "automation_id",
+            "value": "TitleBar"
+          },
+          "ref_id": "@s24pwiaw3jd64d:e68",
+          "role": "group",
+          "role_description": "标题栏",
+          "value": "Aster"
+        }
+      ],
+      "name": "Aster",
+      "role": "window",
+      "role_description": "窗口"
+    },
+    "window": {
+      "id": "w-120982452",
+      "title": "Aster"
+    }
+  }
+}

@@ -1,0 +1,78 @@
+=== cc0a7bd09 stat ===
+cc0a7bd09 fix(sidebar): keep home composer draft when leaving Settings via the Work button
+ .../app/sidebarShortcuts/__tests__/runtime.test.ts | 28 ++++++++++++++++++++++
+ .../components/app/sidebarShortcuts/runtime.tsx    | 28 ++++++++++++++++------
+ 2 files changed, 49 insertions(+), 7 deletions(-)
+
+=== code diff ===
+diff --git a/src/renderer/components/app/sidebarShortcuts/__tests__/runtime.test.ts b/src/renderer/components/app/sidebarShortcuts/__tests__/runtime.test.ts
+index f4c36f3da..6b8bc2acb 100644
+--- a/src/renderer/components/app/sidebarShortcuts/__tests__/runtime.test.ts
++++ b/src/renderer/components/app/sidebarShortcuts/__tests__/runtime.test.ts
+@@ -237,6 +237,34 @@ describe('sidebar conversation navigation', () => {
+     expect(state.tabs.find((tab) => tab.id === 'other-agent')?.url).toBe('/app/agents?sessionId=session-1')
+   })
+ 
++  it('returns to the mounted workspace tab instead of rewriting the Settings overlay tab', async () => {
++    const { context, state } = statefulTabContext([
++      { id: 'settings', type: 'route', url: '/settings/general', title: 'Settings', lastAccessTime: 500 },
++      { id: 'work', type: 'route', url: '/app/agents', title: 'Work', lastAccessTime: 400 },
++      { id: 'docs', type: 'route', url: '/app/documents', title: 'Docs', lastAccessTime: 100 }
++    ])
++
++    await activateShortcut(context, 'core.app', 'agents')
++
++    // The workspace tab keeps its id, so its per-tab home composer draft survives.
++    expect(state.activeTabId).toBe('work')
++    expect(state.tabs).toHaveLength(3)
++    expect(state.tabs.find((tab) => tab.id === 'settings')?.url).toBe('/settings/general')
++    expect(state.tabs.find((tab) => tab.id === 'work')?.url).toBe('/app/agents')
++  })
++
++  it('repurposes the Settings tab when no workspace tab is mounted', async () => {
++    const { context, state } = statefulTabContext([
++      { id: 'settings', type: 'route', url: '/settings/general', title: 'Settings' }
++    ])
++
++    await activateShortcut(context, 'core.app', 'agents')
++
++    expect(state.activeTabId).toBe('settings')
++    expect(state.tabs).toHaveLength(1)
++    expect(state.tabs[0].url).toBe('/app/agents')
++  })
++
+   it.each(['notes'])(
+     'repurposes the active tab for the %s app shortcut even when a sibling tab has its exact URL',
+     async (appId) => {
+diff --git a/src/renderer/components/app/sidebarShortcuts/runtime.tsx b/src/renderer/components/app/sidebarShortcuts/runtime.tsx
+index a33e5f9e0..1dc24c210 100644
+--- a/src/renderer/components/app/sidebarShortcuts/runtime.tsx
++++ b/src/renderer/components/app/sidebarShortcuts/runtime.tsx
+@@ -235,16 +235,19 @@ export function useResolvedSidebarShortcuts(
+   })
+ }
+ 
+-function workspaceSurfaceUrl(
+-  activeTab: { url: string } | undefined,
+-  tabs: { type: string; url: string; lastAccessTime?: number }[]
+-): string {
+-  if (!activeTab || !isSettingsPath(activeTab.url)) return activeTab?.url ?? '/'
+-  const surface = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
++type WorkspaceTab = { id: string; type: string; url: string; lastAccessTime?: number }
++
++/** Settings floats over a workspace tab that stays mounted; find that tab. */
++function latestWorkspaceTab(tabs: WorkspaceTab[]): WorkspaceTab | undefined {
++  return tabs.reduce<WorkspaceTab | undefined>((latest, tab) => {
+     if (tab.type !== 'route' || isSettingsPath(tab.url)) return latest
+     return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+
+=== restart batch progress at 15:06:18 ===
+=== F11 run 1 token=WIN11F7E2 ===
+  OK    F11 settings opened
+  OK    F11 keep-awake switch exists in AX
+  OK    F11 toggle delivered - code=None
+  OK    F11 switch observable after toggle
+  OK    F11 switch state flipped before restart - before=True after=False target=False states=['focused']
+  OK    F11 pre-restart main window present - windows=1 ids=['w-162401792']
+  OK    F11 close-app --force delivered - code=None
+  OK    F11 old main window gone before relaunch

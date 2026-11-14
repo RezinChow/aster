@@ -1,0 +1,283 @@
+{
+  "window_id": "w-120982452",
+  "before": {
+    "描述任务": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "设置": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "选择模型": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "工作": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "返回应用": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型服务": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "完成": {
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "完成",
+          "role": "button",
+          "ref_id": "@s2v1sarwg2ahh:e1"
+        }
+      ]
+    },
+    "E2E-Local": {
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "E2E-Local · 检测并启用",
+          "role": "window",
+          "ref_id": null
+        },
+        {
+          "name": "E2E-Local · 检测并启用",
+          "role": "statictext",
+          "ref_id": null
+        },
+        {
+          "name": "E2E-Local",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    }
+  },
+  "finish_click": {
+    "ok": true,
+    "error_code": null
+  },
+  "after_finish": {
+    "描述任务": {
+      "total_matches": 2,
+      "sample": [
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "textfield",
+          "ref_id": "@s38qi67sku0aps:e1"
+        },
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "设置": {
+      "total_matches": 4,
+      "sample": [
+        {
+          "name": "设置",
+          "role": "button",
+          "ref_id": "@s2koxscuh474vw:e1"
+        },
+        {
+          "name": "搜索设置...",
+          "role": "button",
+          "ref_id": "@s2koxscuh474vw:e2"
+        },
+        {
+          "name": "API 设置",
+          "role": "button",
+          "ref_id": "@s2koxscuh474vw:e3"
+        },
+        {
+          "name": "设置 e2e-synthetic-1",
+          "role": "button",
+          "ref_id": "@s2koxscuh474vw:e4"
+        }
+      ]
+    },
+    "选择模型": {
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "选择模型",
+          "role": "menubutton",
+          "ref_id": "@s5mxxxd30txpn:e1"
+        }
+      ]
+    },
+    "工作": {
+      "total_matches": 4,
+      "sample": [
+        {
+          "name": "工作",
+          "role": "button",
+          "ref_id": "@s1vx55ttfrnq32:e1"
+        },
+        {
+          "name": "工作导航",
+          "role": "group",
+          "ref_id": null
+        },
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "textfield",
+          "ref_id": "@s1vx55ttfrnq32:e2"
+        },
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "返回应用": {
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "返回应用",
+          "role": "button",
+          "ref_id": "@sw8mq9ap86nx6:e1"
+        }
+      ]
+    },
+    "模型服务": {
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "模型服务",
+          "role": "button",
+          "ref_id": "@s3s7871nnrjuth:e1"
+        },
+        {
+          "name": "模型服务",
+          "role": "statictext",
+          "ref_id": null
+        },
+        {
+          "name": "模型服务",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "完成": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "E2E-Local": {
+      "total_matches": 5,
+      "sample": [
+        {
+          "name": "E E2E-Local",
+          "role": "button",
+          "ref_id": "@s3sfi79u1c0wsr:e1"
+        },
+        {
+          "name": "E E2E-Local",
+          "role": "button",
+          "ref_id": "@s3sfi79u1c0wsr:e2"
+        },
+        {
+          "name": "E2E-Local",
+          "role": "statictext",
+          "ref_id": null
+        },
+        {
+          "name": "E2E-Local",
+          "role": "statictext",
+          "ref_id": null
+        },
+        {
+          "name": "E2E-Local",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    }
+  },
+  "work_click": true,
+  "after_work": {
+    "描述任务": {
+      "total_matches": 2,
+      "sample": [
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "textfield",
+          "ref_id": "@s3sdfziy1u7119:e1"
+        },
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "设置": {
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "设置",
+          "role": "button",
+          "ref_id": "@s3amuw07q0hkxm:e1"
+        }
+      ]
+    },
+    "选择模型": {
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "选择模型",
+          "role": "menubutton",
+          "ref_id": "@s2ecsvhc8bhjj8:e1"
+        }
+      ]
+    },
+    "工作": {
+      "total_matches": 4,
+      "sample": [
+        {
+          "name": "工作",
+          "role": "button",
+          "ref_id": "@s3ma7343jwy5n5:e1"
+        },
+        {
+          "name": "工作导航",
+          "role": "group",
+          "ref_id": null
+        },
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "textfield",
+          "ref_id": "@s3ma7343jwy5n5:e2"
+        },
+        {
+          "name": "描述任务，输入 / 使用指令或技能，@ 选择工作区文件",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "返回应用": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型服务": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "完成": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "E2E-Local": {
+      "total_matches": 0,
+      "sample": []
+    }
+  }
+}

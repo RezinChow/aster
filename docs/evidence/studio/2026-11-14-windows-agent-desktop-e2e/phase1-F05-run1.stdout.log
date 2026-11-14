@@ -1,0 +1,6 @@
+=== F05 run 1 token=中文短句测试052D04 ===
+  OK    F05 选择模型 AX entry exists
+  OK    F05 model entry click delivered
+  INFO  F05 nodes_before=70 nodes_after=70 selectable_options=[('menuitem', '系统')]
+  BLOCKED  no selectable model option exposed in AX after opening 选择模型
+F05_L3: BLOCKED

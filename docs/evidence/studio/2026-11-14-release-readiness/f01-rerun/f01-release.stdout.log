@@ -1,0 +1,29 @@
+[META] head=944864f2775f gitlink=944864f2775f versions={'Cargo.lock': '0.2.4', 'Cargo.toml': '0.2.4', 'package.json': '0.2.4', 'tauri.conf.json': '0.2.4'}
+  INFO  window appeared after 538 polls
+[BOOT] window=w-133432886 pid=28652 content_ready=True
+S1 window_id=w-133432886 pid=28652 visible=True minimized=False bounds={'height': 959.0, 'width': 1456.0, 'x': 104.0, 'y': 104.0}
+S0 status_ok=True version=1.2.0 accessibility=granted list_apps_ok=True
+S2 complete=True snapshot_id=s26x2o6mdcigot composer_matches=2
+S3 onboarding_tokens={'继续': 0, '稍后设置': 0, '跳过': 0, '开始使用': 0, '下一步': 0, '允许': 0}
+CENSUS {"描述任务": 2, "设置": 1, "搜索设置": 0, "选择模型": 1, "运行任务时保持系统唤醒": 0, "收起侧边栏": 1, "展开侧边栏": 0, "更多选项": 1, "授权模式": 1, "新建任务": 1, "连接器": 1, "技能": 3, "自动化": 1, "项目": 7, "最近": 3, "网络搜索": 0, "清除": 0, "工作": 4, "返回应用": 0, "发送": 1}
+S4 screenshot_ok=True format=png size=1442x952 bytes=417713 path=D:\code\aster\docs\evidence\studio\2026-11-14-release-readiness\f01-rerun\screenshots\phase0-S4-main-window.png
+PHASE0_L3: PASS
+[PHASE0] exit=0
+=== F01-RELEASE run 1 token=RLF0117217 ===
+  OK    F01 draft entered - value='RLF0117217'
+  OK    F01 settings click delivered - code=None
+  OK    F01 settings page reached (返回应用 button present)
+  OK    F01 work click delivered
+  OK    F01 draft survived cross-page round trip - after='RLF0117217'
+F01_RELEASE_L3: PASS assertions=5
+[F01] run1 exit=0 verdict=PASS assertions=5
+=== F01-RELEASE run 2 token=RLF01255A3 ===
+  OK    F01 draft entered - value='RLF01255A3'
+  OK    F01 settings click delivered - code=None
+  OK    F01 settings page reached (返回应用 button present)
+  OK    F01 work click delivered
+  OK    F01 draft survived cross-page round trip - after='RLF01255A3'
+F01_RELEASE_L3: PASS assertions=5
+[F01] run2 exit=0 verdict=PASS assertions=5
+F01_RELEASE_ALL_PASS: True
+RUN_EXIT=0

@@ -1,0 +1,44 @@
+windows=1 active=w-120982452
+   w-120982452 title='Aster' pid=50320
+  描述任务                 total=0 roles=[]
+  设置                   total=0 roles=[]
+  选择模型                 total=0 roles=[]
+  工作                   total=0 roles=[]
+  返回应用                 total=0 roles=[]
+  模型服务                 total=0 roles=[]
+  模型配置                 total=0 roles=[]
+  E2E-Local            total=3 roles=['window', 'statictext', 'statictext']
+  e2e-synthetic-1      total=2 roles=['option', 'statictext']
+  添加所选模型               total=2 roles=['option', 'statictext']
+  跳过                   total=0 roles=[]
+  返回                   total=0 roles=[]
+  新建任务                 total=0 roles=[]
+--- named menubutton: 13 ---
+   '改为搜索' ref=@s1d7eacfoy0xlj:e17
+   '要打开此链接，请选择一个应用' ref=@s1d7eacfoy0xlj:e19
+   '应用程序可用。安装 ' ref=@s1d7eacfoy0xlj:e20
+   '显示翻译选项' ref=@s1d7eacfoy0xlj:e21
+   '更新此网站的自动配置文件切换首选项' ref=@s1d7eacfoy0xlj:e23
+   '查看虚拟卡号' ref=@s1d7eacfoy0xlj:e24
+   '立即购买，稍后支付' ref=@s1d7eacfoy0xlj:e25
+   '保存地址？' ref=@s1d7eacfoy0xlj:e26
+   '更多操作' ref=@s1d7eacfoy0xlj:e27
+   '协作者个人资料照片' ref=@s1d7eacfoy0xlj:e28
+   '协作者个人资料照片' ref=@s1d7eacfoy0xlj:e29
+   '协作者个人资料照片' ref=@s1d7eacfoy0xlj:e30
+   '协作者个人资料照片' ref=@s1d7eacfoy0xlj:e31
+--- named button: 12 ---
+   '最小化' ref=@s1ql5nycy73bpz:e1
+   '最大化' ref=@s1ql5nycy73bpz:e2
+   '还原' ref=@s1ql5nycy73bpz:e3
+   '关闭' ref=@s1ql5nycy73bpz:e4
+   'Close' ref=@s1ql5nycy73bpz:e6
+   '完成' ref=@s1ql5nycy73bpz:e7
+   '对此标签页静音' ref=@s1ql5nycy73bpz:e8
+   '关闭标签页' ref=@s1ql5nycy73bpz:e9
+   '新建标签页' ref=@s1ql5nycy73bpz:e10
+   '最小化' ref=@s1ql5nycy73bpz:e11
+   '最大化' ref=@s1ql5nycy73bpz:e12
+   '关闭' ref=@s1ql5nycy73bpz:e13
+STATE_DONE
+EXIT=0

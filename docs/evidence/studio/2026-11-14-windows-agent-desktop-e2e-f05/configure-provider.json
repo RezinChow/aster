@@ -1,0 +1,112 @@
+{
+  "window_id": "w-120982452",
+  "provider_name": "E2E-Local",
+  "base_url": "http://127.0.0.1:4399/v1",
+  "api_key": "e2e-local-key",
+  "note": "GUI environment precondition; synthetic local model service",
+  "dialog_already_open": true,
+  "fields": [
+    {
+      "label": "提供商名称",
+      "expected": "E2E-Local",
+      "readback": "E2E-Local",
+      "ok": true,
+      "set_ok": true,
+      "error_code": null
+    },
+    {
+      "label": "OpenAI",
+      "expected": "http://127.0.0.1:4399/v1",
+      "readback": "http://127.0.0.1:4399/v1",
+      "ok": true,
+      "set_ok": true,
+      "error_code": null
+    },
+    {
+      "label": "API 密钥",
+      "expected": "e2e-local-key",
+      "readback": null,
+      "ok": false,
+      "set_ok": true,
+      "error_code": null
+    }
+  ],
+  "confirm_click": {
+    "ok": true,
+    "error_code": null
+  },
+  "post_create": {
+    "E2E-Local": {
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "E2E-Local · 选择模型",
+          "role": "window",
+          "ref_id": null
+        },
+        {
+          "name": "E2E-Local · 选择模型",
+          "role": "statictext",
+          "ref_id": null
+        },
+        {
+          "name": "E2E-Local",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "手动添加模型": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "添加模型": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型 ID": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型列表": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "添加服务商": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型服务": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "保存": {
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "保存地址？",
+          "role": "menubutton",
+          "ref_id": "@s3a2kqlb456xx8:e1"
+        }
+      ]
+    },
+    "确定": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "取消": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "添加": {
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "添加所选模型",
+          "role": "button",
+          "ref_id": "@s3lscuq4jetfcu:e1"
+        }
+      ]
+    }
+  }
+}

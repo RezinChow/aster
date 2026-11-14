@@ -1,0 +1,187 @@
+[
+  {
+    "label": "sidebar_before",
+    "data": [
+      {
+        "interactive": true,
+        "name": "收起侧边栏",
+        "path": [
+          "window:Aster",
+          "group",
+          "group",
+          "group:Aster",
+          "group:Aster - Web 内容",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group:Chrome Legacy Window",
+          "document:Aster",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group"
+        ],
+        "ref_id": "@s759ssnf1akb2:e1",
+        "role": "switch",
+        "states": [
+          "checked"
+        ],
+        "value": null
+      }
+    ]
+  },
+  {
+    "label": "get_checked",
+    "data": {
+      "version": "2.6",
+      "ok": false,
+      "command": "get",
+      "error": {
+        "code": "INVALID_ARGS",
+        "message": "Unknown property. Valid: text, value, title, bounds, role, states",
+        "disposition": {
+          "delivery": "not_delivered",
+          "retry": "safe"
+        }
+      }
+    }
+  },
+  {
+    "label": "toggle_response",
+    "data": {
+      "ok": true,
+      "error": null,
+      "data": {
+        "action": "toggle",
+        "details": {
+          "auto_wait": {
+            "lease_contention_count": 0,
+            "lease_hold_ms": 997,
+            "read_only_preflight_attempts": 1,
+            "read_only_resolve_attempts": 1
+          },
+          "verification_scope": "element_state"
+        },
+        "disposition": {
+          "delivery": "delivered_verified",
+          "retry": "unsafe"
+        },
+        "post_state": {
+          "enabled": true,
+          "offscreen": false,
+          "role": "switch",
+          "states": [
+            "focused"
+          ],
+          "value": ""
+        },
+        "steps": [
+          {
+            "label": "TogglePattern.Toggle",
+            "mechanism": "semantic_api",
+            "outcome": "succeeded",
+            "verified": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "label": "after_toggle_collapse",
+    "data": []
+  },
+  {
+    "label": "after_toggle_expand",
+    "data": [
+      {
+        "interactive": true,
+        "name": "展开侧边栏",
+        "path": [
+          "window:Aster",
+          "group",
+          "group",
+          "group:Aster",
+          "group:Aster - Web 内容",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group:Chrome Legacy Window",
+          "document:Aster",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group"
+        ],
+        "ref_id": "@s2ae6kwxn3k56b:e1",
+        "role": "switch",
+        "states": [
+          "focused"
+        ],
+        "value": null
+      }
+    ]
+  },
+  {
+    "label": "restore_response",
+    "data": {
+      "ok": true,
+      "error": null
+    }
+  },
+  {
+    "label": "sidebar_final",
+    "data": [
+      {
+        "interactive": true,
+        "name": "收起侧边栏",
+        "path": [
+          "window:Aster",
+          "group",
+          "group",
+          "group:Aster",
+          "group:Aster - Web 内容",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group:Chrome Legacy Window",
+          "document:Aster",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group",
+          "group"
+        ],
+        "ref_id": "@s1o6nr5qh2kmen:e1",
+        "role": "switch",
+        "states": [
+          "focused",
+          "checked"
+        ],
+        "value": null
+      }
+    ]
+  }
+]

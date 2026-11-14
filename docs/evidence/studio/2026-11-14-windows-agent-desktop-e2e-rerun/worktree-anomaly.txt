@@ -1,0 +1,54 @@
+=== count of deletions ===
+445
+
+=== sample ===
+ D packages/ui/.gitignore
+ D packages/ui/.storybook/main.ts
+ D packages/ui/.storybook/preview.tsx
+ D packages/ui/bunfig.toml
+
+=== packages dir ===
+drwxr-xr-x 1 admin 197121 0 2026-10-27 17:59:21.996528800 +0800 packages
+drwxr-xr-x 1 admin 197121 0 2026-11-14 14:15:49.906629900 +0800 packages/ui
+
+=== packages/ui contents (top) ===
+README.md
+node_modules
+package.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+rsbuild.ts
+scripts
+src
+stories
+tsconfig.json
+vitest.config.ts
+
+=== is it a submodule? ===
+100644 df5ef5bc6d219d52ef672d9aa09803877a63eefa 0	packages/ui/.gitignore
+100644 059fcd1a11e317f7869cffc96df078e08e61ef0f 0	packages/ui/.storybook/main.ts
+100644 032004b930845f238445250ee2a460de2cae8da1 0	packages/ui/.storybook/preview.tsx
+100644 680ef5c132bb651a19137bec49445fd82e751c10 0	packages/ui/README.md
+100644 3fb4604a160642d26acf28838d27b91d0d3db4af 0	packages/ui/bunfig.toml
+
+[submodule "studio"]
+	path = apps/studio
+	url = git@github.com:aster-ai-lab/studio.git
+	branch = main
+[submodule "plugins"]
+	path = plugins
+	url = https://github.com/aster-ai-lab/plugins.git
+	branch = main
+
+=== .git/index mtime ===
+-rw-r--r-- 1 admin 197121 2535819 2026-11-14 07:00:21.201968500 +0800 .git/index
+
+=== evidence of our own ops touching packages/ui? ===
+129:   |             help: remove this `mut`
+151:    |         help: remove this `mut`
+313:warning: function `remove_instance_map` is never used
+316:215 | pub(crate) fn remove_instance_map(
+333:   |             help: remove this `mut`
+430:     |             help: remove this `mut`
+440:     |                help: remove this `mut`
+456:    |             help: remove this `mut`

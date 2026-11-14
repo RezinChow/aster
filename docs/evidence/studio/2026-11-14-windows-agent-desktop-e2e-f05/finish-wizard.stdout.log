@@ -1,0 +1,31 @@
+--- before 完成 ---
+  描述任务           total=0 roles=[]
+  设置             total=0 roles=[]
+  选择模型           total=0 roles=[]
+  工作             total=0 roles=[]
+  返回应用           total=0 roles=[]
+  模型服务           total=0 roles=[]
+  完成             total=1 roles=['button']
+  E2E-Local      total=3 roles=['window', 'statictext', 'statictext']
+完成 CLICK ok=True
+--- after 完成 ---
+  描述任务           total=2 roles=['textfield', 'statictext']
+  设置             total=4 roles=['button', 'button', 'button']
+  选择模型           total=1 roles=['menubutton']
+  工作             total=4 roles=['button', 'group', 'textfield']
+  返回应用           total=1 roles=['button']
+  模型服务           total=3 roles=['button', 'statictext', 'statictext']
+  完成             total=0 roles=[]
+  E2E-Local      total=5 roles=['button', 'button', 'statictext']
+工作 CLICK ok=True
+--- after 工作 ---
+  描述任务           total=2 roles=['textfield', 'statictext']
+  设置             total=1 roles=['button']
+  选择模型           total=1 roles=['menubutton']
+  工作             total=4 roles=['button', 'group', 'textfield']
+  返回应用           total=0 roles=[]
+  模型服务           total=0 roles=[]
+  完成             total=0 roles=[]
+  E2E-Local      total=0 roles=[]
+WIZARD_DONE
+EXIT=0

@@ -1,0 +1,36 @@
+{
+  "version": "2.6",
+  "ok": true,
+  "command": "status",
+  "data": {
+    "permissions": {
+      "accessibility": {
+        "state": "granted"
+      },
+      "automation": {
+        "state": "not_required"
+      },
+      "screen_recording": {
+        "state": "not_required"
+      }
+    },
+    "platform": "windows",
+    "ref_count": 1,
+    "session_id": null,
+    "snapshot_id": "s2zhe9h4d9b6tn",
+    "state_root": "C:\\Users\\admin\\.agent-desktop",
+    "supported_surfaces": [
+      "window",
+      "focused",
+      "sheet",
+      "menu",
+      "start-menu",
+      "taskbar",
+      "system-tray",
+      "system-tray-overflow",
+      "action-center"
+    ],
+    "tracing": false,
+    "version": "1.2.0"
+  }
+}

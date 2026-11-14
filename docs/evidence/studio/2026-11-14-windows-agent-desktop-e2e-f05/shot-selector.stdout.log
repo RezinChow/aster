@@ -1,0 +1,5 @@
+selector ref=@s1t61eub5lvxtp:e1
+click ok=True
+screenshot ok=True data={"format": "png", "height": 952, "path": "D:\\code\\aster\\docs\\evidence\\studio\\2026-11-14-windows-agent-desktop-e2e-f05\\screenshots\\selector-open.png", "scale_factor": 1.0, "width": 1442}
+SHOT_DONE
+EXIT=0

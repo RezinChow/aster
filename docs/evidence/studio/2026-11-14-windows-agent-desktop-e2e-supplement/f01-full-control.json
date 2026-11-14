@@ -1,0 +1,42 @@
+{
+  "control": "conditional two-phase cold-restart F01 control",
+  "head": "07ffdfcf56f8a2a21efce49be17ed4aaf3142cbb",
+  "gitlink": "944864f2775fd75609ea811f28b96e7b96b27552",
+  "renderer_diff_count": 50,
+  "single_file": "src/renderer/components/app/sidebarShortcuts/runtime.tsx",
+  "note": "renderer log proves HMR rebuilt runtime.tsx in the earlier single-file control; cold restart removes the 'window never reloaded' confounder",
+  "original_runtime_sha256": "c0cc632a8e841be20e42dd1ce83b9ed84d687fe5dec702ed0ae69aec9ef94330",
+  "phaseA_aligned_sha256": "a15533848130d261436bccdd33682802233496c4cb27ace7db682b5280d1d375",
+  "phaseA_changed": true,
+  "restarts": [
+    {
+      "tag": "F01-CONTROL-A",
+      "window": "w-52628568",
+      "pid": 40352,
+      "content_ready": true
+    }
+  ],
+  "phases": [
+    {
+      "phase": "A",
+      "runs": [
+        {
+          "run": 1,
+          "exit": 0
+        },
+        {
+          "run": 2,
+          "exit": 0
+        }
+      ],
+      "all_pass": true
+    }
+  ],
+  "phaseA_all_pass": true,
+  "conclusion": "Single-file alignment + cold restart restores F01. The earlier single-file HMR control failed because the already-open window never reloaded the rebuilt bundle. cc0a7bd09 is the direct root cause of the user-worktree F01 FAIL.",
+  "phaseB_skipped": true,
+  "all_pass": true,
+  "restore_rc": 0,
+  "restore_mismatches": [],
+  "restored_runtime_sha256": "c0cc632a8e841be20e42dd1ce83b9ed84d687fe5dec702ed0ae69aec9ef94330"
+}

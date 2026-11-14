@@ -1,0 +1,38 @@
+{
+  "case": "F01-RELEASE",
+  "run": 1,
+  "verdict": "PASS",
+  "token": "RLF0117217",
+  "window_id": "w-133432886",
+  "assertion_count": 5,
+  "evidence": [
+    {
+      "label": "F01 draft entered",
+      "ok": true,
+      "detail": "value='RLF0117217'"
+    },
+    {
+      "label": "F01 settings click delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F01 settings page reached (返回应用 button present)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F01 work click delivered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F01 draft survived cross-page round trip",
+      "ok": true,
+      "detail": "after='RLF0117217'"
+    }
+  ],
+  "error": null,
+  "scope": "F01 draft round-trip on gitlink-aligned release worktree (944864f2)",
+  "assertion_source": "agent-desktop AX only"
+}

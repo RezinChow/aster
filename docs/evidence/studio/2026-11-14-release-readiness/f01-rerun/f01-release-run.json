@@ -1,0 +1,56 @@
+{
+  "purpose": "F01 2x independent PASS on gitlink-aligned release worktree",
+  "submodule_head": "944864f2775fd75609ea811f28b96e7b96b27552",
+  "parent_gitlink": "944864f2775fd75609ea811f28b96e7b96b27552",
+  "versions": {
+    "Cargo.lock": "0.2.4",
+    "Cargo.toml": "0.2.4",
+    "package.json": "0.2.4",
+    "tauri.conf.json": "0.2.4"
+  },
+  "runtime_sha256_before": "a15533848130d261436bccdd33682802233496c4cb27ace7db682b5280d1d375",
+  "studio_exe_before": {
+    "path": "D:\\code\\aster\\target\\studio\\aster\\debug\\Studio.exe",
+    "exists": true,
+    "sha256": "f5f5e2520a74b863607ed3b2e8cb1483a0c90f599791abdb2e4843d8b0d8162b",
+    "size": 162131456,
+    "mtime": "2026-11-14 18:18:02"
+  },
+  "assertion_source": "agent-desktop AX only",
+  "scope": "F01 draft round-trip; no coverage claim beyond this case",
+  "windows_before": 0,
+  "window": {
+    "id": "w-133432886",
+    "pid": 28652,
+    "visible": true
+  },
+  "content_ready": true,
+  "studio_exe_after": {
+    "path": "D:\\code\\aster\\target\\studio\\aster\\debug\\Studio.exe",
+    "exists": true,
+    "sha256": "d9e03eb017f56e9f2b6e557582ba8fd6153cc60c12cd2dd4ec4b3e1930052c85",
+    "size": 162131968,
+    "mtime": "2026-11-14 21:05:45"
+  },
+  "phase0_exit": 0,
+  "runs": [
+    {
+      "run": 1,
+      "exit": 0,
+      "verdict": "PASS",
+      "token": "RLF0117217",
+      "assertions": 5
+    },
+    {
+      "run": 2,
+      "exit": 0,
+      "verdict": "PASS",
+      "token": "RLF01255A3",
+      "assertions": 5
+    }
+  ],
+  "all_pass": true,
+  "conclusion": "F01 2x independent PASS on gitlink-aligned worktree",
+  "runtime_sha256_after": "a15533848130d261436bccdd33682802233496c4cb27ace7db682b5280d1d375",
+  "runtime_unchanged": true
+}

@@ -1,0 +1,38 @@
+--- textfield total=1 ---
+   name='搜索' ref=@s12j811vwnfaou:e1
+--- combobox total=0 ---
+--- button total=17 ---
+   name='最小化' ref=@seczjm9uaa0g8:e1
+   name='最大化' ref=@seczjm9uaa0g8:e2
+   name='还原' ref=@seczjm9uaa0g8:e3
+   name='关闭' ref=@seczjm9uaa0g8:e4
+   name='Close' ref=@seczjm9uaa0g8:e6
+   name='返回' ref=@seczjm9uaa0g8:e7
+   name='全选' ref=@seczjm9uaa0g8:e8
+   name='修改密钥' ref=@seczjm9uaa0g8:e9
+   name='跳过' ref=@seczjm9uaa0g8:e10
+   name='添加所选模型' ref=@seczjm9uaa0g8:e11
+   name='对此标签页静音' ref=@seczjm9uaa0g8:e12
+   name='关闭标签页' ref=@seczjm9uaa0g8:e13
+   name='新建标签页' ref=@seczjm9uaa0g8:e14
+   name='最小化' ref=@seczjm9uaa0g8:e15
+   name='最大化' ref=@seczjm9uaa0g8:e16
+   name='关闭' ref=@seczjm9uaa0g8:e17
+--- menubutton total=31 ---
+   name='改为搜索' ref=@s203r0880vm4mh:e17
+   name='要打开此链接，请选择一个应用' ref=@s203r0880vm4mh:e19
+   name='应用程序可用。安装 ' ref=@s203r0880vm4mh:e20
+   name='显示翻译选项' ref=@s203r0880vm4mh:e21
+   name='更新此网站的自动配置文件切换首选项' ref=@s203r0880vm4mh:e23
+   name='查看虚拟卡号' ref=@s203r0880vm4mh:e24
+   name='立即购买，稍后支付' ref=@s203r0880vm4mh:e25
+   name='保存地址？' ref=@s203r0880vm4mh:e26
+   name='更多操作' ref=@s203r0880vm4mh:e27
+   name='协作者个人资料照片' ref=@s203r0880vm4mh:e28
+   name='协作者个人资料照片' ref=@s203r0880vm4mh:e29
+   name='协作者个人资料照片' ref=@s203r0880vm4mh:e30
+   name='协作者个人资料照片' ref=@s203r0880vm4mh:e31
+--- radio total=0 ---
+--- switch total=0 ---
+AFTER_DONE
+EXIT=0

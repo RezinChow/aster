@@ -1,0 +1,7 @@
+expand ok=True
+popup_open=True
+snapshot ok=True complete=True bytes=112698
+model-named nodes: 0
+actionable ref nodes: {'button': 16, 'switch': 1, 'menuitem': 1}
+DEEP_DONE
+EXIT=0

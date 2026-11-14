@@ -64,3 +64,13 @@ __pycache__/
 
 # Local wiki workspace (runtime-maintained, never product evidence).
 /wiki/
+
+# Local WIP patch backup from release-readiness remediation.
+# Contains uncommitted user code; keep it on disk but never put it in git history.
+/docs/evidence/studio/2026-11-14-release-readiness/wip-backup/
+
+# Release readiness reports are derived, reproducible outputs. Keeping them
+# out of git avoids the read-only gate dirtying its own evidence on re-run.
+/docs/evidence/studio/2026-11-14-release-readiness/readiness-report.json
+/docs/evidence/studio/2026-11-14-release-readiness/readiness-report.txt
+/docs/evidence/studio/2026-11-14-release-readiness/readiness-run.stdout.log

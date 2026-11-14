@@ -1,0 +1,301 @@
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s1wja1bvjc8lux"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s1m0z1qb1yiyu3"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2yqivi7mfewig"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop clear @s2yqivi7mfewig:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s237ldbob4lzoe"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop get @s237ldbob4lzoe:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s32r9xrxqg2im0"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s38kdt6wp0ss9e"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop --headed focus @s38kdt6wp0ss9e:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1wum7hlahw7to"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop --headed type @s1wum7hlahw7to:e1 中文短句测试02BDA2", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1t1byt6bid8up"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop get @s1t1byt6bid8up:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 中文短句测试02BDA2", "ok": true, "error_code": null, "snapshot_id": "s1fn964l3grzuk"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 更多选项", "ok": true, "error_code": null, "snapshot_id": "slwstkpvfxbv7"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 授权模式", "ok": true, "error_code": null, "snapshot_id": "s3tusg35qobvwk"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2b9a0aofi9bwr"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1gbmvov4cz0eu"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop get @s1gbmvov4cz0eu:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop clear @s2b9a0aofi9bwr:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "sf2tb55y6al9l"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s3erjeqgah9g7f"}
+{"case": "F02", "run": 1, "cmd": "agent-desktop get @s3erjeqgah9g7f:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s3dy5ddmdx7ovk"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s14xaz4jtg809k"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "sfy2fniqhcwo"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop clear @sfy2fniqhcwo:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s20p9s6y5e52m1"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop get @s20p9s6y5e52m1:e1 --property value", "ok": false, "error_code": "STALE_REF", "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop restore --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s30dequrgsl48f"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop --headed focus @s30dequrgsl48f:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1jqioccuhxu7w"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop --headed type @s1jqioccuhxu7w:e1 中文短句测试014582", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1ar530ueijvim"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop get @s1ar530ueijvim:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s1a6gcblniwo8w"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop click @s1a6gcblniwo8w:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s2q7fjrgxojjmr"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 工作", "ok": true, "error_code": null, "snapshot_id": "s3bwdnn6c27oux"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop click @s3bwdnn6c27oux:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s80kfdny6gqcl"}
+{"case": "F01", "run": 1, "cmd": "agent-desktop get @s80kfdny6gqcl:e1 --property value", "ok": false, "error_code": "TIMEOUT", "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s2p41fm5pean9b"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s12yvslt3nk4uw"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2xymvk2cj9qrr"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop clear @s2xymvk2cj9qrr:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2efhcn8r2jdjq"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop get @s2efhcn8r2jdjq:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s11lrf23952nv1"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop click @s11lrf23952nv1:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "snzaqcczn7bmo"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "s2ios3ebu5aqdn"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop click @s2ios3ebu5aqdn:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "s3r1b2r7hgvfog"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop --headed type @s3r1b2r7hgvfog:e1 网络", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "s2fcoznt10tlrd"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop get @s2fcoznt10tlrd:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置搜索结果", "ok": true, "error_code": null, "snapshot_id": "s1tcgwl98b1ou7"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 网络搜索 网络搜索", "ok": true, "error_code": null, "snapshot_id": "s1dgvtohdvo5dy"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 清除", "ok": true, "error_code": null, "snapshot_id": "s1bkutku7rphoy"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop click @s1bkutku7rphoy:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "s4v7tphucfwlq"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置搜索结果", "ok": true, "error_code": null, "snapshot_id": "s1yzmncmllazxl"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 网络搜索 --exact", "ok": true, "error_code": null, "snapshot_id": "s38nkmf5m2qo1i"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 工作", "ok": true, "error_code": null, "snapshot_id": "siadqb12k7fa3"}
+{"case": "F10", "run": 1, "cmd": "agent-desktop click @siadqb12k7fa3:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s2c9i90bseh8vf"}
+{"case": "F05", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s3bmgi8t0qcs7u"}
+{"case": "F05", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2iz7paatf8ye4"}
+{"case": "F05", "run": 1, "cmd": "agent-desktop clear @s2iz7paatf8ye4:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2g80duv33e5b9"}
+{"case": "F05", "run": 1, "cmd": "agent-desktop get @s2g80duv33e5b9:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 选择模型", "ok": true, "error_code": null, "snapshot_id": "s3bv4cyppr8p3m"}
+{"case": "F05", "run": 1, "cmd": "agent-desktop snapshot --app Studio.exe --window-id w-162401792 --compact --max-depth 40 --timeout-ms 30000", "ok": true, "error_code": null, "snapshot_id": "s2iudhp96cnieu"}
+{"case": "F05", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 选择模型", "ok": true, "error_code": null, "snapshot_id": "s12vnunebrhrdp"}
+{"case": "F05", "run": 1, "cmd": "agent-desktop click @s12vnunebrhrdp:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 1, "cmd": "agent-desktop snapshot --app Studio.exe --window-id w-162401792 --compact --max-depth 40 --timeout-ms 30000", "ok": true, "error_code": null, "snapshot_id": "s2fb3yol2xkxig"}
+{"case": "F05", "run": 1, "cmd": "agent-desktop press escape", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "slnhthr128axb"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s8mzkclaqo8fi"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s13jbzybsf52v3"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop clear @s13jbzybsf52v3:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "ssk0awjuaxagk"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop get @ssk0awjuaxagk:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop resize-window --app Studio.exe --width 900 --height 700", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop snapshot --app Studio.exe --window-id w-162401792 --compact --max-depth 40 --timeout-ms 30000", "ok": true, "error_code": null, "snapshot_id": "s38vfc4w8h2vot"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": false, "error_code": "TIMEOUT", "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s1p65al4juyv0p"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 新建任务", "ok": true, "error_code": null, "snapshot_id": "s2pkndjalxpdl3"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 发送", "ok": true, "error_code": null, "snapshot_id": "stci0t3bkfszv"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 选择模型", "ok": true, "error_code": null, "snapshot_id": "sr17qjdqxop8m"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 更多选项", "ok": true, "error_code": null, "snapshot_id": "s2d7n667acefts"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索任务", "ok": true, "error_code": null, "snapshot_id": "s1zr4gd9fsyqey"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 工作", "ok": true, "error_code": null, "snapshot_id": "sbynwrxy68eho"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 连接器", "ok": true, "error_code": null, "snapshot_id": "s2h76fbfphxvmy"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 技能", "ok": true, "error_code": null, "snapshot_id": "s2dijlb3iu03a1"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 自动化", "ok": true, "error_code": null, "snapshot_id": "s3kn9omwpnqf7y"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 项目", "ok": true, "error_code": null, "snapshot_id": "s1nsab2q9hsrhm"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 最近", "ok": true, "error_code": null, "snapshot_id": "s2t6x2f8n5sf1i"}
+{"case": "F17", "run": 1, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 1, "cmd": "agent-desktop resize-window --app Studio.exe --width 1456 --height 960", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s66w7edzagqt1"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s3hdygw00ffe1w"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s3ce4yzn3xiqzy"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop clear @s3ce4yzn3xiqzy:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1c7clxq25zacp"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop get @s1c7clxq25zacp:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s3kk4laiy4w868"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s158v9u2snrnc3"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop --headed focus @s158v9u2snrnc3:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "sqdjf8tlsukt0"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop --headed type @sqdjf8tlsukt0:e1 中文短句测试02E386", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s324h5dsmnzhgj"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop get @s324h5dsmnzhgj:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 中文短句测试02E386", "ok": true, "error_code": null, "snapshot_id": "s3rvkw1r8hhm4f"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 更多选项", "ok": true, "error_code": null, "snapshot_id": "stuymgekz0j8h"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 授权模式", "ok": true, "error_code": null, "snapshot_id": "s1brwcnnoin6jp"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s16w9v8gf9wslp"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2elc6mq2ist7j"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop get @s2elc6mq2ist7j:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop clear @s16w9v8gf9wslp:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "so2xhftr2xq5n"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F02", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1lthwnuuo7215"}
+{"case": "F02", "run": 2, "cmd": "agent-desktop get @s1lthwnuuo7215:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s2u7o1yhetweb1"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s31yjycg2gmc1s"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "scg4god6sgl00"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop clear @scg4god6sgl00:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "srrbop68lj0wb"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop get @srrbop68lj0wb:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s37p2itfndhmj5"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop --headed focus @s37p2itfndhmj5:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s3vpzliozg3o5s"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop --headed type @s3vpzliozg3o5s:e1 中文短句测试01CF75", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1tdn19d3qdvui"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop get @s1tdn19d3qdvui:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "stvrgr1tye21u"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop click @stvrgr1tye21u:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s2d6okdimwgit3"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 工作", "ok": true, "error_code": null, "snapshot_id": "s2hn6e65560pbs"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop click @s2hn6e65560pbs:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F01", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s18a6n2xyxuifz"}
+{"case": "F01", "run": 2, "cmd": "agent-desktop get @s18a6n2xyxuifz:e1 --property value", "ok": false, "error_code": "TIMEOUT", "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s11iviym54nmdc"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s3v7icy3dddb3x"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "ssvhisinwzc85"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop clear @ssvhisinwzc85:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2uc46zv2yn78l"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop get @s2uc46zv2yn78l:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s26u6iyjl5xekd"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop click @s26u6iyjl5xekd:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "s1r5rndp7e5dog"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "s3m4q0h18f9scq"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop click @s3m4q0h18f9scq:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "spu8s3ku29zwn"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop --headed type @spu8s3ku29zwn:e1 网络", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "sob7pd70dchkr"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop get @sob7pd70dchkr:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置搜索结果", "ok": true, "error_code": null, "snapshot_id": "setfyi9xv8qlc"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 网络搜索 网络搜索", "ok": true, "error_code": null, "snapshot_id": "su7lqstf2e1y0"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 清除", "ok": true, "error_code": null, "snapshot_id": "s2zfx9hyeqvhjs"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop click @s2zfx9hyeqvhjs:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索设置", "ok": true, "error_code": null, "snapshot_id": "s2hsp9h47r77sl"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置搜索结果", "ok": true, "error_code": null, "snapshot_id": "s4ch5mn4r8w3g"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 网络搜索 --exact", "ok": true, "error_code": null, "snapshot_id": "s1i522zw34qau9"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F10", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 工作", "ok": true, "error_code": null, "snapshot_id": "s8t9g51ayf63k"}
+{"case": "F10", "run": 2, "cmd": "agent-desktop click @s8t9g51ayf63k:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s29255crddw5xy"}
+{"case": "F05", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": false, "error_code": "TIMEOUT", "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "sdv96rteq57o4"}
+{"case": "F05", "run": 2, "cmd": "agent-desktop clear @sdv96rteq57o4:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2ga1vbj45uc98"}
+{"case": "F05", "run": 2, "cmd": "agent-desktop get @s2ga1vbj45uc98:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 选择模型", "ok": true, "error_code": null, "snapshot_id": "sxelwwhqn193x"}
+{"case": "F05", "run": 2, "cmd": "agent-desktop snapshot --app Studio.exe --window-id w-162401792 --compact --max-depth 40 --timeout-ms 30000", "ok": true, "error_code": null, "snapshot_id": "s3r22yts23lv81"}
+{"case": "F05", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 选择模型", "ok": true, "error_code": null, "snapshot_id": "s2j9eboqogeikk"}
+{"case": "F05", "run": 2, "cmd": "agent-desktop click @s2j9eboqogeikk:e1", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F05", "run": 2, "cmd": "agent-desktop snapshot --app Studio.exe --window-id w-162401792 --compact --max-depth 40 --timeout-ms 30000", "ok": true, "error_code": null, "snapshot_id": "s1mualj7tj9od4"}
+{"case": "F05", "run": 2, "cmd": "agent-desktop press escape", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s103us6p3doqnv"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 返回应用", "ok": true, "error_code": null, "snapshot_id": "s1azw7zvr2ux9"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s2tlvq5nm5afxp"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop clear @s2tlvq5nm5afxp:e1", "ok": false, "error_code": "ACTION_FAILED", "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "s1de6qcoeok9zo"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop get @s1de6qcoeok9zo:e1 --property value", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop resize-window --app Studio.exe --width 900 --height 700", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop snapshot --app Studio.exe --window-id w-162401792 --compact --max-depth 40 --timeout-ms 30000", "ok": true, "error_code": null, "snapshot_id": "s2btmnh9y2vh7t"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 描述任务", "ok": true, "error_code": null, "snapshot_id": "sg6km9w4yqzp"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 设置", "ok": true, "error_code": null, "snapshot_id": "s23vpnkduzdhv9"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 新建任务", "ok": true, "error_code": null, "snapshot_id": "s1tzht5ur71ah9"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 发送", "ok": true, "error_code": null, "snapshot_id": "s1obcwr5mrxlsn"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 选择模型", "ok": true, "error_code": null, "snapshot_id": "sw1otts0xeszs"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 更多选项", "ok": true, "error_code": null, "snapshot_id": "s1m5222cchun5z"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 搜索任务", "ok": true, "error_code": null, "snapshot_id": "s17j3e59oodxui"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 工作", "ok": true, "error_code": null, "snapshot_id": "s3a9696gzm3543"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 连接器", "ok": true, "error_code": null, "snapshot_id": "sqi9wqzojpcuq"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 技能", "ok": true, "error_code": null, "snapshot_id": "s6puqposesilm"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 自动化", "ok": true, "error_code": null, "snapshot_id": "s12i5uxeb3im54"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 项目", "ok": true, "error_code": null, "snapshot_id": "szzwtp1zlh5sm"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop find --app Studio.exe --window-id w-162401792 --name 最近", "ok": true, "error_code": null, "snapshot_id": "s2j2tjxh0bplpe"}
+{"case": "F17", "run": 2, "cmd": "agent-desktop list-windows --app Studio.exe", "ok": true, "error_code": null, "snapshot_id": null}
+{"case": "F17", "run": 2, "cmd": "agent-desktop resize-window --app Studio.exe --width 1456 --height 960", "ok": true, "error_code": null, "snapshot_id": null}

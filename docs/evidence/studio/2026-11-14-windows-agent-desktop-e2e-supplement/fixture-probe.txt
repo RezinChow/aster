@@ -1,0 +1,8 @@
+server script exists   : True  D:\code\aster\apps\studio\tests\e2e\connectors\model_server.py
+capability_baseline    : False  D:\code\aster\apps\studio\tests\e2e\capability_baseline.py
+startup line           : {"port": 57312, "executable": "C:\\Users\\admin\\.workbuddy\\binaries\\python\\versions\\3.13.12\\python3.exe"}
+bound port             : 127.0.0.1:57312 (loopback, ephemeral)
+HTTP request failed    : HTTPError: HTTP Error 422: exact fixture case required
+FIXTURE: NOT USABLE
+server exit code       : 0
+events file            : model-server-events.jsonl (0 bytes)

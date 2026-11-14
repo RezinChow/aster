@@ -1,0 +1,15 @@
+{
+  "version": "2.6",
+  "ok": true,
+  "command": "list-apps",
+  "data": {
+    "apps": [
+      {
+        "name": "Studio.exe",
+        "pid": 8684,
+        "presentation": "foreground",
+        "process_instance": "windows-proc-v1:13439112141:1362873"
+      }
+    ]
+  }
+}

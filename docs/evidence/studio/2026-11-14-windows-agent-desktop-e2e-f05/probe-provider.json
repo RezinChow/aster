@@ -1,0 +1,560 @@
+{
+  "window_id": "w-120982452",
+  "provider_page_click_ok": true,
+  "page": {
+    "添加服务商": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "添加服务商",
+          "role": "button",
+          "ref_id": "@s3jpc95seanzoh:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "添加提供商": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型服务": {
+      "ok": true,
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "模型服务",
+          "role": "button",
+          "ref_id": "@s1fyxb13jcugym:e1",
+          "states": [
+            "focused"
+          ],
+          "description": null
+        },
+        {
+          "name": "模型服务",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "模型服务",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "模型配置": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "模型配置",
+          "role": "button",
+          "ref_id": "@s3q8ojcr84zgia:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "服务商": {
+      "ok": true,
+      "total_matches": 5,
+      "sample": [
+        {
+          "name": "筛选服务商",
+          "role": "menubutton",
+          "ref_id": "@s3nvjyx1xo4spi:e1",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "CLI 服务商",
+          "role": "button",
+          "ref_id": "@s3nvjyx1xo4spi:e2",
+          "states": [
+            "offscreen"
+          ],
+          "description": null
+        },
+        {
+          "name": "CLI 服务商",
+          "role": "button",
+          "ref_id": "@s3nvjyx1xo4spi:e3",
+          "states": [
+            "offscreen"
+          ],
+          "description": null
+        },
+        {
+          "name": "CLI 服务商",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [
+            "offscreen"
+          ],
+          "description": null
+        },
+        {
+          "name": "添加服务商",
+          "role": "button",
+          "ref_id": "@s3nvjyx1xo4spi:e4",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "API 地址": {
+      "ok": true,
+      "total_matches": 2,
+      "sample": [
+        {
+          "name": "API 地址",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "API 地址",
+          "role": "textfield",
+          "ref_id": "@s308jqmhk5sgcd:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "端点 URL": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "配置自定义模型": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型列表": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "添加": {
+      "ok": true,
+      "total_matches": 5,
+      "sample": [
+        {
+          "name": "添加服务商",
+          "role": "button",
+          "ref_id": "@s2j09pibdbpeyk:e1",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "添加 API 密钥",
+          "role": "button",
+          "ref_id": "@s2j09pibdbpeyk:e2",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "添加端点",
+          "role": "button",
+          "ref_id": "@s2j09pibdbpeyk:e3",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "手动添加模型",
+          "role": "button",
+          "ref_id": "@s2j09pibdbpeyk:e4",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "点击上方的“同步模型”添加模型",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "搜索": {
+      "ok": true,
+      "total_matches": 6,
+      "sample": [
+        {
+          "name": "改为搜索",
+          "role": "menubutton",
+          "ref_id": "@s22y6n3jhfehd3:e1",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "搜索任务",
+          "role": "menubutton",
+          "ref_id": "@s22y6n3jhfehd3:e2",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "搜索设置...",
+          "role": "button",
+          "ref_id": "@s22y6n3jhfehd3:e3",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "网络搜索",
+          "role": "button",
+          "ref_id": "@s22y6n3jhfehd3:e4",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "搜索模型平台...",
+          "role": "textfield",
+          "ref_id": "@s22y6n3jhfehd3:e5",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "搜索",
+          "role": "button",
+          "ref_id": "@s22y6n3jhfehd3:e6",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "保存": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "保存地址？",
+          "role": "menubutton",
+          "ref_id": "@s3rpj4nehu6avn:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "确定": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "取消": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "名称": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "类型": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "自定义": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "配置 API Host 与自定义请求头",
+          "role": "button",
+          "ref_id": "@st7vfe0wc5rhn:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    }
+  },
+  "note": "read-only AX reconnaissance",
+  "add_click_ok": true,
+  "form": {
+    "添加提供商": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "提供商名称": {
+      "ok": true,
+      "total_matches": 2,
+      "sample": [
+        {
+          "name": "提供商名称",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "提供商名称",
+          "role": "textfield",
+          "ref_id": "@s26odis8y0yuqv:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "提供商类型": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "API 地址": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "API Key": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "端点 URL": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "名称": {
+      "ok": true,
+      "total_matches": 2,
+      "sample": [
+        {
+          "name": "提供商名称",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "提供商名称",
+          "role": "textfield",
+          "ref_id": "@s2d12flu3vp08r:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "类型": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "保存": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "保存地址？",
+          "role": "menubutton",
+          "ref_id": "@s2g24mtum3knq4:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "确定": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "取消": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "取消",
+          "role": "button",
+          "ref_id": "@s1yvr843pwl3na:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "添加": {
+      "ok": true,
+      "total_matches": 4,
+      "sample": [
+        {
+          "name": "添加自定义提供商",
+          "role": "window",
+          "ref_id": null,
+          "states": [
+            "modal"
+          ],
+          "description": null
+        },
+        {
+          "name": "添加自定义提供商",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "添加自定义提供商",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "添加",
+          "role": "button",
+          "ref_id": "@s2oqsk85qnpe8w:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "自定义": {
+      "ok": true,
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "添加自定义提供商",
+          "role": "window",
+          "ref_id": null,
+          "states": [
+            "modal"
+          ],
+          "description": null
+        },
+        {
+          "name": "添加自定义提供商",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "添加自定义提供商",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "模型": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "地址": {
+      "ok": true,
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "保存地址？",
+          "role": "menubutton",
+          "ref_id": "@s381hqp917nl8y:e1",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "填写 API 根地址后会显示实际请求路径",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "填写 API 根地址后会显示实际请求路径",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "密钥": {
+      "ok": true,
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "API 密钥",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "API 密钥",
+          "role": "textfield",
+          "ref_id": "@sfp1s48hh6bal:e1",
+          "states": [
+            "secure"
+          ],
+          "description": null
+        },
+        {
+          "name": "显示密钥",
+          "role": "button",
+          "ref_id": "@sfp1s48hh6bal:e2",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "服务商": {
+      "ok": true,
+      "total_matches": 0,
+      "sample": []
+    },
+    "选择": {
+      "ok": true,
+      "total_matches": 1,
+      "sample": [
+        {
+          "name": "要打开此链接，请选择一个应用",
+          "role": "menubutton",
+          "ref_id": "@s13jpaabj9kcn1:e1",
+          "states": [],
+          "description": null
+        }
+      ]
+    },
+    "更多": {
+      "ok": true,
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "更多操作",
+          "role": "menubutton",
+          "ref_id": "@s2z1ulybbct4lf:e1",
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "更多设置",
+          "role": "statictext",
+          "ref_id": null,
+          "states": [],
+          "description": null
+        },
+        {
+          "name": "更多设置",
+          "role": "menubutton",
+          "ref_id": "@s2z1ulybbct4lf:e2",
+          "states": [],
+          "description": null
+        }
+      ]
+    }
+  },
+  "snapshot_complete": true
+}

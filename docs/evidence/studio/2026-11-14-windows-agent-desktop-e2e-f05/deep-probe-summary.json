@@ -1,0 +1,10 @@
+{
+  "snapshot_ok": true,
+  "complete": true,
+  "model_nodes": [],
+  "actionable": {
+    "button": 16,
+    "switch": 1,
+    "menuitem": 1
+  }
+}

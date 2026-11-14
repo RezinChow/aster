@@ -1,0 +1,15 @@
+selector click ok=True
+windows after click=1
+   w-120982452 title='Aster'
+  surface=window     model=0 option=0 menuitem=1 err=None
+      menuitems=['系统']
+  surface=focused    model=0 option=0 menuitem=1 err=None
+      menuitems=['系统']
+  surface=menu       model=None option=None menuitem=None err=WINDOW_NOT_FOUND
+  surface=menubar    model=None option=None menuitem=None err=INVALID_ARGS
+  surface=sheet      model=None option=None menuitem=None err=WINDOW_NOT_FOUND
+  surface=popover    model=None option=None menuitem=None err=INVALID_ARGS
+  surface=alert      model=None option=None menuitem=None err=INVALID_ARGS
+  surface=toolbar    model=None option=None menuitem=None err=INVALID_ARGS
+SURF_DONE
+EXIT=0

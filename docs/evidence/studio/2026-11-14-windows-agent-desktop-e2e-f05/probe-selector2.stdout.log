@@ -1,0 +1,69 @@
+selector click ok=True
+--- statictext total=61 named=2 ---
+   '无标题' ref=None
+   '项目' ref=@s3d47ujxddvqra:e1
+--- group total=126 named=7 ---
+   'Aster' ref=None
+   'Aster - Web 内容' ref=None
+   '信息栏容器' ref=None
+   'Chrome Legacy Window' ref=@s346v4zs04ism6:e2
+   '工作导航' ref=None
+   '项目' ref=None
+   '最近' ref=None
+--- menuitem total=1 named=1 ---
+   '系统' ref=@s1tofh9s3dd4ks:e1
+--- button total=19 named=18 ---
+   '最小化' ref=@s2daf4xmutmh6j:e1
+   '最大化' ref=@s2daf4xmutmh6j:e2
+   '还原' ref=@s2daf4xmutmh6j:e3
+   '关闭' ref=@s2daf4xmutmh6j:e4
+   '工作' ref=@s2daf4xmutmh6j:e6
+   '设置' ref=@s2daf4xmutmh6j:e7
+   '新建任务' ref=@s2daf4xmutmh6j:e8
+   '连接器' ref=@s2daf4xmutmh6j:e9
+   '技能' ref=@s2daf4xmutmh6j:e10
+   '自动化' ref=@s2daf4xmutmh6j:e11
+   '新建项目' ref=@s2daf4xmutmh6j:e12
+   '发送' ref=@s2daf4xmutmh6j:e13
+   '对此标签页静音' ref=@s2daf4xmutmh6j:e14
+   '关闭标签页' ref=@s2daf4xmutmh6j:e15
+   '新建标签页' ref=@s2daf4xmutmh6j:e16
+   '最小化' ref=@s2daf4xmutmh6j:e17
+   '最大化' ref=@s2daf4xmutmh6j:e18
+   '关闭' ref=@s2daf4xmutmh6j:e19
+--- option total=0 named=0 ---
+--- listitem total=None named=0 ---
+--- row total=0 named=0 ---
+--- cell total=0 named=0 ---
+--- tab total=1 named=1 ---
+   'Aster - 内存使用率 - 347 MB' ref=@s2iydazpswmou6:e1
+--- treeitem total=0 named=0 ---
+--- checkbox total=0 named=0 ---
+--- radio total=0 named=0 ---
+--- textfield total=1 named=1 ---
+   '描述任务，输入 / 使用指令或技能，@ 选择工作区文件' ref=@s2minwl6ptxm6v:e1
+--- combobox total=0 named=0 ---
+--- menubutton total=38 named=20 ---
+   '改为搜索' ref=@s3k9c58l5e8anf:e17
+   '要打开此链接，请选择一个应用' ref=@s3k9c58l5e8anf:e19
+   '应用程序可用。安装 ' ref=@s3k9c58l5e8anf:e20
+   '显示翻译选项' ref=@s3k9c58l5e8anf:e21
+   '更新此网站的自动配置文件切换首选项' ref=@s3k9c58l5e8anf:e23
+   '查看虚拟卡号' ref=@s3k9c58l5e8anf:e24
+   '立即购买，稍后支付' ref=@s3k9c58l5e8anf:e25
+   '保存地址？' ref=@s3k9c58l5e8anf:e26
+   '更多操作' ref=@s3k9c58l5e8anf:e27
+   '搜索任务' ref=@s3k9c58l5e8anf:e28
+   '更多选项' ref=@s3k9c58l5e8anf:e29
+   '授权模式: 请求批准' ref=@s3k9c58l5e8anf:e30
+   '优化提示词' ref=@s3k9c58l5e8anf:e31
+   '选择模型' ref=@s3k9c58l5e8anf:e32
+   '任务范围: 选择项目 · 当前目录' ref=@s3k9c58l5e8anf:e33
+   'Start feedback mode' ref=@s3k9c58l5e8anf:e34
+   '协作者个人资料照片' ref=@s3k9c58l5e8anf:e35
+   '协作者个人资料照片' ref=@s3k9c58l5e8anf:e36
+   '协作者个人资料照片' ref=@s3k9c58l5e8anf:e37
+   '协作者个人资料照片' ref=@s3k9c58l5e8anf:e38
+--- link total=0 named=0 ---
+SEL2_DONE
+EXIT=0

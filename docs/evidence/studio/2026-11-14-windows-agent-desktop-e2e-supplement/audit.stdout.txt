@@ -1,0 +1,58 @@
+=== 2026-11-14 supplement compliance audit ===
+total agent-desktop commands logged: 461
+
+--- command counts ---
+  list-windows     253
+  find             139
+  get              24
+  click            14
+  clear            8
+  is               6
+  type             6
+  focus            4
+  snapshot         2
+  press            2
+  set-value        2
+  close-app        1
+
+--- error codes ---
+  ACTION_FAILED        13
+  STALE_REF            1
+
+--- policy checks ---
+  mouse-click / coordinate actions : 0   (expected 0)
+  focus-window                      : 0   (expected 0)
+  Playwright / runtime stub refs    : 0   (expected 0)
+  --headed total                    : 10
+      type           6
+      focus          4
+
+  All coverage assertions come from agent-desktop AX JSON envelopes;
+  disk hash / renderer logs / HTTP / git are environment evidence only.
+  D-class probes are read-only find/is observations: no PASS verdict.
+
+=== 2026-11-14 supplement result summary ===
+
+--- newly executed cases (verdicts read from case JSON) ---
+  F16 UI-subset                                    supp-F16-run1.json           verdict=PASS     window=w-100403736      token=SUPF16D798
+  F16 UI-subset                                    supp-F16-run2.json           verdict=PASS     window=w-100403736      token=SUPF16EE42
+  F01C control (gitlink renderer + cold start)     f01-control-A-run1.json      verdict=PASS     window=w-52628568       token=SUPF01C6D5C
+  F01C control (gitlink renderer + cold start)     f01-control-A-run2.json      verdict=PASS     window=w-52628568       token=SUPF01C1118
+
+--- final verdict for the 12 outstanding features ---
+  F01  FAIL (unchanged)       2xFAIL on user worktree (rerun archive kept). Control: 2xPASS only on gitlink renderer. NOT counted as coverage.
+  F03  SKIP                   no free-form model service; model_server.py is an exact CAPABILITY-PROBE contract oracle (HTTP 422 on normal prompt)
+  F04  SKIP                   needs >100-message session / synthetic MCP instance
+  F05  BLOCKED                no selectable model in AX; fixture unusable for a real turn
+  F06  NOT TESTED             structurally unreachable; approval controls 0 AX hits
+  F07  SKIP                   needs synthetic MCP instance / real LLM turn
+  F09  NOT TESTED             structurally unreachable; the only role=tab is the Chromium title-bar tab, not a workspace tab
+  F12  NOT TESTED             structurally unreachable; document-output controls 0 AX hits
+  F13  NOT TESTED             dependency entry 0 AX hits; ledger PARTIAL_PASS is not a Windows agent-desktop result
+  F14  PARTIAL                rerun PARTIAL stands; update-channel / exit-guard 0 AX hits
+  F15  NOT TESTED             structurally unreachable; capture controls 0 AX hits
+  F16  PASS x2 (UI subset)    NEW this supplement run; L3 crash-recovery sampling explicitly not claimed
+
+Already-PASS features from the rerun (F02/F08/F10/F11/F17) were not
+re-executed here; this supplement adds F16 as the only new case.
+No MATRIX.md / ledger number was changed by this run.

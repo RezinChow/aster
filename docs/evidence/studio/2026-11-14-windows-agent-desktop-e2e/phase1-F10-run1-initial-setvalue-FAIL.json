@@ -1,0 +1,34 @@
+{
+  "case": "F10",
+  "run": 1,
+  "verdict": "FAIL",
+  "token": "中文短句测试108CA1",
+  "window_id": "w-85395480",
+  "evidence": [
+    {
+      "label": "F10 settings click delivered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F10 search entry button exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F10 search entry click delivered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F10 entry became writable combobox",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F10 search value round-trips via AX get",
+      "ok": false,
+      "detail": "readback=None write_ok=False code=STALE_REF"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "case": "F17",
+  "run": 1,
+  "verdict": "PASS",
+  "token": "中文短句测试17B98C",
+  "window_id": "w-162401792",
+  "evidence": [
+    {
+      "label": "F17 resize-window delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F17 snapshot complete after resize",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F17 sampled bounded content controls after resize",
+      "ok": true,
+      "detail": "bounded_nodes=9"
+    },
+    {
+      "label": "F17 severe overflow count",
+      "ok": true,
+      "detail": "window_bounds={'height': 700.0, 'width': 900.0, 'x': 26.0, 'y': 26.0} sampled_bounded_nodes=9 severe=[]"
+    }
+  ]
+}

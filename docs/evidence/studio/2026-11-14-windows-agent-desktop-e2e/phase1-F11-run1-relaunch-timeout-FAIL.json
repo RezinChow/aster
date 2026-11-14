@@ -1,0 +1,54 @@
+{
+  "case": "F11",
+  "run": 1,
+  "verdict": "FAIL",
+  "token": "WIN119FE6",
+  "window_id": "w-85395480",
+  "evidence": [
+    {
+      "label": "F11 settings opened",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 keep-awake switch exists in AX",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 toggle delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F11 switch observable after toggle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 switch state flipped before restart",
+      "ok": true,
+      "detail": "before=False after=True target=True states=['focused', 'checked']"
+    },
+    {
+      "label": "F11 pre-restart main window present",
+      "ok": true,
+      "detail": "windows=1 ids=['w-85395480']"
+    },
+    {
+      "label": "F11 close-app --force delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F11 old main window gone before relaunch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 relaunched main window visible",
+      "ok": false,
+      "detail": "windows=0"
+    }
+  ]
+}

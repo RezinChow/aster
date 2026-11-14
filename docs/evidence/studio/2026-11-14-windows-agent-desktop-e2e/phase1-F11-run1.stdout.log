@@ -1,0 +1,12 @@
+=== F11 run 1 token=WIN119FE6 ===
+  OK    F11 settings opened
+  OK    F11 keep-awake switch exists in AX
+  OK    F11 toggle delivered - code=None
+  OK    F11 switch observable after toggle
+  OK    F11 switch state flipped before restart - before=False after=True target=True states=['focused', 'checked']
+  OK    F11 pre-restart main window present - windows=1 ids=['w-85395480']
+  OK    F11 close-app --force delivered - code=None
+  OK    F11 old main window gone before relaunch
+  FAIL  F11 relaunched main window visible - windows=0
+  ASSERTION FAILED: F11 relaunched main window visible
+F11_L3: FAIL

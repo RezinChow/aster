@@ -1,0 +1,24 @@
+{
+  "case": "F05",
+  "run": 1,
+  "verdict": "BLOCKED",
+  "token": "中文短句测试052D04",
+  "window_id": "w-85395480",
+  "evidence": [
+    {
+      "label": "F05 选择模型 AX entry exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 model entry click delivered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 model options exposed by AX",
+      "ok": false,
+      "detail": "nodes_before=70 nodes_after=70 selectable=[('menuitem', '系统')]"
+    }
+  ]
+}

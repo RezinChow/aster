@@ -1,0 +1,57 @@
+diff --git a/src-tauri/src/agent_plane/reasoning_effort.rs b/src-tauri/src/agent_plane/reasoning_effort.rs
+index e5109aa8b..8c8bba65f 100644
+--- a/src-tauri/src/agent_plane/reasoning_effort.rs
++++ b/src-tauri/src/agent_plane/reasoning_effort.rs
+@@ -74,6 +74,19 @@ fn current_model_for_effort(
+     else {
+         return Err("The current ACP ModelInfo is missing; reasoning effort was not sent.".into());
+     };
++    // `default` is the renderer's "follow the model default" sentinel, not a
++    // native effort level. The ACP child treats `_meta.reasoningEffort:
++    // "default"` as a reset (crates/code/acp/src/agent/models.rs
++    // `selected_effort`), and `ReasoningCapabilities::new` deliberately forbids
++    // `default` inside the declared `reasoningEfforts` vocabulary. Validating
++    // this sentinel against that vocabulary rejects every default turn before
++    // a request is sent. Studio's local model gateway may additionally leave
++    // the vocabulary empty because the proxied base_url is not an official
++    // host, so accept the reset here and keep the strict check for every
++    // explicit native level.
++    if *effort == ReasoningEffort::Default {
++        return Ok(model.model_id.clone());
++    }
+     let efforts = model
+         .meta
+         .as_ref()
+@@ -275,6 +288,32 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
+             .as_mut()
+             .unwrap()
+             .current_model_id = "openai/deepseek-flash".into();
++        // Studio's local model gateway advertises an empty reasoningEfforts
++        // vocabulary. The `default` reset sentinel must still start a turn,
++        // while explicit levels keep their strict vocabulary check.
++        runtime
++            .catalog
++            .lock()
++            .unwrap()
++            .catalog
++            .models
++            .as_mut()
++            .unwrap()
++            .available_models[0]
++            .meta = Some(serde_json::from_value(json!({ "reasoningEfforts": [] })).unwrap());
++        assert!(current_model_for_effort(&runtime, &ReasoningEffort::Default).is_ok());
++        assert!(
++            current_model_for_effort(&runtime, &ReasoningEffort::parse("high").unwrap()).is_err()
++        );
++        apply_turn_settings(&runtime, Some(ReasoningEffort::Default), "bypassPermissions")
++            .await
++            .expect("default effort starts a turn with an empty vocabulary");
++        let recorded = std::fs::read_to_string(&trace).expect("set_model trace");
++        let params: serde_json::Value = serde_json::from_str(
++            recorded.lines().last().expect("default set_model call"),
++        )
++        .expect("params");
++        assert_eq!(params["_meta"]["reasoningEffort"], "default");
+         runtime
+             .catalog
+             .lock()

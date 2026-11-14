@@ -1,0 +1,11 @@
+{"path": "/v1/models", "payload": null}
+{"path": "/v1/chat/completions", "payload": {"model": "e2e-synthetic-1", "stream": false, "messages": [{"role": "user", "content": "ping"}]}}
+{"path": "/v1/chat/completions", "payload": {"model": "e2e-synthetic-1", "stream": true, "messages": [{"role": "user", "content": "ping"}]}}
+{"path": "/v1/models", "payload": null}
+{"path": "/v1/chat/completions", "payload": {"model": "e2e-synthetic-1", "stream": false, "messages": [{"role": "user", "content": "ping"}]}}
+{"path": "/v1/chat/completions", "payload": {"model": "e2e-synthetic-1", "stream": true, "messages": [{"role": "user", "content": "ping"}]}}
+{"path": "/v1/models", "payload": null}
+{"path": "/v1/chat/completions", "payload": {"model": "e2e-synthetic-1", "stream": false, "messages": [{"role": "user", "content": "ping"}]}}
+{"path": "/v1/chat/completions", "payload": {"model": "e2e-synthetic-1", "stream": true, "messages": [{"role": "user", "content": "ping"}]}}
+{"path": "/v1/models", "payload": null}
+{"path": "/v1/chat/completions", "payload": {"model": "e2e-synthetic-1", "messages": [{"role": "user", "content": "Reply with OK."}], "max_tokens": 8, "stream": false}}

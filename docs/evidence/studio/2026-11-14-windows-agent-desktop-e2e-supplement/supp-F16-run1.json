@@ -1,0 +1,79 @@
+{
+  "case": "F16",
+  "run": 1,
+  "verdict": "PASS",
+  "token": "SUPF16D798",
+  "window_id": "w-100403736",
+  "evidence": [
+    {
+      "label": "F16 snapshot complete",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F16 named AX controls enumerated",
+      "ok": true,
+      "detail": "count=13"
+    },
+    {
+      "label": "F16 controls have non-empty name and valid role",
+      "ok": true,
+      "detail": "bad=[] total=13"
+    },
+    {
+      "label": "F16 composer ref available",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F16 is --property enabled readable",
+      "ok": true,
+      "detail": "data={'applicable': True, 'property': 'enabled', 'ref': '@s3l5m5kxp6r30x:e1', 'result': True}"
+    },
+    {
+      "label": "F16 is --property focused readable",
+      "ok": true,
+      "detail": "data={'applicable': True, 'property': 'focused', 'ref': '@s3l5m5kxp6r30x:e1', 'result': True}"
+    },
+    {
+      "label": "F16 is --property visible readable",
+      "ok": true,
+      "detail": "data={'applicable': True, 'property': 'visible', 'ref': '@s3l5m5kxp6r30x:e1', 'result': True}"
+    },
+    {
+      "label": "F16 settings click delivered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F16 search entry exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F16 search combobox available",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F16 unmatched query entered",
+      "ok": true,
+      "detail": "readback='ZZZ_NO_SUCH_SETTING_9F3C'"
+    },
+    {
+      "label": "F16 no result listbox for unmatched query",
+      "ok": true,
+      "detail": "matches=0"
+    },
+    {
+      "label": "F16 settings navigation intact on empty result",
+      "ok": true,
+      "detail": "matches=1"
+    },
+    {
+      "label": "F16 workbench recovered after empty search and escape",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

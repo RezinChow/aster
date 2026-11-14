@@ -1,0 +1,238 @@
+{
+  "version": "2.6",
+  "ok": true,
+  "command": "snapshot",
+  "data": {
+    "app": "Studio.exe",
+    "complete": true,
+    "ref_count": 9,
+    "snapshot_id": "s1g2t0wbeuh089",
+    "tree": {
+      "available_actions": [
+        "SetFocus"
+      ],
+      "children": [
+        {
+          "available_actions": [
+            "SetFocus"
+          ],
+          "children": [
+            {
+              "children": [
+                {
+                  "available_actions": [
+                    "ScrollTo"
+                  ],
+                  "children": [
+                    {
+                      "available_actions": [
+                        "ScrollTo"
+                      ],
+                      "children": [
+                        {
+                          "available_actions": [
+                            "ScrollTo"
+                          ],
+                          "children": [
+                            {
+                              "available_actions": [
+                                "ScrollTo"
+                              ],
+                              "children": [
+                                {
+                                  "available_actions": [
+                                    "ScrollTo"
+                                  ],
+                                  "children": [
+                                    {
+                                      "available_actions": [
+                                        "Scroll",
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "Scroll",
+                                            "ScrollTo",
+                                            "SetFocus"
+                                          ],
+                                          "children": [
+                                            {
+                                              "available_actions": [
+                                                "ScrollTo"
+                                              ],
+                                              "children_count": 3,
+                                              "native_id": {
+                                                "kind": "automation_id",
+                                                "value": "root"
+                                              },
+                                              "ref_id": "@s1g2t0wbeuh089:e3",
+                                              "role": "group",
+                                              "role_description": "组",
+                                              "subrole": "group"
+                                            },
+                                            {
+                                              "available_actions": [
+                                                "Click",
+                                                "ScrollTo"
+                                              ],
+                                              "children_count": 3,
+                                              "ref_id": "@s1g2t0wbeuh089:e4",
+                                              "role": "group",
+                                              "role_description": "组",
+                                              "subrole": "group"
+                                            }
+                                          ],
+                                          "name": "Aster",
+                                          "native_id": {
+                                            "kind": "automation_id",
+                                            "value": "RootWebArea"
+                                          },
+                                          "ref_id": "@s1g2t0wbeuh089:e2",
+                                          "role": "document",
+                                          "role_description": "文档",
+                                          "states": [
+                                            "focused",
+                                            "readonly"
+                                          ],
+                                          "subrole": "document",
+                                          "value": "http://127.0.0.1:4318/windows/main/index.html"
+                                        }
+                                      ],
+                                      "name": "Chrome Legacy Window",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "12"
+                                      },
+                                      "ref_id": "@s1g2t0wbeuh089:e1",
+                                      "role": "group",
+                                      "role_description": "窗格"
+                                    }
+                                  ],
+                                  "role": "group",
+                                  "role_description": "区域",
+                                  "subrole": "region"
+                                }
+                              ],
+                              "role": "group",
+                              "role_description": "区域",
+                              "subrole": "region"
+                            }
+                          ],
+                          "role": "group",
+                          "role_description": "区域",
+                          "subrole": "region"
+                        }
+                      ],
+                      "name": "Aster - Web 内容",
+                      "role": "group",
+                      "role_description": "区域",
+                      "subrole": "region"
+                    }
+                  ],
+                  "name": "Aster",
+                  "role": "group",
+                  "role_description": "窗格"
+                }
+              ],
+              "role": "group",
+              "role_description": "窗格"
+            }
+          ],
+          "role": "group",
+          "role_description": "窗格"
+        },
+        {
+          "available_actions": [
+            "SetValue",
+            "SetFocus"
+          ],
+          "children": [
+            {
+              "available_actions": [
+                "SetFocus"
+              ],
+              "children": [
+                {
+                  "available_actions": [
+                    "Expand",
+                    "Collapse",
+                    "SetFocus"
+                  ],
+                  "name": "系统",
+                  "ref_id": "@s1g2t0wbeuh089:e6",
+                  "role": "menuitem",
+                  "role_description": "菜单项目",
+                  "states": [
+                    "haspopup"
+                  ]
+                }
+              ],
+              "name": "系统",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "SystemMenuBar"
+              },
+              "role": "menu",
+              "role_description": "菜单栏"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "最小化",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Minimize-Restore"
+              },
+              "ref_id": "@s1g2t0wbeuh089:e7",
+              "role": "button",
+              "role_description": "按钮"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "最大化",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Maximize-Restore"
+              },
+              "ref_id": "@s1g2t0wbeuh089:e8",
+              "role": "button",
+              "role_description": "按钮"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "关闭",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Close"
+              },
+              "ref_id": "@s1g2t0wbeuh089:e9",
+              "role": "button",
+              "role_description": "按钮"
+            }
+          ],
+          "native_id": {
+            "kind": "automation_id",
+            "value": "TitleBar"
+          },
+          "ref_id": "@s1g2t0wbeuh089:e5",
+          "role": "group",
+          "role_description": "标题栏",
+          "value": "Aster"
+        }
+      ],
+      "name": "Aster",
+      "role": "window",
+      "role_description": "窗口"
+    },
+    "window": {
+      "id": "w-162401792",
+      "title": "Aster"
+    }
+  }
+}

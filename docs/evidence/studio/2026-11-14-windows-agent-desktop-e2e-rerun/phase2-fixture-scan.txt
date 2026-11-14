@@ -1,0 +1,48 @@
+=== Phase 2 只读 fixture 扫描（2026-11-14 rerun）===
+
+检索式（大小写不敏感）：synthetic model | mock model | mcp fixture
+范围：D:\code\aster\apps\studio\tests 与 D:\code\aster\crates
+下面是 grep -RniE 的原始命中（head -20），原样保留：
+
+apps/studio/tests/e2e/connectors/nativeHarness.ts:142:      const timer = setTimeout(() => reject(new Error('Synthetic model did not start')), 10000)
+apps/studio/tests/fixtures/browser-use/webmcp.html:5:    <title>Native WebMCP fixture</title>
+crates/code/acp/tests/codex_account_stdio.rs:135:    .expect("synthetic model cache");
+crates/code/core/tests/support/mod.rs:8:/// Executable for stdio MCP fixtures.
+crates/code/manual/FULL_FEATURE_TEST_PLAN.md:235:protocol+harness, SDK↔Core, workspace backend, MCP fixture process).
+crates/power/third-party/magnitude/inference/engine/executor/src/native/tuning/weights.rs:85:/// synthetic model definition without an artifact (test fixtures). Every
+crates/power/third-party/magnitude/inference/evaluation/references/src/magnitude_references/synthetic.py:28:TEMPLATES = {  # locked catalog (or plan-candidate) GGUFs whose headers the synthetic models mirror
+crates/power/third-party/magnitude/inference/evaluation/references/src/magnitude_references/synthetic.py:753:    """A draft over the synthetic model of target case `target` (same vocabulary and width)."""
+crates/power/third-party/magnitude/inference/solver/lab/README.md:248:improving moves on these synthetic models while rejecting the current full
+crates/power/third-party/magnitude/inference/solver/README.md:248:synthetic models. Its [verification record](lab/results/2026-09-18-neighborhood/verification.md)
+crates/runtime/docs/adr/0005-host-modern-stateless-mcp-as-a-service-profile.md:63:The Runtime consumer gate launches a pinned modern MCP fixture through Aster Box
+crates/runtime/docs/adr/0009-preserve-v4-encoding-and-distinguish-identity-proof.md:62:Frozen protocol and MCP fixtures remain byte-identical. Tests cover exact
+crates/runtime/docs/deep-test-plan.md:668:- Pin one modern MCP fixture, its immutable image digest, profile digest, and
+crates/use/extension/fixtures/packages/plugin-v3-package/package/mcp/context:2:printf '%s\n' 'stdio MCP fixture'
+crates/use/scripts/mcp-release-container-conformance.sh:107:  echo "Registry returned non-OCI MCP fixture media type: ${manifest_media_type}" >&2
+crates/use/scripts/mcp-release-container-conformance.sh:111:  echo "The pushed MCP fixture did not resolve to one immutable manifest digest." >&2
+crates/use/scripts/mcp-release-container-conformance.sh:156:    echo "MCP fixture generation ${generation} exceeded its shutdown bound." >&2
+crates/use/scripts/mcp-release-container-conformance.sh:173:    echo "MCP fixture generation ${generation} exited with ${exit_code}." >&2
+crates/use/scripts/mcp-release-container-conformance.sh:179:    echo "MCP fixture generation ${generation} exited with ${exit_code}." >&2
+crates/use/tests/remote_extension_cli/graph_grants/host_six_surface_lifecycle.rs:520:        assert!(String::from_utf8_lossy(&mcp.stdout).contains("stdio MCP fixture"));
+
+命中性质判定：
+  - apps/studio/tests/* 两条是 Playwright 连接器 harness 与 browser-use HTML fixture，
+    需要 Playwright 运行时驱动，按本轮口径不计入、也不作为可视化 E2E 的前置。
+  - crates/* 全部是 Rust 单元测试支持代码、ADR/测试计划文档、第三方 inference 库中
+    "synthetic model" 术语（指 GGUF 模型草稿），均不是可独立安全启动的
+    synthetic model / MCP 服务。
+
+已知 fixture 脚本核对：
+  - apps/studio/tests/e2e/connectors/model_server.py -> 存在（Playwright 连接器用例的合成模型服务）
+  - apps/studio/tests/e2e/capability_mcp.py          -> 不存在
+
+F05 AX 实测（本轮 phase1-F05-run1/run2）：
+  - 选择模型 menubutton 存在、click 投递成功
+  - nodes_before=41 / nodes_after=41，无任何可选模型节点
+  - 唯一 menuitem 是窗口系统菜单「系统」
+  -> 本实例没有配置模型服务，无法发起真实 ACP turn
+
+硬规则：仅当本机已有合成模型 / MCP fixture 且能安全启动时执行；否则 SKIP，
+不临时发明不安全外部服务，也不把 Playwright / runtime 桩结果计入本轮口径。
+
+结论：F03 / F04 / F07 = SKIP（不计入覆盖）；本轮未启动任何临时外部服务。

@@ -1,0 +1,25 @@
+window: {"accessible": true, "app_name": "Studio.exe", "bounds": {"height": 959.0, "width": 1456.0, "x": 258.0, "y": 51.0}, "id": "w-85395480", "is_focused": false, "minimized": false, "pid": 37164, "process_instance": "windows-proc-v1:13439089549:4172730", "title": "Aster", "visible": true}
+poll 0: ref_count=14 minimized=False
+poll 1: ref_count=14 minimized=False
+poll 2: ref_count=14 minimized=False
+poll 3: ref_count=14 minimized=False
+poll 4: ref_count=14 minimized=False
+poll 5: ref_count=14 minimized=False
+poll 6: ref_count=14 minimized=False
+poll 7: ref_count=14 minimized=False
+poll 8: ref_count=14 minimized=False
+poll 9: ref_count=14 minimized=False
+poll 10: ref_count=14 minimized=False
+poll 11: ref_count=14 minimized=False
+poll 12: ref_count=14 minimized=False
+poll 13: ref_count=14 minimized=False
+complete: True ref_count: 14 named_nodes: 17
+button | 最小化 | states=None | ref=@s5t8tzthmsljl:e2
+button | 最大化 | states=None | ref=@s5t8tzthmsljl:e3
+button | 还原 | states=None | ref=@s5t8tzthmsljl:e4
+button | 关闭 | states=None | ref=@s5t8tzthmsljl:e5
+button | 新建标签页 | states=None | ref=@s5t8tzthmsljl:e9
+menuitem | 系统 | states=['haspopup'] | ref=@s5t8tzthmsljl:e11
+button | 最小化 | states=None | ref=@s5t8tzthmsljl:e12
+button | 最大化 | states=None | ref=@s5t8tzthmsljl:e13
+button | 关闭 | states=None | ref=@s5t8tzthmsljl:e14

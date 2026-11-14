@@ -1,0 +1,37 @@
+{
+  "window_id": "w-120982452",
+  "attempts": [
+    {
+      "tag": "baseline",
+      "model_total": 0,
+      "option_total": 0,
+      "menuitem_total": 1,
+      "menuitem_names": [
+        "系统"
+      ]
+    },
+    {
+      "tag": "click --headed",
+      "model_total": 0,
+      "option_total": 0,
+      "menuitem_total": 1,
+      "menuitem_names": [
+        "系统"
+      ],
+      "action_ok": true,
+      "action_error": null
+    },
+    {
+      "tag": "expand",
+      "model_total": 2,
+      "option_total": 0,
+      "menuitem_total": 1,
+      "menuitem_names": [
+        "系统"
+      ],
+      "action_ok": true,
+      "action_error": null
+    }
+  ],
+  "screenshot_ok": true
+}

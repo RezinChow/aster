@@ -1,0 +1,26 @@
+Phase A aligned runtime.tsx changed=True
+[F01-CONTROL-A] windows before restart: 1
+[F01-CONTROL-A] close-app ok=True
+  INFO  window appeared after 163 polls
+[F01-CONTROL-A] window=w-52628568 pid=40352 content_ready=True
+=== F01C run 1 token=SUPF01C6D5C ===
+  OK    F01 draft entered - value='SUPF01C6D5C'
+  OK    F01 settings click delivered - code=None
+  OK    F01 settings page reached (返回应用 button present)
+  OK    F01 work click delivered
+  OK    F01 draft survived cross-page round trip - after='SUPF01C6D5C'
+F01C_L3: PASS
+[A] F01C run1 exit=0
+=== F01C run 2 token=SUPF01C1118 ===
+  OK    F01 draft entered - value='SUPF01C1118'
+  OK    F01 settings click delivered - code=None
+  OK    F01 settings page reached (返回应用 button present)
+  OK    F01 work click delivered
+  OK    F01 draft survived cross-page round trip - after='SUPF01C1118'
+F01C_L3: PASS
+[A] F01C run2 exit=0
+PHASE_A_ALL_PASS: True
+Phase B skipped: Phase A already isolates the root cause
+CONTROL_ALL_PASS: True
+restore rc=0 mismatches=0
+EXIT=0

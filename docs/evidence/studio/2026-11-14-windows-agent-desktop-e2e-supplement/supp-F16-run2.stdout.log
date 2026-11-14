@@ -1,0 +1,16 @@
+=== F16 run 2 token=SUPF16EE42 ===
+  OK    F16 snapshot complete
+  OK    F16 named AX controls enumerated - count=13
+  OK    F16 controls have non-empty name and valid role - bad=[] total=13
+  OK    F16 composer ref available
+  OK    F16 is --property enabled readable - data={'applicable': True, 'property': 'enabled', 'ref': '@skn0okelg0lzq:e1', 'result': True}
+  OK    F16 is --property focused readable - data={'applicable': True, 'property': 'focused', 'ref': '@skn0okelg0lzq:e1', 'result': True}
+  OK    F16 is --property visible readable - data={'applicable': True, 'property': 'visible', 'ref': '@skn0okelg0lzq:e1', 'result': True}
+  OK    F16 settings click delivered
+  OK    F16 search entry exists
+  OK    F16 search combobox available
+  OK    F16 unmatched query entered - readback='ZZZ_NO_SUCH_SETTING_9F3C'
+  OK    F16 no result listbox for unmatched query - matches=0
+  OK    F16 settings navigation intact on empty result - matches=1
+  OK    F16 workbench recovered after empty search and escape
+F16_L3: PASS

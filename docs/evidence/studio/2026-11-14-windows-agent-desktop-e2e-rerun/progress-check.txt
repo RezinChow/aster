@@ -1,0 +1,46 @@
+=== restart batch progress at 15:19:36 ===
+  OK    F11 pre-restart main window present - windows=1 ids=['w-162401792']
+  OK    F11 close-app --force delivered - code=None
+  OK    F11 old main window gone before relaunch
+  INFO  window appeared after 221 polls
+  OK    F11 relaunched main window visible - windows=1
+  OK    F11 content AX tree ready after relaunch
+  OK    F11 settings entry present after restart
+  OK    F11 settings reopened after restart
+  OK    F11 keep-awake switch exists after restart
+  OK    F11 preference state restored after cross-process restart - target=False after=False states=[]
+F11_L3: PASS
+=== F11 run 2 token=WIN113C25 ===
+  OK    F11 settings opened
+  OK    F11 keep-awake switch exists in AX
+  OK    F11 toggle delivered - code=None
+  OK    F11 switch observable after toggle
+  OK    F11 switch state flipped before restart - before=False after=True target=True states=['focused', 'checked']
+  OK    F11 pre-restart main window present - windows=1 ids=['w-322896246']
+  OK    F11 close-app --force delivered - code=None
+  OK    F11 old main window gone before relaunch
+  INFO  window appeared after 163 polls
+  OK    F11 relaunched main window visible - windows=1
+  OK    F11 content AX tree ready after relaunch
+  OK    F11 settings entry present after restart
+  OK    F11 settings reopened after restart
+  OK    F11 keep-awake switch exists after restart
+  OK    F11 preference state restored after cross-process restart - target=True after=True states=['checked']
+F11_L3: PASS
+=== F08 run 1 token=WIN08C769 ===
+  OK    F08 sidebar switch exists in AX
+  OK    F08 sidebar toggle delivered - code=None
+  OK    F08 sidebar state flipped before restart (AX name changed) - before=收起侧边栏 expected=展开侧边栏
+  OK    F08 pre-restart main window present - windows=1 ids=['w-40174798']
+  OK    F08 close-app --force delivered - code=None
+  OK    F08 old main window gone before relaunch
+
+=== exit marker ===
+(still running)
+
+=== phase2 scan ===
+=== Phase 2 fixture scan 2026-11-14 15:18:42 +0800 ===
+--- synthetic model / mock model / mcp fixture search ---
+
+=== current Studio windows ===
+{"version":"2.6","ok":true,"command":"list-windows","data":[]}

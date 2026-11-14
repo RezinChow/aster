@@ -1,0 +1,71 @@
+{
+  "case": "F05",
+  "run": 1,
+  "verdict": "PASS",
+  "token": "E2EF058EAF",
+  "window_id": "w-120982452",
+  "evidence": [
+    {
+      "label": "F05 popup initially closed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 model selector menubutton present",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 expand action delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F05 model popup opened (AX close control present)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 configured model visible in selector AX",
+      "ok": true,
+      "detail": "total_matches=2 name=e2e-synthetic-1"
+    },
+    {
+      "label": "F05 chain entry present: 配置自定义模型",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 chain entry present: 跳转到服务商设置界面",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 selector still available after popup opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 selector AX text readback",
+      "ok": true,
+      "detail": "text='选择模型'"
+    },
+    {
+      "label": "F05 popup close delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F05 popup closed (independent AX readback)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F05 workbench recovered (composer ref available)",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "scope": "UI-subset reachability only; NOT a completed model selection",
+  "functional_verdict": "PARTIAL"
+}

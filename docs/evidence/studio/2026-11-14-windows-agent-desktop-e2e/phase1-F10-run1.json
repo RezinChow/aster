@@ -1,0 +1,54 @@
+{
+  "case": "F10",
+  "run": 1,
+  "verdict": "PASS",
+  "token": "中文短句测试109BD1",
+  "window_id": "w-85395480",
+  "evidence": [
+    {
+      "label": "F10 settings click delivered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F10 search entry button exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F10 search entry click delivered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F10 entry became writable combobox",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F10 search value round-trips via AX",
+      "ok": true,
+      "detail": "readback='网络' type_ok=True"
+    },
+    {
+      "label": "F10 设置搜索结果 listbox appears",
+      "ok": true,
+      "detail": "matches=1"
+    },
+    {
+      "label": "F10 result option for query appears",
+      "ok": true,
+      "detail": "matches=1"
+    },
+    {
+      "label": "F10 search cleared (value no longer 网络 and results gone)",
+      "ok": true,
+      "detail": "value=None listbox_matches=0 clear_ok=True"
+    },
+    {
+      "label": "F10 settings nav recovered after clear",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+=== F10 run 1 token=中文短句测试109BD1 ===
+  OK    F10 settings click delivered
+  OK    F10 search entry button exists
+  OK    F10 search entry click delivered
+  OK    F10 entry became writable combobox
+  OK    F10 search value round-trips via AX - readback='网络' type_ok=True
+  OK    F10 设置搜索结果 listbox appears - matches=1
+  OK    F10 result option for query appears - matches=1
+  OK    F10 search cleared (value no longer 网络 and results gone) - value=None listbox_matches=0 clear_ok=True
+  OK    F10 settings nav recovered after clear
+F10_L3: PASS

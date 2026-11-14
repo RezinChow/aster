@@ -1,0 +1,9 @@
+  FILL '提供商名称' readback='E2E-Local' ok=True set_ok=True err=None
+  FILL 'OpenAI' readback='http://127.0.0.1:4399/v1' ok=True set_ok=True err=None
+  FILL 'API 密钥' readback=None ok=False set_ok=True err=None
+  CONFIRM 添加 ok=True err=None
+  POST E2E-Local      total=3 roles=['window', 'statictext', 'statictext']
+  POST 保存             total=1 roles=['menubutton']
+  POST 添加             total=1 roles=['button']
+CONFIGURE_DONE
+EXIT=0

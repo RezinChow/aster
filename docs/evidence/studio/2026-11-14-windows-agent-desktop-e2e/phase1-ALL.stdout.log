@@ -1,0 +1,68 @@
+  INFO  no live window; booting initial instance
+  INFO  window appeared after 378 polls
+=== F11 run 1 token=WIN1134B4 ===
+  OK    F11 settings opened
+  OK    F11 keep-awake switch exists in AX
+  OK    F11 toggle delivered - code=None
+  OK    F11 switch observable after toggle
+  OK    F11 switch state flipped before restart - before=True after=False target=False states=['focused']
+  OK    F11 pre-restart main window present - windows=1 ids=['w-38470684']
+  OK    F11 close-app --force delivered - code=None
+  OK    F11 old main window gone before relaunch
+  INFO  window appeared after 409 polls
+  OK    F11 relaunched main window visible - windows=1
+  OK    F11 content AX tree ready after relaunch
+  OK    F11 settings entry present after restart
+  OK    F11 settings reopened after restart
+  OK    F11 keep-awake switch exists after restart
+  OK    F11 preference state restored after cross-process restart - target=False after=False states=[]
+F11_L3: PASS
+=== F11 run 2 token=WIN11D4BE ===
+  OK    F11 settings opened
+  OK    F11 keep-awake switch exists in AX
+  OK    F11 toggle delivered - code=None
+  OK    F11 switch observable after toggle
+  OK    F11 switch state flipped before restart - before=False after=True target=True states=['focused', 'checked']
+  OK    F11 pre-restart main window present - windows=1 ids=['w-17105818']
+  OK    F11 close-app --force delivered - code=None
+  OK    F11 old main window gone before relaunch
+  INFO  window appeared after 393 polls
+  OK    F11 relaunched main window visible - windows=1
+  OK    F11 content AX tree ready after relaunch
+  OK    F11 settings entry present after restart
+  OK    F11 settings reopened after restart
+  OK    F11 keep-awake switch exists after restart
+  OK    F11 preference state restored after cross-process restart - target=True after=True states=['checked']
+F11_L3: PASS
+=== F08 run 1 token=WIN087EFD ===
+  OK    F08 sidebar switch exists in AX
+  OK    F08 sidebar toggle delivered - code=None
+  OK    F08 sidebar state flipped before restart (AX name changed) - before=收起侧边栏 expected=展开侧边栏
+  OK    F08 pre-restart main window present - windows=1 ids=['w-348261314']
+  OK    F08 close-app --force delivered - code=None
+  OK    F08 old main window gone before relaunch
+  INFO  window appeared after 393 polls
+  OK    F08 relaunched main window visible - windows=1
+  OK    F08 content AX tree ready after relaunch
+  OK    F08 sidebar switch observable after restart
+  OK    F08 sidebar state persisted across restart - target=展开侧边栏 observed=展开侧边栏 states=[]
+F08_L3: PASS
+=== F08 run 2 token=WIN08B48E ===
+  OK    F08 sidebar switch exists in AX
+  OK    F08 sidebar toggle delivered - code=None
+  OK    F08 sidebar state flipped before restart (AX name changed) - before=展开侧边栏 expected=收起侧边栏
+  OK    F08 pre-restart main window present - windows=1 ids=['w-53939168']
+  OK    F08 close-app --force delivered - code=None
+  OK    F08 old main window gone before relaunch
+  INFO  window appeared after 320 polls
+  OK    F08 relaunched main window visible - windows=1
+  OK    F08 content AX tree ready after relaunch
+  OK    F08 sidebar switch observable after restart
+  OK    F08 sidebar state persisted across restart - target=收起侧边栏 observed=收起侧边栏 states=['checked']
+F08_L3: PASS
+=== F14 run 1 token=WIN144E3D ===
+  OK    F14 exactly one main window at sampling time - windows=1
+  INFO  F14 current_windows=1 restart_observations=4
+  PARTIAL  single-window relaunches observed; PARTIAL only (no flock/update-channel claim)
+F14_L3: PARTIAL
+ALL RESULTS: ["PASS", "PASS", "PASS", "PASS", "PARTIAL"]

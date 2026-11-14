@@ -1,0 +1,424 @@
+{
+  "window_id": "w-120982452",
+  "roles": {
+    "textfield": {
+      "total_matches": 4,
+      "matches": [
+        {
+          "name": "提供商名称",
+          "role": "textfield",
+          "ref_id": "@sgdqf9zkmo0rm:e1",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "API 密钥",
+          "role": "textfield",
+          "ref_id": "@sgdqf9zkmo0rm:e2",
+          "description": null,
+          "states": [
+            "secure"
+          ]
+        },
+        {
+          "name": "OpenAI",
+          "role": "textfield",
+          "ref_id": "@sgdqf9zkmo0rm:e3",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "Anthropic",
+          "role": "textfield",
+          "ref_id": "@sgdqf9zkmo0rm:e4",
+          "description": null,
+          "states": []
+        }
+      ]
+    },
+    "combobox": {
+      "total_matches": 0,
+      "matches": []
+    },
+    "switch": {
+      "total_matches": 0,
+      "matches": []
+    },
+    "checkbox": {
+      "total_matches": 0,
+      "matches": []
+    },
+    "radio": {
+      "total_matches": 0,
+      "matches": []
+    },
+    "menubutton": {
+      "total_matches": 33,
+      "matches": [
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e1",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e2",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e3",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e4",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e5",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e6",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e7",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e8",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e9",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e10",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e11",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e12",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e13",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e14",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e15",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e16",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "改为搜索",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e17",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e18",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "要打开此链接，请选择一个应用",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e19",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "应用程序可用。安装 ",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e20",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "显示翻译选项",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e21",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e22",
+          "description": null,
+          "states": [
+            "disabled"
+          ]
+        },
+        {
+          "name": "更新此网站的自动配置文件切换首选项",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e23",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "查看虚拟卡号",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e24",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "立即购买，稍后支付",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e25",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "保存地址？",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e26",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "更多操作",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e27",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "内置头像",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e28",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "更多设置",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e29",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "协作者个人资料照片",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e30",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "协作者个人资料照片",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e31",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "协作者个人资料照片",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e32",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "协作者个人资料照片",
+          "role": "menubutton",
+          "ref_id": "@s2q7s5mbjowi99:e33",
+          "description": null,
+          "states": []
+        }
+      ]
+    },
+    "button": {
+      "total_matches": 17,
+      "matches": [
+        {
+          "name": "最小化",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e1",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "最大化",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e2",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "还原",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e3",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "关闭",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e4",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": null,
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e5",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "Close",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e6",
+          "description": null,
+          "states": [
+            "focused"
+          ]
+        },
+        {
+          "name": "图片上传",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e7",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "重置头像",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e8",
+          "description": null,
+          "states": [
+            "disabled"
+          ]
+        },
+        {
+          "name": "显示密钥",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e9",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "取消",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e10",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "添加",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e11",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "对此标签页静音",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e12",
+          "description": null,
+          "states": [
+            "disabled"
+          ]
+        },
+        {
+          "name": "关闭标签页",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e13",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "新建标签页",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e14",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "最小化",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e15",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "最大化",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e16",
+          "description": null,
+          "states": []
+        },
+        {
+          "name": "关闭",
+          "role": "button",
+          "ref_id": "@s3cwzspkvhtqq7:e17",
+          "description": null,
+          "states": []
+        }
+      ]
+    }
+  }
+}

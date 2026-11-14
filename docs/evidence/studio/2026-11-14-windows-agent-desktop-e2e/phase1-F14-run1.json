@@ -1,0 +1,19 @@
+{
+  "case": "F14",
+  "run": 1,
+  "verdict": "PARTIAL",
+  "token": "WIN144E3D",
+  "window_id": "w-14091248",
+  "evidence": [
+    {
+      "label": "F14 exactly one main window at sampling time",
+      "ok": true,
+      "detail": "windows=1"
+    },
+    {
+      "label": "F14 second-launch window count (AX list-windows)",
+      "ok": true,
+      "detail": "current_windows=1 ids=['w-14091248'] pids=[39756] restart_observations=[{\"tag\": \"F11\", \"detail\": \"before=[('w-38470684', 38264)] after=(w-17105818,76252) windows_after=1\"}, {\"tag\": \"F11\", \"detail\": \"before=[('w-17105818', 76252)] after=(w-348261314,68176) windows_after=1\"}, {\"tag\": \"F08\", \"detail\": \"before=[('w-348261314', 68176)] after=(w-53939168,36304) windows_after=1\"}, {\"tag\": \"F08\", \"detail\": \"before=[('w-53939168', 36304)] after=(w-14091248,39756) windows_after=1\"}]"
+    }
+  ]
+}

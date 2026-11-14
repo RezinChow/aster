@@ -1,0 +1,84 @@
+{
+  "case": "F11",
+  "run": 2,
+  "verdict": "PASS",
+  "token": "WIN113C25",
+  "window_id": "w-40174798",
+  "evidence": [
+    {
+      "label": "F11 settings opened",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 keep-awake switch exists in AX",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 toggle delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F11 switch observable after toggle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 switch state flipped before restart",
+      "ok": true,
+      "detail": "before=False after=True target=True states=['focused', 'checked']"
+    },
+    {
+      "label": "F11 pre-restart main window present",
+      "ok": true,
+      "detail": "windows=1 ids=['w-322896246']"
+    },
+    {
+      "label": "F11 close-app --force delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F11 old main window gone before relaunch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 relaunched main window visible",
+      "ok": true,
+      "detail": "windows=1"
+    },
+    {
+      "label": "F11 restart identity",
+      "ok": true,
+      "detail": "before=[('w-322896246', 47860)] after=(w-40174798,16800) windows_after=1"
+    },
+    {
+      "label": "F11 content AX tree ready after relaunch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 settings entry present after restart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 settings reopened after restart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 keep-awake switch exists after restart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F11 preference state restored after cross-process restart",
+      "ok": true,
+      "detail": "target=True after=True states=['checked']"
+    }
+  ]
+}

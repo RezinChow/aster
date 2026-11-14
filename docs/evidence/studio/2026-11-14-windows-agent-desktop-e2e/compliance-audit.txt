@@ -1,0 +1,22 @@
+=== forbidden-path audit over commands.jsonl ===
+mouse-click / coordinate actions: 0
+focus-window calls: 0
+playwright / stub references: 0
+headed calls: 0
+=== distinct commands used ===
+list-windows 889
+find 226
+get 37
+clear 22
+click 19
+type 9
+resize-window 9
+snapshot 8
+focus 7
+restore 6
+set-value 2
+press 2
+toggle 2
+close-app 2
+=== error codes seen ===
+{'ACTION_FAILED': 24, 'STALE_REF': 2, 'TIMEOUT': 1}

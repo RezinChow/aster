@@ -1,0 +1,11 @@
+MODEL NODES BEFORE total=4
+   name='e2e-synthetic-1' role=group ref=None states=[]
+   name='e2e-synthetic-1' role=statictext ref=None states=[]
+   name='e2e-synthetic-1' role=statictext ref=None states=[]
+   name='选择 e2e-synthetic-1' role=checkbox ref=@su3khjekbehx6:e1 states=[]
+MODEL NODE CLICK ok=True err=None
+MODEL NODES AFTER SELECT total=4
+添加所选模型 CLICK ok=True err=None
+POST CONFIRM model_total=2 add_button_total=2
+ADDMODEL_DONE
+EXIT=0

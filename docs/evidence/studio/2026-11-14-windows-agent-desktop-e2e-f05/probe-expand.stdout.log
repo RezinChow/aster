@@ -1,0 +1,8 @@
+  baseline               model=0 option=0 menuitem=1 names=['系统']
+ACTION click --headed ok=True err=None
+  click --headed         model=0 option=0 menuitem=1 names=['系统']
+ACTION expand ok=True err=None
+  expand                 model=2 option=0 menuitem=1 names=['系统']
+POPUP OPENED by expand
+EXPAND_DONE
+EXIT=0

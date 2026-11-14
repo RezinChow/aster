@@ -1,0 +1,55 @@
+{
+  "window_id": "w-120982452",
+  "model": "e2e-synthetic-1",
+  "model_nodes_before": {
+    "total_matches": 4,
+    "matches": [
+      {
+        "name": "e2e-synthetic-1",
+        "role": "group",
+        "ref_id": null,
+        "states": []
+      },
+      {
+        "name": "e2e-synthetic-1",
+        "role": "statictext",
+        "ref_id": null,
+        "states": []
+      },
+      {
+        "name": "e2e-synthetic-1",
+        "role": "statictext",
+        "ref_id": null,
+        "states": []
+      },
+      {
+        "name": "选择 e2e-synthetic-1",
+        "role": "checkbox",
+        "ref_id": "@su3khjekbehx6:e1",
+        "states": []
+      }
+    ]
+  },
+  "selection_method": "model node",
+  "model_nodes_after_select": {
+    "total_matches": 4
+  },
+  "confirm_click": {
+    "ok": true,
+    "error_code": null
+  },
+  "post_confirm": {
+    "model_total_matches": 2,
+    "add_button_total_matches": 2,
+    "model_sample": [
+      {
+        "name": "验证 e2e-synthetic-1 成功",
+        "role": "option"
+      },
+      {
+        "name": "验证 e2e-synthetic-1",
+        "role": "statictext"
+      }
+    ]
+  }
+}

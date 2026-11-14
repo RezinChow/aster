@@ -1,0 +1,411 @@
+{
+  "version": "2.6",
+  "ok": true,
+  "command": "snapshot",
+  "data": {
+    "app": "Studio.exe",
+    "complete": true,
+    "ref_count": 14,
+    "snapshot_id": "sk7rg0at75cmk",
+    "tree": {
+      "available_actions": [
+        "SetFocus"
+      ],
+      "children": [
+        {
+          "available_actions": [
+            "SetFocus"
+          ],
+          "children": [
+            {
+              "children": [
+                {
+                  "available_actions": [
+                    "ScrollTo"
+                  ],
+                  "children": [
+                    {
+                      "available_actions": [
+                        "ScrollTo"
+                      ],
+                      "children": [
+                        {
+                          "available_actions": [
+                            "ScrollTo"
+                          ],
+                          "children": [
+                            {
+                              "available_actions": [
+                                "ScrollTo"
+                              ],
+                              "children": [
+                                {
+                                  "available_actions": [
+                                    "ScrollTo"
+                                  ],
+                                  "children": [
+                                    {
+                                      "available_actions": [
+                                        "Click",
+                                        "ScrollTo"
+                                      ],
+                                      "name": "最小化",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "view_2"
+                                      },
+                                      "ref_id": "@sk7rg0at75cmk:e2",
+                                      "role": "button",
+                                      "role_description": "按钮",
+                                      "subrole": "button"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "Click",
+                                        "ScrollTo"
+                                      ],
+                                      "name": "最大化",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "view_3"
+                                      },
+                                      "ref_id": "@sk7rg0at75cmk:e3",
+                                      "role": "button",
+                                      "role_description": "按钮",
+                                      "subrole": "button"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "Click",
+                                        "ScrollTo"
+                                      ],
+                                      "name": "还原",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "view_4"
+                                      },
+                                      "ref_id": "@sk7rg0at75cmk:e4",
+                                      "role": "button",
+                                      "role_description": "按钮",
+                                      "subrole": "button"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "Click",
+                                        "ScrollTo"
+                                      ],
+                                      "name": "关闭",
+                                      "native_id": {
+                                        "kind": "automation_id",
+                                        "value": "view_7"
+                                      },
+                                      "ref_id": "@sk7rg0at75cmk:e5",
+                                      "role": "button",
+                                      "role_description": "按钮",
+                                      "subrole": "button"
+                                    }
+                                  ],
+                                  "role": "group",
+                                  "role_description": "区域",
+                                  "subrole": "region"
+                                },
+                                {
+                                  "available_actions": [
+                                    "ScrollTo"
+                                  ],
+                                  "children": [
+                                    {
+                                      "available_actions": [
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "ScrollTo"
+                                          ],
+                                          "children": [
+                                            {
+                                              "available_actions": [
+                                                "ScrollTo"
+                                              ],
+                                              "children_count": 25,
+                                              "role": "group",
+                                              "role_description": "组",
+                                              "subrole": "group"
+                                            }
+                                          ],
+                                          "name": "应用栏",
+                                          "native_id": {
+                                            "kind": "automation_id",
+                                            "value": "view_1000"
+                                          },
+                                          "ref_id": "@sk7rg0at75cmk:e6",
+                                          "role": "toolbar",
+                                          "role_description": "工具栏",
+                                          "subrole": "toolbar"
+                                        }
+                                      ],
+                                      "role": "group",
+                                      "role_description": "区域",
+                                      "subrole": "region"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "ScrollTo"
+                                          ],
+                                          "children": [
+                                            {
+                                              "available_actions": [
+                                                "ScrollTo"
+                                              ],
+                                              "children_count": 5,
+                                              "role": "group",
+                                              "role_description": "区域",
+                                              "subrole": "region"
+                                            }
+                                          ],
+                                          "role": "group",
+                                          "role_description": "区域",
+                                          "subrole": "region"
+                                        },
+                                        {
+                                          "available_actions": [
+                                            "ScrollTo"
+                                          ],
+                                          "children": [
+                                            {
+                                              "available_actions": [
+                                                "ScrollTo"
+                                              ],
+                                              "children_count": 1,
+                                              "role": "document",
+                                              "role_description": "文档",
+                                              "subrole": "document"
+                                            }
+                                          ],
+                                          "name": "侧窗格",
+                                          "role": "group",
+                                          "role_description": "区域",
+                                          "subrole": "region"
+                                        }
+                                      ],
+                                      "role": "group",
+                                      "role_description": "区域",
+                                      "subrole": "region"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "SetValue",
+                                            "ScrollTo"
+                                          ],
+                                          "name": "侧面板调整大小图柄(可拖动)",
+                                          "ref_id": "@sk7rg0at75cmk:e7",
+                                          "role": "slider",
+                                          "role_description": "滑块",
+                                          "subrole": "slider"
+                                        }
+                                      ],
+                                      "role": "group",
+                                      "role_description": "区域",
+                                      "subrole": "region"
+                                    },
+                                    {
+                                      "available_actions": [
+                                        "ScrollTo"
+                                      ],
+                                      "children": [
+                                        {
+                                          "available_actions": [
+                                            "ScrollTo"
+                                          ],
+                                          "children": [
+                                            {
+                                              "available_actions": [
+                                                "ScrollTo"
+                                              ],
+                                              "children_count": 4,
+                                              "role": "tablist",
+                                              "role_description": "选项卡",
+                                              "states": [
+                                                "multiselectable"
+                                              ],
+                                              "subrole": "tablist"
+                                            }
+                                          ],
+                                          "native_id": {
+                                            "kind": "automation_id",
+                                            "value": "view_25"
+                                          },
+                                          "ref_id": "@sk7rg0at75cmk:e8",
+                                          "role": "group",
+                                          "role_description": "区域",
+                                          "subrole": "region"
+                                        },
+                                        {
+                                          "available_actions": [
+                                            "Click",
+                                            "ScrollTo"
+                                          ],
+                                          "description": "新建标签页 ",
+                                          "name": "新建标签页",
+                                          "native_id": {
+                                            "kind": "automation_id",
+                                            "value": "view_28"
+                                          },
+                                          "ref_id": "@sk7rg0at75cmk:e9",
+                                          "role": "button",
+                                          "role_description": "按钮",
+                                          "subrole": "button"
+                                        }
+                                      ],
+                                      "name": "标签页栏",
+                                      "role": "tablist",
+                                      "role_description": "选项卡",
+                                      "subrole": "tablist"
+                                    }
+                                  ],
+                                  "role": "group",
+                                  "role_description": "区域",
+                                  "subrole": "region"
+                                }
+                              ],
+                              "role": "group",
+                              "role_description": "区域",
+                              "subrole": "region"
+                            }
+                          ],
+                          "role": "group",
+                          "role_description": "区域",
+                          "subrole": "region"
+                        }
+                      ],
+                      "name": "Aster - Web 内容",
+                      "ref_id": "@sk7rg0at75cmk:e1",
+                      "role": "group",
+                      "role_description": "区域",
+                      "subrole": "region"
+                    }
+                  ],
+                  "name": "Aster",
+                  "role": "group",
+                  "role_description": "窗格",
+                  "states": [
+                    "focused"
+                  ]
+                }
+              ],
+              "role": "group",
+              "role_description": "窗格",
+              "states": [
+                "focused"
+              ]
+            }
+          ],
+          "role": "group",
+          "role_description": "窗格"
+        },
+        {
+          "available_actions": [
+            "SetValue",
+            "SetFocus"
+          ],
+          "children": [
+            {
+              "available_actions": [
+                "SetFocus"
+              ],
+              "children": [
+                {
+                  "available_actions": [
+                    "Click",
+                    "Expand",
+                    "Collapse",
+                    "SetFocus"
+                  ],
+                  "name": "系统",
+                  "ref_id": "@sk7rg0at75cmk:e11",
+                  "role": "menuitem",
+                  "role_description": "菜单项目",
+                  "states": [
+                    "haspopup"
+                  ]
+                }
+              ],
+              "name": "系统",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "SystemMenuBar"
+              },
+              "role": "menu",
+              "role_description": "菜单栏"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "最小化",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Minimize-Restore"
+              },
+              "ref_id": "@sk7rg0at75cmk:e12",
+              "role": "button",
+              "role_description": "按钮"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "最大化",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Maximize-Restore"
+              },
+              "ref_id": "@sk7rg0at75cmk:e13",
+              "role": "button",
+              "role_description": "按钮"
+            },
+            {
+              "available_actions": [
+                "Click"
+              ],
+              "name": "关闭",
+              "native_id": {
+                "kind": "automation_id",
+                "value": "Close"
+              },
+              "ref_id": "@sk7rg0at75cmk:e14",
+              "role": "button",
+              "role_description": "按钮"
+            }
+          ],
+          "native_id": {
+            "kind": "automation_id",
+            "value": "TitleBar"
+          },
+          "ref_id": "@sk7rg0at75cmk:e10",
+          "role": "group",
+          "role_description": "标题栏",
+          "value": "Aster"
+        }
+      ],
+      "name": "Aster",
+      "role": "window",
+      "role_description": "窗口"
+    },
+    "window": {
+      "id": "w-120982452",
+      "title": "Aster"
+    }
+  }
+}

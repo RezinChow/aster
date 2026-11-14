@@ -1,0 +1,19 @@
+=== 2026-11-14 F05 increment result summary ===
+
+--- executed F05 UI-subset case ---
+  F05 run1: verdict=PASS assertions=12 all_ok=True window=w-120982452 token=E2EF058EAF
+  F05 run2: verdict=PASS assertions=12 all_ok=True window=w-120982452 token=E2EF054FAE
+
+--- functional verdict (fail-closed) ---
+  F05  PARTIAL  (was BLOCKED) : provider configured through the real GUI,
+                 model discovered via the product's own /v1/models call,
+                 model visible in the workbench selector AX (2 matches).
+                 NOT counted as coverage: 'select model -> read back' is
+                 impossible because model rows expose no actionable ref.
+  F03  SKIP     : synthetic model cannot become the active model through AX,
+                 so no controllable turn can be attributed to the fixture.
+  F01  unchanged: 2xFAIL on the user worktree (rerun archive kept).
+  F16  unchanged: 2xPASS UI subset from the previous supplement run.
+
+  No MATRIX.md / ledger number was changed by this run.
+  No product source file was modified.

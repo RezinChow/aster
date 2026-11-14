@@ -1,0 +1,209 @@
+{
+  "window_id": "w-120982452",
+  "windows": [
+    {
+      "id": "w-120982452",
+      "title": "Aster",
+      "pid": 50320,
+      "visible": true
+    }
+  ],
+  "names": {
+    "描述任务": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "设置": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "选择模型": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "工作": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "返回应用": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型服务": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "模型配置": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "E2E-Local": {
+      "total_matches": 3,
+      "sample": [
+        {
+          "name": "E2E-Local · 检测并启用",
+          "role": "window",
+          "ref_id": null
+        },
+        {
+          "name": "E2E-Local · 检测并启用",
+          "role": "statictext",
+          "ref_id": null
+        },
+        {
+          "name": "E2E-Local",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "e2e-synthetic-1": {
+      "total_matches": 2,
+      "sample": [
+        {
+          "name": "验证 e2e-synthetic-1 成功",
+          "role": "option",
+          "ref_id": "@s2z3lkxei6352q:e1"
+        },
+        {
+          "name": "验证 e2e-synthetic-1",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "添加所选模型": {
+      "total_matches": 2,
+      "sample": [
+        {
+          "name": "添加所选模型 成功",
+          "role": "option",
+          "ref_id": "@s1yg275fy05izj:e1"
+        },
+        {
+          "name": "添加所选模型",
+          "role": "statictext",
+          "ref_id": null
+        }
+      ]
+    },
+    "跳过": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "返回": {
+      "total_matches": 0,
+      "sample": []
+    },
+    "新建任务": {
+      "total_matches": 0,
+      "sample": []
+    }
+  },
+  "roles": {
+    "menubutton": [
+      {
+        "name": "改为搜索",
+        "ref_id": "@s1d7eacfoy0xlj:e17"
+      },
+      {
+        "name": "要打开此链接，请选择一个应用",
+        "ref_id": "@s1d7eacfoy0xlj:e19"
+      },
+      {
+        "name": "应用程序可用。安装 ",
+        "ref_id": "@s1d7eacfoy0xlj:e20"
+      },
+      {
+        "name": "显示翻译选项",
+        "ref_id": "@s1d7eacfoy0xlj:e21"
+      },
+      {
+        "name": "更新此网站的自动配置文件切换首选项",
+        "ref_id": "@s1d7eacfoy0xlj:e23"
+      },
+      {
+        "name": "查看虚拟卡号",
+        "ref_id": "@s1d7eacfoy0xlj:e24"
+      },
+      {
+        "name": "立即购买，稍后支付",
+        "ref_id": "@s1d7eacfoy0xlj:e25"
+      },
+      {
+        "name": "保存地址？",
+        "ref_id": "@s1d7eacfoy0xlj:e26"
+      },
+      {
+        "name": "更多操作",
+        "ref_id": "@s1d7eacfoy0xlj:e27"
+      },
+      {
+        "name": "协作者个人资料照片",
+        "ref_id": "@s1d7eacfoy0xlj:e28"
+      },
+      {
+        "name": "协作者个人资料照片",
+        "ref_id": "@s1d7eacfoy0xlj:e29"
+      },
+      {
+        "name": "协作者个人资料照片",
+        "ref_id": "@s1d7eacfoy0xlj:e30"
+      },
+      {
+        "name": "协作者个人资料照片",
+        "ref_id": "@s1d7eacfoy0xlj:e31"
+      }
+    ],
+    "button": [
+      {
+        "name": "最小化",
+        "ref_id": "@s1ql5nycy73bpz:e1"
+      },
+      {
+        "name": "最大化",
+        "ref_id": "@s1ql5nycy73bpz:e2"
+      },
+      {
+        "name": "还原",
+        "ref_id": "@s1ql5nycy73bpz:e3"
+      },
+      {
+        "name": "关闭",
+        "ref_id": "@s1ql5nycy73bpz:e4"
+      },
+      {
+        "name": "Close",
+        "ref_id": "@s1ql5nycy73bpz:e6"
+      },
+      {
+        "name": "完成",
+        "ref_id": "@s1ql5nycy73bpz:e7"
+      },
+      {
+        "name": "对此标签页静音",
+        "ref_id": "@s1ql5nycy73bpz:e8"
+      },
+      {
+        "name": "关闭标签页",
+        "ref_id": "@s1ql5nycy73bpz:e9"
+      },
+      {
+        "name": "新建标签页",
+        "ref_id": "@s1ql5nycy73bpz:e10"
+      },
+      {
+        "name": "最小化",
+        "ref_id": "@s1ql5nycy73bpz:e11"
+      },
+      {
+        "name": "最大化",
+        "ref_id": "@s1ql5nycy73bpz:e12"
+      },
+      {
+        "name": "关闭",
+        "ref_id": "@s1ql5nycy73bpz:e13"
+      }
+    ]
+  }
+}

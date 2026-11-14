@@ -1,0 +1,24 @@
+{
+  "case": "F17",
+  "run": 1,
+  "verdict": "PASS",
+  "token": "中文短句测试17D90A",
+  "window_id": "w-85395480",
+  "evidence": [
+    {
+      "label": "F17 resize-window delivered",
+      "ok": true,
+      "detail": "code=None"
+    },
+    {
+      "label": "F17 snapshot complete after resize",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "F17 severe overflow count",
+      "ok": true,
+      "detail": "window_bounds={'height': 700.0, 'width': 900.0, 'x': 258.0, 'y': 51.0} named_bounded_nodes=0 severe=[]"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+=== 2026-11-14 rerun result summary ===
+
+F01  run1=FAIL     run2=FAIL     window_id(run1/run2)=w-162401792/w-162401792
+F02  run1=PASS     run2=PASS     window_id(run1/run2)=w-162401792/w-162401792
+F03  run1=-        run2=-        window_id(run1/run2)=/
+F04  run1=-        run2=-        window_id(run1/run2)=/
+F05  run1=BLOCKED  run2=BLOCKED  window_id(run1/run2)=w-162401792/w-162401792
+F06  run1=-        run2=-        window_id(run1/run2)=/
+F07  run1=-        run2=-        window_id(run1/run2)=/
+F08  run1=PASS     run2=PASS     window_id(run1/run2)=w-24707994/w-331747382
+F09  run1=-        run2=-        window_id(run1/run2)=/
+F10  run1=PASS     run2=PASS     window_id(run1/run2)=w-162401792/w-162401792
+F11  run1=PASS     run2=PASS     window_id(run1/run2)=w-322896246/w-40174798
+F12  run1=-        run2=-        window_id(run1/run2)=/
+F13  run1=-        run2=-        window_id(run1/run2)=/
+F14  run1=PARTIAL  run2=-        window_id(run1/run2)=w-331747382/
+F15  run1=-        run2=-        window_id(run1/run2)=/
+F16  run1=-        run2=-        window_id(run1/run2)=/
+F17  run1=PASS     run2=PASS     window_id(run1/run2)=w-162401792/w-162401792
+
+--- restart identities (from evidence) ---
+  phase1-F08-run1.json: before=[('w-40174798', 16800)] after=(w-24707994,3232) windows_after=1
+  phase1-F08-run2.json: before=[('w-24707994', 3232)] after=(w-331747382,53428) windows_after=1
+  phase1-F11-run1.json: before=[('w-162401792', 8684)] after=(w-322896246,47860) windows_after=1
+  phase1-F11-run2.json: before=[('w-322896246', 47860)] after=(w-40174798,16800) windows_after=1

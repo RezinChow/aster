@@ -1,0 +1,47 @@
+expand ok=True err=None
+--- model total=2 ---
+   name='e2e-synthetic-1' role=group ref=None states=[] value=None
+   name='e2e-synthetic-1' role=statictext ref=None states=[] value=None
+--- role=menuitem total=1 named=1 ---
+   '系统' ref=@s2kc4h1g6aopgb:e1 states=['haspopup']
+--- role=option total=0 named=0 ---
+--- role=checkbox total=0 named=0 ---
+--- role=radio total=0 named=0 ---
+--- role=button total=22 named=21 ---
+   '最小化' ref=@s3ch5suf9a0ujk:e1 states=[]
+   '最大化' ref=@s3ch5suf9a0ujk:e2 states=[]
+   '还原' ref=@s3ch5suf9a0ujk:e3 states=[]
+   '关闭' ref=@s3ch5suf9a0ujk:e4 states=[]
+   '工作' ref=@s3ch5suf9a0ujk:e6 states=[]
+   '设置' ref=@s3ch5suf9a0ujk:e7 states=[]
+   '新建任务' ref=@s3ch5suf9a0ujk:e8 states=[]
+   '连接器' ref=@s3ch5suf9a0ujk:e9 states=[]
+   '技能' ref=@s3ch5suf9a0ujk:e10 states=[]
+   '自动化' ref=@s3ch5suf9a0ujk:e11 states=[]
+   '新建项目' ref=@s3ch5suf9a0ujk:e12 states=[]
+   '发送' ref=@s3ch5suf9a0ujk:e13 states=['disabled']
+   '关闭模型选择' ref=@s3ch5suf9a0ujk:e14 states=[]
+   '跳转到服务商设置界面' ref=@s3ch5suf9a0ujk:e15 states=[]
+   '配置自定义模型' ref=@s3ch5suf9a0ujk:e16 states=[]
+   '对此标签页静音' ref=@s3ch5suf9a0ujk:e17 states=['disabled']
+   '关闭标签页' ref=@s3ch5suf9a0ujk:e18 states=[]
+   '新建标签页' ref=@s3ch5suf9a0ujk:e19 states=[]
+   '最小化' ref=@s3ch5suf9a0ujk:e20 states=[]
+   '最大化' ref=@s3ch5suf9a0ujk:e21 states=[]
+   '关闭' ref=@s3ch5suf9a0ujk:e22 states=[]
+--- role=statictext total=68 named=2 ---
+   '无标题' ref=None states=[]
+   '项目' ref=@s2ddbaxllve3n7:e1 states=[]
+--- role=group total=142 named=7 ---
+   'Aster' ref=None states=['focused']
+   'Aster - Web 内容' ref=None states=[]
+   '信息栏容器' ref=None states=[]
+   'Chrome Legacy Window' ref=@s2mhjfadqb3o73:e2 states=[]
+   '工作导航' ref=None states=[]
+   '项目' ref=None states=[]
+   '最近' ref=None states=[]
+  selector text = {"property": "text", "ref": "@s28x6wx2co7kxy:e1", "value": "选择模型"}
+  selector value = {"property": "value", "ref": "@s28x6wx2co7kxy:e1", "value": ""}
+  selector title = {"property": "title", "ref": "@s28x6wx2co7kxy:e1", "value": "选择模型"}
+POPUP_DONE
+EXIT=0

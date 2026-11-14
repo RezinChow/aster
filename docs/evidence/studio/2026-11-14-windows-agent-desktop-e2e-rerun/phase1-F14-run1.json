@@ -1,0 +1,19 @@
+{
+  "case": "F14",
+  "run": 1,
+  "verdict": "PARTIAL",
+  "token": "WIN14D49D",
+  "window_id": "w-331747382",
+  "evidence": [
+    {
+      "label": "F14 exactly one main window at sampling time",
+      "ok": true,
+      "detail": "windows=1"
+    },
+    {
+      "label": "F14 second-launch window count (AX list-windows)",
+      "ok": true,
+      "detail": "current_windows=1 ids=['w-331747382'] pids=[53428] restart_observations=[{\"tag\": \"F11\", \"detail\": \"before=[('w-162401792', 8684)] after=(w-322896246,47860) windows_after=1\"}, {\"tag\": \"F11\", \"detail\": \"before=[('w-322896246', 47860)] after=(w-40174798,16800) windows_after=1\"}, {\"tag\": \"F08\", \"detail\": \"before=[('w-40174798', 16800)] after=(w-24707994,3232) windows_after=1\"}, {\"tag\": \"F08\", \"detail\": \"before=[('w-24707994', 3232)] after=(w-331747382,53428) windows_after=1\"}]"
+    }
+  ]
+}

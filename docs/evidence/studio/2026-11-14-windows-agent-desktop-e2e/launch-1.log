@@ -1,0 +1,2028 @@
+just studio: client dev server on 127.0.0.1:4318 (hot reload)
+just studio: native build cache D:\code\aster\target\studio\aster
+D:\code\aster\target\studio\aster\debug\studio-resources\document
+warning: unused import: `attachments_from_fact_tool_images`
+  --> crates\code\core\src\fact_control.rs:86:5
+   |
+86 |     attachments_from_fact_tool_images, confirmation_parked, decision_from_response,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ProgressBasis`
+  --> crates\code\core\src\goal_control\facts.rs:45:75
+   |
+45 | pub(crate) use run::{prepare_run, render_run_context, ContinuationSource, ProgressBasis};
+   |                                                                           ^^^^^^^^^^^^^
+
+warning: unreachable pattern
+   --> crates\code\core\src\workspace\manifest\scanner.rs:459:19
+    |
+458 |                 | ".aster"
+    |                   -------- matches all the relevant values
+459 |                 | ".aster"
+    |                   ^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+  --> crates\code\core\src\workspace\source_egress.rs:65:19
+   |
+64 |                 | ".aster"
+   |                   -------- matches all the relevant values
+65 |                 | ".aster"
+   |                   ^^^^^^^^ no value can reach this
+
+warning: associated function `observed_mutations` is never used
+  --> crates\code\core\src\goal_control\facts\run\continuation.rs:26:19
+   |
+25 | impl ContinuationSource {
+   | ----------------------- associated function in this implementation
+26 |     pub(crate) fn observed_mutations(
+   |                   ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `recorded_uncertainties` is never used
+   --> crates\code\core\src\harness_loop.rs:746:19
+    |
+366 | impl MutationLedger {
+    | ------------------- method in this implementation
+...
+746 |     pub(crate) fn recorded_uncertainties(&self) -> &std::collections::BTreeSet<String> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `with_scheduler_quota_from` is never used
+   --> crates\code\core\src\llm\admission.rs:338:19
+    |
+257 | impl ModelGenerationAdmission {
+    | ----------------------------- method in this implementation
+...
+338 |     pub(crate) fn with_scheduler_quota_from(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `uses_anthropic_messages_api` is never used
+   --> crates\code\core\src\llm\factory.rs:258:15
+    |
+258 | pub(crate) fn uses_anthropic_messages_api(provider: &str, base_url: Option<&str>) -> bool {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `lines` is never used
+   --> crates\code\core\src\porcelain.rs:498:21
+    |
+498 | pub(crate) async fn lines(root: &Path) -> Option<Vec<String>> {
+    |                     ^^^^^
+
+warning: associated function `new` is never used
+   --> crates\code\core\src\tools\types.rs:320:8
+    |
+318 | impl ModelGenerationPermitReservation {
+    | ------------------------------------- associated function in this implementation
+319 |     /// Called from the `dynamic-workflow` surface.
+320 |     fn new(permit: Arc<crate::llm::ModelGenerationPermit>) -> Self {
+    |        ^^^
+
+warning: method `with_model_generation_permit` is never used
+   --> crates\code\core\src\tools\types.rs:861:19
+    |
+408 | impl ToolContext {
+    | ---------------- method in this implementation
+...
+861 |     pub(crate) fn with_model_generation_permit(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated functions `default_catalog` and `default_catalog_with_engine` are never used
+   --> crates\code\core\src\workspace\retrieval\catalog.rs:287:19
+    |
+153 | impl WorkspaceChunkCatalog {
+    | -------------------------- associated functions in this implementation
+...
+287 |     pub(crate) fn default_catalog() -> Arc<Self> {
+    |                   ^^^^^^^^^^^^^^^
+...
+295 |     pub(crate) fn default_catalog_with_engine(engine: WorkspaceLexicalEngine) -> Arc<Self> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `aster-core` (lib) generated 12 warnings (run `cargo fix --lib -p aster-core` to apply 2 suggestions)
+warning: unused import: `sha2::Digest`
+  --> crates\embedding\src\hygiene.rs:10:5
+   |
+10 | use sha2::Digest as _;
+   |     ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> crates\embedding\src\vector\hnsw.rs:41:13
+   |
+41 |         let mut index =
+   |             ----^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `dimension` is never read
+  --> crates\embedding\src\vector\hnsw.rs:21:5
+   |
+17 | pub struct HnswBackend {
+   |            ----------- field in this struct
+...
+21 |     dimension: usize,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aster-embedding` (lib) generated 3 warnings (run `cargo fix --lib -p aster-embedding` to apply 1 suggestion)
+warning: variable does not need to be mutable
+   --> crates\code\acp\src\unattended.rs:225:9
+    |
+225 |     let mut builder = std::fs::DirBuilder::new();
+    |         ----^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `register_embedding_provider` is never used
+  --> crates\code\acp\src\agent\local_embedding.rs:42:8
+   |
+42 | pub fn register_embedding_provider(factory: Factory) -> Result<(), String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `as_str` is never used
+  --> crates\code\acp\src\host_context.rs:64:12
+   |
+57 | impl CompletionAttestation {
+   | -------------------------- method in this implementation
+...
+64 |     pub fn as_str(self) -> &'static str {
+   |            ^^^^^^
+
+warning: `aster-acp` (lib) generated 3 warnings (run `cargo fix --lib -p aster-acp` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3m 11s
+warning: field `directory` is never read
+   --> crates\terminal\crates\codegen\aster-config\src\managed_text\source.rs:131:5
+    |
+128 | pub(super) struct ParentAnchor {
+    |                   ------------ field in this struct
+...
+131 |     directory: fs::File,
+    |     ^^^^^^^^^
+    |
+    = note: `ParentAnchor` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `attachments_from_fact_tool_images`
+  --> crates\code\core\src\fact_control.rs:86:5
+   |
+86 |     attachments_from_fact_tool_images, confirmation_parked, decision_from_response,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ProgressBasis`
+  --> crates\code\core\src\goal_control\facts.rs:45:75
+   |
+45 | pub(crate) use run::{prepare_run, render_run_context, ContinuationSource, ProgressBasis};
+   |                                                                           ^^^^^^^^^^^^^
+
+warning: unreachable pattern
+   --> crates\code\core\src\workspace\manifest\scanner.rs:459:19
+    |
+458 |                 | ".aster"
+    |                   -------- matches all the relevant values
+459 |                 | ".aster"
+    |                   ^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+  --> crates\code\core\src\workspace\source_egress.rs:65:19
+   |
+64 |                 | ".aster"
+   |                   -------- matches all the relevant values
+65 |                 | ".aster"
+   |                   ^^^^^^^^ no value can reach this
+
+warning: associated function `observed_mutations` is never used
+  --> crates\code\core\src\goal_control\facts\run\continuation.rs:26:19
+   |
+25 | impl ContinuationSource {
+   | ----------------------- associated function in this implementation
+26 |     pub(crate) fn observed_mutations(
+   |                   ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `recorded_uncertainties` is never used
+   --> crates\code\core\src\harness_loop.rs:746:19
+    |
+366 | impl MutationLedger {
+    | ------------------- method in this implementation
+...
+746 |     pub(crate) fn recorded_uncertainties(&self) -> &std::collections::BTreeSet<String> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `with_scheduler_quota_from` is never used
+   --> crates\code\core\src\llm\admission.rs:338:19
+    |
+257 | impl ModelGenerationAdmission {
+    | ----------------------------- method in this implementation
+...
+338 |     pub(crate) fn with_scheduler_quota_from(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `uses_anthropic_messages_api` is never used
+   --> crates\code\core\src\llm\factory.rs:258:15
+    |
+258 | pub(crate) fn uses_anthropic_messages_api(provider: &str, base_url: Option<&str>) -> bool {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `lines` is never used
+   --> crates\code\core\src\porcelain.rs:498:21
+    |
+498 | pub(crate) async fn lines(root: &Path) -> Option<Vec<String>> {
+    |                     ^^^^^
+
+warning: associated function `new` is never used
+   --> crates\code\core\src\tools\types.rs:320:8
+    |
+318 | impl ModelGenerationPermitReservation {
+    | ------------------------------------- associated function in this implementation
+319 |     /// Called from the `dynamic-workflow` surface.
+320 |     fn new(permit: Arc<crate::llm::ModelGenerationPermit>) -> Self {
+    |        ^^^
+
+warning: method `with_model_generation_permit` is never used
+   --> crates\code\core\src\tools\types.rs:861:19
+    |
+408 | impl ToolContext {
+    | ---------------- method in this implementation
+...
+861 |     pub(crate) fn with_model_generation_permit(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated functions `default_catalog` and `default_catalog_with_engine` are never used
+   --> crates\code\core\src\workspace\retrieval\catalog.rs:287:19
+    |
+153 | impl WorkspaceChunkCatalog {
+    | -------------------------- associated functions in this implementation
+...
+287 |     pub(crate) fn default_catalog() -> Arc<Self> {
+    |                   ^^^^^^^^^^^^^^^
+...
+295 |     pub(crate) fn default_catalog_with_engine(engine: WorkspaceLexicalEngine) -> Arc<Self> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `aster-config` (lib) generated 1 warning
+warning: `aster-core` (lib) generated 12 warnings (run `cargo fix --lib -p aster-core` to apply 2 suggestions)
+warning: unused variable: `path`
+   --> apps\studio\src-tauri\build.rs:145:11
+    |
+145 | fn unlock(path: &Path) {
+    |           ^^^^ help: if this is intentional, prefix it with an underscore: `_path`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: linker stdout: 正在创建库 D:\code\aster\target\studio\aster\debug\deps\aster_boot_macros-6d79fd467781de01.dll.lib 和对象 D:\code\aster\target\studio\aster\debug\deps\aster_boot_macros-6d79fd467781de01.dll.exp
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `aster-studio` (build script) generated 1 warning
+warning: `aster-boot-macros` (lib) generated 1 warning
+warning: unused import: `sha2::Digest`
+  --> crates\embedding\src\hygiene.rs:10:5
+   |
+10 | use sha2::Digest as _;
+   |     ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> crates\embedding\src\vector\hnsw.rs:41:13
+   |
+41 |         let mut index =
+   |             ----^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `dimension` is never read
+  --> crates\embedding\src\vector\hnsw.rs:21:5
+   |
+17 | pub struct HnswBackend {
+   |            ----------- field in this struct
+...
+21 |     dimension: usize,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `upsert_instance_map` is never used
+   --> crates\boot\src\service_discovery\mod.rs:203:15
+    |
+203 | pub(crate) fn upsert_instance_map(
+    |               ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `remove_instance_map` is never used
+   --> crates\boot\src\service_discovery\mod.rs:215:15
+    |
+215 | pub(crate) fn remove_instance_map(
+    |               ^^^^^^^^^^^^^^^^^^^
+
+warning: `aster-embedding` (lib) generated 3 warnings (run `cargo fix --lib -p aster-embedding` to apply 1 suggestion)
+warning: `aster-boot` (lib) generated 2 warnings
+warning: unused import: `runtime_client::RuntimeClient`
+  --> apps\studio\src-tauri\src\agent_plane\mod.rs:12:16
+   |
+12 | pub(crate) use runtime_client::RuntimeClient;
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `body`, `get`, `param`, and `post`
+ --> apps\studio\src-tauri\src\agent_plane\visual_mcp.rs:4:37
+  |
+4 | use aster_boot::{BootError, Result, body, controller, get, param, post};
+  |                                     ^^^^              ^^^  ^^^^^  ^^^^
+
+warning: unused import: `turns::computer_use_runtime_registered`
+   --> apps\studio\src-tauri\src\agent_plane\mod.rs:110:16
+    |
+110 | pub(crate) use turns::computer_use_runtime_registered;
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `update_install_supported`
+  --> apps\studio\src-tauri\src\app_updater.rs:26:71
+   |
+26 | pub(crate) use crate::update_support::{InstallTarget, install_target, update_install_supported};
+   |                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Ordering`
+ --> apps\studio\src-tauri\src\desktop_settings.rs:8:36
+  |
+8 | use std::sync::atomic::{AtomicU32, Ordering};
+  |                                    ^^^^^^^^
+
+warning: unused import: `std::fs`
+ --> apps\studio\src-tauri\src\providers.rs:7:5
+  |
+7 | use std::fs;
+  |     ^^^^^^^
+
+warning: unused import: `profile_dir_under`
+   --> apps\studio\src-tauri\src\tenant.rs:130:32
+    |
+130 | pub use profile::{profile_dir, profile_dir_under};
+    |                                ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `isolate_child_webview`
+   --> apps\studio\src-tauri\src\tenant.rs:134:26
+    |
+134 | pub(crate) use webview::{isolate_child_webview, isolate_webview};
+    |                          ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Path`
+ --> apps\studio\src-tauri\src\update_support.rs:3:17
+  |
+3 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused import: `imported`
+ --> apps\studio\src-tauri\src\visual_feedback\clipboard.rs:1:55
+  |
+1 | use super::{ImportedImage, MAX_BYTES, caller, decode, imported, input_bytes, png};
+  |                                                       ^^^^^^^^
+
+warning: unused import: `imported`
+ --> apps\studio\src-tauri\src\visual_feedback\desktop.rs:1:57
+  |
+1 | use super::{ImportedImage, Rect, caller, decode_base64, imported, png};
+  |                                                         ^^^^^^^^
+
+warning: unused import: `tauri::Manager`
+ --> apps\studio\src-tauri\src\visual_feedback\media.rs:9:5
+  |
+9 | use tauri::Manager;
+  |     ^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:4055:13
+     |
+4055 |         let mut plugin_selection = super::plugin_selection::current(&self.config, &tools).await?;
+     |             ----^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:1050:16
+     |
+1050 |         let Ok(mut plugin_selection) = super::plugin_selection::current(&self.config, &tools).await
+     |                ----^^^^^^^^^^^^^^^^
+     |                |
+     |                help: remove this `mut`
+
+warning: unused variable: `app`
+  --> apps\studio\src-tauri\src\message_attention.rs:30:18
+   |
+30 | pub fn set_count(app: &AppHandle, count: u32) {
+   |                  ^^^ help: if this is intentional, prefix it with an underscore: `_app`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> apps\studio\src-tauri\src\office_tool.rs:363:13
+    |
+363 |         let mut builder = std::fs::DirBuilder::new();
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `dock_name`
+   --> apps\studio\src-tauri\src\lib.rs:468:9
+    |
+468 |     let dock_name = app_name.clone();
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dock_name`
+
+warning: function `claim_watchdog_slot` is never used
+   --> apps\studio\src-tauri\src\lib.rs:751:4
+    |
+751 | fn claim_watchdog_slot(armed: &AtomicBool) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `personal_wiki` is never read
+   --> apps\studio\src-tauri\src\agent_plane\mod.rs:176:9
+    |
+159 | pub struct PlaneConfig {
+    |            ----------- field in this struct
+...
+176 |     pub personal_wiki: Option<PersonalWikiLookup>,
+    |         ^^^^^^^^^^^^^
+
+warning: method `resident_wiki` is never used
+   --> apps\studio\src-tauri\src\agent_plane\mod.rs:223:12
+    |
+184 | impl PlaneConfig {
+    | ---------------- method in this implementation
+...
+223 |     pub fn resident_wiki(&self) -> Option<PathBuf> {
+    |            ^^^^^^^^^^^^^
+
+warning: function `start` is never used
+   --> apps\studio\src-tauri\src\agent_plane\mod.rs:471:8
+    |
+471 | pub fn start(
+    |        ^^^^^
+
+warning: constant `RUNTIME_TRANSCRIPT_PAGE_SCHEMA` is never used
+  --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:16:18
+   |
+16 | pub(crate) const RUNTIME_TRANSCRIPT_PAGE_SCHEMA: &str = "aster.acp.session-transcript-page.v1";
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `RUNTIME_PREFIX_FORK_SCHEMA` is never used
+  --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:17:18
+   |
+17 | pub(crate) const RUNTIME_PREFIX_FORK_SCHEMA: &str = "aster.acp.session-prefix-fork.v1";
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `WORKSPACE_SEARCH_SCHEMA` is never used
+  --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:18:7
+   |
+18 | const WORKSPACE_SEARCH_SCHEMA: &str = "aster.acp.workspace-search.v1";
+   |       ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `RuntimeWorkspaceSearch` is never constructed
+  --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:22:19
+   |
+22 | pub(crate) struct RuntimeWorkspaceSearch {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `RuntimeTranscriptPage` is never constructed
+  --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:91:19
+   |
+91 | pub(crate) struct RuntimeTranscriptPage {
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `RuntimePrefixForkReceipt` is never constructed
+   --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:100:19
+    |
+100 | pub(crate) struct RuntimePrefixForkReceipt {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `RuntimeSessionCatalogEntry` is never constructed
+   --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:111:19
+    |
+111 | pub(crate) struct RuntimeSessionCatalogEntry {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `RuntimeSessionCatalog` is never constructed
+   --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:122:19
+    |
+122 | pub(crate) struct RuntimeSessionCatalog {
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `RuntimeSessionDeleteReceipt` is never constructed
+   --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:130:19
+    |
+130 | pub(crate) struct RuntimeSessionDeleteReceipt {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `load_session`, `transcript_page`, `prefix_fork`, `session_catalog`, `delete_session`, and `workspace_search` are never used
+   --> apps\studio\src-tauri\src\agent_plane\runtime_client.rs:383:25
+    |
+303 | impl RuntimeClient {
+    | ------------------ methods in this implementation
+...
+383 |     pub(crate) async fn load_session(&self, params: Value) -> Result<NewSessionResponse, String> {
+    |                         ^^^^^^^^^^^^
+...
+388 |     pub(crate) async fn transcript_page(
+    |                         ^^^^^^^^^^^^^^^
+...
+420 |     pub(crate) async fn prefix_fork(
+    |                         ^^^^^^^^^^^
+...
+447 |     pub(crate) async fn session_catalog(
+    |                         ^^^^^^^^^^^^^^^
+...
+461 |     pub(crate) async fn delete_session(
+    |                         ^^^^^^^^^^^^^^
+...
+553 |     pub(crate) async fn workspace_search(
+    |                         ^^^^^^^^^^^^^^^^
+
+warning: methods `ensure_builtin_tobot` and `set_workspace` are never used
+    --> apps\studio\src-tauri\src\agent_plane\catalog.rs:709:12
+     |
+ 252 | impl SessionCatalog {
+     | ------------------- methods in this implementation
+...
+ 709 |     pub fn ensure_builtin_tobot(&self) -> Result<Session, PlaneError> {
+     |            ^^^^^^^^^^^^^^^^^^^^
+...
+1023 |     pub fn set_workspace(&self, id: &str, source: &Value) -> Result<Session, PlaneError> {
+     |            ^^^^^^^^^^^^^
+
+warning: constant `POLL_LIMIT` is never used
+  --> apps\studio\src-tauri\src\agent_plane\cloud_runtime.rs:29:7
+   |
+29 | const POLL_LIMIT: usize = 100;
+   |       ^^^^^^^^^^
+
+warning: struct `SseEvent` is never constructed
+   --> apps\studio\src-tauri\src\agent_plane\cloud_runtime.rs:838:19
+    |
+838 | pub(super) struct SseEvent {
+    |                   ^^^^^^^^
+
+warning: function `stream_agent_events` is never used
+   --> apps\studio\src-tauri\src\agent_plane\cloud_runtime.rs:845:21
+    |
+845 | pub(super) async fn stream_agent_events(
+    |                     ^^^^^^^^^^^^^^^^^^^
+
+warning: field `agents` is never read
+   --> apps\studio\src-tauri\src\agent_plane\controllers.rs:977:9
+    |
+974 | pub struct SearchController {
+    |            ---------------- field in this struct
+...
+977 |     pub agents: Arc<AgentCatalog>,
+    |         ^^^^^^
+
+warning: function `package_archive_bytes` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_box.rs:482:4
+    |
+482 | fn package_archive_bytes(root: &Path) -> Result<Vec<u8>, String> {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `base64_encode` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_box.rs:489:4
+    |
+489 | fn base64_encode(input: &[u8]) -> String {
+    |    ^^^^^^^^^^^^^
+
+warning: function `append_archive` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_box.rs:520:4
+    |
+520 | fn append_archive(root: &Path, dir: &Path, out: &mut Vec<u8>) -> Result<(), String> {
+    |    ^^^^^^^^^^^^^^
+
+warning: function `write_ustar_header` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_box.rs:560:4
+    |
+560 | fn write_ustar_header(
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `put_octal` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_box.rs:586:4
+    |
+586 | fn put_octal(slot: &mut [u8], value: u64) {
+    |    ^^^^^^^^^
+
+warning: constant `LISTEN_LIMIT` is never used
+  --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:22:7
+   |
+22 | const LISTEN_LIMIT: Duration = Duration::from_secs(2);
+   |       ^^^^^^^^^^^^
+
+warning: constant `REQUEST_LIMIT` is never used
+  --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:23:7
+   |
+23 | const REQUEST_LIMIT: Duration = Duration::from_secs(2);
+   |       ^^^^^^^^^^^^^
+
+warning: constant `PACKAGE_TURN_LIMIT` is never used
+  --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:24:7
+   |
+24 | const PACKAGE_TURN_LIMIT: Duration = Duration::from_secs(5);
+   |       ^^^^^^^^^^^^^^^^^^
+
+warning: struct `PeerState` is never constructed
+  --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:38:8
+   |
+38 | struct PeerState {
+   |        ^^^^^^^^^
+
+warning: struct `BuiltinPeer` is never constructed
+  --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:42:12
+   |
+42 | pub struct BuiltinPeer {
+   |            ^^^^^^^^^^^
+
+warning: associated items `start`, `endpoint`, and `stop` are never used
+  --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:49:18
+   |
+48 | impl BuiltinPeer {
+   | ---------------- associated items in this implementation
+49 |     pub async fn start() -> Result<Self, String> {
+   |                  ^^^^^
+...
+76 |     pub fn endpoint(&self) -> String {
+   |            ^^^^^^^^
+...
+80 |     pub async fn stop(mut self) {
+   |                  ^^^^
+
+warning: function `admit_command` is never used
+  --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:88:10
+   |
+88 | async fn admit_command(
+   |          ^^^^^^^^^^^^^
+
+warning: function `page_events` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:101:10
+    |
+101 | async fn page_events(
+    |          ^^^^^^^^^^^
+
+warning: function `admitted_prompt` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:114:4
+    |
+114 | fn admitted_prompt(body: &Value) -> Result<String, ()> {
+    |    ^^^^^^^^^^^^^^^
+
+warning: struct `PackageRun` is never constructed
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:186:12
+    |
+186 | pub struct PackageRun {
+    |            ^^^^^^^^^^
+
+warning: associated items `spawn`, `endpoint`, `stop`, and `finish` are never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:193:18
+    |
+192 | impl PackageRun {
+    | --------------- associated items in this implementation
+193 |     pub async fn spawn(program: &Path, args: &[String]) -> Result<Self, String> {
+    |                  ^^^^^
+...
+253 |     pub fn endpoint(&self) -> &str {
+    |            ^^^^^^^^
+...
+257 |     pub async fn stop(self) -> Result<(), String> {
+    |                  ^^^^
+...
+262 |     async fn finish(mut self) -> Result<String, String> {
+    |              ^^^^^^
+
+warning: function `listen_error` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:274:10
+    |
+274 | async fn listen_error(child: Child, stderr: JoinHandle<Vec<u8>>, error: &str) -> String {
+    |          ^^^^^^^^^^^^
+
+warning: function `stderr_text` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:279:10
+    |
+279 | async fn stderr_text(task: JoinHandle<Vec<u8>>) -> String {
+    |          ^^^^^^^^^^^
+
+warning: function `bounded_text` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:287:4
+    |
+287 | fn bounded_text(bytes: &[u8]) -> String {
+    |    ^^^^^^^^^^^^
+
+warning: function `with_diagnostic` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:293:4
+    |
+293 | fn with_diagnostic(error: String, stderr: &str) -> String {
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `post_json` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:302:14
+    |
+302 | pub async fn post_json(endpoint: &str, path: &str, body: &Value) -> Result<Value, String> {
+    |              ^^^^^^^^^
+
+warning: function `exchange_turn` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:396:21
+    |
+396 | pub(super) async fn exchange_turn(endpoint: &str, body: &Value) -> Result<Vec<String>, String> {
+    |                     ^^^^^^^^^^^^^
+
+warning: function `package_turn_text` is never used
+   --> apps\studio\src-tauri\src\agent_plane\edge_runtime.rs:402:14
+    |
+402 | pub async fn package_turn_text(entry: &Path, body: &Value) -> Result<Vec<String>, String> {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: method `background_running` is never used
+   --> apps\studio\src-tauri\src\agent_plane\events.rs:277:19
+    |
+ 56 | impl EventHub {
+    | ------------- method in this implementation
+...
+277 |     pub(crate) fn background_running(&self, session_id: &str) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^
+
+warning: associated function `single` is never used
+   --> apps\studio\src-tauri\src\agent_plane\launcher.rs:426:12
+    |
+340 | impl LaunchGeneration {
+    | --------------------- associated function in this implementation
+...
+426 |     pub fn single(
+    |            ^^^^^^
+
+warning: function `render_config` is never used
+   --> apps\studio\src-tauri\src\agent_plane\launcher.rs:697:4
+    |
+697 | fn render_config(provider_id: &str, model_id: &str, credentials: &ProviderCredentials) -> String {
+    |    ^^^^^^^^^^^^^
+
+warning: associated items `parse` and `as_str` are never used
+  --> apps\studio\src-tauri\src\agent_plane\store.rs:32:19
+   |
+31 | impl CoreBindingStatus {
+   | ---------------------- associated items in this implementation
+32 |     pub(super) fn parse(value: &str) -> io::Result<Self> {
+   |                   ^^^^^
+...
+43 |     pub(super) fn as_str(self) -> &'static str {
+   |                   ^^^^^^
+
+warning: fields `core_sessions` and `core_binding_error` are never read
+  --> apps\studio\src-tauri\src\agent_plane\store.rs:66:5
+   |
+61 | struct State {
+   |        ----- fields in this struct
+...
+66 |     core_sessions: HashMap<String, CoreSessionBinding>,
+   |     ^^^^^^^^^^^^^
+67 |     core_binding_error: Option<String>,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: method `ticker_started` is never used
+  --> apps\studio\src-tauri\src\agent_plane\tasks.rs:75:19
+   |
+33 | impl TaskService {
+   | ---------------- method in this implementation
+...
+75 |     pub(super) fn ticker_started(&self) -> bool {
+   |                   ^^^^^^^^^^^^^^
+
+warning: function `recall_note` is never used
+  --> apps\studio\src-tauri\src\agent_plane\tobot_memory.rs:20:15
+   |
+20 | pub(crate) fn recall_note(origin: &str, slug: &str, query: &str) -> Option<String> {
+   |               ^^^^^^^^^^^
+
+warning: function `retain_exchange` is never used
+  --> apps\studio\src-tauri\src\agent_plane\tobot_memory.rs:39:15
+   |
+39 | pub(crate) fn retain_exchange(origin: &str, slug: &str, key: &str, user: &str, assistant: &str) {
+   |               ^^^^^^^^^^^^^^^
+
+warning: field `acp_model` is never read
+   --> apps\studio\src-tauri\src\agent_plane\turns.rs:237:5
+    |
+229 | pub(super) struct SessionRuntime {
+    |                   -------------- field in this struct
+...
+237 |     acp_model: String,
+    |     ^^^^^^^^^
+
+warning: method `respond_approval` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:2168:12
+     |
+ 696 | impl TurnService {
+     | ---------------- method in this implementation
+...
+2168 |     pub fn respond_approval(&self, approval_id: &str, approved: bool) -> bool {
+     |            ^^^^^^^^^^^^^^^^
+
+warning: enum `ComputerUseSettingsStatus` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:4892:17
+     |
+4892 | pub(crate) enum ComputerUseSettingsStatus {
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `settings_status` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:4902:19
+     |
+4901 | impl ComputerUseDirectory {
+     | ------------------------- method in this implementation
+4902 |     pub(crate) fn settings_status(&self) -> ComputerUseSettingsStatus {
+     |                   ^^^^^^^^^^^^^^^
+
+warning: function `computer_use_runtime_registered` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:5011:15
+     |
+5011 | pub(crate) fn computer_use_runtime_registered(tenant: &Path) -> bool {
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `computer_use_permitted` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:5019:4
+     |
+5019 | fn computer_use_permitted(config: &PlaneConfig) -> bool {
+     |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `OfferedComputerUse` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:5150:17
+     |
+5150 | pub(super) enum OfferedComputerUse {
+     |                 ^^^^^^^^^^^^^^^^^^
+
+warning: function `run_offered_computer_use` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:5157:15
+     |
+5157 | pub(super) fn run_offered_computer_use(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `run_computer_use_process` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:5230:4
+     |
+5230 | fn run_computer_use_process(entry: &Path, payload: &[u8]) -> Result<Vec<u8>, String> {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `INTERRUPTED_RUN` is never used
+    --> apps\studio\src-tauri\src\agent_plane\turns.rs:5462:18
+     |
+5462 | pub(super) const INTERRUPTED_RUN: &str = INTERRUPTED_EXHAUSTED;
+     |                  ^^^^^^^^^^^^^^^
+
+warning: variant `Gateway` is never constructed
+   --> apps\studio\src-tauri\src\app_updater.rs:500:5
+    |
+498 | enum Feed {
+    |      ---- variant in this enum
+499 |     /// The account-gated gateway AppRelease channel.
+500 |     Gateway { channel: &'static str },
+    |     ^^^^^^^
+    |
+    = note: `Feed` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: enum `AppletPresent` is never used
+   --> apps\studio\src-tauri\src\applet_window.rs:490:17
+    |
+490 | pub(crate) enum AppletPresent {
+    |                 ^^^^^^^^^^^^^
+
+warning: function `applet_present` is never used
+   --> apps\studio\src-tauri\src\applet_window.rs:498:15
+    |
+498 | pub(crate) fn applet_present(app_active: bool) -> AppletPresent {
+    |               ^^^^^^^^^^^^^^
+
+warning: function `reveal_async` is never used
+   --> apps\studio\src-tauri\src\applet_window.rs:550:21
+    |
+550 | pub(crate) async fn reveal_async(
+    |                     ^^^^^^^^^^^^
+
+warning: field `name` is never read
+   --> apps\studio\src-tauri\src\authority.rs:154:5
+    |
+150 | pub struct StudioAuthority {
+    |            --------------- field in this struct
+...
+154 |     name: String,
+    |     ^^^^
+
+warning: method `name` is never used
+   --> apps\studio\src-tauri\src\authority.rs:362:12
+    |
+164 | impl StudioAuthority {
+    | -------------------- method in this implementation
+...
+362 |     pub fn name(&self) -> &str {
+    |            ^^^^
+
+warning: field `http` is never read
+  --> apps\studio\src-tauri\src\binary_tools.rs:51:5
+   |
+48 | struct BinaryState {
+   |        ----------- field in this struct
+...
+51 |     http: HttpSource,
+   |     ^^^^
+   |
+   = note: `BinaryState` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: function `installed_agent_entry` is never used
+    --> apps\studio\src-tauri\src\capabilities.rs:1539:15
+     |
+1539 | pub(crate) fn installed_agent_entry(caps: &Path, slug: &str) -> io::Result<PathBuf> {
+     |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `acp_session_servers` is never used
+    --> apps\studio\src-tauri\src\capabilities.rs:2716:15
+     |
+2716 | pub(crate) fn acp_session_servers(root: &Path) -> Vec<Value> {
+     |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `installed_flow_specs` is never used
+    --> apps\studio\src-tauri\src\capabilities.rs:2773:15
+     |
+2773 | pub(crate) fn installed_flow_specs(root: &Path) -> Vec<Value> {
+     |               ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `source_hash_ok` is never used
+    --> apps\studio\src-tauri\src\capabilities.rs:2793:4
+     |
+2793 | fn source_hash_ok(value: &str) -> bool {
+     |    ^^^^^^^^^^^^^^
+
+warning: function `validate_skill_md` is never used
+    --> apps\studio\src-tauri\src\capabilities.rs:3394:4
+     |
+3394 | fn validate_skill_md(path: &Path) -> io::Result<(String, String)> {
+     |    ^^^^^^^^^^^^^^^^^
+
+warning: variant `Handoff` is never constructed
+  --> apps\studio\src-tauri\src\code_cli_launch.rs:97:5
+   |
+81 | pub(super) enum LaunchError {
+   |                 ----------- variant in this enum
+...
+97 |     Handoff,
+   |     ^^^^^^^
+   |
+   = note: `LaunchError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: function `menu_language` is never used
+  --> apps\studio\src-tauri\src\desktop_settings.rs:18:15
+   |
+18 | pub(crate) fn menu_language() -> String {
+   |               ^^^^^^^^^^^^^
+
+warning: static `SLEEP_ASSERTION` is never used
+  --> apps\studio\src-tauri\src\desktop_settings.rs:72:8
+   |
+72 | static SLEEP_ASSERTION: AtomicU32 = AtomicU32::new(0);
+   |        ^^^^^^^^^^^^^^^
+
+warning: function `show_main_on_reopen` is never used
+  --> apps\studio\src-tauri\src\desktop_settings.rs:87:8
+   |
+87 | pub fn show_main_on_reopen(has_visible_windows: bool) -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `template_glyph` is never used
+   --> apps\studio\src-tauri\src\desktop_settings.rs:464:4
+    |
+464 | fn template_glyph(
+    |    ^^^^^^^^^^^^^^
+
+warning: constant `HELP_DOCUMENTATION_URL` is never used
+ --> apps\studio\src-tauri\src\desktop_settings\menu_labels.rs:4:18
+  |
+4 | pub(crate) const HELP_DOCUMENTATION_URL: &str =
+  |                  ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `MenuLabels` is never constructed
+ --> apps\studio\src-tauri\src\desktop_settings\menu_labels.rs:8:19
+  |
+8 | pub(crate) struct MenuLabels {
+  |                   ^^^^^^^^^^
+
+warning: associated items `load` and `bar_titles_after_app` are never used
+  --> apps\studio\src-tauri\src\desktop_settings\menu_labels.rs:54:12
+   |
+53 | impl MenuLabels {
+   | --------------- associated items in this implementation
+54 |     pub fn load(language: &str) -> Result<Self, serde_json::Error> {
+   |            ^^^^
+...
+63 |     pub fn bar_titles_after_app(&self) -> [&str; 5] {
+   |            ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `open_documentation` is never used
+  --> apps\studio\src-tauri\src\external_open.rs:53:15
+   |
+53 | pub(crate) fn open_documentation(raw: &str) -> Result<(), u16> {
+   |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `panel_directory` is never used
+  --> apps\studio\src-tauri\src\folder_dialog.rs:31:8
+   |
+31 | pub fn panel_directory(default_path: &str) -> String {
+   |        ^^^^^^^^^^^^^^^
+
+warning: function `desktop_capabilities` is never used
+   --> apps\studio\src-tauri\src\host_family.rs:122:8
+    |
+122 | pub fn desktop_capabilities() -> serde_json::Value {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> apps\studio\src-tauri\src\knowledge_draft.rs:21:12
+   |
+20 | impl KnowledgeDrafts {
+   | -------------------- associated function in this implementation
+21 |     pub fn new(directory: PathBuf) -> Self {
+   |            ^^^
+
+warning: associated function `parse` is never used
+  --> apps\studio\src-tauri\src\knowledge_query.rs:28:20
+   |
+27 |         impl $name {
+   |         ---------- associated function in this implementation
+28 |             pub fn parse(value: &str) -> Result<Self, QueryFailure> {
+   |                    ^^^^^
+...
+35 | wire_enum!(KnowledgeQueryScope { Notes => "notes", Published => "published" });
+   | ------------------------------------------------------------------------------ in this macro invocation
+   |
+   = note: this warning originates in the macro `wire_enum` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: associated items `parse` and `as_str` are never used
+  --> apps\studio\src-tauri\src\knowledge_query.rs:28:20
+   |
+27 |         impl $name {
+   |         ---------- associated items in this implementation
+28 |             pub fn parse(value: &str) -> Result<Self, QueryFailure> {
+   |                    ^^^^^
+...
+31 |             pub fn as_str(self) -> &'static str { match self { $(Self::$variant => $wire),+ } }
+   |                    ^^^^^^
+...
+36 | wire_enum!(FailureCode { Invalid => "invalid", Missing => "missing", Busy => "busy", Cancelled => "cancelled", Expired => "expired", IndexFailed => "index_failed", Failed => "failed" });
+   | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this warning originates in the macro `wire_enum` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: associated items `parse` and `as_str` are never used
+  --> apps\studio\src-tauri\src\knowledge_query.rs:28:20
+   |
+27 |         impl $name {
+   |         ---------- associated items in this implementation
+28 |             pub fn parse(value: &str) -> Result<Self, QueryFailure> {
+   |                    ^^^^^
+...
+31 |             pub fn as_str(self) -> &'static str { match self { $(Self::$variant => $wire),+ } }
+   |                    ^^^^^^
+...
+37 | wire_enum!(IssueReason { Discovery => "discov...n => "publication", Metadata => "metadata" });
+   | ---------------------------------------------...--------------------------------------------- in this macro invocation
+   |
+   = note: this warning originates in the macro `wire_enum` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: function `app_wiki_directory` is never used
+  --> apps\studio\src-tauri\src\local_assets.rs:44:8
+   |
+44 | pub fn app_wiki_directory(stored: &str, home: &Path) -> Option<PathBuf> {
+   |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `stored_workspace_preference` is never used
+  --> apps\studio\src-tauri\src\local_assets.rs:64:8
+   |
+64 | pub fn stored_workspace_preference(slug: &str) -> String {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `normalize_workspace` is never used
+  --> apps\studio\src-tauri\src\local_assets.rs:83:4
+   |
+83 | fn normalize_workspace(path: &Path) -> PathBuf {
+   |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `normalize_workspace_text` is never used
+  --> apps\studio\src-tauri\src\local_assets.rs:87:4
+   |
+87 | fn normalize_workspace_text(value: &str) -> String {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `is_absolute_workspace` is never used
+  --> apps\studio\src-tauri\src\local_assets.rs:98:4
+   |
+98 | fn is_absolute_workspace(value: &str) -> bool {
+   |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `drive_prefix` is never used
+   --> apps\studio\src-tauri\src\local_assets.rs:102:4
+    |
+102 | fn drive_prefix(value: &str) -> bool {
+    |    ^^^^^^^^^^^^
+
+warning: function `is_filesystem_root` is never used
+   --> apps\studio\src-tauri\src\local_assets.rs:113:4
+    |
+113 | fn is_filesystem_root(path: &Path) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `studio_wiki_root` is never used
+   --> apps\studio\src-tauri\src\local_assets.rs:123:8
+    |
+123 | pub fn studio_wiki_root(body: &Value) -> Option<PathBuf> {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `retrieve_passages` is never used
+  --> apps\studio\src-tauri\src\local_documents.rs:38:8
+   |
+38 | pub fn retrieve_passages(raw_root: &str, query: &str) -> Vec<String> {
+   |        ^^^^^^^^^^^^^^^^^
+
+warning: function `query_tokens` is never used
+  --> apps\studio\src-tauri\src\local_documents.rs:69:4
+   |
+69 | fn query_tokens(query: &str) -> Vec<String> {
+   |    ^^^^^^^^^^^^
+
+warning: function `collect_note_passages` is never used
+  --> apps\studio\src-tauri\src\local_documents.rs:81:4
+   |
+81 | fn collect_note_passages(
+   |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `as_str` and `parse` are never used
+   --> apps\studio\src-tauri\src\knowledge_rename_links.rs:374:12
+    |
+373 | impl BlockReason {
+    | ---------------- associated items in this implementation
+374 |     pub fn as_str(self) -> &'static str {
+    |            ^^^^^^
+...
+381 |     pub fn parse(value: &str) -> Option<Self> {
+    |            ^^^^^
+
+warning: associated items `as_str` and `parse` are never used
+   --> apps\studio\src-tauri\src\knowledge_rename_links.rs:399:12
+    |
+398 | impl ImpactError {
+    | ---------------- associated items in this implementation
+399 |     pub fn as_str(self) -> &'static str {
+    |            ^^^^^^
+...
+407 |     pub fn parse(value: &str) -> Option<Self> {
+    |            ^^^^^
+
+warning: associated items `as_str` and `parse` are never used
+  --> apps\studio\src-tauri\src\knowledge_move.rs:27:20
+   |
+26 |         impl $name {
+   |         ---------- associated items in this implementation
+27 |             pub fn as_str(self) -> &'static str { match self { $(Self::$variant => $wire),+ } }
+   |                    ^^^^^^
+28 |             pub fn parse(value: &str) -> Option<Self> { match value { $($wire => Some(Self::$variant),)+ _ => None } }
+   |                    ^^^^^
+...
+33 | wire_enum!(Phase { Preview => "preview", Applying => "applying", Attention => "attention", Complete => "complete", Cancelled => "cancelled" });
+   | ---------------------------------------------------------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this warning originates in the macro `wire_enum` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: associated items `as_str` and `parse` are never used
+  --> apps\studio\src-tauri\src\knowledge_move.rs:27:20
+   |
+26 |         impl $name {
+   |         ---------- associated items in this implementation
+27 |             pub fn as_str(self) -> &'static str { match self { $(Self::$variant => $wire),+ } }
+   |                    ^^^^^^
+28 |             pub fn parse(value: &str) -> Option<Self> { match value { $($wire => Some(Self::$variant),)+ _ => None } }
+   |                    ^^^^^
+...
+34 | wire_enum!(Side { Before => "before", After => "after" });
+   | --------------------------------------------------------- in this macro invocation
+   |
+   = note: this warning originates in the macro `wire_enum` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: associated function `new` is never used
+   --> apps\studio\src-tauri\src\knowledge_move.rs:475:12
+    |
+474 | impl KnowledgeMoves {
+    | ------------------- associated function in this implementation
+475 |     pub fn new(directory: PathBuf) -> Self {
+    |            ^^^
+
+warning: methods `request` and `permit_exit` are never used
+  --> apps\studio\src-tauri\src\main_exit.rs:29:8
+   |
+19 | impl ExitGate {
+   | ------------- methods in this implementation
+...
+29 |     fn request(&self) -> Result<Uuid, &'static str> {
+   |        ^^^^^^^
+...
+47 |     pub fn permit_exit(&self) -> bool {
+   |            ^^^^^^^^^^^
+
+warning: function `ask` is never used
+  --> apps\studio\src-tauri\src\main_exit.rs:79:15
+   |
+79 | pub(crate) fn ask(app: &tauri::AppHandle) -> Result<(), String> {
+   |               ^^^
+
+warning: associated items `parse` and `as_str` are never used
+   --> apps\studio\src-tauri\src\local_documents\library.rs:130:12
+    |
+129 | impl Mutation {
+    | ------------- associated items in this implementation
+130 |     pub fn parse(value: &str) -> Result<Self, Failure> {
+    |            ^^^^^
+...
+138 |     pub fn as_str(self) -> &'static str {
+    |            ^^^^^^
+
+warning: variant `Unbalanced` is never constructed
+  --> apps\studio\src-tauri\src\agent_headless_config.rs:39:5
+   |
+31 | pub enum HeadlessConfigError {
+   |          ------------------- variant in this enum
+...
+39 |     Unbalanced,
+   |     ^^^^^^^^^^
+   |
+   = note: `HeadlessConfigError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: associated items `open_app`, `open_at`, `refresh_token`, `replace_token`, and `with_preference_scope` are never used
+   --> apps\studio\src-tauri\src\member_session.rs:92:12
+    |
+ 53 | impl MemberSessionStore {
+    | ----------------------- associated items in this implementation
+...
+ 92 |     pub fn open_app(root: &std::path::Path, app_id: &str) -> Self {
+    |            ^^^^^^^^
+...
+101 |     pub fn open_at(path: Option<PathBuf>) -> Self {
+    |            ^^^^^^^
+...
+144 |     pub fn refresh_token(&self) -> Option<String> {
+    |            ^^^^^^^^^^^^^
+...
+152 |     pub fn replace_token(&self, token: &str, refresh_token: Option<&str>) -> Result<(), u16> {
+    |            ^^^^^^^^^^^^^
+...
+358 |     pub(crate) fn with_preference_scope<T>(
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `parse` and `as_str` are never used
+  --> apps\studio\src-tauri\src\model_accounting_usage.rs:18:12
+   |
+17 | impl UsageGroup {
+   | --------------- associated items in this implementation
+18 |     pub fn parse(value: &str) -> Result<Self, AccountingError> {
+   |            ^^^^^
+...
+29 |     pub fn as_str(self) -> &'static str {
+   |            ^^^^^^
+
+warning: method `routing_policy` is never used
+   --> apps\studio\src-tauri\src\model_control.rs:335:19
+    |
+334 | impl ModelControl {
+    | ----------------- method in this implementation
+335 |     pub(crate) fn routing_policy(&self) -> Result<LocalModelPolicy, DispatchError> {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `save_origin` is never used
+  --> apps\studio\src-tauri\src\org_login.rs:88:8
+   |
+88 | pub fn save_origin(slug: &str, value: &str) -> Option<String> {
+   |        ^^^^^^^^^^^
+
+warning: function `refresh_member_token` is never used
+    --> apps\studio\src-tauri\src\org_login.rs:1189:8
+     |
+1189 | pub fn refresh_member_token(origin: &str, refresh_token: &str) -> Option<(String, Option<String>)> {
+     |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `member_token_state` is never used
+    --> apps\studio\src-tauri\src\org_login.rs:1217:8
+     |
+1217 | pub fn member_token_state(token: &str, origin: &str) -> Option<bool> {
+     |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `search_paths` is never used
+   --> apps\studio\src-tauri\src\plugin_okf.rs:436:4
+    |
+436 | fn search_paths(dir: &Path, query: &str) -> io::Result<Vec<String>> {
+    |    ^^^^^^^^^^^^
+
+warning: methods `commit_gateway` and `gateway_model_policy` are never used
+   --> apps\studio\src-tauri\src\preferences.rs:712:19
+    |
+592 | impl PreferenceHost {
+    | ------------------- methods in this implementation
+...
+712 |     pub(crate) fn commit_gateway(
+    |                   ^^^^^^^^^^^^^^
+...
+726 |     pub(crate) fn gateway_model_policy(
+    |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `GatewayModel` is never constructed
+   --> apps\studio\src-tauri\src\providers.rs:254:19
+    |
+254 | pub(crate) struct GatewayModel {
+    |                   ^^^^^^^^^^^^
+
+warning: method `gateway_models` is never used
+   --> apps\studio\src-tauri\src\providers.rs:275:19
+    |
+274 | impl ProviderStore {
+    | ------------------ method in this implementation
+275 |     pub(crate) fn gateway_models(&self) -> Vec<GatewayModel> {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `first_chat_model_for_key` is never used
+    --> apps\studio\src-tauri\src\providers.rs:1780:15
+     |
+1780 | pub(crate) fn first_chat_model_for_key(key: &str) -> Option<String> {
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `session_scope_from` is never used
+    --> apps\studio\src-tauri\src\providers.rs:2287:4
+     |
+2287 | fn session_scope_from(
+     |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `session_slug_for` is never used
+    --> apps\studio\src-tauri\src\providers.rs:2296:4
+     |
+2296 | fn session_slug_for(brand: &str, instance: Option<&str>) -> Option<String> {
+     |    ^^^^^^^^^^^^^^^^
+
+warning: associated items `parse` and `as_str` are never used
+  --> apps\studio\src-tauri\src\providers_pricing.rs:58:8
+   |
+57 | impl ImageUnit {
+   | -------------- associated items in this implementation
+58 |     fn parse(value: &str) -> Result<Self, Fail> {
+   |        ^^^^^
+...
+66 |     fn as_str(&self) -> &'static str {
+   |        ^^^^^^
+
+warning: associated items `parse` and `as_str` are never used
+   --> apps\studio\src-tauri\src\providers_control.rs:428:8
+    |
+427 | impl ModelFeature {
+    | ----------------- associated items in this implementation
+428 |     fn parse(value: &str) -> Result<Self, DispatchError> {
+    |        ^^^^^
+...
+432 |     fn as_str(self) -> &'static str {
+    |        ^^^^^^
+
+warning: fields `skill`, `ui`, `title`, and `steps` are never read
+  --> apps\studio\src-tauri\src\review_plugin.rs:82:9
+   |
+81 | pub struct ReconcileReport {
+   |            --------------- fields in this struct
+82 |     pub skill: bool,
+   |         ^^^^^
+83 |     pub ui: bool,
+   |         ^^
+84 |     pub title: String,
+   |         ^^^^^
+85 |     pub steps: Vec<&'static str>,
+   |         ^^^^^
+
+warning: function `review_facade_script` is never used
+  --> apps\studio\src-tauri\src\review_plugin.rs:97:8
+   |
+97 | pub fn review_facade_script() -> String {
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `cached_picker_http` is never used
+   --> apps\studio\src-tauri\src\review_plugin.rs:455:4
+    |
+455 | fn cached_picker_http() -> (u16, &'static str, &'static str, Vec<u8>) {
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `verified_picker` is never used
+   --> apps\studio\src-tauri\src\review_plugin.rs:479:8
+    |
+479 | pub fn verified_picker() -> Option<(PathBuf, String)> {
+    |        ^^^^^^^^^^^^^^^
+
+warning: constant `SCREEN_CAPTURE_PERMISSION_REQUIRED` is never used
+  --> apps\studio\src-tauri\src\screenshot.rs:24:7
+   |
+24 | const SCREEN_CAPTURE_PERMISSION_REQUIRED: &str = "screen-capture-permission-required";
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `SCREEN_CAPTURE_SETTINGS_URL` is never used
+  --> apps\studio\src-tauri\src\screenshot.rs:27:7
+   |
+27 | const SCREEN_CAPTURE_SETTINGS_URL: &str =
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `CaptureStop` is never used
+  --> apps\studio\src-tauri\src\screenshot.rs:31:6
+   |
+31 | enum CaptureStop {
+   |      ^^^^^^^^^^^
+
+warning: function `stop_without_file` is never used
+  --> apps\studio\src-tauri\src\screenshot.rs:38:4
+   |
+38 | fn stop_without_file(authorized: bool, stderr: &str) -> CaptureStop {
+   |    ^^^^^^^^^^^^^^^^^
+
+warning: function `capture_stop_result` is never used
+  --> apps\studio\src-tauri\src\screenshot.rs:48:4
+   |
+48 | fn capture_stop_result(stop: CaptureStop) -> Result<Option<Vec<u8>>, String> {
+   |    ^^^^^^^^^^^^^^^^^^^
+
+warning: variants `Busy` and `Unavailable` are never constructed
+  --> apps\studio\src-tauri\src\single_instance.rs:11:5
+   |
+ 9 | pub enum Claim {
+   |          ----- variants in this enum
+10 |     Owned(InstanceLock),
+11 |     Busy,
+   |     ^^^^
+12 |     Unavailable(std::io::Error),
+   |     ^^^^^^^^^^^
+
+warning: function `bundle_identifier` is never used
+   --> apps\studio\src-tauri\src\tenant.rs:138:8
+    |
+138 | pub fn bundle_identifier(storage: &str, instance: Option<&str>, legacy_exists: bool) -> String {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: function `selected_development_slug` is never used
+   --> apps\studio\src-tauri\src\tenant.rs:231:4
+    |
+231 | fn selected_development_slug(raw: Option<&str>) -> io::Result<String> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `isolate_child_webview` is never used
+  --> apps\studio\src-tauri\src\tenant_webview.rs:65:15
+   |
+65 | pub(crate) fn isolate_child_webview<R: Runtime>(
+   |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: variants `MacBundle`, `Flatpak`, and `AppImage` are never constructed
+  --> apps\studio\src-tauri\src\update_support.rs:12:5
+   |
+11 | pub(crate) enum InstallTarget {
+   |                 ------------- variants in this enum
+12 |     MacBundle(PathBuf),
+   |     ^^^^^^^^^
+13 |     Flatpak { app_id: String },
+   |     ^^^^^^^
+14 |     AppImage(PathBuf),
+   |     ^^^^^^^^
+
+warning: associated items `parse` and `as_str` are never used
+   --> apps\studio\src-tauri\src\visual_feedback\mod.rs:169:12
+    |
+168 | impl EditorTool {
+    | --------------- associated items in this implementation
+169 |     pub fn parse(value: &str) -> Result<Self, String> {
+    |            ^^^^^
+...
+181 |     pub fn as_str(self) -> &'static str {
+    |            ^^^^^^
+
+warning: function `save_only_png` is never used
+   --> apps\studio\src-tauri\src\visual_feedback\mod.rs:616:4
+    |
+616 | fn save_only_png(document: &Document) -> Result<Vec<u8>, String> {
+    |    ^^^^^^^^^^^^^
+
+warning: function `stitch` is never used
+   --> apps\studio\src-tauri\src\visual_feedback\geometry.rs:385:15
+    |
+385 | pub(super) fn stitch(first: &RgbaImage, next: &RgbaImage) -> Result<RgbaImage, String> {
+    |               ^^^^^^
+
+warning: function `stitch_horizontal` is never used
+   --> apps\studio\src-tauri\src\visual_feedback\geometry.rs:410:15
+    |
+410 | pub(super) fn stitch_horizontal(first: &RgbaImage, next: &RgbaImage) -> Result<RgbaImage, String> {
+    |               ^^^^^^^^^^^^^^^^^
+
+warning: function `open_path` is never used
+  --> apps\studio\src-tauri\src\visual_feedback\media.rs:66:4
+   |
+66 | fn open_path(path: &Path) -> Result<Value, String> {
+   |    ^^^^^^^^^
+
+warning: fields `x`, `y`, `w`, and `h` are never read
+  --> apps\studio\src-tauri\src\window_drag.rs:14:9
+   |
+13 | pub(crate) struct CssRect {
+   |                   ------- fields in this struct
+14 |     pub x: f64,
+   |         ^
+15 |     pub y: f64,
+   |         ^
+16 |     pub w: f64,
+   |         ^
+17 |     pub h: f64,
+   |         ^
+   |
+   = note: `CssRect` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: constant `TITLEBAR_CSS_HEIGHT` is never used
+  --> apps\studio\src-tauri\src\window_drag.rs:20:18
+   |
+20 | pub(crate) const TITLEBAR_CSS_HEIGHT: f64 = 44.0;
+   |                  ^^^^^^^^^^^^^^^^^^^
+
+warning: enum `ResizeEdge` is never used
+  --> apps\studio\src-tauri\src\window_drag.rs:23:6
+   |
+23 | enum ResizeEdge {
+   |      ^^^^^^^^^^
+
+warning: function `resize_edge` is never used
+  --> apps\studio\src-tauri\src\window_drag.rs:34:4
+   |
+34 | fn resize_edge(x: f64, y: f64, width: f64, height: f64) -> Option<ResizeEdge> {
+   |    ^^^^^^^^^^^
+
+warning: function `in_top_resize_border` is never used
+  --> apps\studio\src-tauri\src\window_drag.rs:61:4
+   |
+61 | fn in_top_resize_border(x: f64, y: f64, width: f64) -> bool {
+   |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `hit_window_drag` is never used
+  --> apps\studio\src-tauri\src\window_drag.rs:66:15
+   |
+66 | pub(crate) fn hit_window_drag(x: f64, y: f64, drag: &[CssRect], block: &[CssRect]) -> bool {
+   |               ^^^^^^^^^^^^^^^
+
+warning: function `hit_window_chrome` is never used
+  --> apps\studio\src-tauri\src\window_drag.rs:76:15
+   |
+76 | pub(crate) fn hit_window_chrome(
+   |               ^^^^^^^^^^^^^^^^^
+
+warning: function `owns_titlebar_drag` is never used
+  --> apps\studio\src-tauri\src\window_drag.rs:94:15
+   |
+94 | pub(crate) fn owns_titlebar_drag(event_window: usize, installed: usize) -> bool {
+   |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `claim_titlebar_drag` is never used
+  --> apps\studio\src-tauri\src\window_drag.rs:98:15
+   |
+98 | pub(crate) fn claim_titlebar_drag(x: f64, y: f64, block: &[CssRect], published: bool) -> bool {
+   |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `contains` is never used
+   --> apps\studio\src-tauri\src\window_drag.rs:130:4
+    |
+130 | fn contains(x: f64, y: f64, rect: &CssRect) -> bool {
+    |    ^^^^^^^^
+
+warning: fields `page` and `block` are never read
+   --> apps\studio\src-tauri\src\window_drag.rs:150:5
+    |
+149 | struct WindowDragRegions {
+    |        ----------------- fields in this struct
+150 |     page: Option<PageKey>,
+    |     ^^^^
+...
+155 |     block: Vec<CssRect>,
+    |     ^^^^^
+
+warning: constant `PAGE_USER_AGENT` is never used
+  --> apps\studio\src-tauri\src\workspace_browser.rs:42:7
+   |
+42 | const PAGE_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6...
+   |       ^^^^^^^^^^^^^^^
+
+warning: function `child_frame_origin` is never used
+   --> apps\studio\src-tauri\src\workspace_browser.rs:193:15
+    |
+193 | pub(crate) fn child_frame_origin(parent_height: f64, flipped: bool, y: f64, height: f64) -> f64 {
+    |               ^^^^^^^^^^^^^^^^^^
+
+warning: fields `x`, `y`, `width`, `height`, and `radius` are never read
+   --> apps\studio\src-tauri\src\workspace_browser.rs:852:9
+    |
+851 | pub(crate) struct BrowserCutout {
+    |                   ------------- fields in this struct
+852 |     pub x: f64,
+    |         ^
+853 |     pub y: f64,
+    |         ^
+854 |     pub width: f64,
+    |         ^^^^^
+855 |     pub height: f64,
+    |         ^^^^^^
+856 |     #[serde(default)]
+857 |     pub radius: f64,
+    |         ^^^^^^
+    |
+    = note: `BrowserCutout` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: function `clip_title` is never used
+    --> apps\studio\src-tauri\src\workspace_browser.rs:1014:4
+     |
+1014 | fn clip_title(value: String) -> String {
+     |    ^^^^^^^^^^
+
+warning: function `recv_nav` is never used
+    --> apps\studio\src-tauri\src\workspace_browser.rs:1029:4
+     |
+1029 | fn recv_nav(
+     |    ^^^^^^^^
+
+warning: function `next_pinch_magnification` is never used
+    --> apps\studio\src-tauri\src\workspace_browser.rs:1151:4
+     |
+1151 | fn next_pinch_magnification(current: f64, delta: f64) -> f64 {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `aster-studio` (lib) generated 175 warnings (run `cargo fix --lib -p aster-studio` to apply 17 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3m 01s
+studio-webview-url http://127.0.0.1:4318/windows/main/index.html
+studio-webview-url http://127.0.0.1:4318/windows/main/index.html
+studio-page-load http://127.0.0.1:4318/windows/main/index.html
+studio-page-load http://127.0.0.1:4318/windows/main/index.html
+studio-result-save receiver-ready
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=warn message=Bundled catalog resources path is not ready source={"process":"renderer","window":"mainWindow","module":"useBundledCatalog"} data=[{"catalog":"assistant presets"}]
+studio-host level=warn message=Bundled catalog resources path is not ready source={"process":"renderer","window":"mainWindow","module":"useBundledCatalog"} data=[{"catalog":"assistant presets"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-host level=error message=Failed to load automatic backup notifications source={"process":"renderer","window":"mainWindow","module":"useAutoBackupEvents"} data=[{"name":"IpcError","errorMessage":"IPC route is not available: backup.get_auto_sync_state","stack":"IpcError: IPC route is not available: backup.get_auto_sync_state\n    at IpcError.fromJSON (http://127.0.0.1:4318/static/js/index.js:279614:16)\n    at unwrap (http://127.0.0.1:4318/static/js/index.js:222073:65)","code":"ROUTE_NOT_FOUND"}]
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true
+studio-main-window focused=true visible=true
+studio-main-window focused=false visible=true

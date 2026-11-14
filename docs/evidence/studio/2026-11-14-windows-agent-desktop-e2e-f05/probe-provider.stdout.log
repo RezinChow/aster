@@ -1,0 +1,69 @@
+模型服务 click ok=True code=None
+--- provider page ---
+  添加服务商            total=1   roles=['button']
+      name='添加服务商' role=button ref=@s3jpc95seanzoh:e1
+  模型服务             total=3   roles=['button', 'statictext', 'statictext']
+      name='模型服务' role=button ref=@s1fyxb13jcugym:e1
+      name='模型服务' role=statictext ref=None
+      name='模型服务' role=statictext ref=None
+  模型配置             total=1   roles=['button']
+      name='模型配置' role=button ref=@s3q8ojcr84zgia:e1
+  服务商              total=5   roles=['menubutton', 'button', 'button', 'statictext', 'button']
+      name='筛选服务商' role=menubutton ref=@s3nvjyx1xo4spi:e1
+      name='CLI 服务商' role=button ref=@s3nvjyx1xo4spi:e2
+      name='CLI 服务商' role=button ref=@s3nvjyx1xo4spi:e3
+      name='CLI 服务商' role=statictext ref=None
+  API 地址           total=2   roles=['statictext', 'textfield']
+      name='API 地址' role=statictext ref=None
+      name='API 地址' role=textfield ref=@s308jqmhk5sgcd:e1
+  添加               total=5   roles=['button', 'button', 'button', 'button', 'statictext']
+      name='添加服务商' role=button ref=@s2j09pibdbpeyk:e1
+      name='添加 API 密钥' role=button ref=@s2j09pibdbpeyk:e2
+      name='添加端点' role=button ref=@s2j09pibdbpeyk:e3
+      name='手动添加模型' role=button ref=@s2j09pibdbpeyk:e4
+  搜索               total=6   roles=['menubutton', 'menubutton', 'button', 'button', 'textfield', 'button']
+      name='改为搜索' role=menubutton ref=@s22y6n3jhfehd3:e1
+      name='搜索任务' role=menubutton ref=@s22y6n3jhfehd3:e2
+      name='搜索设置...' role=button ref=@s22y6n3jhfehd3:e3
+      name='网络搜索' role=button ref=@s22y6n3jhfehd3:e4
+  保存               total=1   roles=['menubutton']
+      name='保存地址？' role=menubutton ref=@s3rpj4nehu6avn:e1
+  自定义              total=1   roles=['button']
+      name='配置 API Host 与自定义请求头' role=button ref=@st7vfe0wc5rhn:e1
+添加服务商 click ok=True code=None
+--- add-provider form ---
+  提供商名称            total=2   roles=['statictext', 'textfield']
+      name='提供商名称' role=statictext ref=None
+      name='提供商名称' role=textfield ref=@s26odis8y0yuqv:e1
+  名称               total=2   roles=['statictext', 'textfield']
+      name='提供商名称' role=statictext ref=None
+      name='提供商名称' role=textfield ref=@s2d12flu3vp08r:e1
+  保存               total=1   roles=['menubutton']
+      name='保存地址？' role=menubutton ref=@s2g24mtum3knq4:e1
+  取消               total=1   roles=['button']
+      name='取消' role=button ref=@s1yvr843pwl3na:e1
+  添加               total=4   roles=['window', 'statictext', 'statictext', 'button']
+      name='添加自定义提供商' role=window ref=None
+      name='添加自定义提供商' role=statictext ref=None
+      name='添加自定义提供商' role=statictext ref=None
+      name='添加' role=button ref=@s2oqsk85qnpe8w:e1
+  自定义              total=3   roles=['window', 'statictext', 'statictext']
+      name='添加自定义提供商' role=window ref=None
+      name='添加自定义提供商' role=statictext ref=None
+      name='添加自定义提供商' role=statictext ref=None
+  地址               total=3   roles=['menubutton', 'statictext', 'statictext']
+      name='保存地址？' role=menubutton ref=@s381hqp917nl8y:e1
+      name='填写 API 根地址后会显示实际请求路径' role=statictext ref=None
+      name='填写 API 根地址后会显示实际请求路径' role=statictext ref=None
+  密钥               total=3   roles=['statictext', 'textfield', 'button']
+      name='API 密钥' role=statictext ref=None
+      name='API 密钥' role=textfield ref=@sfp1s48hh6bal:e1
+      name='显示密钥' role=button ref=@sfp1s48hh6bal:e2
+  选择               total=1   roles=['menubutton']
+      name='要打开此链接，请选择一个应用' role=menubutton ref=@s13jpaabj9kcn1:e1
+  更多               total=3   roles=['menubutton', 'statictext', 'menubutton']
+      name='更多操作' role=menubutton ref=@s2z1ulybbct4lf:e1
+      name='更多设置' role=statictext ref=None
+      name='更多设置' role=menubutton ref=@s2z1ulybbct4lf:e2
+PROBE2_DONE
+EXIT=0

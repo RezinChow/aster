@@ -1,0 +1,126 @@
+{
+  "window_id": "w-120982452",
+  "selector_click_ok": true,
+  "names": {
+    "e2e-synthetic-1": {
+      "total_matches": 0,
+      "matches": []
+    },
+    "选择模型": {
+      "total_matches": 1,
+      "matches": [
+        {
+          "name": "选择模型",
+          "role": "menubutton",
+          "ref_id": "@s2ko1ulwlu4oyo:e1",
+          "states": []
+        }
+      ]
+    },
+    "E2E-Local": {
+      "total_matches": 0,
+      "matches": []
+    },
+    "配置自定义模型": {
+      "total_matches": 0,
+      "matches": []
+    },
+    "搜索模型": {
+      "total_matches": 0,
+      "matches": []
+    }
+  },
+  "roles": {
+    "radio": [],
+    "checkbox": [],
+    "menuitem": [
+      {
+        "name": "系统",
+        "ref_id": "@s2s8lxj6nlhm5c:e1"
+      }
+    ],
+    "option": [],
+    "menubutton": [
+      {
+        "name": "改为搜索",
+        "ref_id": "@s11acapcvetdzz:e17"
+      },
+      {
+        "name": "要打开此链接，请选择一个应用",
+        "ref_id": "@s11acapcvetdzz:e19"
+      },
+      {
+        "name": "应用程序可用。安装 ",
+        "ref_id": "@s11acapcvetdzz:e20"
+      },
+      {
+        "name": "显示翻译选项",
+        "ref_id": "@s11acapcvetdzz:e21"
+      },
+      {
+        "name": "更新此网站的自动配置文件切换首选项",
+        "ref_id": "@s11acapcvetdzz:e23"
+      },
+      {
+        "name": "查看虚拟卡号",
+        "ref_id": "@s11acapcvetdzz:e24"
+      },
+      {
+        "name": "立即购买，稍后支付",
+        "ref_id": "@s11acapcvetdzz:e25"
+      },
+      {
+        "name": "保存地址？",
+        "ref_id": "@s11acapcvetdzz:e26"
+      },
+      {
+        "name": "更多操作",
+        "ref_id": "@s11acapcvetdzz:e27"
+      },
+      {
+        "name": "搜索任务",
+        "ref_id": "@s11acapcvetdzz:e28"
+      },
+      {
+        "name": "更多选项",
+        "ref_id": "@s11acapcvetdzz:e29"
+      },
+      {
+        "name": "授权模式: 请求批准",
+        "ref_id": "@s11acapcvetdzz:e30"
+      },
+      {
+        "name": "优化提示词",
+        "ref_id": "@s11acapcvetdzz:e31"
+      },
+      {
+        "name": "选择模型",
+        "ref_id": "@s11acapcvetdzz:e32"
+      },
+      {
+        "name": "任务范围: 选择项目 · 当前目录",
+        "ref_id": "@s11acapcvetdzz:e33"
+      },
+      {
+        "name": "Start feedback mode",
+        "ref_id": "@s11acapcvetdzz:e34"
+      },
+      {
+        "name": "协作者个人资料照片",
+        "ref_id": "@s11acapcvetdzz:e35"
+      },
+      {
+        "name": "协作者个人资料照片",
+        "ref_id": "@s11acapcvetdzz:e36"
+      },
+      {
+        "name": "协作者个人资料照片",
+        "ref_id": "@s11acapcvetdzz:e37"
+      },
+      {
+        "name": "协作者个人资料照片",
+        "ref_id": "@s11acapcvetdzz:e38"
+      }
+    ]
+  }
+}

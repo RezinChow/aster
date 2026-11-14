@@ -1,0 +1,24 @@
+{
+  "version": "2.6",
+  "ok": true,
+  "command": "list-windows",
+  "data": [
+    {
+      "accessible": true,
+      "app_name": "Studio.exe",
+      "bounds": {
+        "height": 959.0,
+        "width": 1456.0,
+        "x": 104.0,
+        "y": 104.0
+      },
+      "id": "w-133432886",
+      "is_focused": true,
+      "minimized": false,
+      "pid": 28652,
+      "process_instance": "windows-proc-v1:13439135150:7501308",
+      "title": "Aster",
+      "visible": true
+    }
+  ]
+}

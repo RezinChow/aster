@@ -1,0 +1,32 @@
+=== 2026-11-14 supplement compliance audit ===
+total agent-desktop commands logged: 461
+
+--- command counts ---
+  list-windows     253
+  find             139
+  get              24
+  click            14
+  clear            8
+  is               6
+  type             6
+  focus            4
+  snapshot         2
+  press            2
+  set-value        2
+  close-app        1
+
+--- error codes ---
+  ACTION_FAILED        13
+  STALE_REF            1
+
+--- policy checks ---
+  mouse-click / coordinate actions : 0   (expected 0)
+  focus-window                      : 0   (expected 0)
+  Playwright / runtime stub refs    : 0   (expected 0)
+  --headed total                    : 10
+      type           6
+      focus          4
+
+  All coverage assertions come from agent-desktop AX JSON envelopes;
+  disk hash / renderer logs / HTTP / git are environment evidence only.
+  D-class probes are read-only find/is observations: no PASS verdict.

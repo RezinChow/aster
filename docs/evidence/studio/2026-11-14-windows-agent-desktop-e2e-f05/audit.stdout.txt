@@ -1,0 +1,51 @@
+=== 2026-11-14 F05 increment compliance audit ===
+total agent-desktop commands logged: 510
+
+--- command counts ---
+  find             313
+  list-windows     129
+  get              21
+  click            16
+  clear            12
+  expand           7
+  snapshot         5
+  screenshot       4
+  set-value        3
+
+--- error codes ---
+  INVALID_ARGS         14
+  ACTION_FAILED        12
+  WINDOW_NOT_FOUND     6
+  AMBIGUOUS_TARGET     1
+
+--- policy checks ---
+  mouse-click / coordinate actions : 0   (expected 0)
+  focus-window                      : 0   (expected 0)
+  Playwright / runtime stub refs    : 0   (expected 0)
+  --headed total                    : 1
+  expand (semantic disclosure)      : 8
+  set-value (settings inputs)       : 3
+
+  All coverage assertions come from agent-desktop AX JSON envelopes;
+  HTTP / git / renderer logs / disk hashes are environment evidence only.
+  The local synthetic model service is NOT a stub suite and NOT a real LLM.
+
+=== 2026-11-14 F05 increment result summary ===
+
+--- executed F05 UI-subset case ---
+  F05 run1: verdict=PASS assertions=12 all_ok=True window=w-120982452 token=E2EF058EAF
+  F05 run2: verdict=PASS assertions=12 all_ok=True window=w-120982452 token=E2EF054FAE
+
+--- functional verdict (fail-closed) ---
+  F05  PARTIAL  (was BLOCKED) : provider configured through the real GUI,
+                 model discovered via the product's own /v1/models call,
+                 model visible in the workbench selector AX (2 matches).
+                 NOT counted as coverage: 'select model -> read back' is
+                 impossible because model rows expose no actionable ref.
+  F03  SKIP     : synthetic model cannot become the active model through AX,
+                 so no controllable turn can be attributed to the fixture.
+  F01  unchanged: 2xFAIL on the user worktree (rerun archive kept).
+  F16  unchanged: 2xPASS UI subset from the previous supplement run.
+
+  No MATRIX.md / ledger number was changed by this run.
+  No product source file was modified.

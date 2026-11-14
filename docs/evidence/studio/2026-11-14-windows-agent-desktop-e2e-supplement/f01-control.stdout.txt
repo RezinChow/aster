@@ -1,0 +1,24 @@
+original sha256 : c0cc632a8e841be20e42dd1ce83b9ed84d687fe5dec702ed0ae69aec9ef94330
+align rc=0 stderr=
+aligned sha256  : a15533848130d261436bccdd33682802233496c4cb27ace7db682b5280d1d375 changed=True
+waited 30s for rsbuild HMR
+=== F01C run 1 token=SUPF01C6130 ===
+  OK    F01 draft entered - value='SUPF01C6130'
+  OK    F01 settings click delivered - code=None
+  OK    F01 settings page reached (返回应用 button present)
+  OK    F01 work click delivered
+  FAIL  F01 draft survived cross-page round trip - after='描述任务，输入 / 使用指令或技能，@ 选择工作区文件\n'
+  ASSERTION FAILED: F01 draft survived cross-page round trip
+F01C_L3: FAIL
+F01C run1 exit=1
+=== F01C run 2 token=SUPF01C6D61 ===
+  OK    F01 draft entered - value='SUPF01C6D61'
+  OK    F01 settings click delivered - code=None
+  OK    F01 settings page reached (返回应用 button present)
+  OK    F01 work click delivered
+  FAIL  F01 draft survived cross-page round trip - after='描述任务，输入 / 使用指令或技能，@ 选择工作区文件\n'
+  ASSERTION FAILED: F01 draft survived cross-page round trip
+F01C_L3: FAIL
+F01C run2 exit=1
+CONTROL_ALL_PASS: False
+restore rc=0 sha256=c0cc632a8e841be20e42dd1ce83b9ed84d687fe5dec702ed0ae69aec9ef94330 match=True
