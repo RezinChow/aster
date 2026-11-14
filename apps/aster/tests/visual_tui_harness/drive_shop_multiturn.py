@@ -119,8 +119,10 @@ def answer_dialogs(hist: str) -> bool:
     if "Do you trust the contents of this directory" in hist:
         keystroke_raw('  keystroke "y"\n')
         return True
-    # Permission card (formal answer_dialog types "1")
-    if "Ctrl+o:yolo" in hist and ("Yes, proceed" in hist or "permission" in hist.lower()):
+    # Permission card (formal answer_dialog types "1"). The rendered chord
+    # casing varies (`Ctrl+O:YOLO` / `Ctrl+o:yolo`), so compare folded.
+    lowered = hist.lower()
+    if "ctrl+o:yolo" in lowered and ("yes, proceed" in lowered or "permission" in lowered):
         keystroke_raw('  keystroke "1"\n')
         return True
     # ask_user multi-choice

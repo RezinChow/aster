@@ -3072,3 +3072,69 @@ fn host_powershell_env_leaves_inherited_values_in_place() {
         Some("utf-8:surrogateescape")
     );
 }
+
+// --- Long-task timeout repair: progress is the stall signal, not wall clock ---
+
+#[test]
+fn idle_budget_is_reset_by_output_not_by_elapsed_wall_clock() {
+    const IDLE: u64 = 300_000;
+    // Fresh command, no output yet: the budget counts down.
+    assert_eq!(idle_remaining_ms(10_000, 0, IDLE), 290_000);
+    // A chunk at 290s resets progress; at 400s the command is still healthy
+    // even though 400s is far past the old 120s wall-clock budget.
+    assert_eq!(idle_remaining_ms(400_000, 290_000, IDLE), 190_000);
+    // Silent for longer than the budget: expired.
+    assert_eq!(idle_remaining_ms(700_000, 10_000, IDLE), 0);
+    // A future last-output timestamp must not underflow.
+    assert_eq!(idle_remaining_ms(10_000, 20_000, IDLE), IDLE);
+}
+
+#[test]
+fn default_timeout_is_a_generous_fallback_not_a_two_minute_budget() {
+    assert!(DEFAULT_TIMEOUT_MS >= 600_000);
+    assert_eq!(MIN_TIMEOUT_MS, 1_000);
+    assert!(PROGRESS_HARD_CEILING_MS > IDLE_TIMEOUT_MS);
+    // The guidance must be actionable rather than a bare "timed out".
+    assert!(timeout_retry_hint(None).contains("explicit `timeout`"));
+    assert!(timeout_retry_hint(Some(90_000)).contains("larger `timeout`"));
+}
+
+#[tokio::test]
+async fn streaming_output_is_not_killed_by_the_idle_watchdog() {
+    let progress = CommandProgress::new();
+    let result = wait_for_progress(
+        async {
+            for _ in 0..6 {
+                tokio::time::sleep(Duration::from_millis(60)).await;
+                progress.note_output();
+            }
+            "completed"
+        },
+        &progress,
+        2_000,
+        150,
+    )
+    .await;
+    assert_eq!(
+        result,
+        Ok("completed"),
+        "output chunks must renew the lease"
+    );
+    assert!(progress.snapshot()["output_chunks"].as_u64().unwrap() >= 6);
+}
+
+#[tokio::test]
+async fn silent_command_is_stopped_by_the_idle_watchdog() {
+    let progress = CommandProgress::new();
+    let result = wait_for_progress(
+        async {
+            tokio::time::sleep(Duration::from_millis(5_000)).await;
+            "never reached"
+        },
+        &progress,
+        2_000,
+        150,
+    )
+    .await;
+    assert!(result.is_err(), "a silent command must not run forever");
+}

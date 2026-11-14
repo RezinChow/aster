@@ -9,8 +9,11 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 #[cfg(windows)]
 use std::ffi::OsStr;
+use std::future::Future;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tokio::process::Command;
 
 pub(crate) mod output_streams;
@@ -29,9 +32,112 @@ use windows::{
     normalize_json_like_literal, parse_simple_windows_http_command, preprocess_windows_command,
 };
 
-/// Default timeout in milliseconds (2 minutes)
-pub(crate) const DEFAULT_TIMEOUT_MS: u64 = 120_000;
+/// Fallback timeout in milliseconds (10 minutes).
+///
+/// This is a *fallback*, not a task budget: the model is expected to estimate
+/// the duration of each command and pass `timeout` explicitly. A short default
+/// used to kill healthy long-running work (site builds, full test suites) that
+/// keeps producing output, which is a progress signal, not a stall.
+pub(crate) const DEFAULT_TIMEOUT_MS: u64 = 600_000;
 const MIN_TIMEOUT_MS: u64 = 1_000;
+/// No-output budget for the outer watchdog: a command that keeps streaming
+/// output must not be killed just because it runs longer than expected.
+pub(crate) const IDLE_TIMEOUT_MS: u64 = 300_000;
+/// Absolute ceiling for progress-driven runs, so a command that streams
+/// forever still cannot hold a turn indefinitely.
+pub(crate) const PROGRESS_HARD_CEILING_MS: u64 = 3_600_000;
+
+/// How much of the no-output budget is still left. Pure so the watchdog
+/// decision can be unit-tested without spawning a process.
+fn idle_remaining_ms(now_ms: u64, last_output_ms: u64, idle_ms: u64) -> u64 {
+    idle_ms.saturating_sub(now_ms.saturating_sub(last_output_ms))
+}
+
+/// Observed output progress of one command. Output chunks are the progress
+/// signal; elapsed wall-clock time alone is not.
+pub(crate) struct CommandProgress {
+    started: Instant,
+    last_output_ms: AtomicU64,
+    output_chunks: AtomicU64,
+}
+
+impl CommandProgress {
+    fn new() -> Self {
+        Self {
+            started: Instant::now(),
+            last_output_ms: AtomicU64::new(0),
+            output_chunks: AtomicU64::new(0),
+        }
+    }
+
+    fn note_output(&self) {
+        self.last_output_ms
+            .store(self.started.elapsed().as_millis() as u64, Ordering::Relaxed);
+        self.output_chunks.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn idle_remaining_ms(&self, idle_ms: u64) -> u64 {
+        idle_remaining_ms(
+            self.started.elapsed().as_millis() as u64,
+            self.last_output_ms.load(Ordering::Relaxed),
+            idle_ms,
+        )
+    }
+
+    fn snapshot(&self) -> serde_json::Value {
+        serde_json::json!({
+            "elapsed_ms": self.started.elapsed().as_millis() as u64,
+            "last_output_ms": self.last_output_ms.load(Ordering::Relaxed),
+            "output_chunks": self.output_chunks.load(Ordering::Relaxed),
+        })
+    }
+}
+
+/// Make a timeout actionable: it is a budget decision, not a command verdict.
+fn timeout_retry_hint(declared_timeout_ms: Option<u64>) -> String {
+    match declared_timeout_ms {
+        Some(ms) => format!(
+            "[This is a time budget, not a command failure. You estimated {ms}ms; \
+             if the command was still producing output, retry once with a larger `timeout`.]"
+        ),
+        None => format!(
+            "[This is a time budget, not a command failure. No `timeout` was supplied \
+             (fallback {DEFAULT_TIMEOUT_MS}ms). Estimate the command duration and retry \
+             with an explicit `timeout`.]"
+        ),
+    }
+}
+
+/// Wait for a command, but only count *time without output* against it.
+/// An explicit model-supplied timeout is honoured exactly by the caller; this
+/// watchdog is used when the model gave no estimate.
+async fn wait_for_progress<F: Future>(
+    future: F,
+    progress: &CommandProgress,
+    hard_ms: u64,
+    idle_ms: u64,
+) -> Result<F::Output, ()> {
+    let mut future = std::pin::pin!(future);
+    let started = Instant::now();
+    loop {
+        let elapsed = started.elapsed().as_millis() as u64;
+        if elapsed >= hard_ms {
+            return Err(());
+        }
+        let wait_ms = progress
+            .idle_remaining_ms(idle_ms)
+            .min(hard_ms - elapsed)
+            .max(1);
+        tokio::select! {
+            output = &mut future => return Ok(output),
+            _ = tokio::time::sleep(Duration::from_millis(wait_ms)) => {
+                if progress.idle_remaining_ms(idle_ms) == 0 {
+                    return Err(());
+                }
+            }
+        }
+    }
+}
 
 /// Adapter that forwards `CommandOutputObserver` deltas to a tool event channel.
 ///
@@ -41,11 +147,13 @@ const MIN_TIMEOUT_MS: u64 = 1_000;
 struct ToolEventObserver {
     tx: Option<ToolEventSender>,
     summary: Mutex<Option<CommandOutputSummary>>,
+    progress: CommandProgress,
 }
 
 #[async_trait]
 impl CommandOutputObserver for ToolEventObserver {
     async fn on_output_delta(&self, delta: &str) {
+        self.progress.note_output();
         if let Some(tx) = &self.tx {
             tx.send(ToolStreamEvent::OutputDelta(delta.to_string()))
                 .await
@@ -572,7 +680,15 @@ impl Tool for BashTool {
                 },
                 "timeout": {
                     "type": "integer",
-                    "description": "Milliseconds; default 120000, clamped minimum 1000."
+                    "description": format!(
+                        "Milliseconds. You SHOULD estimate this yourself from the command: \
+                         short checks need a few seconds, but builds, installs, migrations and \
+                         full test suites commonly need 5-30 minutes. Underestimating kills the \
+                         command and loses its work, so prefer a generous value. The fallback is \
+                         {}ms (minimum 1000ms). If a command times out, retry once with a larger \
+                         timeout instead of assuming the command failed.",
+                        DEFAULT_TIMEOUT_MS
+                    )
                 },
                 "sandbox_permissions": {
                     "type": "string",
@@ -607,7 +723,7 @@ impl Tool for BashTool {
                 },
                 {
                     "command": "npm test",
-                    "timeout": 300000
+                    "timeout": 900000
                 }
             ]
         })
@@ -698,14 +814,13 @@ impl Tool for BashTool {
             return Ok(denied);
         }
 
-        let requested_timeout_ms = args
-            .get("timeout")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(DEFAULT_TIMEOUT_MS);
+        let declared_timeout_ms = args.get("timeout").and_then(|v| v.as_u64());
+        let requested_timeout_ms = declared_timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS);
         let timeout_ms = requested_timeout_ms.max(MIN_TIMEOUT_MS);
         let event_observer = Arc::new(ToolEventObserver {
             tx: ctx.event_tx.clone(),
             summary: Mutex::new(None),
+            progress: CommandProgress::new(),
         });
         let output_observer = Some(Arc::clone(&event_observer) as Arc<dyn CommandOutputObserver>);
 
@@ -764,28 +879,72 @@ impl Tool for BashTool {
                     }
                 };
                 let command_env = span.env(ctx.command_env.clone());
-                let cancellation = ctx.cancellation_token();
+                let timeout_declared = declared_timeout_ms.is_some();
+                // A child token keeps the outer turn's cancel authority, while
+                // the progress watchdog can end a *silent* command through the
+                // same token. ksandbox still performs its owned cleanup because
+                // we never drop the execution future on the owned-deadline path.
+                let command_cancellation = ctx.cancellation_token().child_token();
+                let sandbox_timeout_ms = if timeout_declared {
+                    timeout_ms
+                } else {
+                    // Without a model estimate, ksandbox only holds the absolute
+                    // ceiling; output progress, not wall clock, decides stalls.
+                    PROGRESS_HARD_CEILING_MS
+                };
+                let watchdog = if timeout_declared {
+                    None
+                } else {
+                    let observer = Arc::clone(&event_observer);
+                    let token = command_cancellation.clone();
+                    Some(tokio::spawn(async move {
+                        loop {
+                            tokio::time::sleep(Duration::from_millis(1_000)).await;
+                            if token.is_cancelled() {
+                                return;
+                            }
+                            if observer.progress.idle_remaining_ms(IDLE_TIMEOUT_MS) == 0 {
+                                token.cancel();
+                                return;
+                            }
+                        }
+                    }))
+                };
                 let execution = sandbox.exec_cancellable(
                     crate::sandbox::SandboxCommandRequest {
                         command: command_for_sandbox(command),
                         guest_workspace: "/workspace".to_string(),
-                        timeout_ms,
+                        timeout_ms: sandbox_timeout_ms,
                         output_observer: output_observer.clone(),
                         env: command_env,
                     },
-                    &cancellation,
+                    &command_cancellation,
                 );
+                let wall_ms = timeout_ms.saturating_add(sandbox.execution_overhead_ms());
                 let execution = if sandbox.owns_command_deadline() {
+                    // The sandbox owns its deadline and cleanup; the watchdog
+                    // cancels the token when the command goes silent.
                     Ok(execution.await)
+                } else if timeout_declared {
+                    // The model estimated a duration: honour that estimate exactly.
+                    tokio::time::timeout(Duration::from_millis(wall_ms), execution)
+                        .await
+                        .map_err(|_| ())
                 } else {
-                    tokio::time::timeout(
-                        std::time::Duration::from_millis(
-                            timeout_ms.saturating_add(sandbox.execution_overhead_ms()),
-                        ),
+                    // No estimate: a streaming command is making progress, so
+                    // wall-clock time is not a stall signal. Only a silent
+                    // command (or the absolute ceiling) ends the wait.
+                    wait_for_progress(
                         execution,
+                        &event_observer.progress,
+                        PROGRESS_HARD_CEILING_MS,
+                        IDLE_TIMEOUT_MS,
                     )
                     .await
                 };
+                if let Some(handle) = watchdog {
+                    handle.abort();
+                }
                 let (result, termination) = match execution {
                     Ok(Err(error))
                         if crate::sandbox::native::is_native_process_lifetime_unqualified(
@@ -811,8 +970,10 @@ impl Tool for BashTool {
                             })
                         });
                         let mut timed_out = ToolOutput::error(format!(
-                            "[Command timed out after {}ms]\n[Command termination was not observed]",
-                            timeout_ms
+                            "[Command timed out after {}ms]\n[Command termination was not observed]\n{}\n[progress {}]",
+                            timeout_ms,
+                            timeout_retry_hint(declared_timeout_ms),
+                            event_observer.progress.snapshot(),
                         ));
                         timed_out.metadata = Some(with_changed_paths(
                             serde_json::json!({
@@ -865,8 +1026,11 @@ impl Tool for BashTool {
                 }
                 if result.timed_out {
                     let mut timed_out = ToolOutput::error(format!(
-                        "{}\n\n[Command timed out after {}ms]",
-                        output, effective_timeout_ms
+                        "{}\n\n[Command timed out after {}ms]\n{}\n[progress {}]",
+                        output,
+                        effective_timeout_ms,
+                        timeout_retry_hint(declared_timeout_ms),
+                        event_observer.progress.snapshot(),
                     ));
                     timed_out.metadata = Some(with_changed_paths(
                         serde_json::json!({
@@ -876,6 +1040,7 @@ impl Tool for BashTool {
                             "sandboxed": isolated,
                             "output": capture_metadata,
                             "shell_output_streams": streams,
+                            "progress": event_observer.progress.snapshot(),
                         }),
                         &span.finish(ctx).await,
                     ));

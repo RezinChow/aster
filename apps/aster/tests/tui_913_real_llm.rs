@@ -817,10 +817,12 @@ fn open_live_session(coding: bool, workspace_default_model: Option<&str>) -> Opt
     })
 }
 
-/// The shortcuts bar draws `Ctrl+o:yolo` only while the permission options card has the keyboard.
-/// A transcript line that still says "Yes, proceed" is not that card.
+/// The shortcuts bar draws the Ctrl+O / YOLO hint only while the permission
+/// options card has the keyboard. A transcript line that still says
+/// "Yes, proceed" is not that card. The rendered chord casing has changed
+/// (`Ctrl+O:YOLO` vs the older `Ctrl+o:yolo`), so compare case-insensitively.
 fn permission_card_is_focused(screen: &str) -> bool {
-    screen.contains("Ctrl+o:yolo")
+    screen.to_ascii_lowercase().contains("ctrl+o:yolo")
 }
 
 /// True when the ask_user multi-choice card owns the keyboard.

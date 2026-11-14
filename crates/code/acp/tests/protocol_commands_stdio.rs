@@ -274,7 +274,25 @@ async fn workspace_hybrid_search_uses_offline_vectors_and_refreshes_current_sour
                 id += 1;
                 let found = agent.rpc(json!({"jsonrpc":"2.0","id":id,"method":"_aster/workspace/search/v1","params":params})).await;
                 assert!(found.get("error").is_none(), "{found}");
-                if found["result"]["metadata"]["semantic_status"]["phase"] == "ready" { break found; }
+                // Wait for the *same* state the assertions below check. A ready
+                // phase alone can precede the final index count and semantic
+                // candidates, which made this test flaky on slower runners.
+                let status = &found["result"]["metadata"]["semantic_status"];
+                let candidates = found["result"]["metadata"]["channels"]
+                    .as_array()
+                    .is_some_and(|channels| {
+                        channels.iter().any(|channel| {
+                            channel["channel"] == "semantic"
+                                && channel["candidateCount"].as_u64().unwrap_or(0) > 0
+                        })
+                    });
+                if status["phase"] == "ready"
+                    && status["model"]["provider"] == "light"
+                    && status["indexedFiles"] == files
+                    && candidates
+                {
+                    break found;
+                }
                 tokio::time::sleep(Duration::from_millis(20)).await;
             }
         }).await.expect("the local vector generation must become ready");
