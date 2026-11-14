@@ -5,6 +5,8 @@
 > 证据目录：`docs/evidence/studio/2026-11-14-release-readiness/`
 > 复跑命令：`python docs/evidence/studio/2026-11-14-release-readiness/release-readiness-check.py`
 > 输出：`readiness-report.json` / `readiness-report.txt`（**本地派生产物，可复跑、不入库**）；**门禁脚本全程只读**，整改写操作是用户授权后单独执行的，不由脚本代劳。
+>
+> ⚠️ **状态更新**：本文 §1–§6 是**代码推送前**的本地整改快照（当时 `PASS 8 / FAIL 2 / UNVERIFIABLE 3`）。之后的「代码推送」与「桌面发布链路 fail-closed 整改」见 **§8**；最新门禁为 **`PASS 9 / FAIL 1 / UNVERIFIABLE 3`**，verdict 仍为 `NOT READY FOR RELEASE`。
 
 ---
 
@@ -148,3 +150,56 @@ python docs/evidence/studio/2026-11-14-release-readiness/release-readiness-check
 ```
 
 退出码 `0` = 全部 PASS；非 `0` = 仍存在 FAIL 或 UNVERIFIABLE。报告输出到同目录 `readiness-report.json` / `readiness-report.txt` / `readiness-run.stdout.log`，这三个派生产物由 `.gitignore` 排除、不入库——否则门禁复跑会把自身证据变成 dirty，形成自指 FAIL；内容已去除易变字段，复跑可复现。本机执行时 `wsl.exe` 被安全策略拦截会打印提示，这正是 G09 被标为 `UNVERIFIABLE` 的原因，不代表脚本崩溃；`CHECK_EXIT=1` 是门禁按设计返回。
+
+---
+
+## 8. 增量：代码推送与桌面发布链路 fail-closed 整改（2026-11-14 晚）
+
+> 对应指令「尽快完成发布推送」→「继续完成符合规范的发布」。
+> **结论：代码推送完成；发布链路已改为符合治理文档 L80 的 fail-closed；但 v0.2.4 正式发布未执行，且当前客观条件不允许执行。**
+
+### 8.1 代码推送（已完成）
+
+fetch 时发现 `origin/main` 已被推进 1 个提交 `a2fd94d08`（`feat(tui): add /init and prepare CLI 0.3.5 / Core+ACP 9.2.3`），本地从 `ahead 3` 变为 `ahead 3 / behind 1`，直接 push 会 non-fast-forward。本地未推送历史含 merge commit `b3ebd90e`，rebase 会展平历史；`git merge-tree --write-tree` 只读预演无冲突，故采用**非破坏性 merge**，`Cargo.lock`（远程 Core/ACP 9.2.3 段 vs 本地 aster-studio 0.2.4 段）自动合并成功，生成 `842d82d6a`。
+
+| 仓库 | 推送 | 结果 |
+|---|---|---|
+| `aster-ai-lab/studio` | `944864f27..bedc30698 → main`（显式 SHA，不建 `release/*`） | EXIT=0 |
+| `aster-ai-lab/aster` | `a2fd94d08..842d82d6a → main` | EXIT=0 |
+
+推送前 `cargo metadata --locked` EXIT=0、`just studio-land-check` EXIT=0、四处版本 0.2.4、`gitlink == sub HEAD == bedc30698`；推送后两仓 `ahead=0 / behind=0`、工作树 0 行 dirty、远程 gitlink 可解析、无 `v0.2.4` tag。G06 由 FAIL 转 **PASS**，门禁变为 **`PASS 9 / FAIL 1 / UNVERIFIABLE 3`**。
+
+### 8.2 新发现：桌面发布流程会静默产出不合规产物
+
+- 仓库 secrets **只有 `STUDIO_READ_TOKEN`**；variables 只有 `ASTER_PLUGIN_ROOT_SHA256`；无承载签名/公证凭证的 environment。
+- `release-aster-desktop.yml` build job 原 `env` 无 `ASTERSIGN_IDENTITY` / `ASTER_NOTARY_PROFILE`；`apps/studio/scripts/package-host.sh:80-98` 在无身份时退回 ad-hoc 签名、无 profile 时跳过 `notarytool` / `stapler` / `spctl`，**但仍继续 archive 并把 zip 上传 `desktop-stable`**。治理文档 L80 要求签名、公证和平台验证，因此直接 `workflow_dispatch` 会把未公证包写入稳定通道。
+- `ci.yml` 的 `name: Rust` 就是 L104 所指主 CI，`Release tag and channel governance` 在第 70 行；但本次 push 的 `check (ubuntu/macos)` 在更靠前的 `Format`（`cargo fmt --check`）就失败，治理测试**根本没执行到** → G09 仍无绿色结果。该 rustfmt 失败与推送前 `a2fd94d08` 的失败逐行一致，非本次引入。
+
+### 8.3 已落地的整改（仅父仓，不动已验证的 0.2.4 发布候选）
+
+| 文件 | 改动 |
+|---|---|
+| `.github/workflows/release-aster-desktop.yml` | build job `env` 注入 `ASTERSIGN_IDENTITY` / `ASTER_NOTARY_PROFILE` secrets；新增 **`Require signing and notarization credentials`**，缺任一 secret 即在构建/上传前 `exit 1`；新增 `Release governance preflight` 运行治理测试 |
+| `tests/release_governance.py` | 新增 `test_desktop_release_refuses_missing_notarization_credentials`，固化凭证注入 + `exit 1` 契约 |
+| `release-readiness-check.py` | G11 detail 增加 `workflow_fail_closed` 与凭证未配置事实；**status 仍 `UNVERIFIABLE`**（流程修复 ≠ 公证完成证据，不放宽） |
+
+**验证**：`yaml` 解析 OK（build env 8 项、preflight 位于构建之前、`publish.needs=build`）；`python3 -m unittest tests.release_governance.ReleaseContracts -q` → `Ran 7 tests OK`；提取 preflight 实测：缺凭证 `exit 1` + `::error::Refusing to publish an unsigned or unnotarized desktop build...`，凭证齐全 `exit 0`。
+
+> 签发与公证的**实际执行**还依赖 macOS runner 导入证书、建立 keychain profile、Apple 协议恢复。本轮未实现证书导入（需额外 secrets 且本机无法验证），也未伪造这些能力。
+
+### 8.4 为什么 v0.2.4 正式发布仍未执行
+
+整改后的 workflow 在凭证缺失时**按设计拒绝发布**——这是当前「符合规范」的正确结果。仍缺：
+
+1. secrets：`ASTERSIGN_IDENTITY`（值须以 `Developer ID Application:` 开头）、`ASTER_NOTARY_PROFILE`；
+2. `macos-14` runner：导入 Developer ID 证书与私钥、`xcrun notarytool store-credentials` 建立 profile（需 Apple ID / Team ID / app-specific password）；
+3. Apple 账号持有人接受协议，解除 `notarytool` 403；
+4. 主 CI `check (ubuntu/macos)` 转绿、治理测试 step 实际执行（G09）；
+5. macOS 平台验证与 `notarytool` / `stapler` / `spctl` 绿色证据（G10/G11）；
+6. 治理 §L81/L83：版本化 `v0.2.4` Release 并标记仓库 Latest、刷新 Latest 上 CLI 兼容 `latest.json`（当前 workflow 只更新 `desktop-stable`）；
+7. G13 的 P0 口径裁决（`MATRIX.md` 内部目标、非治理条款，但门禁仍 fail-closed）；
+8. 用户最后一次明确确认触发发布。
+
+### 8.5 边界
+
+未创建 `v0.2.4` tag、未 `workflow_dispatch release-aster-desktop.yml`、未上传任何 Release 资产、未改动 `desktop-stable`、未改 `docs/release-governance.md`、未改 `MATRIX.md`、未改产品源码、未 `stash pop` WIP。WIP 仍在 `stash@{0}` 与 `wip-backup/reasoning_effort-wip.patch`。

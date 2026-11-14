@@ -1,7 +1,7 @@
 # 发布规范达标 Runbook（2026-11-14）
 
 > 权威依据：`docs/release-governance.md`
-> 当前门禁：`python docs/evidence/studio/2026-11-14-release-readiness/release-readiness-check.py` → **PASS 8 / FAIL 2 / UNVERIFIABLE 3 → `NOT READY FOR RELEASE`**
+> 当前门禁：`python docs/evidence/studio/2026-11-14-release-readiness/release-readiness-check.py` → **PASS 9 / FAIL 1 / UNVERIFIABLE 3 → `NOT READY FOR RELEASE`**（§1–§5 为推送前快照；最新状态、凭证配置清单与触发条件见 **§7**）
 > 定位：从「本地合规准备完成」到「真正符合发布规范」的**可执行命令 + 验收证据 + 责任方**。本文不替代用户决策，也不放宽任何断言。
 > 前置阅读：`RELEASE-COMPLIANCE.md`（整改台账）、`docs/evidence/studio/2026-11-13-desktop-0.2.3/OUTCOME.md`（上次发布与公证记录）。
 
@@ -225,3 +225,49 @@ python docs/evidence/studio/2026-11-14-release-readiness/release-readiness-check
 ```
 
 报告为本地派生产物（`.gitignore` 排除），复跑可复现。本机执行时 `wsl.exe` 被安全策略拦截的提示对应 G09，`CHECK_EXIT=1` 是门禁按设计返回，不是脚本崩溃。
+
+---
+
+## 7. 增量：fail-closed 整改与精确凭证清单（2026-11-14 晚）
+
+> §0.3 的修复方向已落地**仓库侧可解部分**；§3.1 的推送已执行完毕。本节覆盖两者，并替代 §5 中「未 push / 未修改 workflow」的历史边界。
+
+### 7.1 已完成
+
+- 代码推送：studio `944864f27..bedc30698 → main`、aster `a2fd94d08..842d82d6a → main`（含为吸收远程 `a2fd94d08` 做的非破坏性 merge `842d82d6a`）。两仓 `ahead=0 / behind=0`。
+- `release-aster-desktop.yml`：build job 注入两个 secret、新增凭证 fail-closed preflight（缺失即 `exit 1`）、新增治理测试 preflight。
+- `tests/release_governance.py`：新增契约测试固化上述行为（`ReleaseContracts` 7 tests OK）。
+- `release-readiness-check.py` G11：detail 增加 `workflow_fail_closed=True`，**status 保持 UNVERIFIABLE**。
+- 最新门禁：**`PASS 9 / FAIL 1 / UNVERIFIABLE 3 → NOT READY FOR RELEASE`**。
+
+### 7.2 配置清单（触发发布前必须由账号持有人完成）
+
+实测仓库当前 secrets 仅 `STUDIO_READ_TOKEN`，variables 仅 `ASTER_PLUGIN_ROOT_SHA256`，无凭证 environment。最小必需：
+
+| 项 | 类型 | 说明 |
+|---|---|---|
+| `ASTERSIGN_IDENTITY` | secret | 完整身份字符串，须以 `Developer ID Application:` 开头（`package-host.sh:10` 会校验） |
+| `ASTER_NOTARY_PROFILE` | secret | `notarytool` keychain profile 名；profile 必须已在 runner keychain 中建立 |
+| Developer ID 证书 + 私钥 | secret（p12 base64）+ 密码 | 在 `macos-14` 用 `security create-keychain` / `security import` 导入；当前 workflow **未实现**该步骤 |
+| Apple ID / Team ID / app-specific password | secrets | 供 `xcrun notarytool store-credentials` 建立 profile |
+| Apple 开发者账号协议 | 账号侧 | 解除 `notarytool` 403（`2026-11-13-desktop-0.2.3/OUTCOME.md`） |
+
+> 只配前两项**不足以**成功发布：全新 runner 上 `notarytool submit --keychain-profile` 找不到 profile 仍会失败。证书导入与 profile 建立属发布配置变更，需单独授权并在 macOS 实测，本轮未实现、未伪装。
+
+### 7.3 触发前检查清单
+
+```bash
+# 1) 凭证确实存在（不显示值）
+gh secret list | grep -E 'ASTERSIGN_IDENTITY|ASTER_NOTARY_PROFILE'
+# 2) 主 CI 治理测试 step 真的跑过且绿色（本次 push 因 Format 失败未执行到）
+gh run view <rust-run-id> --log | grep -A3 'Release tag and channel governance'
+# 3) 确认 fail-closed preflight 仍在，未公证包不会进稳定通道
+grep -n 'Require signing and notarization credentials' .github/workflows/release-aster-desktop.yml
+# 4) 门禁
+python docs/evidence/studio/2026-11-14-release-readiness/release-readiness-check.py
+# 期望 PASS 13 / FAIL 0 / UNVERIFIABLE 0；当前 9/1/3，仍 no-go
+```
+
+### 7.4 治理 §桌面版四步中 workflow 未覆盖的部分
+
+`release-aster-desktop.yml` 的 publish job **只**上传 `desktop-stable`。L81（版本化 `vX.Y.Z` + 标记仓库 Latest）与 L83（刷新 Latest 上 CLI 兼容 `latest.json`）不在该 workflow 内，历史上由发布机／人工完成（见 `2026-11-13-desktop-0.2.3/OUTCOME.md`）。触发前必须明确由哪一步完成并验收，不能假设 workflow 已覆盖。

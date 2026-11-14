@@ -204,6 +204,18 @@ class ReleaseContracts(unittest.TestCase):
         command = workflow.split("gh release create desktop-stable", 1)[1].split("\n          fi", 1)[0]
         self.assertIn("--latest=false", command)
 
+    def test_desktop_release_refuses_missing_notarization_credentials(self):
+        workflow = (ROOT / ".github/workflows/release-aster-desktop.yml").read_text()
+        self.assertIn("ASTERSIGN_IDENTITY: ${{ secrets.ASTERSIGN_IDENTITY }}", workflow)
+        self.assertIn("ASTER_NOTARY_PROFILE: ${{ secrets.ASTER_NOTARY_PROFILE }}", workflow)
+        preflight = workflow_script(
+            "release-aster-desktop.yml", "Require signing and notarization credentials"
+        )
+        self.assertIn("SIGN_IDENTITY", preflight)
+        self.assertIn("NOTARY_PROFILE", preflight)
+        self.assertIn("Refusing to publish an unsigned", preflight)
+        self.assertIn("exit 1", preflight)
+
     def test_governance_documents_namespaces_retention_and_forbidden_latest_tag(self):
         text = (ROOT / "docs/release-governance.md").read_text()
         self.assertIn("| Core／ACP | `aster-acp-vX.Y.Z` |", text)

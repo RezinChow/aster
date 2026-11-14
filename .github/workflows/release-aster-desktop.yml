@@ -40,12 +40,38 @@ jobs:
       ASTER_DEFER_RUNTIME_COMPONENTS: ${{ inputs.defer_runtime_components && '1' || '0' }}
       ASTER_PLUGIN_ROOT_SHA256: ${{ vars.ASTER_PLUGIN_ROOT_SHA256 }}
       ASTER_RUNTIME_COMPONENTS_LOCK: ${{ github.workspace }}/apps/studio/resources/runtime-components.lock.json
+      # docs/release-governance.md L80 requires a signed and notarized installer.
+      # package-host.sh silently falls back to an ad-hoc signature and skips
+      # notarytool/stapler/spctl when these are empty, so the preflight below
+      # refuses the dispatch before any build or desktop-stable upload happens.
+      ASTERSIGN_IDENTITY: ${{ secrets.ASTERSIGN_IDENTITY }}
+      ASTER_NOTARY_PROFILE: ${{ secrets.ASTER_NOTARY_PROFILE }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Check out pinned desktop sources
         uses: ./.github/actions/checkout-studio
         with:
           token: ${{ secrets.STUDIO_READ_TOKEN }}
+      - name: Require signing and notarization credentials
+        shell: bash
+        env:
+          SIGN_IDENTITY: ${{ secrets.ASTERSIGN_IDENTITY }}
+          NOTARY_PROFILE: ${{ secrets.ASTER_NOTARY_PROFILE }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -n "${SIGN_IDENTITY:-}" ] || missing="ASTERSIGN_IDENTITY"
+          [ -n "${NOTARY_PROFILE:-}" ] || missing="${missing:+$missing, }ASTER_NOTARY_PROFILE"
+          if [ -n "$missing" ]; then
+            echo "::error::Refusing to publish an unsigned or unnotarized desktop build. Missing secrets: $missing" >&2
+            echo "A desktop-stable release requires a Developer ID Application identity" >&2
+            echo "and a notarytool keychain profile (docs/release-governance.md L80)." >&2
+            echo "Configure both secrets on the repository before dispatching this workflow." >&2
+            exit 1
+          fi
+      - name: Release governance preflight
+        shell: bash
+        run: python3 tests/release_governance.py
       - name: Install macOS build tools
         run: |
           brew install protobuf just coreutils e2fsprogs llvm jq xz gnu-tar

@@ -207,21 +207,28 @@ def main():
         f"host={host}, workflow runs-on={target}; 四轮 E2E 均为 Windows",
         "在 macos-14 / Node 24.12 上跑 release-aster-desktop.yml 的构建与签名公证")
 
-    # G11 - Apple notarization. Distinct from the account-level 403: the
-    # desktop workflow never injects signing identity / notary profile, so
-    # package-host.sh would produce an ad-hoc signed, unnotarized archive.
+    # G11 - Apple notarization. The workflow now fails closed when the signing
+    # identity or notary profile secret is missing, so an ad-hoc unnotarized
+    # archive can no longer reach desktop-stable. That is a process fix, NOT
+    # evidence that notarization happened: the gate stays UNVERIFIABLE.
     note = read("docs/evidence/studio/2026-11-13-desktop-0.2.3/OUTCOME.md")
     notary_blocked = "403" in note and "notarytool" in note
     dwf = read(".github/workflows/release-aster-desktop.yml")
     wf_notary = "ASTER_NOTARY_PROFILE" in dwf
     wf_identity = "ASTERSIGN_IDENTITY" in dwf
+    wf_fail_closed = ("Require signing and notarization credentials" in dwf
+                      and "Refusing to publish an unsigned" in dwf
+                      and "exit 1" in dwf)
     add("G11", "签名 + 公证 + staple 完成", "§桌面版 L80 + 0.2.1/0.2.3 发布记录",
         "UNVERIFIABLE",
         f"11-13 记录 notarytool 403 协议级阻塞={notary_blocked}; "
         f"线上 v0.2.3 为知情未公证发布; "
-        f"workflow_notary_env={wf_notary}; workflow_sign_identity={wf_identity}",
-        "先为 release-aster-desktop.yml 注入签名身份与 ASTER_NOTARY_PROFILE（当前缺失，"
-        "CI 产物默认 ad-hoc 未公证），再解决 Apple 账号协议并重跑 notarytool/stapler/spctl")
+        f"workflow_notary_env={wf_notary}; workflow_sign_identity={wf_identity}; "
+        f"workflow_fail_closed={wf_fail_closed}; "
+        f"本轮实测仓库 secrets 仅 STUDIO_READ_TOKEN，签名/公证凭证未配置",
+        "workflow 已 fail-closed（缺凭证即拒绝发布）；仍需配置 ASTERSIGN_IDENTITY / "
+        "ASTER_NOTARY_PROFILE，在 macos-14 导入 Developer ID 证书与 notarytool "
+        "keychain profile，恢复 Apple 账号协议，并取得 notarytool/stapler/spctl 绿色证据")
 
     # G12 - known functional regression on the CURRENT release candidate.
     # The rerun FAIL is historical and belongs to the old user worktree
