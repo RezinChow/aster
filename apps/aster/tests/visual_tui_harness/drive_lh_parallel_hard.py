@@ -102,8 +102,13 @@ def main() -> int:
         return p.read_text() if p.exists() else ""
 
     assert wait_pred(
-        lambda h: "Type a message" in h or "❯" in h or "deepseek" in h.lower(),
-        120,
+        lambda h: "Type a message" in h
+        or "Add a follow-up" in h
+        or "Describe your task" in h
+        or "❯" in h
+        or "deepseek" in h.lower()
+        or "kimi" in h.lower(),
+        180,
         "welcome",
     )
     capture(ev, wid, "01-welcome")

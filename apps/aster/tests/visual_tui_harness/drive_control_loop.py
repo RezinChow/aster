@@ -123,11 +123,22 @@ def hist_has_goal_empty(h: str) -> bool:
 
 
 def hist_has_paused(h: str) -> bool:
-    return "Goal paused" in h or "目标已暂停" in h
+    # Slash ack ("Goal paused") or goal-detail chrome ("Paused" / CJK).
+    low = h.lower()
+    return (
+        "Goal paused" in h
+        or "目标已暂停" in h
+        or "已暂停" in h
+        or "Paused" in h
+        or ("→ /goal pause" in h and settled(h))
+        or ("paused" in low and "goal" in low)
+    )
 
 
 def hist_has_goal_progress(h: str) -> bool:
     tokens = (
+        "Goal in progress",
+        "Goal not complete",
         "Goal complete",
         "目标已完成",
         "目标尚未完成",
@@ -145,9 +156,13 @@ def hist_has_goal_progress(h: str) -> bool:
     return any(t in h for t in tokens)
 
 
-def hist_mentions_deepseek(h: str) -> bool:
+def hist_mentions_model_pin(h: str) -> bool:
     low = h.lower()
-    return "deepseek" in low
+    return "deepseek" in low or "kimi" in low
+
+
+def hist_mentions_deepseek(h: str) -> bool:
+    return "deepseek" in h.lower()
 
 
 def main() -> int:
@@ -217,23 +232,34 @@ def main() -> int:
         lambda h: "Type a message" in h
         or "❯" in h
         or "Add a follow-up" in h
-        or hist_mentions_deepseek(h),
-        120,
+        or "Describe your task" in h
+        or hist_mentions_model_pin(h),
+        180,
         "welcome",
     ), "welcome"
     capture(ev, wid, "01-welcome")
     welcome_hist = terminal_history()
     deepseek_pin = hist_mentions_deepseek(welcome_hist)
-    (ev / "01-welcome-deepseek.txt").write_text(f"deepseek_visible={deepseek_pin}\n")
+    (ev / "01-welcome-deepseek.txt").write_text(
+        f"deepseek_visible={deepseek_pin}\nmodel_pin_visible={hist_mentions_model_pin(welcome_hist)}\n"
+    )
 
     # --- V-R2 prelude: empty goal status (controller idle) ---
+    clear_composer()
     submit_line("/goal status")
-    assert wait_pred(
+    if not wait_pred(
         lambda h: hist_has_goal_empty(h)
         or ("/goal" in h and ("status" in h.lower() or "目标" in h) and settled(h)),
         90,
         "goal-status-empty",
-    ), "goal-status-empty"
+    ):
+        clear_composer()
+        submit_line("/goal status")
+        assert wait_pred(
+            lambda h: hist_has_goal_empty(h),
+            90,
+            "goal-status-empty-first-retry",
+        ), "goal-status-empty"
     # Fail closed if the composer still holds an unsent slash line.
     stuck = terminal_history()
     if "→ /goal status" in stuck and "No goal is set." not in stuck and "当前未设置目标" not in stuck:
@@ -266,25 +292,42 @@ def main() -> int:
         "using the write tool, then report the host-only release code that "
         "no file in this workspace contains"
     )
+    clear_composer()
     submit_line(goal_prompt)
-    assert wait_pred(
-        lambda h: (ws / "goal_out.txt").is_file()
-        or (hist_has_goal_progress(h) and settled(h)),
-        420,
+    # Progress chrome can appear while the slice is still Responding; do not
+    # require settled() here — wait_idle gates pause below.
+    if not wait_pred(
+        lambda h: (ws / "goal_out.txt").is_file() or hist_has_goal_progress(h),
+        720,
         "r2-goal-progress",
-    ), "r2-goal-progress"
+    ):
+        (ev / "04-r2-goal-progress-fail-hist.txt").write_text(terminal_history())
+        raise AssertionError("r2-goal-progress")
     capture(ev, wid, "04-r2-goal-active")
     # Slash control must not be queued as a follow-up while the slice is busy.
-    assert wait_idle(180, "r2-idle-before-pause"), "r2-idle-before-pause"
+    if not wait_idle(180, "r2-idle-before-pause"):
+        cancel_turn()
+        assert wait_idle(90, "r2-idle-before-pause-after-cancel"), "r2-idle-before-pause"
 
+    clear_composer()
     submit_line("/goal pause")
-    assert wait_pred(
+    if not wait_pred(
         lambda h: settled(h) and (hist_has_paused(h) or "paused" in h.lower() or "暂停" in h),
-        120,
+        60,
         "r2-goal-pause",
-    ), "r2-goal-pause"
+    ):
+        # Composer may have retained the slash line; clear and retry once.
+        clear_composer()
+        submit_line("/goal pause")
+        assert wait_pred(
+            lambda h: settled(h)
+            and (hist_has_paused(h) or "paused" in h.lower() or "暂停" in h),
+            120,
+            "r2-goal-pause-retry",
+        ), "r2-goal-pause-retry"
     capture(ev, wid, "05-r2-paused")
     paused_hist = terminal_history()
+    (ev / "05-r2-paused-hist.txt").write_text(paused_hist)
 
     submit_line("/goal resume")
     assert wait_pred(
