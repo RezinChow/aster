@@ -18,7 +18,7 @@ Pre-land HEAD: `e74809409957718b1154fd222e3f871429c82c6e`.
 | Commit | Subject |
 | --- | --- |
 | `6c2916864634e9c88480c51624914d020fb2f730` | `fix(acp/pager/core): harden ACP disconnect recovery and tool correction` |
-| *(filled after docs/test commit)* | `test(visual-harness)+docs: close kimi control-loop e2e and record recovery evidence` |
+| `c9c378f7f1b202bf2ca07e0b52e0759b21aaa1e6` | `test(visual-harness)+docs: close kimi control-loop e2e and record recovery evidence` |
 
 ## C2 campaign doc
 
@@ -41,9 +41,10 @@ Pre-land HEAD: `e74809409957718b1154fd222e3f871429c82c6e`.
 ```text
 阶段：phase3-land-recovery-and-closeout
 C0卫生：utf8=PASS；transport=PASS
-C1提交：product=6c2916864；docs/test=(pending this commit)
+C1提交：product=6c2916864；docs/test=c9c378f7f
 C2战役文档：long-horizon判定=PASS
 推送：未推送
 证据：docs/evidence/code/2026-11-15-phase3-land-recovery-and-closeout/OUTCOME.md
 未做：L5；安装替换；Studio
 ```
+
