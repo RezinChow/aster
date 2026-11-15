@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use agent_client_protocol::{self as acp};
 use aster_acp_lib::{
     AcpAgentGatewayReceiver as GatewayReceiver, AcpAgentGatewaySender as GatewaySender,
-    LineBufferedRead,
+    LineBufferedRead, RetryTransientRead, RetryTransientWrite,
 };
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -47,11 +47,15 @@ pub async fn load_session_via_agent<C: acp::Client + 'static>(
     let (a2c_a, a2c_b) = tokio::io::duplex(DUPLEX_BUFFER_BYTES);
 
     // Agent side.
-    let agent_incoming = LineBufferedRead::spawn_local(c2a_b.compat());
-    let (agent_conn, agent_io) =
-        acp::AgentSideConnection::new(agent, a2c_a.compat_write(), agent_incoming, |fut| {
+    let agent_incoming = LineBufferedRead::spawn_local(RetryTransientRead::new(c2a_b.compat()));
+    let (agent_conn, agent_io) = acp::AgentSideConnection::new(
+        agent,
+        RetryTransientWrite::new(a2c_a.compat_write()),
+        agent_incoming,
+        |fut| {
             tokio::task::spawn_local(fut);
-        });
+        },
+    );
     tokio::task::spawn_local(
         GatewayReceiver::new(gw_rx, agent_conn)
             .with_on_meta(aster_otel::span_from_meta_traceparent)
@@ -60,11 +64,15 @@ pub async fn load_session_via_agent<C: acp::Client + 'static>(
     tokio::task::spawn_local(agent_io);
 
     // Client side.
-    let client_incoming = LineBufferedRead::spawn_local(a2c_b.compat());
-    let (client_conn, client_io) =
-        acp::ClientSideConnection::new(client, c2a_a.compat_write(), client_incoming, |fut| {
+    let client_incoming = LineBufferedRead::spawn_local(RetryTransientRead::new(a2c_b.compat()));
+    let (client_conn, client_io) = acp::ClientSideConnection::new(
+        client,
+        RetryTransientWrite::new(c2a_a.compat_write()),
+        client_incoming,
+        |fut| {
             tokio::task::spawn_local(fut);
-        });
+        },
+    );
     tokio::task::spawn_local(client_io);
 
     use acp::Agent as _;

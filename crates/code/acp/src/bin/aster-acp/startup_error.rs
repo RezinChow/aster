@@ -47,8 +47,10 @@ pub(super) async fn report(error: anyhow::Error) -> Result<()> {
     )));
     let (_connection, io_task) = acp::AgentSideConnection::new(
         agent,
-        tokio::io::stdout().compat_write(),
-        tokio::io::stdin().compat(),
+        aster_acp_lib::RetryTransientWrite::new(tokio::io::stdout().compat_write()),
+        aster_acp_lib::LineBufferedRead::spawn_local(aster_acp_lib::RetryTransientRead::new(
+            tokio::io::stdin().compat(),
+        )),
         |future| {
             tokio::task::spawn_local(future);
         },

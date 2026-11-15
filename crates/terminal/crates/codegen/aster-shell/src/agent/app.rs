@@ -8,7 +8,7 @@ use crate::util::grok_home;
 use agent_client_protocol as acp;
 use aster_acp_lib::{
     AcpAgentGatewayReceiver as GatewayReceiver, AcpAgentGatewaySender as GatewaySender,
-    LineBufferedRead,
+    LineBufferedRead, RetryTransientRead, RetryTransientWrite,
 };
 #[cfg(test)]
 use aster_login::AuthMode;
@@ -143,7 +143,9 @@ fn spawn_agent_local(
     }
     let agent = Rc::new(agent);
     *keepalive.borrow_mut() = Some(Rc::clone(&agent));
-    let incoming = LineBufferedRead::spawn_local(incoming);
+    // WouldBlock/Interrupted must not become ACP -32603 (see aster_acp_lib::transient_io).
+    let incoming = LineBufferedRead::spawn_local(RetryTransientRead::new(incoming));
+    let outgoing = RetryTransientWrite::new(outgoing);
     let (conn, handle_io) = acp::AgentSideConnection::new(agent, outgoing, incoming, |fut| {
         tokio::task::spawn_local(fut);
     });
@@ -468,7 +470,8 @@ pub async fn run_headless(
                 }
                 let agent = Rc::new(agent);
                 *keepalive_for_spawn.borrow_mut() = Some(Rc::clone(&agent));
-                let incoming = LineBufferedRead::spawn_local(incoming);
+                let incoming = LineBufferedRead::spawn_local(RetryTransientRead::new(incoming));
+                let outgoing = RetryTransientWrite::new(outgoing);
                 let (conn, handle_io) = acp::AgentSideConnection::new(
                     agent,
                     outgoing,
@@ -955,7 +958,8 @@ pub async fn run_leader(
                 }
                 let agent = Rc::new(agent);
                 *keepalive_for_spawn.borrow_mut() = Some(Rc::clone(&agent));
-                let incoming = LineBufferedRead::spawn_local(incoming);
+                let incoming = LineBufferedRead::spawn_local(RetryTransientRead::new(incoming));
+                let outgoing = RetryTransientWrite::new(outgoing);
                 let (conn, handle_io) = acp::AgentSideConnection::new(
                     agent,
                     outgoing,

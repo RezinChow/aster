@@ -217,11 +217,14 @@ pub(crate) fn bridge_channels(
                 });
 
                 // Wire ClientSideConnection for JSON-RPC ser/deser.
+                // WouldBlock/Interrupted must not become ACP -32603 (see aster_acp_lib::transient_io).
                 let gw_tx = AcpGatewaySender::new(agent_channel.tx).with_tracing(true);
-                let incoming = LineBufferedRead::spawn_local(incoming_read.compat());
+                let incoming = LineBufferedRead::spawn_local(
+                    aster_acp_lib::RetryTransientRead::new(incoming_read.compat()),
+                );
                 let (conn, handle_io) = acp::ClientSideConnection::new(
                     gw_tx,
-                    outgoing_write.compat_write(),
+                    aster_acp_lib::RetryTransientWrite::new(outgoing_write.compat_write()),
                     incoming,
                     |fut| { tokio::task::spawn_local(fut); },
                 );

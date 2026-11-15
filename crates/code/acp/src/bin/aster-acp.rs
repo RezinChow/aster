@@ -396,8 +396,15 @@ async fn run() -> Result<()> {
     // Cancel-safe line buffering: agent-client-protocol's handle_io races
     // outbound writes against BufReader::read_line. Dropping a mid-line read
     // loses bytes; a cut inside a UTF-8 character then kills the I/O task.
-    let stdin = aster_acp_lib::LineBufferedRead::spawn_local(tokio::io::stdin().compat());
-    let stdout = tokio::io::stdout().compat_write();
+    //
+    // Transient pipe pressure (EAGAIN / WouldBlock / Interrupted) must not
+    // become a fatal -32603: ACP maps every sink/stream io::Error into
+    // Internal error and tears the session down. RetryTransient* converts
+    // those kinds into Pending + backoff so the peer can catch up.
+    let stdin = aster_acp_lib::LineBufferedRead::spawn_local(
+        aster_acp_lib::RetryTransientRead::new(tokio::io::stdin().compat()),
+    );
+    let stdout = aster_acp_lib::RetryTransientWrite::new(tokio::io::stdout().compat_write());
     let (conn, io_task) = acp::AgentSideConnection::new(agent.clone(), stdout, stdin, |fut| {
         tokio::task::spawn_local(fut);
     });

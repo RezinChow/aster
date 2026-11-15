@@ -6,7 +6,7 @@ use std::sync::Arc;
 use agent_client_protocol as acp;
 use aster_acp_lib::{
     AcpAgentGatewayReceiver as GatewayReceiver, AcpAgentGatewaySender as GatewaySender,
-    LineBufferedRead,
+    LineBufferedRead, RetryTransientRead, RetryTransientWrite,
 };
 use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader, simplex};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -75,11 +75,16 @@ pub async fn spawn_agent(
         if keepalive_tx.send(Rc::clone(&agent)).is_err() {
             return;
         }
-        let incoming = LineBufferedRead::spawn_local(agent_in_read.compat());
-        let (conn, handle_io) =
-            acp::AgentSideConnection::new(agent, agent_out_write.compat_write(), incoming, |fut| {
+        let incoming =
+            LineBufferedRead::spawn_local(RetryTransientRead::new(agent_in_read.compat()));
+        let (conn, handle_io) = acp::AgentSideConnection::new(
+            agent,
+            RetryTransientWrite::new(agent_out_write.compat_write()),
+            incoming,
+            |fut| {
                 tokio::task::spawn_local(fut);
-            });
+            },
+        );
         tokio::task::spawn_local(
             GatewayReceiver::new(gateway_rx, conn)
                 .with_on_meta(aster_otel::span_from_meta_traceparent)

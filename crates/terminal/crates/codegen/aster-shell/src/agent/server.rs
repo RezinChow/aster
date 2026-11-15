@@ -34,7 +34,7 @@ use tracing::{info, warn};
 use agent_client_protocol as acp;
 use aster_acp_lib::{
     AcpAgentGatewayReceiver as GatewayReceiver, AcpAgentGatewaySender as GatewaySender,
-    AcpClientMessage, LineBufferedRead,
+    AcpClientMessage, LineBufferedRead, RetryTransientRead, RetryTransientWrite,
 };
 
 use crate::agent::config::{Config as AgentConfig, ModelEntry};
@@ -542,7 +542,9 @@ fn setup_acp_connection(
     *relay_dest.borrow_mut() = Some(conn_gw_tx);
 
     // `Agent` is implemented for `Rc<T: Agent>` so this works.
-    let incoming = LineBufferedRead::spawn_local(incoming);
+    // WouldBlock/Interrupted must not become ACP -32603 (see aster_acp_lib::transient_io).
+    let incoming = LineBufferedRead::spawn_local(RetryTransientRead::new(incoming));
+    let outgoing = RetryTransientWrite::new(outgoing);
     let (conn, handle_io) = acp::AgentSideConnection::new(agent, outgoing, incoming, |fut| {
         tokio::task::spawn_local(fut);
     });

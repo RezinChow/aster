@@ -7,6 +7,7 @@ mod line_reader;
 mod message;
 mod normalize;
 mod stdin_reader;
+mod transient_io;
 
 pub use self::{
     channel::{AcpAgentChannel, AcpChannel, AcpClientChannel, acp_channels, acp_send},
@@ -27,6 +28,7 @@ pub use self::{
 
 pub use self::line_reader::LineBufferedRead;
 pub use self::stdin_reader::spawn_stdin_line_reader;
+pub use self::transient_io::{RetryTransientRead, RetryTransientWrite, is_transient_io};
 
 #[doc(hidden)]
 pub use self::common::compact_json;

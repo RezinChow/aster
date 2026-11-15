@@ -149,10 +149,14 @@ fn spawn_bridge(
 
                 let gw_tx = AcpGatewaySender::new(agent_channel.tx).with_tracing(true);
                 // Apply the frame limit before any unbounded line allocation.
-                let incoming = LineBufferedRead::spawn_local(child_stdout.compat());
+                // Mirror agent-side RetryTransient*: full pipes must backpressure,
+                // not kill the bridge with -32603 Internal error (EAGAIN).
+                let incoming = LineBufferedRead::spawn_local(
+                    aster_acp_lib::RetryTransientRead::new(child_stdout.compat()),
+                );
                 let (conn, handle_io) = acp::ClientSideConnection::new(
                     gw_tx,
-                    child_stdin.compat_write(),
+                    aster_acp_lib::RetryTransientWrite::new(child_stdin.compat_write()),
                     incoming,
                     |fut| {
                         tokio::task::spawn_local(fut);

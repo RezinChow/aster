@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use agent_client_protocol::{self as acp, Agent as _};
-use aster_acp_lib::LineBufferedRead;
+use aster_acp_lib::{LineBufferedRead, RetryTransientRead, RetryTransientWrite};
 use futures_util::future::LocalBoxFuture;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use tokio_util::sync::{CancellationToken, DropGuard};
@@ -60,10 +60,12 @@ pub(crate) struct AgentConnection {
 impl AgentConnection {
     /// Takes the child's piped stdin and stdout.
     pub(crate) fn connect(process: &mut TestProcess, policy: ClientPolicy) -> Self {
-        let outgoing = process
-            .take_stdin()
-            .expect("child stdin missing")
-            .compat_write();
+        let outgoing = RetryTransientWrite::new(
+            process
+                .take_stdin()
+                .expect("child stdin missing")
+                .compat_write(),
+        );
         let incoming = process
             .take_stdout()
             .expect("child stdout missing")
@@ -77,7 +79,9 @@ impl AgentConnection {
             }
         };
         let handler = ScriptedClient::new(policy);
-        let incoming = LineBufferedRead::new(incoming, &spawn_until_stopped);
+        // Real child pipes: same EAGAIN→-32603 hazard as production stdio hosts.
+        let incoming =
+            LineBufferedRead::new(RetryTransientRead::new(incoming), &spawn_until_stopped);
         let (conn, handle_io) = acp::ClientSideConnection::new(
             handler.clone(),
             outgoing,
