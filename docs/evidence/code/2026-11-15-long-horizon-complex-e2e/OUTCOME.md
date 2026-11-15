@@ -15,7 +15,8 @@ Cross-refs:
 `kimi-01/k3.1-pro`. First-pass L3 **CL** failed three times on kimi (rows below
 retained); **Phase 2** closed kimi CL with PASS×2 after harness timing fixes
 (`docs/evidence/code/2026-11-15-phase2-kimi-cl-and-land/OUTCOME.md`). Deepseek CL
-fallback from the first pass remains a valid contrast column. L5 not run.
+fallback from the first pass remains a valid contrast column. **L5 W1** closed in
+Phase 5 (`docs/evidence/code/2026-11-15-phase5-l5-wire-and-optional-install/OUTCOME.md`).
 
 ## Environment
 
@@ -89,7 +90,12 @@ Evidence: `…/evidence/l4-fault/`.
 
 ## L5
 
-Not run (optional ACP wire live dialogue).
+| Case | Status | Notes |
+| --- | --- | --- |
+| W1 `real_agent_holds_an_interactive_dialogue_over_the_wire` | **PASS** (~133s) | `MT_ROW … verdict=6-turns+correction+cancel+continuity`; cargo test against checkout `aster-acp` (`BUILD_ID` `70787face…`); ACL path role = campaign `config.kimi01.acl` via `ASTER_CONFIG_FILE` (keys not in docs) |
+
+Details: `docs/evidence/code/2026-11-15-phase5-l5-wire-and-optional-install/OUTCOME.md`.  
+Other wire cases in the same file (soak / restart / effort) **not** run.
 
 ## Amendment / Phase 2 (2026-11-15)
 
@@ -110,8 +116,8 @@ table remains the historical first-pass record.
 - That F3 required a fresh model completion (GATE lines may already be in
   resumed Terminal history; file non-mutation is the hard oracle).
 - Secrets / session-store bytes in this OUTCOME.
-- Push / install replacement (Phase 3 lands local commits only unless otherwise
-  authorized).
+- Install replacement / Studio (Phase 5 ran L5 only unless otherwise authorized).
+- That W1 implies the full `live_interactive_dialogue_real_llm` ignore suite.
 
 ## Delivery short report
 
@@ -121,13 +127,14 @@ L0/L1：PASS / PASS
 L2：MT=PASS LH=PASS
 L3：C4=PASS H1=PASS H3=PASS AL=PASS CL=PASS(kimi Phase2×2；首次 FAIL 见正文)
 L4：F1=PASS F2=PASS F3=PASS
-L5：未跑
+L5：PASS(W1；Phase5)
 证据：docs/evidence/code/2026-11-15-long-horizon-complex-e2e/OUTCOME.md
 补绿：docs/evidence/code/2026-11-15-phase2-kimi-cl-and-land/OUTCOME.md
-未做/BLOCKED：L5；Studio
+L5证据：docs/evidence/code/2026-11-15-phase5-l5-wire-and-optional-install/OUTCOME.md
+未做/BLOCKED：安装替换；Studio；其它 wire 案
 ```
 
 ## Follow-on
 
-Phase 3 land contract:
-`docs/implementation-prompt-aster-phase3-land-recovery-and-closeout.md`.
+Phase 5 L5 contract:
+`docs/implementation-prompt-aster-phase5-l5-wire-and-optional-install.md`.
