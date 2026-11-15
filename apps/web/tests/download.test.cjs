@@ -30,7 +30,7 @@ const screenshots = {
 };
 const text = (element) => element.textContent.trim().replace(/\s+/g, ' ');
 
-function page(t, { execute = true, width = 1280, reducedMotion = false } = {}) {
+function page(t, { execute = true, width = 1280, reducedMotion = false, userAgent } = {}) {
   const dom = new JSDOM(html, { url: pageUrl, runScripts: 'outside-only' });
   t.after(() => dom.window.close());
   const { window } = dom;
@@ -65,6 +65,7 @@ function page(t, { execute = true, width = 1280, reducedMotion = false } = {}) {
     this.open = false;
     this.dispatchEvent(new window.Event('close'));
   };
+  if (userAgent) Object.defineProperty(window.navigator, 'userAgent', { value: userAgent, configurable: true });
   if (execute) window.eval(script);
   return { window, document, network, scrollCalls,
     scroll(y) { window.scrollY = y; window.dispatchEvent(new window.Event('scroll')); },
@@ -138,7 +139,7 @@ test('no-JS release links and real Studio/TUI screenshots remain; simulated app 
     const fragment = decodeURIComponent(anchor.getAttribute('href').slice(1));
     if (fragment) assert.ok(document.getElementById(fragment), `Missing #${fragment}`);
   }
-  assert.equal(document.querySelectorAll('a[href*="/releases/download/"]').length, 12);
+  assert.equal(document.querySelectorAll('a[href*="/releases/download/"]').length, 14);
   assert.equal(new Set([...document.querySelectorAll('a[href*="/releases/download/"]')].map((anchor) => anchor.href)).size, 6);
   assert.match(document.querySelector('#download-dialog').textContent, /敬请期待/);
   assert.equal(document.querySelectorAll('#download-dialog .download-option-soon').length, 1);
@@ -342,4 +343,29 @@ test('the real-screenshot FAQ is an ordinary disclosure and states the fixture b
 
 test('download page loads the shared cross-document transitions', () => {
   assert.match(html, /<link rel="stylesheet" href="\.\.\/transitions\.css" \/>/);
+});
+
+test('both desktop installers have always-visible direct links without JavaScript', (t) => {
+  const { document } = page(t, { execute: false });
+  const quick = document.querySelector('.platform-quick-downloads');
+  assert.ok(quick, 'the platform section must expose direct download links');
+  assert.equal(quick.closest('[hidden]'), null, 'quick links must not sit inside a hidden panel');
+  const links = [...quick.querySelectorAll('a[href*="/releases/download/"]')];
+  assert.equal(links.length, 2);
+  assert.match(links[0].href, /aster_0\.2\.4_x64-setup\.exe$/);
+  assert.match(links[1].href, /aster_0\.2\.3_aarch64\.dmg$/);
+});
+
+test('Windows visitors land on the Windows installer tab without clicking', (t) => {
+  const { document } = page(t, {
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+  });
+  assert.equal(document.getElementById('platform-tab-windows').getAttribute('aria-selected'), 'true');
+  assert.equal(document.getElementById('platform-tab-macos').getAttribute('aria-selected'), 'false');
+  assert.equal(document.getElementById('platform-panel-windows').hidden, false);
+  assert.equal(document.getElementById('platform-panel-macos').hidden, true);
+  assert.match(
+    document.querySelector('#platform-panel-windows a[href*="/releases/download/"]').href,
+    /aster_0\.2\.4_x64-setup\.exe$/
+  );
 });

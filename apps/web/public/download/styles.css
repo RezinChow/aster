@@ -927,6 +927,13 @@ body.has-pointer .cursor-core {
 }
 
 /* ---------- Platform cards ---------- */
+.platform-quick-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
 .platform-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

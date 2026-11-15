@@ -144,6 +144,15 @@ document.querySelectorAll("[data-screenshot], [data-enlarge]").forEach((opener) 
   }),
 );
 
+// Open on the visitor's own platform: a Windows user must not have to hunt
+// for the Windows installer behind a macOS-default tab that is hidden by default.
+function preferredPlatformTab() {
+  const ua = navigator.userAgent;
+  if (/Windows NT/i.test(ua)) return "platform-tab-windows";
+  if (/(Macintosh|Mac OS X)/i.test(ua) && !/(iPhone|iPad|iPod)/i.test(ua)) return "platform-tab-macos";
+  return null;
+}
+
 document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
   const tabs = [...tablist.querySelectorAll('[role="tab"]')];
   function selectTab(tab) {
@@ -154,7 +163,11 @@ document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
       document.getElementById(item.getAttribute("aria-controls")).hidden = !selected;
     });
   }
-  selectTab(tabs.find((tab) => tab.getAttribute("aria-selected") === "true") || tabs[0]);
+  const preferredId = preferredPlatformTab();
+  const initialTab = (preferredId && tabs.find((tab) => tab.id === preferredId))
+    || tabs.find((tab) => tab.getAttribute("aria-selected") === "true")
+    || tabs[0];
+  selectTab(initialTab);
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => selectTab(tab));
     tab.addEventListener("keydown", (event) => {
