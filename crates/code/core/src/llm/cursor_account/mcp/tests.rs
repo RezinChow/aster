@@ -53,20 +53,13 @@ fn native_calls_use_the_exact_provider_and_tool_name_not_the_transformed_display
 
 #[test]
 fn foreign_or_malformed_native_requests_fail_without_echoing_payloads() {
-    for (provider, name, input) in [
-        ("foreign", "read", json!({})),
-        ("aster", "Read", json!({})),
-        ("aster", "shell", json!({"command":"synthetic-secret"})),
-    ] {
-        let value = json!({"execServerMessage":{"mcpArgs":{
-            "providerIdentifier":provider, "toolName":name, "args":input
-        }}});
-        let error = tool_call(&value, &tools()).unwrap_err();
-        assert!(error
-            .downcast_ref::<super::super::super::NonRetryableLlmError>()
-            .is_some());
-        assert!(!error.to_string().contains("synthetic-secret"));
-    }
+    let value = json!({"execServerMessage":{"mcpArgs":{
+        "providerIdentifier":"foreign", "toolName":"read", "args":{}
+    }}});
+    let error = tool_call(&value, &tools()).unwrap_err();
+    assert!(error
+        .downcast_ref::<super::super::super::NonRetryableLlmError>()
+        .is_some());
     for value in [
         json!({"execServerMessage":{"mcpArgs":{"providerIdentifier":"aster","toolName":"read","smartModeApprovalOnly":true}}}),
         json!({"execServerMessage":{"mcpArgs":{"providerIdentifier":"aster","toolName":"read"},"shellArgs":{}}}),
@@ -80,6 +73,33 @@ fn foreign_or_malformed_native_requests_fail_without_echoing_payloads() {
             .unwrap()
             .is_none()
     );
+}
+
+#[test]
+fn catalog_misses_become_non_executing_corrections_without_payloads() {
+    for name in ["Read", "shell", "synthetic-secret"] {
+        let value = json!({"execServerMessage":{"mcpArgs":{
+            "providerIdentifier":"aster", "toolName":name,
+            "args":{"command":"synthetic-secret"}
+        }}});
+        let Some(ContentBlock::ToolUse {
+            name: returned_name,
+            input,
+            ..
+        }) = tool_call(&value, &tools()).unwrap()
+        else {
+            panic!("catalog miss must remain a governed call")
+        };
+        assert_eq!(returned_name, name);
+        let error = input["__parse_error"].as_str().expect("parse error");
+        assert!(error.starts_with("tool_unavailable:"));
+        assert!(error.contains("not executed"));
+        assert!(error.contains("read"));
+        assert!(!error.contains("synthetic-secret"));
+        assert!(!serde_json::to_string(&input)
+            .unwrap()
+            .contains("synthetic-secret"));
+    }
 }
 
 #[test]
@@ -98,7 +118,6 @@ fn rejections_identify_the_failed_check_without_payloads() {
             "server_mismatch",
         ),
         ("smartModeApprovalOnly", json!(true), "approval_only"),
-        ("toolName", json!("synthetic-secret"), "tool_unavailable"),
     ] {
         let mut args = base.clone();
         args[field] = value;
@@ -168,4 +187,109 @@ async fn malformed_arguments_can_be_corrected_without_execution() {
     assert!(results[0].0.as_text().contains("arguments_not_object"));
     assert_eq!(*results[1].1, Some(false), "{}", results[1].0.as_text());
     assert!(results[1].0.as_text().contains("verified bytes"));
+}
+
+#[tokio::test]
+async fn unknown_catalog_tool_can_be_corrected_once_without_execution() {
+    use crate::agent::tests::MockLlmClient;
+    use crate::agent::{AgentConfig, AgentLoop};
+    use crate::llm::types::ContentBlock;
+    use crate::tools::{ToolContext, ToolExecutor};
+    use std::sync::Arc;
+
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("input.txt"), "verified bytes\n").unwrap();
+    let mut response = MockLlmClient::text_response("");
+    let request = json!({"execServerMessage":{"mcpArgs":{
+        "providerIdentifier":"aster", "toolName":"shell", "args":{"command":"synthetic-secret"}
+    }}});
+    response.message.content = vec![tool_call(&request, &tools()).unwrap().unwrap()];
+    assert!(!serde_json::to_string(&response.message)
+        .unwrap()
+        .contains("synthetic-secret"));
+    let client = Arc::new(MockLlmClient::new(vec![
+        response,
+        MockLlmClient::tool_call_response("fixed", "read", json!({"file_path":"input.txt"})),
+        MockLlmClient::text_response("Verified"),
+    ]));
+    let executor = Arc::new(ToolExecutor::new(root.path().display().to_string()));
+    let config = AgentConfig {
+        tools: tools(),
+        planning_mode: crate::PlanningMode::Disabled,
+        continuation_enabled: false,
+        max_parse_retries: 1,
+        permission_checker: Some(Arc::new(
+            crate::permissions::PermissionPolicy::new().allow("read(*)"),
+        )),
+        ..AgentConfig::default()
+    };
+    let engine = AgentLoop::new(
+        client,
+        executor,
+        ToolContext::new(root.path().to_path_buf()),
+        config,
+    );
+    let result = engine.execute(&[], "Read input.txt", None).await.unwrap();
+    let results: Vec<_> = result
+        .messages
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(|block| match block {
+            ContentBlock::ToolResult {
+                content, is_error, ..
+            } => Some((content, is_error)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(results.len(), 2);
+    assert_eq!(*results[0].1, Some(true));
+    assert!(results[0].0.as_text().contains("tool_unavailable"));
+    assert!(results[0].0.as_text().contains("not executed"));
+    assert!(!results[0].0.as_text().contains("synthetic-secret"));
+    assert_eq!(*results[1].1, Some(false), "{}", results[1].0.as_text());
+    assert!(results[1].0.as_text().contains("verified bytes"));
+}
+
+#[tokio::test]
+async fn repeated_unknown_catalog_tool_ends_with_stable_reason() {
+    use crate::agent::tests::MockLlmClient;
+    use crate::agent::{AgentConfig, AgentLoop};
+    use crate::tools::{ToolContext, ToolExecutor};
+    use std::sync::Arc;
+
+    let root = tempfile::tempdir().unwrap();
+    let mut first = MockLlmClient::text_response("");
+    let mut second = MockLlmClient::text_response("");
+    let request = json!({"execServerMessage":{"mcpArgs":{
+        "providerIdentifier":"aster", "toolName":"shell", "args":{}
+    }}});
+    first.message.content = vec![tool_call(&request, &tools()).unwrap().unwrap()];
+    second.message.content = vec![tool_call(&request, &tools()).unwrap().unwrap()];
+    let client = Arc::new(MockLlmClient::new(vec![
+        first,
+        second,
+        MockLlmClient::text_response("unreachable"),
+    ]));
+    let executor = Arc::new(ToolExecutor::new(root.path().display().to_string()));
+    let config = AgentConfig {
+        tools: tools(),
+        planning_mode: crate::PlanningMode::Disabled,
+        continuation_enabled: false,
+        max_parse_retries: 1,
+        permission_checker: Some(Arc::new(
+            crate::permissions::PermissionPolicy::new().allow("read(*)"),
+        )),
+        ..AgentConfig::default()
+    };
+    let engine = AgentLoop::new(
+        client,
+        executor,
+        ToolContext::new(root.path().to_path_buf()),
+        config,
+    );
+    let error = engine
+        .execute(&[], "Read input.txt", None)
+        .await
+        .expect_err("second consecutive catalog miss must end the run");
+    assert!(error.to_string().contains("malformed tool arguments"));
 }

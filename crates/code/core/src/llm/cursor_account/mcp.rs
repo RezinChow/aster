@@ -109,17 +109,33 @@ pub(super) fn tool_call(value: &Value, tools: &[ToolDefinition]) -> Result<Optio
     {
         return Err(reject(CallRejection::ServerMismatch));
     }
-    if !tools.iter().any(|tool| tool.name == name) {
-        return Err(reject(CallRejection::ToolUnavailable));
-    }
-    let input = match args.get("args") {
-        None => json!({}),
-        Some(input) if input.is_object() => input.clone(),
-        _ => {
-            let reason = CallRejection::InvalidArguments;
-            tracing::warn!(%reason, "Cursor tool arguments require correction");
-            // The existing parse guard returns an error result without executing the tool.
-            json!({"__parse_error": reason.to_string()})
+    let input = if !tools.iter().any(|tool| tool.name == name) {
+        let reason = CallRejection::ToolUnavailable;
+        let catalog: Vec<&str> = tools.iter().map(|tool| tool.name.as_str()).collect();
+        tracing::warn!(
+            %reason,
+            requested_tool_chars = name.chars().count(),
+            catalog = ?catalog,
+            "Cursor tool request requires correction; tool was not executed"
+        );
+        // Identity and protocol are valid; feed a non-executing correction
+        // through the existing __parse_error path. Do not alias onto a catalog name.
+        json!({
+            "__parse_error": format!(
+                "{reason}: tool was not executed; choose an exact name from this turn's catalog ({})",
+                catalog.join(", ")
+            )
+        })
+    } else {
+        match args.get("args") {
+            None => json!({}),
+            Some(input) if input.is_object() => input.clone(),
+            _ => {
+                let reason = CallRejection::InvalidArguments;
+                tracing::warn!(%reason, "Cursor tool arguments require correction");
+                // The existing parse guard returns an error result without executing the tool.
+                json!({"__parse_error": reason.to_string()})
+            }
         }
     };
     Ok(Some(ContentBlock::ToolUse {

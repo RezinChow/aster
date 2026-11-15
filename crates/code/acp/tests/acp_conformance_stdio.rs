@@ -313,6 +313,15 @@ impl Fixture {
         }
         Ok(())
     }
+
+    fn with_unicode_workspace(model: &Model) -> Self {
+        let mut fixture = Self::new(model);
+        let unicode = fixture._root.path().join("space 你好");
+        std::fs::create_dir_all(&unicode).expect("unicode workspace");
+        fixture.workspace =
+            std::fs::canonicalize(&unicode).expect("canonicalize unicode workspace");
+        fixture
+    }
 }
 
 struct Wire {
@@ -997,6 +1006,96 @@ async fn load_replays_history(wire: &mut Wire, fixture: &Fixture) -> Outcome {
     }
     .await;
     outcome
+}
+
+// ---- fragmented stdin regression -----------------------------------------
+
+/// UTF-8 mid-character fragmentation must not kill ACP while an outbound
+/// response is in flight. Sync on request A's response before sending B's
+/// remainder; keep stdin open until both responses arrive.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn fragmented_utf8_session_new_survives_outbound_interleave() {
+    let model = spawn_model();
+    let fixture = Fixture::with_unicode_workspace(&model);
+    let mut wire = Wire::launch(&fixture);
+    wire.initialize().await.expect("initialize");
+
+    let params = json!({"cwd": fixture.workspace, "mcpServers": []});
+    let first = format!(
+        "{}\n",
+        json!({"jsonrpc":"2.0","id":2,"method":"session/new","params":params})
+    );
+    let second = format!(
+        "{}\n",
+        json!({"jsonrpc":"2.0","id":3,"method":"session/new","params":params})
+    );
+    let second_bytes = second.as_bytes();
+    let ni_hao = "你".as_bytes();
+    assert!(
+        ni_hao.len() > 1,
+        "regression requires a multi-byte UTF-8 character"
+    );
+    let char_at = second_bytes
+        .windows(ni_hao.len())
+        .position(|window| window == ni_hao)
+        .expect("workspace path must contain 你");
+    let split = char_at + 1;
+    assert!(
+        split < char_at + ni_hao.len() && split < second_bytes.len(),
+        "split must land inside the UTF-8 sequence for 你"
+    );
+
+    wire.input
+        .write_all(first.as_bytes())
+        .await
+        .expect("write first session/new");
+    wire.input
+        .write_all(&second_bytes[..split])
+        .await
+        .expect("write fragmented prefix");
+    wire.input.flush().await.expect("flush prefix");
+
+    let opened = wire.response(2).await.expect("first session/new response");
+    result_of(&opened).expect("first session/new result");
+    assert!(
+        wire.child.try_wait().ok().flatten().is_none(),
+        "ACP must stay alive after the first response while stdin remains open"
+    );
+
+    wire.input
+        .write_all(&second_bytes[split..])
+        .await
+        .expect("write fragmented remainder");
+    wire.input.flush().await.expect("flush remainder");
+
+    let second_opened = wire
+        .response(3)
+        .await
+        .expect("second session/new must complete after UTF-8 reassembly");
+    result_of(&second_opened).expect("second session/new result");
+    assert!(
+        wire.child.try_wait().ok().flatten().is_none(),
+        "ACP must stay alive after both responses; do not treat process liveness alone as success"
+    );
+
+    // Intact control: two complete frames in one write still succeed.
+    let mut control = Wire::launch(&fixture);
+    control.initialize().await.expect("control initialize");
+    let control_first = control
+        .call("session/new", params.clone())
+        .await
+        .expect("control first");
+    result_of(&control_first).expect("control first result");
+    let control_second = control
+        .call("session/new", params)
+        .await
+        .expect("control second");
+    result_of(&control_second).expect("control second result");
+    control.stop().await.expect("control stop");
+    wire.stop().await.expect("fragmented stop");
+    fixture
+        .no_companion_started()
+        .expect("no companion activation");
 }
 
 // ---- runner ---------------------------------------------------------------

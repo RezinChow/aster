@@ -1,6 +1,7 @@
 #![cfg(all(test, unix))]
 
 use std::os::unix::fs::PermissionsExt;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::*;
@@ -121,4 +122,50 @@ async fn cancel_overlapping_client_drop_joins_ok() {
         .parse()
         .unwrap();
     assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+}
+
+#[tokio::test]
+async fn nonzero_exit_preserves_stderr_summary_not_cleanup_kill() {
+    let dir = tempfile::tempdir().unwrap();
+    let bin = dir.path().join("external-agent");
+    std::fs::write(
+        &bin,
+        "#!/bin/sh\nprintf '%s' $$ > \"$(dirname \"$0\")/pid\"\nprintf 'Error: ACP stdio I/O\\ncaused by: stream did not contain valid UTF-8\\n' >&2\nexit 7\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let cancel = CancellationToken::new();
+    let (_client, channel) = acp_channels();
+    let handle = spawn_bridge(bin, Vec::new(), cancel, channel).unwrap();
+    let result = tokio::task::spawn_blocking(move || handle.join())
+        .await
+        .unwrap()
+        .unwrap();
+    let error = format!(
+        "{:#}",
+        result.expect_err("nonzero ACP exit must fail the bridge")
+    );
+    assert!(
+        error.contains("exited") && error.contains("7"),
+        "original exit status missing: {error}"
+    );
+    assert!(
+        error.contains("valid UTF-8") || error.contains("ACP stdio I/O"),
+        "stderr summary missing: {error}"
+    );
+    assert!(
+        !error.contains("signal: 9") && !error.contains("killed"),
+        "cleanup kill must not replace the original reason: {error}"
+    );
+}
+
+#[test]
+fn stderr_tail_stays_bounded_and_sanitized() {
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    append_stderr_tail(&buf, &vec![b'x'; STDERR_TAIL_LIMIT + 64]);
+    append_stderr_tail(&buf, b"\nError: boom\n");
+    let summary = stderr_summary(&buf);
+    assert!(summary.len() <= 512);
+    assert!(summary.contains("Error: boom") || summary.contains("boom"));
+    assert!(!summary.contains('\n'));
 }

@@ -3,9 +3,11 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use anyhow::{Context, Result, anyhow};
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use tokio_util::sync::CancellationToken;
@@ -126,8 +128,23 @@ fn spawn_bridge(
                     .take()
                     .ok_or_else(|| anyhow!("aster ACP agent stderr missing"))?;
 
+                // Bounded stderr summary for failure diagnosis only; never paint
+                // raw ACP stderr onto the pager console.
+                let stderr_tail = Arc::new(Mutex::new(Vec::<u8>::new()));
+                let stderr_buf = Arc::clone(&stderr_tail);
                 let stderr_task = tokio::task::spawn_local(async move {
-                    let _ = tokio::io::copy(&mut child_stderr, &mut tokio::io::sink()).await;
+                    let mut chunk = [0_u8; 1024];
+                    loop {
+                        match child_stderr.read(&mut chunk).await {
+                            Ok(0) => break,
+                            Ok(n) => {
+                                if let Some(bytes) = chunk.get(..n) {
+                                    append_stderr_tail(&stderr_buf, bytes);
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
                 });
 
                 let gw_tx = AcpGatewaySender::new(agent_channel.tx).with_tracing(true);
@@ -161,9 +178,12 @@ fn spawn_bridge(
                         Err(error) => anyhow::Error::new(error).context("wait for ACP agent"),
                     }),
                 };
+                // Snapshot exit status before cleanup kill replaces it.
+                let observed_status = child.try_wait().ok().flatten();
                 stderr_task.abort();
                 io_task.abort();
                 gateway_task.abort();
+                let stderr_summary = stderr_summary(&stderr_tail);
                 // Cancel and unexpected-exit paths both need a reap; a gone child is fine.
                 if let Err(error) = child.kill().await {
                     tracing::debug!(%error, "ACP child already gone during bridge teardown");
@@ -175,11 +195,74 @@ fn spawn_bridge(
                         tracing::debug!(%error, "ACP bridge stop overlapped cancel; treating as clean");
                         Ok(())
                     }
-                    BridgeStop::Failed(error) => Err(error),
+                    BridgeStop::Failed(error) => {
+                        Err(annotate_bridge_failure(error, observed_status, &stderr_summary))
+                    }
                 }
             })
         })
         .context("failed to start aster ACP bridge thread")
+}
+
+const STDERR_TAIL_LIMIT: usize = 2048;
+
+fn append_stderr_tail(buf: &Arc<Mutex<Vec<u8>>>, chunk: &[u8]) {
+    let Ok(mut guard) = buf.lock() else {
+        return;
+    };
+    guard.extend_from_slice(chunk);
+    if guard.len() > STDERR_TAIL_LIMIT {
+        let overflow = guard.len() - STDERR_TAIL_LIMIT;
+        guard.drain(..overflow);
+    }
+}
+
+fn stderr_summary(buf: &Arc<Mutex<Vec<u8>>>) -> String {
+    let Ok(guard) = buf.lock() else {
+        return String::new();
+    };
+    let text = String::from_utf8_lossy(&guard);
+    let cleaned = text
+        .chars()
+        .map(|ch| if ch.is_control() { ' ' } else { ch })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if cleaned.chars().count() <= 512 {
+        return cleaned;
+    }
+    cleaned
+        .chars()
+        .rev()
+        .take(512)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect()
+}
+
+fn annotate_bridge_failure(
+    error: anyhow::Error,
+    observed_status: Option<std::process::ExitStatus>,
+    stderr_summary: &str,
+) -> anyhow::Error {
+    let mut message = error.to_string();
+    if let Some(status) = observed_status {
+        let status_text = format!("Aster Code ACP exited: {status}");
+        if !message.contains(&status_text) {
+            message = format!("{message}; {status_text}");
+        }
+    }
+    if !stderr_summary.is_empty() && !message.contains(stderr_summary) {
+        message = format!("{message}; acp_stderr={stderr_summary}");
+    }
+    tracing::error!(
+        error = %message,
+        exit_code = observed_status.and_then(|status| status.code()),
+        "ACP bridge failed"
+    );
+    anyhow!(message)
 }
 
 /// Why the ACP bridge select finished.

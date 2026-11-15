@@ -776,6 +776,7 @@ dependencies = [
  "agent-client-protocol",
  "anyhow",
  "aster-acl",
+ "aster-acp-lib",
  "aster-core",
  "aster-durable-memory",
  "aster-effect",

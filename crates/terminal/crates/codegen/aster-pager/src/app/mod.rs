@@ -1250,7 +1250,12 @@ pub async fn run(
             }
             saved_input?;
             if run_result.connection_closed {
-                anyhow::bail!("Agent connection closed");
+                let log_hint = std::env::var_os("ASTER_LOG_DIR")
+                    .map(|dir| dir.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "~/.aster/logs".to_string());
+                anyhow::bail!(
+                    "Agent connection closed; see ACP logs under {log_hint} and session_end.worker_join in the unified log"
+                );
             }
             Ok(false)
         }

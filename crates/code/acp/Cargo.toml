@@ -44,6 +44,7 @@ aster-use-reconcile = {path = "../../use/reconcile"}
 # drift.
 aster-core = { default-features = false, features = ["local-code"], path = "../core" }
 aster-durable-memory = {path = "../../memory"}
+aster-acp-lib = {path = "../../terminal/crates/codegen/aster-acp-lib"}
 
 
 [dev-dependencies]

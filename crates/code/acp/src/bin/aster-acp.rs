@@ -393,7 +393,10 @@ async fn run() -> Result<()> {
     }
     let agent = Rc::new(agent);
 
-    let stdin = tokio::io::stdin().compat();
+    // Cancel-safe line buffering: agent-client-protocol's handle_io races
+    // outbound writes against BufReader::read_line. Dropping a mid-line read
+    // loses bytes; a cut inside a UTF-8 character then kills the I/O task.
+    let stdin = aster_acp_lib::LineBufferedRead::spawn_local(tokio::io::stdin().compat());
     let stdout = tokio::io::stdout().compat_write();
     let (conn, io_task) = acp::AgentSideConnection::new(agent.clone(), stdout, stdin, |fut| {
         tokio::task::spawn_local(fut);
@@ -406,6 +409,21 @@ async fn run() -> Result<()> {
         "ACP phase completed"
     );
     let result = io_task.await;
+    match &result {
+        Ok(()) => tracing::info!(
+            target: "aster_acp::stdio",
+            outcome = "ok",
+            "ACP stdio I/O finished"
+        ),
+        Err(error) => tracing::error!(
+            target: "aster_acp::stdio",
+            outcome = "error",
+            error_code = ?error.code,
+            error_message = %error.message,
+            error_data = ?error.data,
+            "ACP stdio I/O finished with error"
+        ),
+    }
     agent.close().await;
     result.context("ACP stdio I/O")?;
     Ok(())
