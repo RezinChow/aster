@@ -49,7 +49,7 @@ I0：src=70787face…；dst_before=8b86e521…
 I1安装：OK；DST=/Users/roylin/.local/bin；dst_after=70787face…
 I2冒烟：OK
 I5-GUI：SKIP
-推送：（见 I4）
+推送：OK；origin/main@a47f4667a
 证据：docs/evidence/code/2026-11-15-phase6-install-replace-closeout/OUTCOME.md
 未做：Studio；其它 wire 案；安装后 GUI 冒烟
 ```
