@@ -63,7 +63,7 @@ E0：BUILD_ID=70787face…；与安装对比=旧(8b86e521…)
 E1-L5-W1：PASS
 E2长程L5行：已更新
 E5安装：SKIP
-推送：（见 E4）
+推送：OK；origin/main@d517b4405
 证据：docs/evidence/code/2026-11-15-phase5-l5-wire-and-optional-install/OUTCOME.md
 未做：安装替换；Studio；其它 wire 案
 ```
