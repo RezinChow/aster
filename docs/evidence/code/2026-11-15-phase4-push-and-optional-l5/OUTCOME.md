@@ -34,6 +34,16 @@ Pushed commits:
 | `4122a095e` | `docs(evidence): record phase-3 land commit hashes` |
 | `2a6bf895c` | `docs: add phase-4 push and optional L5 execution contract` |
 
+## Amend push (OUTCOME land)
+
+| Item | Value |
+| --- | --- |
+| Commit | `3ae439212` — `docs(evidence): record phase-4 push closeout outcome` |
+| Second push | **OK** (`2a6bf895c..3ae439212` → `origin/main`) |
+| Tip after OUTCOME | `HEAD == origin/main == 3ae4392126a7b37c1dbf6baa3fea70bf78db2981` |
+
+A further micro-commit may record this amend section itself; product push tip for recovery remains `2a6bf895c` plus this evidence land.
+
 ## D4 / D5 / D6
 
 | ID | Status |
