@@ -57,7 +57,7 @@ Still OPEN: Studio; extra wire cases; full `shipped_tui_e2e`; `delayed_catalog` 
 S0：which=/Users/roylin/.local/bin/aster；BUILD_ID=70787face…；drift=无
 S2-V1：PASS
 S5-V3：SKIP
-推送：（见 S4）
+推送：OK；origin/main@bcfbc89c4
 证据：docs/evidence/code/2026-11-15-phase8-post-install-gui-smoke/OUTCOME.md
 残留仍开：Studio；其它 wire；shipped_tui_e2e；delayed_catalog
 ```
