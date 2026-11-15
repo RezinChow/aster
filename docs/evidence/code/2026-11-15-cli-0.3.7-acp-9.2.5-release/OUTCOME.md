@@ -22,10 +22,10 @@ Runtime (not committed): `.runtime/tui-full-e2e/cli-0.3.7-release-20261115/evide
 
 | Item | Value |
 | --- | --- |
-| Push | (filled after push) |
-| SHA | (filled after push) |
-| `qualify-aster-cli` | (pending / filled) |
-| `qualify-code` | (pending / filled) |
+| Push | **OK** `e0253bb72..1a8e38d51` → `origin/main` |
+| SHA | `1a8e38d51747e91a44ec11385fdea8fd4f8f6225` |
+| `qualify-aster-cli` | **success** — https://github.com/aster-ai-lab/aster/actions/runs/43691256330 |
+| `qualify-code` (Qualify aster) | **success** — https://github.com/aster-ai-lab/aster/actions/runs/43691256356 |
 
 ## R5 / R6
 
@@ -46,7 +46,7 @@ Runtime (not committed): `.runtime/tui-full-e2e/cli-0.3.7-release-20261115/evide
 ```text
 阶段：cli-0.3.7-acp-9.2.5-release
 R1版本：aster=0.3.7；acp/core=9.2.5
-R4：SHA=…；qualify-cli=…；qualify-code=…
+R4：SHA=1a8e38d51；qualify-cli=success；qualify-code=success
 R5-tag：SKIP
 R6发布：SKIP
 证据：docs/evidence/code/2026-11-15-cli-0.3.7-acp-9.2.5-release/OUTCOME.md
