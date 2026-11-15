@@ -66,7 +66,7 @@ A further micro-commit may record this amend section itself; product push tip fo
 ```text
 阶段：phase4-push-and-optional-l5
 D0卫生：ahead=4；utf8=PASS；transport=PASS
-D1推送：结果=OK；remote=origin/main@2a6bf895c
+D1推送：结果=OK；remote=origin/main@a97237674（产品收口 tip 2a6bf895c）
 D4-L5：SKIP
 D5安装：SKIP
 证据：docs/evidence/code/2026-11-15-phase4-push-and-optional-l5/OUTCOME.md
