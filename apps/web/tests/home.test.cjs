@@ -113,8 +113,8 @@ test('homepage assets resolve under project Pages and no-JS content stays availa
   const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
   assert.equal(ids.length, new Set(ids).size);
   const releaseLinks = [...document.querySelectorAll('a[href*="/releases/download/"]')];
-  assert.equal(releaseLinks.length, 7);
-  assert.equal(new Set(releaseLinks.map((link) => link.href)).size, 5);
+  assert.equal(releaseLinks.length, 10);
+  assert.equal(new Set(releaseLinks.map((link) => link.href)).size, 6);
   assert.deepEqual(
     [...document.querySelectorAll('.desktop-nav a')].map((link) => link.textContent.trim()),
     ['首页', '场景', '能力', '安全', '文档']
@@ -132,7 +132,7 @@ test('homepage assets resolve under project Pages and no-JS content stays availa
     [...document.querySelectorAll('.download-grid .platform-name')].map((element) => element.textContent.trim()),
     ['macOS', 'Windows', 'Linux']
   );
-  assert.equal(document.querySelectorAll('.download-grid .download-card.is-soon').length, 2);
+  assert.equal(document.querySelectorAll('.download-grid .download-card.is-soon').length, 1);
   assert.match(document.querySelector('.download-grid .download-card.is-soon .download-action').textContent, /敬请期待/);
   assert.equal(document.body.textContent.includes('麒麟'), false);
   assert.ok(document.querySelector('#cli-downloads'));

@@ -143,10 +143,11 @@
                 <span class="download-option-text"><strong>Mac</strong><small>Apple 芯片 / v{{download.desktop.macos.version}} / {{download.desktop.macos.format}}</small></span>
                 <svg aria-hidden="true" class="icon icon-small option-arrow"><use href="#i-arrow" /></svg>
               </a>
-              <div class="download-option is-soon" data-download-platform="windows" aria-disabled="true">
+              <a class="download-option" data-download-platform="windows" href="{{download.desktop.windows.url}}">
                 <span class="download-option-icon"><svg aria-hidden="true" class="icon"><use href="#i-windows" /></svg></span>
-                <span class="download-option-text"><strong>Windows</strong><small>敬请期待</small></span>
-              </div>
+                <span class="download-option-text"><strong>Windows</strong><small>Windows x64 / v{{download.desktop.windows.version}} / {{download.desktop.windows.format}}</small></span>
+                <svg aria-hidden="true" class="icon icon-small option-arrow"><use href="#i-arrow" /></svg>
+              </a>
               <div class="download-option is-soon" data-download-platform="linux" aria-disabled="true">
                 <span class="download-option-icon"><svg aria-hidden="true" class="icon"><use href="#i-linux" /></svg></span>
                 <span class="download-option-text"><strong>Linux</strong><small>敬请期待</small></span>
@@ -193,10 +194,11 @@
                     <span class="download-option-text"><strong>Mac</strong><small>Apple 芯片 / v{{download.desktop.macos.version}} / {{download.desktop.macos.format}}</small></span>
                     <svg aria-hidden="true" class="icon icon-small option-arrow"><use href="#i-arrow" /></svg>
                   </a>
-                  <div class="download-option is-soon" data-download-platform="windows" aria-disabled="true">
+                  <a class="download-option" data-download-platform="windows" href="{{download.desktop.windows.url}}">
                     <span class="download-option-icon"><svg aria-hidden="true" class="icon"><use href="#i-windows" /></svg></span>
-                    <span class="download-option-text"><strong>Windows</strong><small>敬请期待</small></span>
-                  </div>
+                    <span class="download-option-text"><strong>Windows</strong><small>Windows x64 / v{{download.desktop.windows.version}} / {{download.desktop.windows.format}}</small></span>
+                    <svg aria-hidden="true" class="icon icon-small option-arrow"><use href="#i-arrow" /></svg>
+                  </a>
                   <div class="download-option is-soon" data-download-platform="linux" aria-disabled="true">
                     <span class="download-option-icon"><svg aria-hidden="true" class="icon"><use href="#i-linux" /></svg></span>
                     <span class="download-option-text"><strong>Linux</strong><small>敬请期待</small></span>
@@ -515,12 +517,12 @@
                 <span class="platform-meta">Apple 芯片 / v{{download.desktop.macos.version}}</span>
                 <span class="download-action">下载 {{download.desktop.macos.format}} <svg aria-hidden="true" class="icon"><use href="#i-arrow" /></svg></span>
               </a>
-              <div class="download-card is-soon" data-platform="windows" aria-disabled="true">
+              <a class="download-card" data-platform="windows" href="{{download.desktop.windows.url}}">
                 <span class="platform-icon"><svg aria-hidden="true" class="icon"><use href="#i-windows" /></svg></span>
                 <span class="platform-name">Windows</span>
-                <span class="platform-meta">桌面安装包尚未发布</span>
-                <span class="download-action">敬请期待</span>
-              </div>
+                <span class="platform-meta">Windows x64 / v{{download.desktop.windows.version}}</span>
+                <span class="download-action">下载 {{download.desktop.windows.format}} <svg aria-hidden="true" class="icon"><use href="#i-arrow" /></svg></span>
+              </a>
               <div class="download-card is-soon" data-platform="linux" aria-disabled="true">
                 <span class="platform-icon"><svg aria-hidden="true" class="icon"><use href="#i-linux" /></svg></span>
                 <span class="platform-name">Linux</span>
