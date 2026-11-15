@@ -46,7 +46,7 @@ Campaign BUILD_ID: `70787face…`
 | --- | --- | --- |
 | Studio host E2E / gitlink | **OPEN** | Separate Studio contract; `studio-land-discipline` |
 | Extra `live_interactive_dialogue` wire cases (soak / restart / effort / …) | **OPEN** | Named Phase 5 E6-style run |
-| Post-install GUI disconnect smoke | **OPEN** | Named Phase 7 F5 |
+| Post-install GUI disconnect smoke | **CLOSED-PASS** | Phase 8 V1; `docs/evidence/code/2026-11-15-phase8-post-install-gui-smoke/OUTCOME.md` |
 | Full `shipped_tui_e2e` / multi-platform matrix | **OPEN** | Separate verification epic |
 | `delayed_catalog` flake | **OPEN** | Separate fix + evidence; not claimed fixed |
 
@@ -54,7 +54,7 @@ Campaign BUILD_ID: `70787face…`
 
 | ID | Status |
 | --- | --- |
-| F5 post-install GUI smoke | **SKIP** (not named) |
+| F5 post-install GUI smoke | **SKIP** in Phase 7; **PASS in Phase 8** |
 | F6 extra wire cases | **SKIP** |
 | F7 Studio | **SKIP** (requires separate contract) |
 
@@ -64,7 +64,7 @@ Campaign BUILD_ID: `70787face…`
 - Full `shipped_tui_e2e` / multi-platform matrix.
 - `delayed_catalog` flake fixed.
 - That first-pass kimi CL FAIL×3 never occurred.
-- Post-install GUI smoke run in this phase.
+- That Phase 7 itself ran post-install GUI smoke (Phase 8 did).
 - That a next product epic has started.
 
 ## Short report
@@ -73,8 +73,8 @@ Campaign BUILD_ID: `70787face…`
 阶段：phase7-campaign-final-closeout
 F0：HEAD=df247a883；install_BUILD_ID=70787face…；drift=无
 战役判定：CLOSED-PASS
-残留：Studio；其它 wire；安装后 GUI 冒烟；shipped_tui_e2e；delayed_catalog
-F5冒烟：SKIP
+残留：Studio；其它 wire；shipped_tui_e2e；delayed_catalog（安装后 GUI 冒烟→Phase8 PASS）
+F5冒烟：SKIP（Phase8 后补 PASS）
 推送：OK；origin/main@8579d4254
 证据：docs/evidence/code/2026-11-15-phase7-campaign-final-closeout/OUTCOME.md
 ```
