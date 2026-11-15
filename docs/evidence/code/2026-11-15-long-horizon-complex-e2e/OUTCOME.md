@@ -137,5 +137,10 @@ L5证据：docs/evidence/code/2026-11-15-phase5-l5-wire-and-optional-install/OUT
 
 ## Follow-on
 
-Phase 5 L5 contract:
-`docs/implementation-prompt-aster-phase5-l5-wire-and-optional-install.md`.
+Campaign final ledger (CLOSED-PASS):
+`docs/evidence/code/2026-11-15-phase7-campaign-final-closeout/OUTCOME.md`.
+
+Prior phase contracts remain historical:
+`docs/implementation-prompt-aster-phase5-l5-wire-and-optional-install.md`,
+`docs/implementation-prompt-aster-phase6-install-replace-closeout.md`,
+`docs/implementation-prompt-aster-phase7-campaign-final-closeout.md`.
