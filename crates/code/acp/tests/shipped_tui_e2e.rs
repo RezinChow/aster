@@ -1975,13 +1975,7 @@ impl PtySession {
     }
 
     fn wait_for(&mut self, needle: &str, timeout: Duration) -> String {
-        // A short caller timeout is a render-latency window, not a performance
-        // assertion: on a loaded CI runner a frame can arrive well after 2s.
-        // Give every screen wait the same bounded floor so no single suite has
-        // to guess its own timing. The needle and the deadline are unchanged.
-        const MIN_RENDER_WAIT: Duration = Duration::from_secs(10);
-        let effective = timeout.max(MIN_RENDER_WAIT);
-        let deadline = Instant::now() + effective;
+        let deadline = Instant::now() + timeout;
         let mut last = String::new();
         while Instant::now() < deadline {
             self.drain();
@@ -1991,11 +1985,7 @@ impl PtySession {
             }
             std::thread::sleep(Duration::from_millis(40));
         }
-        panic!(
-            "timed out waiting for {needle:?} after {}ms (caller requested {}ms)\n{last}",
-            effective.as_millis(),
-            timeout.as_millis()
-        )
+        panic!("timed out waiting for {needle:?}\n{last}")
     }
 
     fn open_session_info(&mut self, timeout: Duration) -> String {
