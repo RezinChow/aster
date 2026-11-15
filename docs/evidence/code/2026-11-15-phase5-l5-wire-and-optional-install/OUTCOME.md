@@ -10,7 +10,7 @@ Contract: `docs/implementation-prompt-aster-phase5-l5-wire-and-optional-install.
 | HEAD (pre-evidence commit) | `9dafed70ba0ff8ac6929d21abba69de04873cb07` |
 | Pair build | PASS |
 | Checkout BUILD_ID | `aster-cli-pair-v1:70787faceda1b14fddf4bb165f8947e062a5c429:aarch64-apple-darwin` (aster == aster-acp) |
-| Installed `~/.local/bin/aster` | **旧** `aster-cli-pair-v1:8b86e5216923a7c6c2be82701f0caf1914dae2e9:aarch64-apple-darwin` — not used for L5 |
+| Installed `~/.local/bin/aster` (at L5 time) | **旧** `aster-cli-pair-v1:8b86e5216923a7c6c2be82701f0caf1914dae2e9:aarch64-apple-darwin` — not used for L5; later replaced in Phase 6 |
 
 Runtime logs (not committed): `.runtime/tui-full-e2e/phase5-l5-20261115/evidence/`.
 
@@ -43,12 +43,12 @@ L5 W1 = PASS; short report `L5：PASS(W1；Phase5)`.
 
 | ID | Status |
 | --- | --- |
-| E5 install replace | **SKIP** (not named) |
+| E5 install replace | **SKIP** in Phase 5 (not named); **done in Phase 6** — see `docs/evidence/code/2026-11-15-phase6-install-replace-closeout/OUTCOME.md` |
 | E7 Studio | **SKIP** (out of contract) |
 
 ## Explicitly not claimed
 
-- Install path replacement on the operator machine.
+- That Phase 5 itself performed the install (it did not; Phase 6 did).
 - Studio host E2E.
 - Full `live_interactive_dialogue_real_llm` ignore suite (soak / restart / effort / …).
 - Full `shipped_tui_e2e` / multi-platform matrix.
@@ -62,8 +62,8 @@ L5 W1 = PASS; short report `L5：PASS(W1；Phase5)`.
 E0：BUILD_ID=70787face…；与安装对比=旧(8b86e521…)
 E1-L5-W1：PASS
 E2长程L5行：已更新
-E5安装：SKIP
+E5安装：SKIP（Phase6 后补）
 推送：OK；origin/main@d517b4405
 证据：docs/evidence/code/2026-11-15-phase5-l5-wire-and-optional-install/OUTCOME.md
-未做：安装替换；Studio；其它 wire 案
+未做（Phase5 时）：安装替换；Studio；其它 wire 案
 ```

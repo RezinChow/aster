@@ -116,7 +116,7 @@ table remains the historical first-pass record.
 - That F3 required a fresh model completion (GATE lines may already be in
   resumed Terminal history; file non-mutation is the hard oracle).
 - Secrets / session-store bytes in this OUTCOME.
-- Install replacement / Studio (Phase 5 ran L5 only unless otherwise authorized).
+- Studio (Phase 6 installed `~/.local/bin` pair only; see phase-6 OUTCOME).
 - That W1 implies the full `live_interactive_dialogue_real_llm` ignore suite.
 
 ## Delivery short report
@@ -131,7 +131,8 @@ L5：PASS(W1；Phase5)
 证据：docs/evidence/code/2026-11-15-long-horizon-complex-e2e/OUTCOME.md
 补绿：docs/evidence/code/2026-11-15-phase2-kimi-cl-and-land/OUTCOME.md
 L5证据：docs/evidence/code/2026-11-15-phase5-l5-wire-and-optional-install/OUTCOME.md
-未做/BLOCKED：安装替换；Studio；其它 wire 案
+安装：Phase6 已替换 ~/.local/bin（70787face…）
+未做/BLOCKED：Studio；其它 wire 案
 ```
 
 ## Follow-on
