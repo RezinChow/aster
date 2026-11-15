@@ -75,6 +75,6 @@ F0：HEAD=df247a883；install_BUILD_ID=70787face…；drift=无
 战役判定：CLOSED-PASS
 残留：Studio；其它 wire；安装后 GUI 冒烟；shipped_tui_e2e；delayed_catalog
 F5冒烟：SKIP
-推送：（见 F4）
+推送：OK；origin/main@8579d4254
 证据：docs/evidence/code/2026-11-15-phase7-campaign-final-closeout/OUTCOME.md
 ```
