@@ -1,38 +1,55 @@
 // Both binaries stamp the same source bytes, including uncommitted Rust changes.
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Component, Path};
 use std::process::Command;
 
 pub fn stamp(root: &Path) -> io::Result<()> {
-    let listed = Command::new("git")
-        .current_dir(root)
-        .args([
-            "ls-files",
-            "-z",
-            "--cached",
-            "--others",
-            "--exclude-standard",
-            "--",
-            "apps/aster",
-            "crates",
-            "Cargo.toml",
-            "Cargo.lock",
-            "rust-toolchain.toml",
-            ".cargo/config.toml",
-            "scripts/cli_pair_build.rs",
-        ])
-        .output()?;
-    if !listed.status.success() {
-        return Err(io::Error::other("cannot enumerate CLI pair sources"));
-    }
+    let listed = match std::env::var_os("ASTER_CLI_PAIR_SOURCES") {
+        Some(path) => std::fs::read(path)?,
+        None => {
+            let listed = Command::new("git")
+                .current_dir(root)
+                .args([
+                    "ls-files",
+                    "-z",
+                    "--cached",
+                    "--others",
+                    "--exclude-standard",
+                    "--",
+                    "apps/aster",
+                    "crates",
+                    "Cargo.toml",
+                    "Cargo.lock",
+                    "rust-toolchain.toml",
+                    ".cargo/config.toml",
+                    "scripts/cli_pair_build.rs",
+                ])
+                .output()?;
+            if !listed.status.success() {
+                return Err(io::Error::other("cannot enumerate CLI pair sources"));
+            }
+            listed.stdout
+        }
+    };
     let mut paths = listed
-        .stdout
         .split(|byte| *byte == 0)
         .filter(|path| !path.is_empty())
-        .map(|path| String::from_utf8(path.to_vec()).map_err(io::Error::other))
+        .map(|path| {
+            let path = String::from_utf8(path.to_vec()).map_err(io::Error::other)?;
+            if Path::new(&path)
+                .components()
+                .any(|component| !matches!(component, Component::Normal(_)))
+            {
+                return Err(io::Error::other("invalid CLI pair source path"));
+            }
+            Ok(path)
+        })
         .collect::<io::Result<Vec<_>>>()?;
     paths.sort();
     paths.dedup();
+    if paths.is_empty() {
+        return Err(io::Error::other("empty CLI pair source list"));
+    }
     let input_path =
         std::env::temp_dir().join(format!("aster-cli-pair-{}.bin", std::process::id()));
     let mut input = std::fs::File::create(&input_path)?;

@@ -239,5 +239,71 @@ class PairDelivery(unittest.TestCase):
         self.assert_old()
 
 
+@unittest.skipUnless(os.name == "posix" and shutil.which("rustc"), "source stamp test requires rustc")
+class SourceManifestIdentity(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="aster-source-stamp-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.source = self.root / "source"
+        self.files = {
+            "apps/aster/main.rs": b"fn main() {}\n",
+            "crates/code/lib.rs": b"pub fn pair() {}\n",
+            "Cargo.toml": b"[workspace]\n",
+        }
+        for name, content in self.files.items():
+            path = self.source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        harness = self.root / "pair-stamp.rs"
+        harness.write_text((ROOT / "scripts/cli_pair_build.rs").read_text() + """
+fn main() {
+    let root = std::env::args_os().nth(1).expect("source root");
+    stamp(std::path::Path::new(&root)).unwrap();
+}
+""")
+        self.executable = self.root / "pair-stamp"
+        subprocess.run(["rustc", "--edition=2024", str(harness), "-o", str(self.executable)],
+            check=True, capture_output=True, text=True, timeout=30)
+        self.commands = self.root / "commands"
+        self.commands.mkdir()
+        git = self.commands / "git"
+        git.write_text(f"""#!/bin/sh
+if [ "$1" = ls-files ]; then
+  exit 99
+fi
+exec {shutil.which("git")} "$@"
+""")
+        git.chmod(0o755)
+
+    def stamp(self, members):
+        manifest = self.root / "sources.bin"
+        manifest.write_bytes(b"".join(name.encode() + b"\0" for name in members))
+        env = dict(os.environ, ASTER_CLI_PAIR_SOURCES=str(manifest), TARGET="fixture-target",
+            PATH=str(self.commands) + os.pathsep + os.environ["PATH"])
+        return subprocess.run([str(self.executable), str(self.source)], env=env,
+            capture_output=True, text=True, timeout=10)
+
+    def test_source_manifest_stamps_identity_without_a_git_checkout(self):
+        result = self.stamp(self.files)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = b""
+        for name in sorted(self.files):
+            content = self.files[name]
+            payload += name.encode() + b"\0" + len(content).to_bytes(8, "little") + content
+        digest = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload).hexdigest()
+        self.assertIn(f"ASTER_PAIR_BUILD_ID=aster-cli-pair-v1:{digest}:fixture-target", result.stdout)
+
+    def test_source_manifest_refuses_parent_paths(self):
+        result = self.stamp(["Cargo.toml", "../outside.rs"])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid CLI pair source path", result.stderr)
+
+    def test_empty_source_manifest_is_refused(self):
+        result = self.stamp([])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("empty CLI pair source list", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
