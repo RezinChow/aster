@@ -201,21 +201,35 @@ async fn workspace_watch(root: &std::path::Path) -> crate::porcelain::Watch {
 }
 
 /// A typed pre-spawn refusal never created a process. Close the span, and
-/// do not attribute paths seen in that window to the command.
+/// do not attribute paths seen in that window to the command. A refusal that
+/// carries a stable sandbox violation code reports it as
+/// `metadata.sandbox_violation.code`.
 async fn settled_pre_spawn_refusal(
     ctx: &ToolContext,
     span: CommandSpan,
-    message: String,
+    error: &anyhow::Error,
 ) -> ToolOutput {
+    let message = error.to_string();
     let _ = span.finish(ctx).await;
+    let mut metadata = serde_json::json!({
+        "exit_code": null,
+        "sandboxed": true,
+        "sandbox_available": true,
+        "command_started": false,
+    });
+    if let Some(code) = pre_spawn_violation_code(error) {
+        metadata["sandbox_violation"] = serde_json::json!({ "code": code.as_str() });
+    }
     ToolOutput::error(message.clone())
-        .with_metadata(serde_json::json!({
-            "exit_code": null,
-            "sandboxed": true,
-            "sandbox_available": true,
-            "command_started": false,
-        }))
+        .with_metadata(metadata)
         .with_error_kind(ToolErrorKind::Unsupported { message })
+}
+
+fn pre_spawn_violation_code(error: &anyhow::Error) -> Option<crate::sandbox::SandboxViolationCode> {
+    if crate::sandbox::native::is_native_process_lifetime_unqualified(error) {
+        return Some(crate::sandbox::SandboxViolationCode::LifetimeUnqualified);
+    }
+    crate::sandbox::violation_code_of(error)
 }
 
 async fn cancelled_command(
@@ -875,7 +889,7 @@ impl Tool for BashTool {
                 let effective_timeout_ms = match sandbox.effective_timeout_ms(timeout_ms) {
                     Ok(value) => value,
                     Err(error) => {
-                        return Ok(settled_pre_spawn_refusal(ctx, span, error.to_string()).await);
+                        return Ok(settled_pre_spawn_refusal(ctx, span, &error).await);
                     }
                 };
                 let command_env = span.env(ctx.command_env.clone());
@@ -951,11 +965,11 @@ impl Tool for BashTool {
                             &error,
                         ) || crate::sandbox::process_host::is_process_host_spawn_refused(
                             &error,
-                        ) =>
+                        ) || crate::sandbox::violation_code_of(&error).is_some() =>
                     {
                         // The process does not exist. A later string wrap would
                         // drop this type and the receipt would book Unknown.
-                        return Ok(settled_pre_spawn_refusal(ctx, span, error.to_string()).await);
+                        return Ok(settled_pre_spawn_refusal(ctx, span, &error).await);
                     }
                     Ok(result) => result
                         .map_err(|e| anyhow::anyhow!("Sandbox bash execution failed: {}", e))?,

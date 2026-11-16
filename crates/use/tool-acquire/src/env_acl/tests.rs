@@ -298,10 +298,7 @@ var "NODE_ENV" {
     )
     .unwrap();
     assert_eq!(config.tools.get("uv").map(String::as_str), Some("latest"));
-    assert_eq!(
-        config.tools.get("kbox").map(String::as_str),
-        Some("0.1.10")
-    );
+    assert_eq!(config.tools.get("kbox").map(String::as_str), Some("0.1.10"));
     assert_eq!(
         config.vars.get("NODE_ENV").map(String::as_str),
         Some("development")
@@ -385,9 +382,6 @@ fn resolve_maps_catalog_and_latest() {
     let uv = resolved.iter().find(|entry| entry.name == "uv").unwrap();
     assert!(uv.version.is_none());
     assert_eq!(uv.spec, "github:astral-sh/uv");
-    let sandbox = resolved
-        .iter()
-        .find(|entry| entry.name == "kbox")
-        .unwrap();
+    let sandbox = resolved.iter().find(|entry| entry.name == "kbox").unwrap();
     assert_eq!(sandbox.version.as_deref(), Some("0.1.10"));
 }

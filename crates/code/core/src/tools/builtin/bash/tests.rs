@@ -1977,8 +1977,92 @@ async fn typed_pre_spawn_lifetime_refusal_settles_as_a_tool_failure() {
     assert_eq!(metadata["sandboxed"], true);
     assert_eq!(metadata["sandbox_available"], true);
     assert_eq!(metadata["command_started"], false);
+    assert_eq!(
+        metadata["sandbox_violation"]["code"],
+        "sandbox.violation.lifetime_unqualified"
+    );
     assert!(metadata.get("observation_incomplete").is_none());
     assert!(!sentinel.exists());
+}
+
+struct ViolationSandbox(crate::sandbox::SandboxViolationCode);
+
+#[async_trait]
+impl BashSandbox for ViolationSandbox {
+    async fn exec_command(
+        &self,
+        _command: &str,
+        _guest_workspace: &str,
+    ) -> anyhow::Result<SandboxOutput> {
+        Err(crate::sandbox::SandboxViolation::new(self.0, "refused by policy").into())
+    }
+
+    async fn shutdown(&self) {}
+}
+
+#[tokio::test]
+async fn typed_sandbox_violation_sets_a_stable_code_without_starting_the_command() {
+    use crate::sandbox::SandboxViolationCode as Code;
+    for (code, expected) in [
+        (Code::NetworkDenied, "sandbox.violation.network_denied"),
+        (
+            Code::FilesystemDenied,
+            "sandbox.violation.filesystem_denied",
+        ),
+        (
+            Code::ProfileIntersectRefused,
+            "sandbox.violation.profile_intersect_refused",
+        ),
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let sentinel = temp.path().join("must-not-exist");
+        let ctx = ToolContext::new(temp.path().to_path_buf())
+            .with_sandbox(Arc::new(ViolationSandbox(code)));
+        let result = BashTool
+            .execute(
+                &serde_json::json!({
+                    "command": format!("printf started > {}", sentinel.display())
+                }),
+                &ctx,
+            )
+            .await
+            .expect("a typed violation is a completed tool result");
+        assert!(!result.success);
+        assert!(matches!(
+            result.error_kind,
+            Some(ToolErrorKind::Unsupported { .. })
+        ));
+        let metadata = result.metadata.expect("violation metadata");
+        assert_eq!(metadata["sandbox_violation"]["code"], expected);
+        assert_eq!(metadata["command_started"], false);
+        assert!(!sentinel.exists());
+    }
+}
+
+#[tokio::test]
+async fn violation_code_text_without_the_type_carries_no_code() {
+    struct TextOnly;
+
+    #[async_trait]
+    impl BashSandbox for TextOnly {
+        async fn exec_command(
+            &self,
+            _command: &str,
+            _guest_workspace: &str,
+        ) -> anyhow::Result<SandboxOutput> {
+            anyhow::bail!("sandbox.violation.network_denied: lookalike")
+        }
+
+        async fn shutdown(&self) {}
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    let ctx = ToolContext::new(temp.path().to_path_buf()).with_sandbox(Arc::new(TextOnly));
+    let err = BashTool
+        .execute(&serde_json::json!({"command": "true"}), &ctx)
+        .await
+        .expect_err("display text is not a typed violation");
+    assert!(err.to_string().contains("Sandbox bash execution failed"));
 }
 
 #[tokio::test]

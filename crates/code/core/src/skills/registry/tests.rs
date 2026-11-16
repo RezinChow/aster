@@ -295,6 +295,33 @@ fn test_load_from_dir() -> anyhow::Result<()> {
 }
 
 #[test]
+fn bad_skill_does_not_block_good_sibling_and_errors_are_enumerable() -> anyhow::Result<()> {
+    use super::SkillLoadErrorKind;
+
+    let temp_dir = TempDir::new()?;
+    let good = temp_dir.path().join("good-skill.md");
+    std::fs::write(
+        &good,
+        "---\nname: good-skill\ndescription: ok\nkind: instruction\n---\n# Good\n",
+    )?;
+    let bad = temp_dir.path().join("bad-skill.md");
+    std::fs::write(&bad, "this is not a skill file at all\n")?;
+
+    let registry = SkillRegistry::new();
+    let report = registry.load_from_dir_report(temp_dir.path())?;
+    assert_eq!(report.loaded, 1);
+    assert!(registry.get("good-skill").is_some());
+    assert_eq!(report.errors.len(), 1);
+    assert_eq!(report.errors[0].kind, SkillLoadErrorKind::Parse);
+    assert!(
+        report.errors[0].path.ends_with("bad-skill.md"),
+        "{:?}",
+        report.errors[0].path
+    );
+    Ok(())
+}
+
+#[test]
 fn test_load_from_dir_recurses_into_nested_skill_dirs() -> anyhow::Result<()> {
     let temp_dir = TempDir::new()?;
     let nested = temp_dir.path().join("nested").join("code-review-helper");

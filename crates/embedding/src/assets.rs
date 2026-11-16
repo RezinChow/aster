@@ -114,12 +114,8 @@ fn dir_has_assets(dir: &Path) -> bool {
 
 fn read_asset(dir: &Path, file: &str, pinned: &str) -> Result<Vec<u8>, String> {
     let path = dir.join(file);
-    let bytes = std::fs::read(&path).map_err(|error| {
-        format!(
-            "cannot read embedding asset {}: {error}",
-            path.display()
-        )
-    })?;
+    let bytes = std::fs::read(&path)
+        .map_err(|error| format!("cannot read embedding asset {}: {error}", path.display()))?;
     verify_asset(file, &bytes, pinned)?;
     Ok(bytes)
 }

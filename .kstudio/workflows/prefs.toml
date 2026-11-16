@@ -1,0 +1,2 @@
+schema = "kstudio.workflow.prefs.v1"
+default_template_id = "parallel-lanes-example"

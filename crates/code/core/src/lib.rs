@@ -82,6 +82,7 @@ pub mod agent_protocol_host;
 pub mod ask_user;
 pub(crate) mod bounded_io;
 pub mod budget;
+pub mod byte_budget;
 pub mod capability;
 pub(crate) mod child_run;
 pub mod code_intelligence;
@@ -105,6 +106,7 @@ pub mod durable_memory;
 #[cfg(feature = "aster-vec-fts")]
 pub mod durable_memory_vec;
 pub mod effect_isolation;
+pub mod elicitation;
 pub mod embedding;
 pub mod error;
 pub mod event_protocol;

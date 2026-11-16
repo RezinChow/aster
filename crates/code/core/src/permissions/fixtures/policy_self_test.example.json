@@ -1,0 +1,30 @@
+{
+  "default_decision": "ask",
+  "enforcement": "enforced",
+  "deny": [
+    {
+      "rule": "Bash(rm:*)",
+      "match": ["rm -rf /tmp/scratch"],
+      "not_match": ["git status"]
+    }
+  ],
+  "allow": [
+    {
+      "rule": "Bash(git status:*)",
+      "match": ["git status", "git status -sb"],
+      "not_match": ["git statusx", "rm -rf /"]
+    },
+    {
+      "rule": "Read(src/**/*.rs)",
+      "match": ["src/permissions/rule.rs"],
+      "not_match": ["README.md"]
+    }
+  ],
+  "ask": [
+    {
+      "rule": "Bash(cargo:*)",
+      "match": ["cargo test -p aster-core", "cargo"],
+      "not_match": ["git status", "cargox test"]
+    }
+  ]
+}

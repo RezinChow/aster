@@ -46,4 +46,7 @@ pub use effect::{Effect, Schedule, TraceEvent};
 pub use error::ActorError;
 pub use exit::Exit;
 pub use fact::{cut_log, parse_fact_json, Fact, LogCut, NewFact};
-pub use log::{FileLog, FileLogRunOwnerFence, FileLogWriterFence, LogStore, MemoryLog};
+pub use log::{
+    FileLog, FileLogRunOwnerFence, FileLogWriterFence, LogFreeze, LogStore, MemoryLog,
+    MAX_RECORD_BYTES,
+};

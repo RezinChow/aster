@@ -1,0 +1,56 @@
+{
+  "schema": "aster.acp.wire-surface-golden.v1",
+  "doc": "crates/code/acp/PROTOCOL.md",
+  "acpProtocolVersion": 1,
+  "hostMethods": {
+    "names": [
+      "aster/models/list",
+      "aster/followup/generate",
+      "aster/goal/import",
+      "aster/goal/import/preview",
+      "aster/goal/definition",
+      "aster/goal/plan",
+      "aster/goal/control",
+      "aster/goal/wait",
+      "aster/goal/state",
+      "aster/review/target",
+      "aster/review/admit",
+      "aster/review/settle",
+      "aster/wiki/search",
+      "aster/workspace/search/v1",
+      "aster/memory/manage",
+      "aster/memory/snapshot",
+      "aster/memory/flush",
+      "aster/memory/dream",
+      "aster/session/info",
+      "aster/session/list",
+      "aster/session/delete",
+      "aster/permission_posture",
+      "aster/session/transcript/page/v1",
+      "aster/session/fork/prefix/v1",
+      "aster/session/tooling/v1",
+      "aster/session/background-tasks/v1",
+      "aster/session/background-tasks/stop/v1",
+      "aster/subagent/cancel"
+    ],
+    "prefixFamilies": [
+      "aster/compact_conversation",
+      "aster/interject"
+    ]
+  },
+  "executionObserve": {
+    "codeConst": "_aster/execution/observe",
+    "note": "the const already carries the extension underscore; the ACP SDK adds another on the wire"
+  },
+  "queueChanged": {
+    "wireMethod": "_aster/queue/changed",
+    "paramsKeys": ["runningKind", "runningPromptId", "runningText", "sessionId"],
+    "runningKind": "prompt",
+    "precedes": "the turn's first model output update (agent_message_chunk, agent_thought_chunk or tool_call); mode and command updates may come earlier"
+  },
+  "turnQueue": {
+    "order": "fifo per session; one running turn",
+    "cancelTarget": "the running turn only; a queued prompt survives and starts next",
+    "promptResponseEchoes": "_meta.promptId"
+  }
+}

@@ -125,13 +125,15 @@ impl TryFrom<PermissionPolicyWire> for PermissionPolicy {
 
     fn try_from(wire: PermissionPolicyWire) -> Result<Self, Self::Error> {
         let enforcement = PermissionEnforcement::resolve(wire.enforcement, wire.enabled)?;
-        Ok(Self {
+        let policy = Self {
             deny: wire.deny,
             allow: wire.allow,
             ask: wire.ask,
             default_decision: wire.default_decision,
             enforcement,
-        })
+        };
+        policy.validate_rule_examples()?;
+        Ok(policy)
     }
 }
 
@@ -412,6 +414,23 @@ impl PermissionPolicy {
             .iter()
             .chain(&self.ask)
             .any(|rule| rule.matches_tool(tool_name))
+    }
+
+    /// Validate every rule's embedded `match` / `not_match` examples.
+    ///
+    /// Empty example lists succeed. A failing example rejects the policy so
+    /// bad self-tests cannot load.
+    pub fn validate_rule_examples(&self) -> Result<(), String> {
+        for (bucket, rules) in [
+            ("deny", &self.deny),
+            ("allow", &self.allow),
+            ("ask", &self.ask),
+        ] {
+            for rule in rules {
+                rule.validate_examples(bucket)?;
+            }
+        }
+        Ok(())
     }
 }
 

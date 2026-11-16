@@ -60,6 +60,11 @@ impl crate::agent::TurnEngine {
     }
 
     /// Fire PermissionRequest immediately before host confirmation is shown.
+    ///
+    /// The shared elicitation [`Permission`](crate::elicitation::ElicitationChannel::Permission)
+    /// ledger is owned by the ACP `session/request_permission` HITL path, not
+    /// by this hook gate — closing it here would end the pause before the host
+    /// asks.
     pub(super) async fn fire_permission_request(
         &self,
         session_id: &str,

@@ -1,0 +1,27 @@
+/* Wiki structure on the existing KRun documentation chrome. */
+.nav-records > summary { padding: 8px 12px; color: var(--body); cursor: pointer; }
+.nav-count, .nav-id { color: var(--muted); font: 11px var(--mono); }
+.nav-count { margin-left: 6px; }
+.chapter-nav a > span, .mobile-navigation nav a > span { min-width: 0; overflow-wrap: anywhere; }
+.toc-outline ul { margin: 0; padding: 0; list-style: none; }
+.toc-outline ul ul { padding-left: 12px; }
+.docs-footer .wiki-provenance { margin-top: 0; }
+.resource-unavailable { padding: 6px 0; }
+.resource-unavailable strong, .resource-unavailable > span { display: block; }
+.resource-unavailable > span { color: var(--muted); font: 10px/1.6 var(--mono); }
+.source-viewer { padding: 12px 0; }
+.source-code-line { display: block; min-width: max-content; padding: 0 16px; scroll-margin-top: 92px; }
+.source-code-line:target, .source-code-line:has(.source-range-anchor:target) { background: var(--selected); }
+.source-line-number { display: inline-block; width: 4ch; margin-right: 2ch; color: var(--muted); text-align: right; user-select: none; }
+.source-range-anchor { scroll-margin-top: 92px; }
+.mobile-navigation .nav-records > summary { display: list-item; list-style: disclosure-closed inside; border: 0; }
+.mobile-navigation .nav-records[open] > summary { list-style-type: disclosure-open; }
+.mobile-navigation .nav-records > summary::-webkit-details-marker { display: initial; }
+@media (max-width: 1199px) {
+  .page-toc { display: block; margin-bottom: 24px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+  .page-toc > summary { padding: 10px 14px; cursor: pointer; }
+  .page-toc .toc-content { display: block; padding: 6px 14px; }
+  .page-toc .nav-label { display: none; }
+  .page-toc nav { border: 0; padding: 0; }
+}
+@media print { .page-toc { display: none; } }

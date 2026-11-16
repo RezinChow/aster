@@ -2,7 +2,7 @@
 license = "Apache-2.0"
 name = "aster-confine"
 version = "0.1.0"
-description = "Compatibility stub (aster-confine): Aster no longer ships OS-level confinement; use external kbox"
+description = "Compatibility stub (aster-confine): not an execution authority; no-op API stub, isolation is ksandbox in aster-core"
 edition = "2024"
 publish = false
 

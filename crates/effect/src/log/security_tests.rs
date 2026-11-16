@@ -366,12 +366,25 @@ fn a_valid_final_line_without_a_newline_can_be_extended_and_reopened() {
 fn exact_byte_limit_is_readable_but_growth_is_refused_without_rewriting() {
     let root = tempfile::tempdir().expect("workspace");
     let log = FileLog::open(root.path()).expect("log");
-    let overhead = encoded(1, "edge", "").len();
-    let text = "x".repeat(BYTE_LIMIT - overhead);
+    // Records stay under MAX_RECORD_BYTES; together they fill the file cap exactly.
+    let chunk = MAX_RECORD_BYTES / 2;
+    let count = BYTE_LIMIT / chunk - 1;
+    let mut texts = vec!["x".repeat(chunk); count];
+    let used: usize = texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| encoded(index as u64 + 1, &format!("edge-{index}"), text).len())
+        .sum();
+    texts.push(String::new());
+    let overhead = encoded(count as u64 + 1, &format!("edge-{count}"), "").len();
+    texts[count] = "x".repeat(BYTE_LIMIT - used - overhead);
+    let facts: Vec<NewFact> = texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| input(&format!("edge-{index}"), text))
+        .collect();
     let path = root.path().join("thread.jsonl");
-    let next = log
-        .append("thread", &[input("edge", &text)], None)
-        .expect("exact bound");
+    let next = log.append("thread", &facts, None).expect("exact bound");
     assert_eq!(
         std::fs::metadata(&path).expect("size").len(),
         BYTE_LIMIT as u64
@@ -379,13 +392,15 @@ fn exact_byte_limit_is_readable_but_growth_is_refused_without_rewriting() {
     assert_eq!(log.read("thread").expect("read"), next);
     let before = std::fs::read(&path).expect("bytes");
     assert_eq!(
-        log.append("thread", &[input("edge", &text)], None)
-            .expect("idempotent"),
+        log.append("thread", &facts, None).expect("idempotent"),
         next
     );
     assert!(log.append("thread", &[input("new", "new")], None).is_err());
     assert_eq!(std::fs::read(&path).expect("bytes"), before);
-    assert_eq!(log.truncate_after("thread", 0).expect("truncate"), 1);
+    assert_eq!(
+        log.truncate_after("thread", 0).expect("truncate"),
+        facts.len()
+    );
     assert!(log.read("thread").expect("empty").is_empty());
 }
 
@@ -434,4 +449,67 @@ fn incomplete_tail_refuses_without_quarantine_or_rewrite() {
         std::fs::read_dir(root.path()).expect("workspace").count(),
         1
     );
+}
+
+#[test]
+fn oversized_single_record_is_refused_without_misparse() {
+    let root = tempfile::tempdir().expect("workspace");
+    let log = FileLog::open(root.path()).expect("log");
+    let path = root.path().join("thread.jsonl");
+    // Valid JSON on every line: only the size of record 2 is wrong, and a
+    // valid record 3 follows it, so a skip-and-continue reader would succeed.
+    let huge = "x".repeat(MAX_RECORD_BYTES);
+    let before = encoded(1, "one", "one") + &encoded(2, "huge", &huge) + &encoded(3, "three", "3");
+    assert!(before.len() < BYTE_LIMIT);
+    std::fs::write(&path, &before).expect("fixture");
+    let error = log.read("thread").expect_err("oversized record refuses");
+    assert!(error.to_string().contains(RECORD_LIMIT), "{error}");
+    assert!(log.freeze("thread").is_err());
+    assert!(log.append("thread", &[input("new", "new")], None).is_err());
+    assert!(log.truncate_after("thread", 0).is_err());
+    assert_eq!(std::fs::read(&path).expect("bytes"), before.as_bytes());
+    assert_eq!(
+        std::fs::read_dir(root.path()).expect("workspace").count(),
+        1
+    );
+}
+
+#[test]
+fn oversized_record_append_is_refused_before_it_becomes_unreadable() {
+    let root = tempfile::tempdir().expect("workspace");
+    let log = FileLog::open(root.path()).expect("log");
+    log.append("thread", &[input("one", "one")], None)
+        .expect("seed");
+    let path = root.path().join("thread.jsonl");
+    let before = std::fs::read(&path).expect("bytes");
+    let error = log
+        .append(
+            "thread",
+            &[input("huge", &"x".repeat(MAX_RECORD_BYTES))],
+            None,
+        )
+        .expect_err("oversized append refuses");
+    assert!(error.to_string().contains(RECORD_LIMIT), "{error}");
+    assert_eq!(std::fs::read(&path).expect("bytes"), before);
+    assert_eq!(log.read("thread").expect("still readable").len(), 1);
+}
+
+#[test]
+fn log_cut_or_freeze_exposes_committed_byte_len() {
+    let root = tempfile::tempdir().expect("workspace");
+    let log = FileLog::open(root.path()).expect("log");
+    let empty = log.freeze("thread").expect("absent thread");
+    assert_eq!((empty.cut.seq, empty.byte_len), (0, 0));
+    let facts = log
+        .append("thread", &[input("one", "one"), input("two", "two")], None)
+        .expect("append");
+    let frozen = log.freeze("thread").expect("freeze");
+    let on_disk = std::fs::metadata(root.path().join("thread.jsonl"))
+        .expect("size")
+        .len();
+    assert_eq!(frozen.byte_len, on_disk);
+    assert_eq!(frozen.cut, crate::cut_log(&facts));
+    log.append("thread", &[input("three", "three")], None)
+        .expect("grow");
+    assert!(log.freeze("thread").expect("grown").byte_len > frozen.byte_len);
 }

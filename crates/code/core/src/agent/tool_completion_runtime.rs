@@ -15,7 +15,15 @@ fn admit_surface_form(
 ) -> Option<crate::ask_user::UserQuestionV1> {
     let run_id = session_id.unwrap_or("run");
     let question_id = format!("surface-{run_id}-{tool_id}");
-    crate::ask_user::begin(run_id, &question_id, prompt, &[], true).ok()
+    crate::ask_user::begin_on_channel(
+        run_id,
+        &question_id,
+        prompt,
+        &[],
+        true,
+        crate::elicitation::ElicitationChannel::Form,
+    )
+    .ok()
 }
 
 pub(super) struct ToolCompletionInput<'a> {

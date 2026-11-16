@@ -1,0 +1,5 @@
+/local/
+/config.local.kcl
+/wiki/site/
+__pycache__/
+*.py[cod]

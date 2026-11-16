@@ -61,13 +61,13 @@ fn workspace_wiki_results_keep_complete_structured_hits_past_the_acp_preview_lim
     )
     .is_err());
     for name in ["search_wiki", "search_memory"] {
-        let raw = tool_raw_output(name, None, &output, 0).unwrap();
+        let raw = tool_raw_output(name, None, &output, 0, None).unwrap();
         let complete: serde_json::Value = serde_json::from_str(raw.as_str().unwrap()).unwrap();
         assert_eq!(complete["hits"].as_array().unwrap().len(), 5);
         assert_eq!(complete["hits"][4]["path"], "concepts/page-4.md");
     }
     assert_eq!(
-        tool_raw_output("search_wiki", None, &output, 1),
+        tool_raw_output("search_wiki", None, &output, 1, None),
         Some(serde_json::Value::String(output))
     );
 }

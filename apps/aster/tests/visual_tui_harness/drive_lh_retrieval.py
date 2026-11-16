@@ -153,22 +153,30 @@ def main() -> int:
         p = ws / "runs.txt"
         return p.read_text() if p.exists() else ""
 
+    # Match H1-hard: kimi welcome chrome names the model, not only "deepseek".
     assert wait_pred(
-        lambda h: "Type a message" in h or "❯" in h or "deepseek" in h.lower(),
+        lambda h: "Type a message" in h
+        or "❯" in h
+        or "deepseek" in h.lower()
+        or "kimi" in h.lower(),
         120,
         "welcome",
     )
     capture(ev, wid, "01-welcome")
 
     paste_submit(PROMPT)
-    assert wait_pred(
+    if not wait_pred(
         lambda h: settled(h)
         and PASS_LINE in runs()
         and "* 3" not in needle()
         and decoy_path.read_text() == decoy_before,
         600,
         "retrieve-repair",
-    )
+    ):
+        (ev / "02-retrieve-repair-fail-hist.txt").write_text(terminal_history())
+        (ev / "02-retrieve-repair-fail-runs.txt").write_text(runs())
+        (ev / "02-retrieve-repair-fail-needle.txt").write_text(needle())
+        raise AssertionError("retrieve-repair oracle not met within timeout")
 
     hist = terminal_history()
     search_evidence = any(

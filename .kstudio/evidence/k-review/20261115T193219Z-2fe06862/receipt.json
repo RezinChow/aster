@@ -1,0 +1,483 @@
+{
+  "schema": "kstudio.review-receipt.v1",
+  "started_at": "2026-11-15T19:32:19.427120+00:00",
+  "finished_at": "2026-11-15T19:32:19.807276+00:00",
+  "root": "/Users/roylin/code/aster",
+  "platform": {
+    "system": "darwin",
+    "machine": "arm64"
+  },
+  "snapshot": {
+    "head": "291c2afafdced86087dc7c0e8d7e1bed5b24ac04",
+    "branch": "main",
+    "index_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diff_sha256": "de7dcf669add10013e215d4da90b06beaa790273036b0b08b9ae433dde5e77b5",
+    "dirty_files": {
+      ".cursor/commands/k-clean.md": {
+        "kind": "file",
+        "sha256": "1e11fe646fc0c02a19c2e5497d0f3b85968e8962f03fb473ceb7a4c2031d65af"
+      },
+      ".cursor/commands/k-go.md": {
+        "kind": "file",
+        "sha256": "4aac09b97196464ab2c6b563d31637b84738253f434441e8c3e7958cb3aa11ec"
+      },
+      ".cursor/commands/k-goal.md": {
+        "kind": "file",
+        "sha256": "d6a455c09fe858e220e53a80be5145a370c882b24179423e290c03c686cf2f47"
+      },
+      ".cursor/commands/k-init.md": {
+        "kind": "file",
+        "sha256": "39653b232ba51b48ba8f50bd6b08c39797ed16fc71f6b33719f019c00756594d"
+      },
+      ".cursor/commands/k-loop.md": {
+        "kind": "file",
+        "sha256": "d4e1234849dbe25e281698ea85086b2e3816fe0ee5579300c5caffcc91d1adee"
+      },
+      ".cursor/commands/k-plan.md": {
+        "kind": "file",
+        "sha256": "796b0dd720d1f82cf04a26a1c5b27e55ebe5283faafbfd263c00df5c345efa31"
+      },
+      ".cursor/commands/k-progress.md": {
+        "kind": "file",
+        "sha256": "100386039a70b3e391aa78f6b784739c2e4119ffbb52966cea6b1052849e8620"
+      },
+      ".cursor/commands/k-review.md": {
+        "kind": "file",
+        "sha256": "d42d99c7c07bd56396bcefd7f2b42c930c7b57a2f3bb033ddcf79145e412f1a3"
+      },
+      ".cursor/commands/k-status.md": {
+        "kind": "file",
+        "sha256": "e16ff676c3cb8ec2bb992ca1277c99d6f795aba12707164cb55326f9fde7576a"
+      },
+      ".cursor/commands/k-task.md": {
+        "kind": "file",
+        "sha256": "ba350672b82a9eba792d15af3328b5ef51be58ecb5dafd895cef37bd24af259a"
+      },
+      ".cursor/commands/k-wiki.md": {
+        "kind": "file",
+        "sha256": "2a8077579204609ac8124dbd44b98a8bd78c0cf5ebb78cba8d68b2dcebc22e01"
+      },
+      ".cursor/commands/k-yolo.md": {
+        "kind": "file",
+        "sha256": "3ef5081e87633e083137b48acfa36994807b095a38e749efcdc5f5b77160befd"
+      },
+      ".cursor/rules/git-branch-discipline.mdc": {
+        "kind": "file",
+        "sha256": "b63c93b118fdc5f00ce46f261e2533802ef2d1847e0f9d709db07cf0ec268841"
+      },
+      ".cursor/rules/k-skills.mdc": {
+        "kind": "file",
+        "sha256": "26d6545d7915597bed9f6d89be0b8e4946b1391c2f3c1664d940d2a548b2ef0b"
+      },
+      ".cursor/skills/k-clean/SKILL.md": {
+        "kind": "file",
+        "sha256": "cac5ead7203c04c6d72f684c28ba0defd1d8cf22dc9e67db01f78b4ebf8ddbbf"
+      },
+      ".cursor/skills/k-go/SKILL.md": {
+        "kind": "file",
+        "sha256": "dcbe507a2e8a5b699d29117ccd2e846178f6c2545d728b230e0f138419fcd589"
+      },
+      ".cursor/skills/k-goal/SKILL.md": {
+        "kind": "file",
+        "sha256": "c64dfc1ab76beecc5378e89752af8863aedf50b64a644e18f3af64d24baa6bb4"
+      },
+      ".cursor/skills/k-init/SKILL.md": {
+        "kind": "file",
+        "sha256": "1d0599bff36adcfca788777ce3c7d1e0f241524ff54def2ae5ef9e60781e15cc"
+      },
+      ".cursor/skills/k-loop/SKILL.md": {
+        "kind": "file",
+        "sha256": "f9f449529a56a3c0fea7e4632083e4d9d20701733d58455fcc0a25550b556c4f"
+      },
+      ".cursor/skills/k-plan/SKILL.md": {
+        "kind": "file",
+        "sha256": "1dd06ed87e864736f2619b65fecbde92add4d52a5bfa34b2037aeeca1f3107ed"
+      },
+      ".cursor/skills/k-progress/SKILL.md": {
+        "kind": "file",
+        "sha256": "ad9c4bab50bbb4ec9015b83e6159dea73af70fe78b0aa0c9f21c8d79dab9ee30"
+      },
+      ".cursor/skills/k-review/SKILL.md": {
+        "kind": "file",
+        "sha256": "86ceeedccc10181a21dea96b0dd5e0e85c57e294034e7171b164e1de39da05b4"
+      },
+      ".cursor/skills/k-status/SKILL.md": {
+        "kind": "file",
+        "sha256": "7607413c692db318d0c020aa9a82ee51e03bfcc47ff605ac11974fb3b66ed1af"
+      },
+      ".cursor/skills/k-task/SKILL.md": {
+        "kind": "file",
+        "sha256": "af0c62c8865b42798fe0d116c5af8ecf5fc8970a905ee0a143172791519dbe06"
+      },
+      ".cursor/skills/k-wiki/SKILL.md": {
+        "kind": "file",
+        "sha256": "b31a7c867095772c9b61202fd5a6e515ee49f3b7b1404e4d181872a4debd0265"
+      },
+      ".cursor/skills/k-yolo/SKILL.md": {
+        "kind": "file",
+        "sha256": "dc841d45e173b1ea8695747c0694dfd218501a93ee52a38db7ec6109b45254f1"
+      },
+      ".kstudio/.gitignore": {
+        "kind": "file",
+        "sha256": "13a0d9c5322aba9a6acc99ebf6e83f690f3ef871418ed44908f3402b5f16df06"
+      },
+      ".kstudio/ENGINEERING.md": {
+        "kind": "file",
+        "sha256": "53f56f90a1bb307562603639477c75973c9351d00fe83c9ed72301899cad389c"
+      },
+      ".kstudio/MANIFEST.json": {
+        "kind": "file",
+        "sha256": "81fe671891ee2661e02c221759e020629575d411821e595d4dc0a93eb614b42f"
+      },
+      ".kstudio/README.md": {
+        "kind": "file",
+        "sha256": "4ae072bf1214064198b33867123a4a9151bfef199c8f47d989b70f74c4b9ebc9"
+      },
+      ".kstudio/agent-rules/git-branch-discipline.mdc": {
+        "kind": "file",
+        "sha256": "b63c93b118fdc5f00ce46f261e2533802ef2d1847e0f9d709db07cf0ec268841"
+      },
+      ".kstudio/agent-rules/k-skills.mdc": {
+        "kind": "file",
+        "sha256": "26d6545d7915597bed9f6d89be0b8e4946b1391c2f3c1664d940d2a548b2ef0b"
+      },
+      ".kstudio/config.kcl": {
+        "kind": "file",
+        "sha256": "6db8791962e0b49dc0b9821597abe2a6dc4e78055a5a6e6779fa71b9debe71ed"
+      },
+      ".kstudio/config.kcl.example": {
+        "kind": "file",
+        "sha256": "c5aa92f2c885bd471434b88513e5cc749e5f0efc4b8fc476edec1899da3d0f0f"
+      },
+      ".kstudio/contexts/README.md": {
+        "kind": "file",
+        "sha256": "12eb62107197f48bffc611f9b55e3e0a24fa787bd8e3a757984e04bbdef0f0de"
+      },
+      ".kstudio/extensions/README.md": {
+        "kind": "file",
+        "sha256": "9b77b3d0d566b071acb7ed66446a00fc8f53b1b35fc157c7e0741eb8250a54ef"
+      },
+      ".kstudio/lanes/README.md": {
+        "kind": "file",
+        "sha256": "1b6ed5bfc627ae611dcedb7ea113301bfcbb8dad2425b04b51c83a1ea7ec6d1e"
+      },
+      ".kstudio/migration/2026-11-16-twelve-skills-k-go-k-yolo.md": {
+        "kind": "file",
+        "sha256": "71476cbea968825bc68d43308a65cca7dd8ac3bb63eca532fe0b2e2b01003600"
+      },
+      ".kstudio/migration/README.md": {
+        "kind": "file",
+        "sha256": "4a56786a4bda69389e3d61abdfb0459e5edac8dd26c2557129e0382a334a65f3"
+      },
+      ".kstudio/skills/README.md": {
+        "kind": "file",
+        "sha256": "5988105058dd06ba5a42365aa6f5e7bd4cef2c47fb644960f29539a68d2e31f2"
+      },
+      ".kstudio/skills/k-clean/SKILL.md": {
+        "kind": "file",
+        "sha256": "cac5ead7203c04c6d72f684c28ba0defd1d8cf22dc9e67db01f78b4ebf8ddbbf"
+      },
+      ".kstudio/skills/k-go/SKILL.md": {
+        "kind": "file",
+        "sha256": "dcbe507a2e8a5b699d29117ccd2e846178f6c2545d728b230e0f138419fcd589"
+      },
+      ".kstudio/skills/k-goal/SKILL.md": {
+        "kind": "file",
+        "sha256": "c64dfc1ab76beecc5378e89752af8863aedf50b64a644e18f3af64d24baa6bb4"
+      },
+      ".kstudio/skills/k-init/SKILL.md": {
+        "kind": "file",
+        "sha256": "1d0599bff36adcfca788777ce3c7d1e0f241524ff54def2ae5ef9e60781e15cc"
+      },
+      ".kstudio/skills/k-loop/SKILL.md": {
+        "kind": "file",
+        "sha256": "f9f449529a56a3c0fea7e4632083e4d9d20701733d58455fcc0a25550b556c4f"
+      },
+      ".kstudio/skills/k-plan/SKILL.md": {
+        "kind": "file",
+        "sha256": "1dd06ed87e864736f2619b65fecbde92add4d52a5bfa34b2037aeeca1f3107ed"
+      },
+      ".kstudio/skills/k-progress/SKILL.md": {
+        "kind": "file",
+        "sha256": "ad9c4bab50bbb4ec9015b83e6159dea73af70fe78b0aa0c9f21c8d79dab9ee30"
+      },
+      ".kstudio/skills/k-review/SKILL.md": {
+        "kind": "file",
+        "sha256": "86ceeedccc10181a21dea96b0dd5e0e85c57e294034e7171b164e1de39da05b4"
+      },
+      ".kstudio/skills/k-status/SKILL.md": {
+        "kind": "file",
+        "sha256": "7607413c692db318d0c020aa9a82ee51e03bfcc47ff605ac11974fb3b66ed1af"
+      },
+      ".kstudio/skills/k-task/SKILL.md": {
+        "kind": "file",
+        "sha256": "af0c62c8865b42798fe0d116c5af8ecf5fc8970a905ee0a143172791519dbe06"
+      },
+      ".kstudio/skills/k-wiki/SKILL.md": {
+        "kind": "file",
+        "sha256": "b31a7c867095772c9b61202fd5a6e515ee49f3b7b1404e4d181872a4debd0265"
+      },
+      ".kstudio/skills/k-yolo/SKILL.md": {
+        "kind": "file",
+        "sha256": "dc841d45e173b1ea8695747c0694dfd218501a93ee52a38db7ec6109b45254f1"
+      },
+      ".kstudio/wiki/Chronicle.md": {
+        "kind": "file",
+        "sha256": "266e3d5898cf72f5f771ffafe8a8ecbf9a65dc4067ff7b1932da9e1f69bc2bbf"
+      },
+      ".kstudio/wiki/Codex-Aster-Absorption.md": {
+        "kind": "file",
+        "sha256": "a9ee96c28a720a62cc54e580a1d4d650763c68b0639e0ae0f2ac6d7ae097b9e6"
+      },
+      ".kstudio/wiki/Decisions.md": {
+        "kind": "file",
+        "sha256": "c6edc32074cd8d0c8a7022eb6e28a9fce07d23e37da48bb5d36e8a4e1408a233"
+      },
+      ".kstudio/wiki/Home.md": {
+        "kind": "file",
+        "sha256": "4de8a70ab526560d1e037efb0b8f0d0ea2d364a59a867193be89aba09f0feb6e"
+      },
+      ".kstudio/wiki/Tasks.md": {
+        "kind": "file",
+        "sha256": "eb5be2cb97bcf6497efdebc133bb24e19cce81b28b6cab20543c5aff8c6d5e47"
+      },
+      ".kstudio/workflow/GOALS.md": {
+        "kind": "file",
+        "sha256": "948e48a87a7a2cd4983b498ee3799c16467663606e600c946c99f28b2d42b8e5"
+      },
+      ".kstudio/workflow/HEAD": {
+        "kind": "file",
+        "sha256": "b64903118ddf9b77d831cb62cbd0a1f71267ceaa32b8ac94cb2bdeaa56526358"
+      },
+      ".kstudio/workflow/SYNC-SKILLS.stamp": {
+        "kind": "file",
+        "sha256": "89d4b3b57e86379dee7ccdc70b100f9481c24afce3d92c59aa1568ada434d85e"
+      },
+      ".kstudio/workflow/activate-k-skills.py": {
+        "kind": "file",
+        "sha256": "6dbbed7856c46a4ffc27c21f9fa31d0bd64529cdef243bc2d073f826ec87a61a"
+      },
+      ".kstudio/workflow/billets.json": {
+        "kind": "file",
+        "sha256": "5f5ac7a47b944e9ade14ee9bcd76b6c8e0a6528a603522f5533245cc968c60c9"
+      },
+      ".kstudio/workflow/clean-kstudio.py": {
+        "kind": "file",
+        "sha256": "a8f130e2706075f0845e622af0598d96e5163208cc0c13d11698a803f01516c7"
+      },
+      ".kstudio/workflow/init-kstudio.py": {
+        "kind": "file",
+        "sha256": "e72a77a52f54d4f5616911ddf933bcf837521ddb8cddb86163ea1ce62df522e8"
+      },
+      ".kstudio/workflow/load-config.py": {
+        "kind": "file",
+        "sha256": "79c1b7b77abdd20adfaaae076b82a44b75fbbc3678d5caeaa570f8e329f77acb"
+      },
+      ".kstudio/workflow/loop-kstudio.py": {
+        "kind": "file",
+        "sha256": "e78d5e15c0ec534bab9eaeb46bd2cc49875ac925c92b7841deb4501e32b0045e"
+      },
+      ".kstudio/workflow/print-paste.sh": {
+        "kind": "file",
+        "sha256": "a2e943c9f2e742c8e1919b023d82402b2c4b77ebb6304a08ce1a455a06361273"
+      },
+      ".kstudio/workflow/progress-scan.py": {
+        "kind": "file",
+        "sha256": "4c92171287f5ea4e646d12d834449d1e2344c9fcb3842901f8ed7f60b2065169"
+      },
+      ".kstudio/workflow/review-checks.json": {
+        "kind": "file",
+        "sha256": "6bd1b832be055886c129d5dc925daceb51c14637d3853ae44b82ef12598ee14d"
+      },
+      ".kstudio/workflow/review.py": {
+        "kind": "file",
+        "sha256": "bd40f9f6f4c4794509015ea25f80190c12c195e76370bf4defac3542e01be6ba"
+      },
+      ".kstudio/workflow/sitrep.py": {
+        "kind": "file",
+        "sha256": "925f72781946afe91236b2d3067c64c5707dde177c9297feed233edebaa6e95a"
+      },
+      ".kstudio/workflow/sync-k-skills.py": {
+        "kind": "file",
+        "sha256": "d5cc3ada8d61b21d76b6f2df0175459a9a856a3e09704467e72bece610756a7e"
+      },
+      ".kstudio/workflow/tty-fmt.py": {
+        "kind": "file",
+        "sha256": "f9a3aeacd45a922f62f70c8ee99fdca0b29e7902336baef1d624d72ccaadb6e4"
+      },
+      ".kstudio/workflow/verify-ai-eng.py": {
+        "kind": "file",
+        "sha256": "0a3ce3979558a0bbba0602163e3cb160aa6e74a077a8052d7761c25d86246af6"
+      },
+      ".kstudio/workflow/waves/bootstrap/STATUS.md": {
+        "kind": "file",
+        "sha256": "c9c644c0671138584c8b177e4bff42caa7e9bb1df92482b9095aa4f0383838c7"
+      },
+      ".kstudio/workflow/waves/bootstrap/lineage.json": {
+        "kind": "file",
+        "sha256": "a4711aad927f90d9e4a72c9da9ddf46b9284008694780a7ec3641fbae0d44db7"
+      },
+      ".kstudio/workflow/waves/bootstrap/roles/B.md": {
+        "kind": "file",
+        "sha256": "7467f14b2cacfe2a1711593e1401743227ebb74aaddd92de3970a65f59b33913"
+      },
+      ".kstudio/workflow/waves/bootstrap/roles/D.md": {
+        "kind": "file",
+        "sha256": "bc458e8b8019ce903f479eec7e1737e4174045b076fea97499f6691ba48b06a3"
+      },
+      ".kstudio/workflow/waves/bootstrap/roles/I.md": {
+        "kind": "file",
+        "sha256": "0292be02735c319a7d70f36917335647d4e7392f46fae774998651dc506ddbf2"
+      },
+      ".kstudio/workflow/waves/bootstrap/roles/M.md": {
+        "kind": "file",
+        "sha256": "70520fd04027a0dbdf11608e88691afa336d7dab745089ef328af7c67fa9dacb"
+      },
+      ".kstudio/workflow/waves/bootstrap/roles/O.md": {
+        "kind": "file",
+        "sha256": "93357388fdf45f33f3d12336464576642db4444394a6a2867e42f543cf1131bd"
+      },
+      ".kstudio/workflow/waves/bootstrap/roles/R.md": {
+        "kind": "file",
+        "sha256": "724b47c4bfe45e3a10a5c54222e6107a7be614baea58b85fb98b7cc1a96e0927"
+      },
+      ".kstudio/workflow/waves/bootstrap/roles/S.md": {
+        "kind": "file",
+        "sha256": "5cab5eb7e385a16bea896a585eed7727d774325b205c664f4f2f3cf172028a75"
+      },
+      ".kstudio/workflow/waves/bootstrap/timeline.jsonl": {
+        "kind": "file",
+        "sha256": "1e2bdf4e4f7f1fec25150050ba9fbf83793d583fffafc8d949b4917a8be8724e"
+      },
+      ".kstudio/workflow/waves/bootstrap/work-plan.md": {
+        "kind": "file",
+        "sha256": "4edbbc3b701f34139942767ed24ee9098c08c26da7c03067bf43a9dcaa1c3c35"
+      },
+      ".kstudio/workflow/wiki-assets/kense-icon.png": {
+        "kind": "file",
+        "sha256": "ab0c24eddb0edbf184411bb4c2b712c3486c44fc2fd7094c75706e1d6ff38b38"
+      },
+      ".kstudio/workflow/wiki-assets/kense-mark.png": {
+        "kind": "file",
+        "sha256": "28a962a6144b4f2c10b42238ae29d8f85a3d358c7fe10eadcc05f86aa436aacc"
+      },
+      ".kstudio/workflow/wiki-assets/styles.css": {
+        "kind": "file",
+        "sha256": "ee8d702eacdadd8e4b3ff2fe7d87d1cb2cb5fb53d5045594cae25ebd524d5117"
+      },
+      ".kstudio/workflow/wiki-assets/wiki.css": {
+        "kind": "file",
+        "sha256": "3190f729e043cfeb3e9b996c13ba09f7a5d9196e8f515e772c531bf72bc3ea26"
+      },
+      ".kstudio/workflow/wiki-site.py": {
+        "kind": "file",
+        "sha256": "84c390f0991df45c009b21a9047b95ee014b40b52918fd1240da1430b2c4aee1"
+      },
+      ".kstudio/workflows/prefs.toml": {
+        "kind": "file",
+        "sha256": "dfa3066e748969e1229ce90c5a348d187f646e967db74864db88a34e6e45df86"
+      },
+      ".kstudio/workflows/templates/parallel-lanes-example.v1.json": {
+        "kind": "file",
+        "sha256": "125f498733e918f3a6d1776dbc383e3e45b5f5dbe3aefa9d01368a1c29342539"
+      },
+      "crates/code/core/examples/permission_policy_self_test.rs": {
+        "kind": "file",
+        "sha256": "ad1279eaae4fc6d0f14333a3663cc06ff9bedd8e512f87e6d5bd9f6b8b53a248"
+      },
+      "crates/code/core/src/permissions/fixtures/policy_self_test.bad_not_match.json": {
+        "kind": "file",
+        "sha256": "af5ab190e322326b997698a614b3b742b0f419348201c2e5b882ecfee07a65aa"
+      },
+      "crates/code/core/src/permissions/fixtures/policy_self_test.example.json": {
+        "kind": "file",
+        "sha256": "7b21bb28e92f29aa8e33bf34dc7ca18ae511de4e7c3f61fc1cdc77ec3388bae7"
+      },
+      "crates/code/core/src/permissions/mod.rs": {
+        "kind": "file",
+        "sha256": "450f8310429d8e476988222af6f6b553c78b69b5d652f91299e77f04d5ac4edd"
+      },
+      "crates/code/core/src/permissions/policy.rs": {
+        "kind": "file",
+        "sha256": "5dc52d8c3a6a7658ce31b496377da918de0fbedc8797548710d96695e81b9e71"
+      },
+      "crates/code/core/src/permissions/rule.rs": {
+        "kind": "file",
+        "sha256": "40d84aa08bb90740413cb89a464cc19ddfc7202f0ef02b14c760e0560ffc6b69"
+      },
+      "crates/code/core/src/permissions/self_test_examples_tests.rs": {
+        "kind": "file",
+        "sha256": "701b565b54851fb1c0a00eb5ae1acfdac2e9e38d26f9e91a1da415c0e663839b"
+      },
+      "crates/effect/README.md": {
+        "kind": "file",
+        "sha256": "da10facbc2f0f1cd43ae4593212cc3d5ff0e8f0be1b2bbb3968a0a4803f867b5"
+      },
+      "crates/effect/README.zh-CN.md": {
+        "kind": "file",
+        "sha256": "52a8ee225c6ce34a1d8343e24f34f6a435ff8999fcda4706b654e0f59dbe8f08"
+      },
+      "crates/effect/src/lib.rs": {
+        "kind": "file",
+        "sha256": "f96a4fae702b57b361ef84ebf5c15cb239c03018d88cc58ddb054b714fd45e71"
+      },
+      "crates/effect/src/log.rs": {
+        "kind": "file",
+        "sha256": "f4a8261e8e85eb8a257f9e29d64712d067323264c2e3f0ab158f9fdc8f061ef7"
+      },
+      "crates/effect/src/log/security_tests.rs": {
+        "kind": "file",
+        "sha256": "d4050fb1ed932f26de73ace045300f40ffceba4f24c8b4ec4ab862bd4c66d2ec"
+      },
+      "docs/evidence/effect-rollout-hardening-2026-11-16/OUTCOME.md": {
+        "kind": "file",
+        "sha256": "47a6b3642f72fa5e102ce72e6756201addfe011e23f2ecedd38ef6ddc077ffba"
+      },
+      "docs/evidence/permissions-self-test-2026-11-16/OUTCOME.md": {
+        "kind": "file",
+        "sha256": "84d0230a4958f252b107d6dd8982937d902c050ac2b81ef5ff680fd7f794133c"
+      }
+    },
+    "excluded_paths": [
+      ".kstudio/evidence/",
+      ".kstudio/wiki/site/"
+    ]
+  },
+  "config_sha256": "6bd1b832be055886c129d5dc925daceb51c14637d3853ae44b82ef12598ee14d",
+  "config_errors": [],
+  "status": "checks_passed",
+  "review_status": "pending",
+  "checks": [
+    {
+      "id": "skill-sync",
+      "argv": [
+        "python3",
+        ".kstudio/workflow/sync-k-skills.py",
+        "--check"
+      ],
+      "cwd": ".",
+      "status": "passed",
+      "exit_code": 0,
+      "started_at": "2026-11-15T19:32:19.427168+00:00",
+      "finished_at": "2026-11-15T19:32:19.465578+00:00",
+      "log": "logs/skill-sync.log",
+      "sha256": "cb22c196b4b277c043fb846fd0d84fa750051c7937e1d547e9adb46f82b797f6"
+    },
+    {
+      "id": "ai-engineering",
+      "argv": [
+        "python3",
+        ".kstudio/workflow/verify-ai-eng.py",
+        "--level",
+        "L3"
+      ],
+      "cwd": ".",
+      "status": "passed",
+      "exit_code": 0,
+      "started_at": "2026-11-15T19:32:19.465845+00:00",
+      "finished_at": "2026-11-15T19:32:19.598057+00:00",
+      "log": "logs/ai-engineering.log",
+      "sha256": "c04712fcb055bf64d573d3c2f3fe1870e083a47bd4513b70822f18e76e75813b"
+    }
+  ]
+}

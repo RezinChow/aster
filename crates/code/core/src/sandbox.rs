@@ -8,6 +8,15 @@
 //! or use yolo / escalated host execution.
 //!
 //! Non-local workspace backends retain their explicit command-runner contract.
+//!
+//! **Execution authority** is this module's [`BashSandbox`] adapters (ksandbox
+//! natively, or an explicitly injected host backend). The `aster-confine` crate
+//! is an API-compatibility stub: its `apply`/`install`/profile functions are
+//! no-ops and it never confines, mediates or authorizes a command. Do not
+//! consult it for policy and do not revive it as a backend.
+//!
+//! [`permission_profile`] holds the pure profile intersection and the stable
+//! `sandbox.violation.*` codes that refusals carry in tool metadata.
 
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -17,9 +26,15 @@ use crate::workspace::CommandOutputObserver;
 
 pub(crate) mod host_access;
 pub mod native;
+pub mod permission_profile;
 pub mod process_host;
 pub(crate) mod workspace_boundary;
 
+pub use permission_profile::{
+    intersect_permission_profiles, intersect_profile_with_request, violation_code,
+    violation_code_of, PermissionProfile, ProfileIntersectError, SandboxViolation,
+    SandboxViolationCode,
+};
 pub use process_host::ProcessHostBashSandbox;
 pub use workspace_boundary::{
     is_protected_workspace_path, PROTECTED_WORKSPACE_DIRECTORIES, PROTECTED_WORKSPACE_FILES,

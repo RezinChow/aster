@@ -110,9 +110,15 @@ mod tests {
             panic!("expected one project config: {found:?}");
         };
         assert!(!is_user_grok_config_file(first));
-        assert_eq!(first.file_name().and_then(|n| n.to_str()), Some("config.toml"));
         assert_eq!(
-            first.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str()),
+            first.file_name().and_then(|n| n.to_str()),
+            Some("config.toml")
+        );
+        assert_eq!(
+            first
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str()),
             Some(".aster")
         );
 

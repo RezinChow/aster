@@ -16,6 +16,63 @@ const MAX_PATCH_ENTRIES: usize = 64;
 /// max-size files stage `before`+`after` without limit.
 const MAX_PATCH_BATCH_BYTES: usize = 16 * 1024 * 1024;
 
+/// Stable failure codes for the verified patch pipeline (P1-7).
+/// Surfaced as `metadata.patch.code` on tool errors — never branch on the
+/// human message to recover these.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PatchFailureCode {
+    Parse,
+    ContextMismatch,
+    RangeInvalid,
+    LineEnding,
+    BatchLimit,
+    BatchBytes,
+    Argument,
+    Io,
+    VersionConflict,
+}
+
+impl PatchFailureCode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Parse => "patch.parse",
+            Self::ContextMismatch => "patch.context_mismatch",
+            Self::RangeInvalid => "patch.range_invalid",
+            Self::LineEnding => "patch.line_ending",
+            Self::BatchLimit => "patch.batch_limit",
+            Self::BatchBytes => "patch.batch_bytes",
+            Self::Argument => "patch.argument",
+            Self::Io => "patch.io",
+            Self::VersionConflict => "patch.version_conflict",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PatchFailure {
+    code: PatchFailureCode,
+    message: String,
+}
+
+impl std::fmt::Display for PatchFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+fn patch_failure(code: PatchFailureCode, message: impl Into<String>) -> PatchFailure {
+    PatchFailure {
+        code,
+        message: message.into(),
+    }
+}
+
+fn tool_output_patch_failure(failure: PatchFailure) -> ToolOutput {
+    ToolOutput::error(failure.message).with_metadata(serde_json::json!({
+        "patch": { "code": failure.code.as_str() }
+    }))
+}
+
 pub struct PatchTool;
 
 struct StagedPatch {
@@ -47,7 +104,7 @@ enum HunkOperation {
 }
 
 /// Parse a unified diff into hunks
-fn parse_hunks(diff: &str) -> Result<Vec<Hunk>, String> {
+fn parse_hunks(diff: &str) -> Result<Vec<Hunk>, PatchFailure> {
     let mut hunks = Vec::new();
     let lines = diff
         .split('\n')
@@ -62,10 +119,13 @@ fn parse_hunks(diff: &str) -> Result<Vec<Hunk>, String> {
             hunks.push(hunk);
         } else {
             if !hunks.is_empty() && !line.is_empty() {
-                return Err(format!(
-                    "Unexpected line outside a hunk at diff line {}: {:?}",
-                    i + 1,
-                    line
+                return Err(patch_failure(
+                    PatchFailureCode::Parse,
+                    format!(
+                        "Unexpected line outside a hunk at diff line {}: {:?}",
+                        i + 1,
+                        line
+                    ),
                 ));
             }
             i += 1;
@@ -73,13 +133,16 @@ fn parse_hunks(diff: &str) -> Result<Vec<Hunk>, String> {
     }
 
     if hunks.is_empty() {
-        return Err("No @@ hunk headers found in diff".to_string());
+        return Err(patch_failure(
+            PatchFailureCode::Parse,
+            "No @@ hunk headers found in diff",
+        ));
     }
 
     Ok(hunks)
 }
 
-fn parse_single_hunk(lines: &[&str], i: &mut usize) -> Result<Hunk, String> {
+fn parse_single_hunk(lines: &[&str], i: &mut usize) -> Result<Hunk, PatchFailure> {
     let header = lines[*i];
     let (old_start, old_count, new_start, new_count) = parse_hunk_header(header)?;
 
@@ -103,9 +166,12 @@ fn parse_single_hunk(lines: &[&str], i: &mut usize) -> Result<Hunk, String> {
                     new_no_newline = true;
                 }
                 _ => {
-                    return Err(format!(
-                        "No-newline marker has no preceding hunk line at diff line {}",
-                        *i + 1
+                    return Err(patch_failure(
+                        PatchFailureCode::Parse,
+                        format!(
+                            "No-newline marker has no preceding hunk line at diff line {}",
+                            *i + 1
+                        ),
                     ));
                 }
             }
@@ -126,10 +192,13 @@ fn parse_single_hunk(lines: &[&str], i: &mut usize) -> Result<Hunk, String> {
             if line.is_empty() && *i + 1 == lines.len() {
                 break;
             }
-            return Err(format!(
-                "Invalid hunk line prefix at diff line {}: {:?}",
-                *i + 1,
-                line
+            return Err(patch_failure(
+                PatchFailureCode::Parse,
+                format!(
+                    "Invalid hunk line prefix at diff line {}: {:?}",
+                    *i + 1,
+                    line
+                ),
             ));
         }
         *i += 1;
@@ -144,8 +213,11 @@ fn parse_single_hunk(lines: &[&str], i: &mut usize) -> Result<Hunk, String> {
         .filter(|operation| !matches!(operation, HunkOperation::Remove(_)))
         .count();
     if actual_old_count != old_count || actual_new_count != new_count {
-        return Err(format!(
-            "Hunk count mismatch in {header:?}: header declares old={old_count}, new={new_count}, but body contains old={actual_old_count}, new={actual_new_count}"
+        return Err(patch_failure(
+            PatchFailureCode::Parse,
+            format!(
+                "Hunk count mismatch in {header:?}: header declares old={old_count}, new={new_count}, but body contains old={actual_old_count}, new={actual_new_count}"
+            ),
         ));
     }
 
@@ -161,37 +233,57 @@ fn parse_single_hunk(lines: &[&str], i: &mut usize) -> Result<Hunk, String> {
 }
 
 /// Parse @@ -old_start,old_count +new_start,new_count @@ line
-fn parse_hunk_header(header: &str) -> Result<(usize, usize, usize, usize), String> {
+fn parse_hunk_header(header: &str) -> Result<(usize, usize, usize, usize), PatchFailure> {
     let stripped = header
         .strip_prefix("@@")
         .and_then(|s| s.find("@@").map(|end| &s[..end]))
-        .ok_or_else(|| format!("Invalid hunk header: {}", header))?
+        .ok_or_else(|| {
+            patch_failure(
+                PatchFailureCode::Parse,
+                format!("Invalid hunk header: {}", header),
+            )
+        })?
         .trim();
 
     let parts: Vec<&str> = stripped.split_whitespace().collect();
     if parts.len() < 2 {
-        return Err(format!("Invalid hunk header: {}", header));
+        return Err(patch_failure(
+            PatchFailureCode::Parse,
+            format!("Invalid hunk header: {}", header),
+        ));
     }
     let (old_start, old_count) = parse_hunk_range(parts[0], '-', header)?;
     let (new_start, new_count) = parse_hunk_range(parts[1], '+', header)?;
     Ok((old_start, old_count, new_start, new_count))
 }
 
-fn parse_hunk_range(value: &str, prefix: char, header: &str) -> Result<(usize, usize), String> {
-    let value = value
-        .strip_prefix(prefix)
-        .ok_or_else(|| format!("Invalid range in hunk header: {header}"))?;
+fn parse_hunk_range(
+    value: &str,
+    prefix: char,
+    header: &str,
+) -> Result<(usize, usize), PatchFailure> {
+    let value = value.strip_prefix(prefix).ok_or_else(|| {
+        patch_failure(
+            PatchFailureCode::Parse,
+            format!("Invalid range in hunk header: {header}"),
+        )
+    })?;
     let (start, count) = value
         .split_once(',')
         .map(|(start, count)| (start, Some(count)))
         .unwrap_or((value, None));
-    let start = start
-        .parse::<usize>()
-        .map_err(|_| format!("Invalid range start in hunk header: {header}"))?;
-    let count = count
-        .unwrap_or("1")
-        .parse::<usize>()
-        .map_err(|_| format!("Invalid range count in hunk header: {header}"))?;
+    let start = start.parse::<usize>().map_err(|_| {
+        patch_failure(
+            PatchFailureCode::Parse,
+            format!("Invalid range start in hunk header: {header}"),
+        )
+    })?;
+    let count = count.unwrap_or("1").parse::<usize>().map_err(|_| {
+        patch_failure(
+            PatchFailureCode::Parse,
+            format!("Invalid range count in hunk header: {header}"),
+        )
+    })?;
     Ok((start, count))
 }
 
@@ -201,16 +293,22 @@ struct TextDocument {
     trailing_newline: bool,
 }
 
-fn parse_document(content: &str) -> Result<TextDocument, String> {
+fn parse_document(content: &str) -> Result<TextDocument, PatchFailure> {
     let has_crlf = content.contains("\r\n");
     let has_bare_lf = content.as_bytes().iter().enumerate().any(|(index, byte)| {
         *byte == b'\n' && (index == 0 || content.as_bytes()[index - 1] != b'\r')
     });
     if has_crlf && has_bare_lf {
-        return Err("Cannot safely patch a file with mixed LF and CRLF line endings".to_string());
+        return Err(patch_failure(
+            PatchFailureCode::LineEnding,
+            "Cannot safely patch a file with mixed LF and CRLF line endings",
+        ));
     }
     if content.contains('\r') && !has_crlf {
-        return Err("Cannot safely patch a file with unsupported CR-only line endings".to_string());
+        return Err(patch_failure(
+            PatchFailureCode::LineEnding,
+            "Cannot safely patch a file with unsupported CR-only line endings",
+        ));
     }
 
     let trailing_newline = content.ends_with('\n');
@@ -233,7 +331,7 @@ fn parse_document(content: &str) -> Result<TextDocument, String> {
 }
 
 /// Apply hunks strictly from top to bottom against exact source lines.
-fn apply_hunks(content: &str, hunks: &[Hunk]) -> Result<String, String> {
+fn apply_hunks(content: &str, hunks: &[Hunk]) -> Result<String, PatchFailure> {
     let document = parse_document(content)?;
     let mut output = Vec::new();
     let mut old_cursor = 0usize;
@@ -253,17 +351,23 @@ fn apply_hunks(content: &str, hunks: &[Hunk]) -> Result<String, String> {
             hunk.new_start.saturating_sub(1)
         };
         if old_target < old_cursor || old_target > document.lines.len() {
-            return Err(format!(
-                "Hunk old range starts outside the remaining source at line {}",
-                hunk.old_start
+            return Err(patch_failure(
+                PatchFailureCode::RangeInvalid,
+                format!(
+                    "Hunk old range starts outside the remaining source at line {}",
+                    hunk.old_start
+                ),
             ));
         }
         output.extend_from_slice(&document.lines[old_cursor..old_target]);
         if output.len() != new_target {
-            return Err(format!(
-                "Hunk new range starts at line {}, but prior hunks produce line {}",
-                hunk.new_start,
-                output.len() + 1
+            return Err(patch_failure(
+                PatchFailureCode::RangeInvalid,
+                format!(
+                    "Hunk new range starts at line {}, but prior hunks produce line {}",
+                    hunk.new_start,
+                    output.len() + 1
+                ),
             ));
         }
 
@@ -293,9 +397,10 @@ fn apply_hunks(content: &str, hunks: &[Hunk]) -> Result<String, String> {
             }
         }
         if hunk.old_no_newline && document.trailing_newline && touches_old_eof {
-            return Err(
-                "Patch claims the source has no final newline, but the file does".to_string(),
-            );
+            return Err(patch_failure(
+                PatchFailureCode::LineEnding,
+                "Patch claims the source has no final newline, but the file does",
+            ));
         }
     }
 
@@ -313,20 +418,26 @@ fn require_exact_line(
     index: usize,
     expected: &str,
     kind: &str,
-) -> Result<(), String> {
+) -> Result<(), PatchFailure> {
     let Some(actual) = lines.get(index) else {
-        return Err(format!(
-            "Hunk {kind} expected line {} to be {:?}, but the file ended",
-            index + 1,
-            expected
+        return Err(patch_failure(
+            PatchFailureCode::ContextMismatch,
+            format!(
+                "Hunk {kind} expected line {} to be {:?}, but the file ended",
+                index + 1,
+                expected
+            ),
         ));
     };
     if actual != expected {
-        return Err(format!(
-            "Hunk {kind} mismatch at line {}: expected {:?}, found {:?}",
-            index + 1,
-            expected,
-            actual
+        return Err(patch_failure(
+            PatchFailureCode::ContextMismatch,
+            format!(
+                "Hunk {kind} mismatch at line {}: expected {:?}, found {:?}",
+                index + 1,
+                expected,
+                actual
+            ),
         ));
     }
     Ok(())
@@ -417,37 +528,62 @@ impl Tool for PatchTool {
         }
         let file_path = match args.get("file_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return Ok(ToolOutput::error("file_path parameter is required")),
+            None => {
+                return Ok(tool_output_patch_failure(patch_failure(
+                    PatchFailureCode::Argument,
+                    "file_path parameter is required",
+                )));
+            }
         };
         let diff = match args.get("diff").and_then(|v| v.as_str()) {
             Some(d) => d,
-            None => return Ok(ToolOutput::error("diff parameter is required")),
+            None => {
+                return Ok(tool_output_patch_failure(patch_failure(
+                    PatchFailureCode::Argument,
+                    "diff parameter is required",
+                )));
+            }
         };
 
         let workspace_path = match ctx.resolve_workspace_path(file_path) {
             Ok(path) => path,
-            Err(e) => return Ok(ToolOutput::error(format!("Failed to resolve path: {}", e))),
+            Err(e) => {
+                return Ok(tool_output_patch_failure(patch_failure(
+                    PatchFailureCode::Io,
+                    format!("Failed to resolve path: {}", e),
+                )));
+            }
         };
         let display_path = ctx.workspace_services.display_path(&workspace_path);
 
         let (content, version) = match ctx.workspace_services.read_for_edit(&workspace_path).await {
             Ok(pair) => pair,
             Err(e) => {
-                return Ok(ToolOutput::error(format!(
-                    "Failed to read file {}: {}",
-                    display_path, e
+                return Ok(tool_output_patch_failure(patch_failure(
+                    PatchFailureCode::Io,
+                    format!("Failed to read file {}: {}", display_path, e),
                 )));
             }
         };
 
         let hunks = match parse_hunks(diff) {
             Ok(h) => h,
-            Err(e) => return Ok(ToolOutput::error(format!("Failed to parse diff: {}", e))),
+            Err(e) => {
+                return Ok(tool_output_patch_failure(patch_failure(
+                    e.code,
+                    format!("Failed to parse diff: {}", e.message),
+                )));
+            }
         };
 
         let new_content = match apply_hunks(&content, &hunks) {
             Ok(c) => c,
-            Err(e) => return Ok(ToolOutput::error(format!("Failed to apply patch: {}", e))),
+            Err(e) => {
+                return Ok(tool_output_patch_failure(patch_failure(
+                    e.code,
+                    format!("Failed to apply patch: {}", e.message),
+                )));
+            }
         };
 
         let final_content = new_content;
@@ -460,7 +596,10 @@ impl Tool for PatchTool {
             &ctx.workspace,
             file_path,
         ) {
-            return Ok(ToolOutput::error(error));
+            return Ok(tool_output_patch_failure(patch_failure(
+                PatchFailureCode::Io,
+                error,
+            )));
         }
 
         match ctx
@@ -491,17 +630,21 @@ impl Tool for PatchTool {
                     }
                 }
                 let typed = crate::tools::ToolErrorKind::from_workspace_error(&e);
-                let out = if matches!(e, WorkspaceError::VersionConflict(_)) {
-                    ToolOutput::error(format!(
-                        "Concurrent modification detected on {}: the file changed between read and write. Re-read the file and retry the patch.",
-                        display_path
-                    ))
+                let failure = if matches!(e, WorkspaceError::VersionConflict(_)) {
+                    patch_failure(
+                        PatchFailureCode::VersionConflict,
+                        format!(
+                            "Concurrent modification detected on {}: the file changed between read and write. Re-read the file and retry the patch.",
+                            display_path
+                        ),
+                    )
                 } else {
-                    ToolOutput::error(format!(
-                        "Failed to write patched file {}: {}",
-                        display_path, e
-                    ))
+                    patch_failure(
+                        PatchFailureCode::Io,
+                        format!("Failed to write patched file {}: {}", display_path, e),
+                    )
                 };
+                let out = tool_output_patch_failure(failure);
                 Ok(match typed {
                     Some(kind) => out.with_error_kind(kind),
                     None => out,
@@ -518,13 +661,19 @@ impl PatchTool {
         ctx: &ToolContext,
     ) -> Result<ToolOutput> {
         if entries.is_empty() {
-            return Ok(ToolOutput::error("patches must contain at least one entry"));
+            return Ok(tool_output_patch_failure(patch_failure(
+                PatchFailureCode::Argument,
+                "patches must contain at least one entry",
+            )));
         }
         if entries.len() > MAX_PATCH_ENTRIES {
-            return Ok(ToolOutput::error(format!(
-                "patches accepts at most {MAX_PATCH_ENTRIES} entries per call (got {}); \
-                 split the batch",
-                entries.len()
+            return Ok(tool_output_patch_failure(patch_failure(
+                PatchFailureCode::BatchLimit,
+                format!(
+                    "patches accepts at most {MAX_PATCH_ENTRIES} entries per call (got {}); \
+                     split the batch",
+                    entries.len()
+                ),
             )));
         }
         // Phase 1 — validate everything in memory. The per-entry chain
@@ -551,11 +700,11 @@ impl PatchTool {
             },
             ParseErr {
                 display_path: String,
-                error: String,
+                error: PatchFailure,
             },
             ApplyErr {
                 display_path: String,
-                error: String,
+                error: PatchFailure,
             },
             Ready {
                 file_path: String,
@@ -601,7 +750,7 @@ impl PatchTool {
                     Err(e) => {
                         return PatchFetch::ParseErr {
                             display_path,
-                            error: e.to_string(),
+                            error: e,
                         };
                     }
                 };
@@ -610,7 +759,7 @@ impl PatchTool {
                     Err(e) => {
                         return PatchFetch::ApplyErr {
                             display_path,
-                            error: e.to_string(),
+                            error: e,
                         };
                     }
                 };
@@ -630,40 +779,54 @@ impl PatchTool {
         for fetch in fetched {
             match fetch {
                 PatchFetch::MissingFilePath => {
-                    return Ok(ToolOutput::error("every patches entry requires file_path"));
+                    return Ok(tool_output_patch_failure(patch_failure(
+                        PatchFailureCode::Argument,
+                        "every patches entry requires file_path",
+                    )));
                 }
                 PatchFetch::MissingDiff { file_path } => {
-                    return Ok(ToolOutput::error(format!(
-                        "patches entry for {file_path} requires diff"
+                    return Ok(tool_output_patch_failure(patch_failure(
+                        PatchFailureCode::Argument,
+                        format!("patches entry for {file_path} requires diff"),
                     )));
                 }
                 PatchFetch::ResolveErr { file_path, error } => {
-                    return Ok(ToolOutput::error(format!(
-                        "Failed to resolve path {file_path}: {error}"
+                    return Ok(tool_output_patch_failure(patch_failure(
+                        PatchFailureCode::Io,
+                        format!("Failed to resolve path {file_path}: {error}"),
                     )));
                 }
                 PatchFetch::ReadErr {
                     display_path,
                     error,
                 } => {
-                    return Ok(ToolOutput::error(format!(
-                        "Failed to read {display_path}: {error} (nothing written)"
+                    return Ok(tool_output_patch_failure(patch_failure(
+                        PatchFailureCode::Io,
+                        format!("Failed to read {display_path}: {error} (nothing written)"),
                     )));
                 }
                 PatchFetch::ParseErr {
                     display_path,
                     error,
                 } => {
-                    return Ok(ToolOutput::error(format!(
-                        "Failed to parse diff for {display_path}: {error} (nothing written)"
+                    return Ok(tool_output_patch_failure(patch_failure(
+                        error.code,
+                        format!(
+                            "Failed to parse diff for {display_path}: {} (nothing written)",
+                            error.message
+                        ),
                     )));
                 }
                 PatchFetch::ApplyErr {
                     display_path,
                     error,
                 } => {
-                    return Ok(ToolOutput::error(format!(
-                        "Failed to apply patch to {display_path}: {error} (nothing written)"
+                    return Ok(tool_output_patch_failure(patch_failure(
+                        error.code,
+                        format!(
+                            "Failed to apply patch to {display_path}: {} (nothing written)",
+                            error.message
+                        ),
                     )));
                 }
                 PatchFetch::Ready {
@@ -676,9 +839,12 @@ impl PatchTool {
                 } => {
                     staged_bytes += before.len();
                     if staged_bytes > MAX_PATCH_BATCH_BYTES {
-                        return Ok(ToolOutput::error(format!(
-                            "patches would stage {staged_bytes} bytes of file content across the \
+                        return Ok(tool_output_patch_failure(patch_failure(
+                            PatchFailureCode::BatchBytes,
+                            format!(
+                                "patches would stage {staged_bytes} bytes of file content across the \
                              batch (bound {MAX_PATCH_BATCH_BYTES}); split the batch (nothing written)"
+                            ),
                         )));
                     }
                     staged.push(StagedPatch {
@@ -699,7 +865,10 @@ impl PatchTool {
                 &ctx.workspace,
                 &patch.file_path,
             ) {
-                return Ok(ToolOutput::error(error));
+                return Ok(tool_output_patch_failure(patch_failure(
+                    PatchFailureCode::Io,
+                    error,
+                )));
             }
         }
         let mut written: Vec<&StagedPatch> = Vec::new();
@@ -717,15 +886,23 @@ impl PatchTool {
                 Err(e) => {
                     let typed = crate::tools::ToolErrorKind::from_workspace_error(&e);
                     let applied: Vec<&str> = written.iter().map(|p| p.file_path.as_str()).collect();
-                    let out = ToolOutput::error(format!(
-                        "Multi-file patch stopped at {}: {e}. Written before the failure:                          [{}]. Unwritten: [{}]. Re-read the failed file and re-apply the                          remainder.",
-                        patch.display_path,
-                        applied.join(", "),
-                        staged[written.len() + 1..]
-                            .iter()
-                            .map(|p| p.file_path.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", "),
+                    let code = if matches!(e, WorkspaceError::VersionConflict(_)) {
+                        PatchFailureCode::VersionConflict
+                    } else {
+                        PatchFailureCode::Io
+                    };
+                    let out = tool_output_patch_failure(patch_failure(
+                        code,
+                        format!(
+                            "Multi-file patch stopped at {}: {e}. Written before the failure:                          [{}]. Unwritten: [{}]. Re-read the failed file and re-apply the                          remainder.",
+                            patch.display_path,
+                            applied.join(", "),
+                            staged[written.len() + 1..]
+                                .iter()
+                                .map(|p| p.file_path.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        ),
                     ));
                     return Ok(match typed {
                         Some(kind) => out.with_error_kind(kind),
@@ -902,15 +1079,17 @@ mod tests {
     fn strict_patch_rejects_context_and_whitespace_mismatches() {
         let context = parse_hunks("@@ -1,2 +1,2 @@\n wrong\n-old\n+new").unwrap();
         let context_error = apply_hunks("actual\nold\n", &context).unwrap_err();
+        assert_eq!(context_error.code, PatchFailureCode::ContextMismatch);
         assert!(
-            context_error.contains("context mismatch"),
+            context_error.message.contains("context mismatch"),
             "{context_error}"
         );
 
         let whitespace = parse_hunks("@@ -1 +1 @@\n-value\n+new").unwrap();
         let whitespace_error = apply_hunks(" value\n", &whitespace).unwrap_err();
+        assert_eq!(whitespace_error.code, PatchFailureCode::ContextMismatch);
         assert!(
-            whitespace_error.contains("removal mismatch"),
+            whitespace_error.message.contains("removal mismatch"),
             "{whitespace_error}"
         );
     }
@@ -1023,7 +1202,68 @@ mod tests {
     #[test]
     fn strict_patch_rejects_incorrect_hunk_counts() {
         let error = parse_hunks("@@ -1,2 +1,2 @@\n-old\n+new").unwrap_err();
-        assert!(error.contains("Hunk count mismatch"), "{error}");
+        assert_eq!(error.code, PatchFailureCode::Parse);
+        assert!(error.message.contains("Hunk count mismatch"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn patch_tool_surfaces_stable_codes_for_bad_hunk_crlf_and_batch_limit() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("a.txt"), "alpha\nbeta\n").unwrap();
+        std::fs::write(temp.path().join("mixed.txt"), "a\r\nb\nc\n").unwrap();
+        let tool = PatchTool;
+        let ctx = ToolContext::new(temp.path().to_path_buf()).with_session_id("patch-codes");
+
+        let mismatch = tool
+            .execute(
+                &serde_json::json!({
+                    "file_path": "a.txt",
+                    "diff": "@@ -1,2 +1,2 @@\n nope\n-beta\n+better"
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert!(!mismatch.success);
+        assert_eq!(
+            mismatch.metadata.as_ref().unwrap()["patch"]["code"],
+            "patch.context_mismatch"
+        );
+
+        let endings = tool
+            .execute(
+                &serde_json::json!({
+                    "file_path": "mixed.txt",
+                    "diff": "@@ -1,2 +1,2 @@\n a\n-b\n+B"
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert!(!endings.success);
+        assert_eq!(
+            endings.metadata.as_ref().unwrap()["patch"]["code"],
+            "patch.line_ending"
+        );
+
+        let over_batch: Vec<_> = (0..(MAX_PATCH_ENTRIES + 1))
+            .map(|i| {
+                serde_json::json!({
+                    "file_path": format!("f{i}.txt"),
+                    "diff": "@@ -0,0 +1 @@\n+x"
+                })
+            })
+            .collect();
+        let batch = tool
+            .execute(&serde_json::json!({ "patches": over_batch }), &ctx)
+            .await
+            .unwrap();
+        assert!(!batch.success);
+        assert_eq!(
+            batch.metadata.as_ref().unwrap()["patch"]["code"],
+            "patch.batch_limit"
+        );
+        crate::external_observation::release_session("patch-codes");
     }
 
     #[tokio::test]

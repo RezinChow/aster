@@ -1,0 +1,11 @@
+{
+  "default_decision": "ask",
+  "enforcement": "enforced",
+  "allow": [
+    {
+      "rule": "Bash(git status:*)",
+      "match": ["git status"],
+      "not_match": ["git status -sb"]
+    }
+  ]
+}

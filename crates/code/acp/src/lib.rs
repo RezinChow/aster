@@ -2,6 +2,9 @@
 //!
 //! Desktop hosts start this process for a session. The Aster terminal
 //! binary links `aster-pager` and `aster-shell` in-process.
+//!
+//! Wire entities (Session, Prompt, Turn, Run) and queue semantics are pinned in
+//! `PROTOCOL.md` next to this crate's manifest, with a golden fixture gate.
 
 mod agent;
 pub mod approval_learning;
@@ -33,6 +36,7 @@ mod run_observation;
 mod sampling_consent;
 mod turn_cancel;
 pub mod unattended;
+mod unconfigured_model;
 mod wiki_search;
 mod workspace_browser;
 

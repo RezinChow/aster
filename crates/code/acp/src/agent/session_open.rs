@@ -261,6 +261,16 @@ impl AsterCodeAgent {
             append_slot_extra(&mut slots, TERMINAL_MARKDOWN_PRESENTATION);
             options = options.with_prompt_slots(slots);
         }
+        // First-run placeholder ACL: open the session so the host can show
+        // Models (`openModelConfig`) without inventing credentials. Generation
+        // still fails closed until a real key replaces the template.
+        if self.first_run_config {
+            if let Some(client) =
+                crate::unconfigured_model::first_run_placeholder_client(&config, setup.model_id)
+            {
+                options = options.with_llm_client(client);
+            }
+        }
         if let Some(rules) = self.client_rules.borrow().as_ref() {
             let mut slots = options.prompt_slots.clone().unwrap_or_default();
             append_slot_extra(

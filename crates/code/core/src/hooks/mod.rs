@@ -42,6 +42,7 @@ mod contract;
 mod engine;
 mod events;
 mod matcher;
+mod policy;
 
 pub use binding::HookBinding;
 pub use command::{command_hook_home, command_hook_trust_path, CommandHookExecutor};
@@ -61,6 +62,7 @@ pub use events::{
     SkillLoadEvent, SkillUnloadEvent, TokenUsageInfo, ToolCallInfo, ToolResultData,
 };
 pub use matcher::HookMatcher;
+pub use policy::{is_mandatory_hook_gate, HookAdmissionPolicy, HookSource, MANDATORY_HOOK_GATES};
 
 /// Hook response action from SDK
 #[derive(Debug, Clone, PartialEq)]

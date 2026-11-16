@@ -20,7 +20,9 @@ use crate::llm::{
 use anyhow::{Context, Result};
 use std::sync::Arc;
 
+mod ledger;
 mod source;
+pub(crate) use ledger::CompactionLedger;
 pub(crate) use source::CompactionSource;
 
 /// Number of recent messages to keep intact during compaction
@@ -130,6 +132,10 @@ impl CompactionBudget {
     pub(crate) fn summary_token_limit(self) -> usize {
         self.message_token_limit
             .clamp(1, MAX_COMPACT_SUMMARY_TOKENS)
+    }
+
+    pub(crate) fn trigger_threshold(self) -> f32 {
+        self.trigger_threshold
     }
 
     fn summary_input_byte_limit(self) -> usize {

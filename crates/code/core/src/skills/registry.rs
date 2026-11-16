@@ -34,6 +34,29 @@ fn lock_write<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
 
 type DiscoveredSkillFiles = HashMap<String, (PathBuf, Arc<Skill>)>;
 
+/// Why one skill candidate was not admitted during a directory load (P2-11).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SkillLoadErrorKind {
+    Parse,
+    Validation,
+}
+
+/// Enumerable failure for one skill candidate. Partial directory loads collect
+/// these without aborting siblings.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SkillLoadError {
+    pub path: PathBuf,
+    pub kind: SkillLoadErrorKind,
+    pub message: String,
+}
+
+/// Outcome of loading one skill directory with partial-success semantics.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SkillLoadReport {
+    pub loaded: usize,
+    pub errors: Vec<SkillLoadError>,
+}
+
 /// Skill registry for managing available skills
 ///
 /// Provides skill registration, loading from directories, and lookup by name.
@@ -363,7 +386,16 @@ impl SkillRegistry {
     /// package is not. A missing directory is logged at error and loads
     /// nothing. A candidate that fails to parse is logged at error with its
     /// path. Validation failures are logged as warnings.
+    /// Partial success (P2-11): one bad candidate does not abort the directory;
+    /// good skills still register. Enumerable failures are available via
+    /// [`Self::load_from_dir_report`]. Skill trees stay out of standing
+    /// AGENTS digests — this loader does not write standing context.
     pub fn load_from_dir(&self, dir: impl AsRef<Path>) -> anyhow::Result<usize> {
+        Ok(self.load_from_dir_report(dir)?.loaded)
+    }
+
+    /// Load skills from a directory and return an enumerable failure list.
+    pub fn load_from_dir_report(&self, dir: impl AsRef<Path>) -> anyhow::Result<SkillLoadReport> {
         let dir = dir.as_ref();
 
         if !dir.exists() {
@@ -371,7 +403,10 @@ impl SkillRegistry {
                 path = %dir.display(),
                 "skill directory does not exist; no skills were loaded from it"
             );
-            return Ok(0);
+            return Ok(SkillLoadReport {
+                loaded: 0,
+                errors: Vec::new(),
+            });
         }
 
         if !dir.is_dir() {
@@ -380,6 +415,7 @@ impl SkillRegistry {
 
         self.note_watched(dir);
         let mut loaded = 0;
+        let mut errors = Vec::new();
         for candidate in Self::collect_skill_candidates(dir)? {
             let canonical = std::fs::canonicalize(&candidate)?;
             if lock_read(&self.excluded_files).contains(&canonical) {
@@ -422,6 +458,11 @@ impl SkillRegistry {
                                 candidate.display(),
                                 e
                             );
+                            errors.push(SkillLoadError {
+                                path: candidate.clone(),
+                                kind: SkillLoadErrorKind::Validation,
+                                message: e.to_string(),
+                            });
                         }
                     }
                 }
@@ -431,11 +472,16 @@ impl SkillRegistry {
                         error = %e,
                         "skill candidate was not loaded"
                     );
+                    errors.push(SkillLoadError {
+                        path: candidate.clone(),
+                        kind: SkillLoadErrorKind::Parse,
+                        message: e.to_string(),
+                    });
                 }
             }
         }
 
-        Ok(loaded)
+        Ok(SkillLoadReport { loaded, errors })
     }
 
     /// Watch a skill directory for changes without loading it now. A

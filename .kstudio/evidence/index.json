@@ -1,0 +1,114 @@
+{
+  "schema": "kstudio.evidence-index.v1",
+  "entries": [
+    {
+      "id": "T2026-11-16-long-horizon-complex-e2e",
+      "path": "T2026-11-16-long-horizon-complex-e2e",
+      "product": "docs/evidence/code/2026-11-16-long-horizon-complex-e2e/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-feature-stage-acp-project",
+      "path": "T2026-11-16-feature-stage-acp-project",
+      "product": "docs/evidence/feature-stage-acp-project-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-first-run-session-open",
+      "path": "T2026-11-16-first-run-session-open",
+      "product": "docs/evidence/first-run-session-open-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-sandbox-violation-acp-wire",
+      "path": "T2026-11-16-sandbox-violation-acp-wire",
+      "product": "docs/evidence/sandbox-violation-acp-wire-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-acp-permission-elicitation",
+      "path": "T2026-11-16-acp-permission-elicitation",
+      "product": "docs/evidence/acp-permission-elicitation-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-daily-use-wiring",
+      "path": "T2026-11-16-daily-use-wiring",
+      "product": "docs/evidence/daily-use-production-wiring-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p2-10-elicitation",
+      "path": "T2026-11-16-p2-10-elicitation",
+      "product": "docs/evidence/elicitation-state-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p2-9-hooks-policy",
+      "path": "T2026-11-16-p2-9-hooks-policy",
+      "product": "docs/evidence/hooks-managed-only-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p2-12-byte-budget",
+      "path": "T2026-11-16-p2-12-byte-budget",
+      "product": "docs/evidence/shared-byte-budget-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p2-11-skills-partial",
+      "path": "T2026-11-16-p2-11-skills-partial",
+      "product": "docs/evidence/skills-partial-load-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p1-6-forced-layer",
+      "path": "T2026-11-16-p1-6-forced-layer",
+      "product": "docs/evidence/forced-layer-bridge-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p1-8-feature-stage",
+      "path": "T2026-11-16-p1-8-feature-stage",
+      "product": "docs/evidence/feature-stage-capability-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p1-7-verified-patch",
+      "path": "T2026-11-16-p1-7-verified-patch",
+      "product": "docs/evidence/verified-patch-codes-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p1-5-compaction-ledger",
+      "path": "T2026-11-16-p1-5-compaction-ledger",
+      "product": "docs/evidence/compaction-ledger-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p0-1-permissions-self-test",
+      "path": "T2026-11-16-p0-1-permissions-self-test/OUTCOME.md",
+      "completed": "2026-11-16",
+      "summary": "P0-1 permissions match/not_match self-tests + hermetic; docs/evidence OUTCOME; \u2260Pass"
+    },
+    {
+      "id": "T2026-11-16-codex-absorb",
+      "path": "T2026-11-16-codex-absorb/OUTCOME.md",
+      "completed": "2026-11-16",
+      "summary": "Codex\u2192Aster mechanism absorption list (ranked, mapped, DoD); wiki draft; \u2260Pass"
+    },
+    {
+      "id": "T2026-11-16-codex-scan",
+      "path": "T2026-11-16-codex-scan/OUTCOME.md",
+      "completed": "2026-11-16",
+      "summary": "Read-only openai/codex scan @5cb38e7; Top12 mechanism candidates; \u2260Pass"
+    },
+    {
+      "id": "T2026-11-16-k-init",
+      "path": "T2026-11-16-k-init/OUTCOME.md",
+      "completed": "2026-11-16",
+      "summary": "KStudio create-missing init; L3 PASS; product goal unknown"
+    },
+    {
+      "id": "T2026-11-16-p0-2-effect-rollout",
+      "path": "T2026-11-16-p0-2-effect-rollout",
+      "product": "docs/evidence/effect-rollout-hardening-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p0-3-sandbox-profile",
+      "path": "T2026-11-16-p0-3-sandbox-profile",
+      "product": "docs/evidence/sandbox-permission-profile-2026-11-16/OUTCOME.md"
+    },
+    {
+      "id": "T2026-11-16-p0-4-acp-protocol",
+      "path": "T2026-11-16-p0-4-acp-protocol",
+      "product": "docs/evidence/acp-protocol-entities-2026-11-16/OUTCOME.md"
+    }
+  ]
+}

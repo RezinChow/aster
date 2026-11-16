@@ -13,6 +13,7 @@ mod ceiling;
 mod descriptor;
 mod effect;
 mod error;
+mod feature_stage;
 mod id;
 mod knowledge_surface_binding;
 mod lease;
@@ -49,6 +50,10 @@ pub use ceiling::{
 pub use descriptor::{CapabilityContribution, CapabilityDescriptor, MAX_CAPABILITY_DEPENDENCIES};
 pub use effect::{CapabilityEffect, CapabilityEffectError};
 pub use error::CapabilitySetError;
+pub use feature_stage::{
+    feature_switch_registry_digest, resolve_feature_switch, FeatureStage, FeatureSwitchSpec,
+    FEATURE_SWITCHES,
+};
 pub use id::{
     CapabilityId, CapabilityKind, CapabilitySourceId, CodeCatalogGeneration,
     ReconciledPackageGeneration, Sha256Digest, UseCapabilityGeneration, UsePackageGeneration,

@@ -9,7 +9,7 @@ use cap_fs_ext::{DirExt, FollowSymlinks, MetadataExt, OpenOptionsFollowExt, Open
 use cap_std::fs::{Dir, File, Metadata, OpenOptions};
 
 use crate::error::ActorError;
-use crate::fact::{parse_fact_json, Fact, NewFact};
+use crate::fact::{cut_log, parse_fact_json, Fact, LogCut, NewFact};
 
 fn valid_thread(thread_id: &str) -> Result<(), ActorError> {
     let ok = !thread_id.is_empty()
@@ -151,12 +151,28 @@ pub use fencing::{FileLogRunOwnerFence, FileLogWriterFence};
 
 const MAX_LOG_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_LOG_FACTS: usize = 100_000;
+/// Largest single JSONL record (one fact line, without its newline). Three
+/// quarters of the 16 MiB file cap: still leaves room for sibling facts and a
+/// mid-file oversized refuse test, while staying above common core tool /
+/// attachment payloads that land as one fact. Reads and writes share the bound
+/// so nothing Aster appends is later unreadable.
+pub const MAX_RECORD_BYTES: usize = 12 * 1024 * 1024;
+const RECORD_LIMIT: &str = "fact log record exceeded its byte limit";
 
 struct OpenedLog {
     file: File,
     metadata: Metadata,
     facts: Vec<Fact>,
     needs_separator: bool,
+}
+
+/// A cut plus the committed byte length of the log it describes. `byte_len`
+/// is the exact on-disk prefix a reader may trust; it lives beside `LogCut`
+/// so the cut that core compares keeps its shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogFreeze {
+    pub cut: LogCut,
+    pub byte_len: u64,
 }
 
 impl FileLog {
@@ -246,6 +262,10 @@ impl FileLog {
             if opened.facts.len() == MAX_LOG_FACTS {
                 return Err(storage_error("fact log fact-count limit exceeded"));
             }
+            // Refuse the whole read; a mid-file record is never skipped.
+            if line.len() > MAX_RECORD_BYTES {
+                return Err(storage_error(RECORD_LIMIT));
+            }
             let fact = parse_fact_json(line)?;
             if fact.seq != opened.facts.len() as u64 + 1 || !keys.insert(fact.key.clone()) {
                 return Err(storage_error("invalid fact log sequence or duplicate key"));
@@ -298,6 +318,26 @@ impl FileLog {
             options.mode(0o600);
         }
         self.dir.open_with(name, &options).map_err(storage_error)
+    }
+
+    /// Freeze the log as read now: its `LogCut` and committed byte length.
+    /// Refuses (like `read`) on a corrupt, truncated or oversized log. An
+    /// absent thread freezes as the empty cut at zero bytes.
+    pub fn freeze(&self, thread_id: &str) -> Result<LogFreeze, ActorError> {
+        valid_thread(thread_id)?;
+        let _guard = self
+            .lock
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let _writer = self.existing_writer_fence()?;
+        let (facts, byte_len) = match self.read_opened(thread_id, false)? {
+            Some(opened) => (opened.facts, opened.metadata.len()),
+            None => (Vec::new(), 0),
+        };
+        Ok(LogFreeze {
+            cut: cut_log(&facts),
+            byte_len,
+        })
     }
 
     /// Discard every fact after `seq`, keeping the retained prefix.
@@ -624,7 +664,11 @@ fn encode_facts(facts: &[Fact], limit: u64, separator: bool) -> Result<Vec<u8>, 
         buffer.write_all(b"\n").map_err(storage_error)?;
     }
     for fact in facts {
+        let before = buffer.bytes.len();
         serde_json::to_writer(&mut buffer, fact).map_err(storage_error)?;
+        if buffer.bytes.len() - before > MAX_RECORD_BYTES {
+            return Err(storage_error(RECORD_LIMIT));
+        }
         buffer.write_all(b"\n").map_err(storage_error)?;
     }
     Ok(buffer.bytes)

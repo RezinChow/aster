@@ -31,6 +31,9 @@ mod posture_tests;
 #[cfg(test)]
 mod heredoc_tests;
 
+#[cfg(test)]
+mod self_test_examples_tests;
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -42,7 +45,7 @@ pub use risk::{
     EnvironmentSensitivity, ImpactScope, OperationTarget, Reversibility, ToolRiskAction,
     ToolRiskAssessment, ToolRiskDimensions, ToolRiskLevel, ToolRiskReason, ToolRiskType,
 };
-pub use rule::PermissionRule;
+pub use rule::{PermissionRule, RuleMatchExample};
 pub use style_specialty::specialty_permission_policy;
 
 /// Trait for checking tool execution permissions.

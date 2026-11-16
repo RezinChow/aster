@@ -226,6 +226,7 @@ pub(super) fn tool_raw_output(
     args: Option<&serde_json::Value>,
     output: &str,
     exit_code: i32,
+    metadata: Option<&serde_json::Value>,
 ) -> Option<serde_json::Value> {
     // Search cards use rawOutput for their expandable details. Keep the bounded
     // ACP content preview for other clients, but do not discard the actual result.
@@ -250,6 +251,10 @@ pub(super) fn tool_raw_output(
         return Some(serde_json::Value::String(output.to_owned()));
     }
     if !matches!(name, "bash" | "shell" | "execute") {
+        // P1-7: typed edit/patch failure codes ride metadata into ACP rawOutput.
+        if let Some(coded) = edit_or_patch_failure_raw(name, output, exit_code, metadata) {
+            return Some(coded);
+        }
         // A failed Skill (and any other non-shell tool) keeps its error text.
         // An empty failure and a successful read stay without a raw payload.
         if exit_code != 0 && !output.is_empty() {
@@ -261,7 +266,7 @@ pub(super) fn tool_raw_output(
         .and_then(|args| args.get("command"))
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    Some(serde_json::json!({
+    let mut raw = serde_json::json!({
         "type": "Bash",
         "output": output,
         "output_for_prompt": output,
@@ -274,7 +279,44 @@ pub(super) fn tool_raw_output(
         "current_dir": "",
         "output_file": "",
         "total_bytes": output.len(),
-    }))
+    });
+    // P0-3: stable sandbox.violation.* codes ride tool metadata into ACP rawOutput
+    // so hosts observe the same code Core recorded without parsing message text.
+    if let Some(code) = metadata
+        .and_then(|meta| meta.get("sandbox_violation"))
+        .and_then(|violation| violation.get("code"))
+        .filter(|code| code.is_string())
+    {
+        raw["sandbox_violation"] = serde_json::json!({ "code": code.clone() });
+    }
+    Some(raw)
+}
+
+/// Structured edit/patch failure for hosts (stable `*.code`, not message text).
+fn edit_or_patch_failure_raw(
+    name: &str,
+    output: &str,
+    exit_code: i32,
+    metadata: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    if exit_code == 0 {
+        return None;
+    }
+    let metadata = metadata?;
+    let (kind, key) = match name {
+        "edit" | "str_replace" => ("Edit", "edit"),
+        "patch" | "apply_patch" => ("Patch", "patch"),
+        _ => return None,
+    };
+    let code = metadata.get(key)?.get("code")?.as_str()?;
+    if code.is_empty() {
+        return None;
+    }
+    let mut raw = serde_json::Map::new();
+    raw.insert("type".into(), serde_json::Value::String(kind.into()));
+    raw.insert("output".into(), serde_json::Value::String(output.into()));
+    raw.insert(key.into(), serde_json::json!({ "code": code }));
+    Some(serde_json::Value::Object(raw))
 }
 
 #[cfg(test)]

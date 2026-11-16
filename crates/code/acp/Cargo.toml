@@ -1,6 +1,6 @@
 [package]
 name = "aster-acp"
-version = "9.2.6"
+version = "9.2.7"
 edition = "2021"
 authors = ["Aster Team"]
 license = "MIT"

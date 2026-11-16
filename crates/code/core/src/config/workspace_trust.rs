@@ -25,7 +25,7 @@ use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use super::{withhold_untrusted_host_authoritative_blocks, CodeConfig, LayerAcl};
+use super::{apply_forced_layers, CodeConfig, LayerAcl};
 use crate::mcp::{McpServerConfig, McpTransportConfig};
 
 /// File name of the workspace MCP trust store inside `<state root>/code/`.
@@ -159,6 +159,8 @@ fn summarize(server: &McpServerConfig) -> String {
 pub struct WorkspaceLayerAdmission {
     /// Host-authoritative blocks an untrusted layer tried to set.
     pub withheld_blocks: Vec<&'static str>,
+    /// Digest of trusted ACL material after forced-layer rewrite (P1-6).
+    pub forced_layer_digest: Option<String>,
     /// Every untrusted MCP declaration with its trust state.
     pub workspace_mcp: Vec<WorkspaceMcpDeclaration>,
     /// Untrusted skill/agent directories that escaped the repository root.
@@ -284,8 +286,10 @@ pub fn admit_untrusted_layers(
     repository_root: &Path,
     trust: &WorkspaceMcpTrust,
 ) -> anyhow::Result<WorkspaceLayerAdmission> {
+    let provenance = apply_forced_layers(config, layers);
     let mut admission = WorkspaceLayerAdmission {
-        withheld_blocks: withhold_untrusted_host_authoritative_blocks(config, layers),
+        forced_layer_digest: Some(provenance.trusted_digest_prefixed()),
+        withheld_blocks: provenance.withheld_host_blocks,
         ..Default::default()
     };
     if layers.iter().all(|layer| layer.trusted) {

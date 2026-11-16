@@ -44,6 +44,19 @@
 
 ![两种等待都结束于事实，而不是计时器](docs/charts/park-until-fact.png)
 
+## 损坏的日志被拒绝，而不是被修复
+
+`FileLog` 要么完整读取一个线程的 JSONL 日志，要么拒绝。损坏的行、被截断的尾部
+（最后一条记录不是合法 JSON）、错误的 `seq`、重复的 key，或单条记录超过
+`MAX_RECORD_BYTES`（12 MiB），都会让 `read`、`append`、`truncate_after` 和
+`freeze` 返回 `ActorError::Schema`。Aster 不会跳过文件中间的坏行，也不会隔离或重写
+文件，因此读取方不会看到被悄悄缩短的历史。`append` 在写入前应用同样的单条记录上限，
+所以 Aster 写入的内容之后不会变得不可读。整个文件仍小于 16 MiB。
+
+同一时刻只有一个进程写同一日志目录：持有 `try_writer_fence` 期间，同目录上的另一个
+`FileLog` 得到 `ActorError::LogBusy`。`FileLog::freeze` 返回读到的日志的 `LogCut`
+与已提交字节长度。
+
 ## 同一套规则还覆盖这些
 
 它们仍是上面两种机制，不是额外的哲学。

@@ -724,3 +724,20 @@ async fn test_engine_observational_hook_without_handler_is_best_effort() {
 
     assert!(engine.fire(&make_post_tool_event()).await.is_continue());
 }
+
+#[test]
+fn managed_only_engine_ignores_user_sourced_hooks() {
+    use crate::hooks::{HookAdmissionPolicy, HookSource};
+
+    let engine = HookEngine::new().with_admission_policy(HookAdmissionPolicy::managed_only());
+    assert!(engine.register_with_source(
+        Hook::new("managed", HookEventType::PreToolUse),
+        HookSource::Managed
+    ));
+    assert!(!engine.register_with_source(
+        Hook::new("user", HookEventType::PreToolUse),
+        HookSource::User
+    ));
+    assert!(engine.get_hook("managed").is_some());
+    assert!(engine.get_hook("user").is_none());
+}

@@ -174,18 +174,27 @@ impl Tool for EditTool {
                     } else {
                         String::new()
                     };
-                    let message = match error {
-                        crate::text::LineEndingEditError::NotFound => {
-                            format!("{label}old_string not found in {display_path}")
-                        }
-                        crate::text::LineEndingEditError::Ambiguous(count) => format!(
-                            "{label}old_string found {count} times in {display_path}. Use replace_all=true to replace all occurrences, or provide a more specific string."
+                    let (code, message) = match error {
+                        crate::text::LineEndingEditError::NotFound => (
+                            "edit.not_found",
+                            format!("{label}old_string not found in {display_path}"),
                         ),
-                        crate::text::LineEndingEditError::Unsafe => format!(
-                            "{label}Refusing to edit {display_path}: the file or the replacement mixes LF and CRLF, uses CR-only endings, or a match would split a CRLF pair. Normalize the file to one line ending and retry."
+                        crate::text::LineEndingEditError::Ambiguous(count) => (
+                            "edit.ambiguous",
+                            format!(
+                                "{label}old_string found {count} times in {display_path}. Use replace_all=true to replace all occurrences, or provide a more specific string."
+                            ),
+                        ),
+                        crate::text::LineEndingEditError::Unsafe => (
+                            "edit.line_ending",
+                            format!(
+                                "{label}Refusing to edit {display_path}: the file or the replacement mixes LF and CRLF, uses CR-only endings, or a match would split a CRLF pair. Normalize the file to one line ending and retry."
+                            ),
                         ),
                     };
-                    return Ok(ToolOutput::error(message));
+                    return Ok(ToolOutput::error(message).with_metadata(serde_json::json!({
+                        "edit": { "code": code }
+                    })));
                 }
             }
         }
@@ -801,6 +810,10 @@ beta
 
         assert!(!result.success);
         assert!(result.content.contains("2 times"));
+        assert_eq!(
+            result.metadata.as_ref().unwrap()["edit"]["code"],
+            "edit.ambiguous"
+        );
     }
 
     #[tokio::test]
@@ -825,6 +838,10 @@ beta
 
         assert!(!result.success);
         assert!(result.content.contains("not found"));
+        assert_eq!(
+            result.metadata.as_ref().unwrap()["edit"]["code"],
+            "edit.not_found"
+        );
     }
 
     #[tokio::test]

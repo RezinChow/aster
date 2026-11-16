@@ -260,6 +260,14 @@ search {
             admission.withheld_blocks
         );
     }
+    assert!(
+        admission
+            .forced_layer_digest
+            .as_deref()
+            .is_some_and(|digest| digest.starts_with("sha256:")),
+        "forced-layer provenance missing: {:?}",
+        admission.forced_layer_digest
+    );
 }
 
 #[cfg(unix)]

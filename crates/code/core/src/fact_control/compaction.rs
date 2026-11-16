@@ -136,15 +136,26 @@ impl Compactor for SessionCompact {
                         .map_or(0, crate::compaction::CompactionSource::estimated_tokens),
                 )
                 .max(1);
+            let mut ledger = crate::compaction::CompactionLedger::open(
+                window,
+                used,
+                budget.target_context_tokens as u64,
+                budget.trigger_threshold(),
+            );
+            ledger.mark_started();
             if let Some(events) = &events {
-                let _ = events
-                    .send(crate::agent::AgentEvent::AutoCompact {
-                        phase: "started".into(),
-                        tokens_used: used,
-                        context_window: window,
-                        tokens_after: 0,
-                    })
-                    .await;
+                if let Some((phase, tokens_used, context_window, tokens_after)) =
+                    ledger.auto_compact_fields()
+                {
+                    let _ = events
+                        .send(crate::agent::AgentEvent::AutoCompact {
+                            phase: phase.into(),
+                            tokens_used,
+                            context_window,
+                            tokens_after,
+                        })
+                        .await;
+                }
             }
             let mut summary =
                 compact_handoff(client.as_ref(), &messages, budget, source.as_ref()).await;
@@ -161,24 +172,38 @@ impl Compactor for SessionCompact {
                 &format!("{}{}", crate::prompts::CONTEXT_SUMMARY_PREFIX, summary),
             )]);
             let tokens_after = reserved_tokens.saturating_add(summary_tokens) as u64;
+            let carried_standing = crate::compaction_carry::obligations_from_folded(&messages)
+                .standing
+                .len();
+            ledger.mark_completed(tokens_after, carried_standing);
             tracing::info!(
                 fixed_prompt_tokens = fixed_tokens,
                 kept_tokens,
                 summary_tokens,
                 estimated_prompt_tokens = tokens_after,
-                target_tokens = budget.target_context_tokens,
-                target_exceeded = tokens_after > budget.target_context_tokens as u64,
+                target_tokens = ledger.target_context_tokens(),
+                target_exceeded = tokens_after > ledger.target_context_tokens(),
+                carried_standing_lines = ledger.carried_standing_lines(),
+                ledger_phase = ?ledger.phase(),
+                ledger_tokens_used = ledger.tokens_used(),
+                ledger_tokens_after = ?ledger.tokens_after(),
+                ledger_context_window = ledger.context_window(),
+                ledger_triggered = ledger.should_trigger(),
                 "Fact compaction applied"
             );
             if let Some(events) = &events {
-                let _ = events
-                    .send(crate::agent::AgentEvent::AutoCompact {
-                        phase: "completed".into(),
-                        tokens_used: used,
-                        context_window: window,
-                        tokens_after,
-                    })
-                    .await;
+                if let Some((phase, tokens_used, context_window, tokens_after)) =
+                    ledger.auto_compact_fields()
+                {
+                    let _ = events
+                        .send(crate::agent::AgentEvent::AutoCompact {
+                            phase: phase.into(),
+                            tokens_used,
+                            context_window,
+                            tokens_after,
+                        })
+                        .await;
+                }
             }
             Ok(summary)
         })

@@ -3,8 +3,8 @@
 //! Core engine responsible for managing and executing hooks.
 
 use super::{
-    Hook, HookAction, HookActivity, HookBinding, HookEvent, HookExecutor, HookHandler, HookOutcome,
-    HookResponse, HookResult,
+    Hook, HookAction, HookActivity, HookAdmissionPolicy, HookBinding, HookEvent, HookExecutor,
+    HookHandler, HookOutcome, HookResponse, HookResult, HookSource,
 };
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
@@ -46,6 +46,9 @@ pub struct HookEngine {
 
     /// Run-owned dispatcher for detached observational handlers.
     task_dispatcher: OnceLock<Arc<dyn HookTaskDispatcher>>,
+
+    /// Whether user-sourced hooks may register (P2-9 managed-only).
+    admission: HookAdmissionPolicy,
 }
 
 impl std::fmt::Debug for HookEngine {
@@ -55,6 +58,7 @@ impl std::fmt::Debug for HookEngine {
             .field("handlers_count", &read_or_recover(&self.handlers).len())
             .field("has_event_channel", &self.event_tx.is_some())
             .field("has_task_dispatcher", &self.task_dispatcher.get().is_some())
+            .field("managed_only", &self.admission.managed_only)
             .finish()
     }
 }
@@ -73,6 +77,7 @@ impl HookEngine {
             handlers: Arc::new(RwLock::new(HashMap::new())),
             event_tx: None,
             task_dispatcher: OnceLock::new(),
+            admission: HookAdmissionPolicy::default(),
         }
     }
 
@@ -82,10 +87,32 @@ impl HookEngine {
         self
     }
 
-    /// Register a hook
+    /// Set managed-only (or open) admission for subsequent registrations.
+    pub fn with_admission_policy(mut self, policy: HookAdmissionPolicy) -> Self {
+        self.admission = policy;
+        self
+    }
+
+    /// Register a managed/host hook (backward-compatible default source).
     pub fn register(&self, hook: Hook) {
+        let _ = self.register_with_source(hook, HookSource::Managed);
+    }
+
+    /// Register a hook from an explicit source. Returns false when admission
+    /// rejects the source (managed-only ignoring user hooks).
+    pub fn register_with_source(&self, hook: Hook, source: HookSource) -> bool {
+        if !self.admission.admits(source) {
+            tracing::warn!(
+                hook = %hook.id,
+                ?source,
+                managed_only = self.admission.managed_only,
+                "hook registration ignored by admission policy"
+            );
+            return false;
+        }
         let mut hooks = write_or_recover(&self.hooks);
         hooks.insert(hook.id.clone(), Arc::new(hook));
+        true
     }
 
     /// Unregister a hook
@@ -191,6 +218,7 @@ impl HookEngine {
                 .then(|| self.event_tx.clone())
                 .flatten(),
             task_dispatcher: OnceLock::new(),
+            admission: self.admission,
         })
     }
 

@@ -1,0 +1,47 @@
+{
+  "schema": "kstudio.billets.v1",
+  "billets": [
+    {
+      "id": "O",
+      "title": "Conductor / \u6307\u6325",
+      "duty": "orchestrate",
+      "write_policy": "orchestrate_only"
+    },
+    {
+      "id": "B",
+      "title": "Builder / \u4e3b\u653b",
+      "duty": "implement",
+      "write_policy": "code_ok"
+    },
+    {
+      "id": "R",
+      "title": "Remote / \u4fa7\u7ffc",
+      "duty": "implement_remote",
+      "write_policy": "code_ok"
+    },
+    {
+      "id": "M",
+      "title": "Merge / \u4f1a\u5408",
+      "duty": "merge_verify",
+      "write_policy": "glue_ok"
+    },
+    {
+      "id": "I",
+      "title": "Investigator / \u7814\u7a76\u5458",
+      "duty": "hard_case",
+      "write_policy": "code_ok"
+    },
+    {
+      "id": "S",
+      "title": "Chief of Staff / \u53c2\u8c0b\u957f",
+      "duty": "after_action_review",
+      "write_policy": "docs_ok"
+    },
+    {
+      "id": "D",
+      "title": "Docs / \u53f2\u653f",
+      "duty": "docs_goals",
+      "write_policy": "docs_only"
+    }
+  ]
+}

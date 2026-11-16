@@ -469,6 +469,23 @@ impl Wire {
         .await
     }
 
+    async fn prompt_with_id(
+        &mut self,
+        session_id: &str,
+        text: &str,
+        prompt_id: &str,
+    ) -> Result<u64, String> {
+        self.request(
+            "session/prompt",
+            json!({
+                "sessionId": session_id,
+                "prompt": [{"type": "text", "text": text}],
+                "_meta": {"promptId": prompt_id}
+            }),
+        )
+        .await
+    }
+
     async fn stop(&mut self) -> Outcome {
         let _ = self.child.start_kill();
         tokio::time::timeout(Duration::from_secs(5), self.child.wait())
@@ -510,6 +527,18 @@ fn chunk_text(value: &Value) -> &str {
     value["params"]["update"]["content"]["text"]
         .as_str()
         .unwrap_or("")
+}
+
+/// Golden wire surface (`crates/code/acp/PROTOCOL.md`): a field or method
+/// rename must change this file in the same commit.
+fn wire_golden() -> Value {
+    serde_json::from_str(include_str!("fixtures/acp_wire_surface_v1.json"))
+        .expect("acp_wire_surface_v1.json")
+}
+
+fn is_queue_changed(value: &Value, prompt_id: &str) -> bool {
+    value["method"] == wire_golden()["queueChanged"]["wireMethod"]
+        && value["params"]["runningPromptId"] == prompt_id
 }
 
 fn is_permission_request(value: &Value) -> bool {
@@ -571,6 +600,14 @@ const CASES: &[(&str, &str)] = &[
         "load-replays-history",
         "with loadSession, session/load replays the conversation as user_message_chunk and agent_message_chunk updates before its response",
     ),
+    (
+        "queue-running-identity",
+        "a prompt carrying _meta.promptId is announced by _aster/queue/changed (golden key set) before the turn's first model output update, and its response echoes the promptId",
+    ),
+    (
+        "turn-queue-order",
+        "a second prompt waits behind the running turn; cancelling the running turn does not cancel the queued prompt, which then starts and ends normally",
+    ),
 ];
 
 async fn run_case(id: &str, model: &Model) -> Outcome {
@@ -592,6 +629,8 @@ async fn run_case(id: &str, model: &Model) -> Outcome {
         "permission-request-shape" => permission_request_shape(&mut wire, &fixture).await,
         "permission-cancelled" => permission_cancelled(&mut wire, &fixture).await,
         "load-replays-history" => load_replays_history(&mut wire, &fixture).await,
+        "queue-running-identity" => queue_running_identity(&mut wire, &fixture).await,
+        "turn-queue-order" => turn_queue_order(&mut wire, &fixture, model).await,
         other => Err(format!("no case {other}")),
     };
     let failures = [outcome, wire.stop().await, fixture.no_companion_started()]
@@ -1006,6 +1045,123 @@ async fn load_replays_history(wire: &mut Wire, fixture: &Fixture) -> Outcome {
     }
     .await;
     outcome
+}
+
+async fn queue_running_identity(wire: &mut Wire, fixture: &Fixture) -> Outcome {
+    let golden = wire_golden();
+    let queue = &golden["queueChanged"];
+    wire.initialize().await?;
+    let session = wire.new_session(&fixture.workspace).await?;
+    let start = wire.seen.len();
+    let id = wire
+        .prompt_with_id(&session, "SAY: queue golden", "golden-queue-1")
+        .await?;
+    let response = wire.response(id).await?;
+    ensure!(stop_reason(&response)? == "end_turn", "{response}");
+    ensure!(
+        response["result"]["_meta"]["promptId"] == "golden-queue-1",
+        "the response did not echo _meta.promptId: {response}"
+    );
+    let turn = &wire.seen[start..];
+    let announced = turn
+        .iter()
+        .position(|value| is_queue_changed(value, "golden-queue-1"))
+        .ok_or_else(|| format!("no {} for the prompt: {turn:?}", queue["wireMethod"]))?;
+    let first_output = turn
+        .iter()
+        .position(|value| {
+            matches!(
+                update_kind(value, &session),
+                Some("agent_message_chunk" | "agent_thought_chunk" | "tool_call")
+            )
+        })
+        .ok_or("the turn produced no model output update")?;
+    ensure!(
+        announced < first_output,
+        "the running identity must precede the turn's first model output"
+    );
+    let params = turn[announced]["params"]
+        .as_object()
+        .ok_or("queue/changed params is not an object")?;
+    let mut keys: Vec<&str> = params.keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    let golden_keys: Vec<&str> = queue["paramsKeys"]
+        .as_array()
+        .ok_or("golden paramsKeys")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    ensure!(
+        keys == golden_keys,
+        "queue/changed keys {keys:?} differ from golden {golden_keys:?}"
+    );
+    ensure!(
+        params["sessionId"] == session.as_str()
+            && params["runningText"] == "SAY: queue golden"
+            && params["runningKind"] == queue["runningKind"],
+        "queue/changed values drifted: {params:?}"
+    );
+    Ok(())
+}
+
+async fn turn_queue_order(wire: &mut Wire, fixture: &Fixture, model: &Model) -> Outcome {
+    wire.initialize().await?;
+    let session = wire.new_session(&fixture.workspace).await?;
+    model.slow_seen.store(false, Ordering::SeqCst);
+    let first = wire.prompt_with_id(&session, "SLOW", "queue-a").await?;
+    let deadline = tokio::time::Instant::now() + WAIT;
+    while !model.slow_seen.load(Ordering::SeqCst) {
+        ensure!(
+            tokio::time::Instant::now() < deadline,
+            "the running turn never reached the model"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let second = wire
+        .prompt_with_id(&session, "SAY: queued second", "queue-b")
+        .await?;
+    let early = tokio::time::timeout(
+        Duration::from_millis(500),
+        wire.read_until("queued prompt started early", |value| {
+            is_queue_changed(value, "queue-b")
+                || (value["id"] == second && value.get("method").is_none())
+        }),
+    )
+    .await;
+    ensure!(
+        early.is_err(),
+        "the queued prompt started while the first turn was running"
+    );
+    wire.notify("session/cancel", json!({"sessionId": session}))
+        .await?;
+    let response = wire.response(first).await?;
+    ensure!(stop_reason(&response)? == "cancelled", "{response}");
+    let response = wire.response(second).await?;
+    ensure!(
+        stop_reason(&response)? == "end_turn",
+        "cancelling the running turn must not cancel the queued prompt: {response}"
+    );
+    ensure!(
+        response["result"]["_meta"]["promptId"] == "queue-b",
+        "{response}"
+    );
+    let said: String = wire
+        .seen
+        .iter()
+        .filter(|value| update_kind(value, &session) == Some("agent_message_chunk"))
+        .map(chunk_text)
+        .collect();
+    ensure!(
+        said.contains("queued second"),
+        "the queued prompt produced no reply: {said:?}"
+    );
+    ensure!(
+        wire.seen
+            .iter()
+            .any(|value| is_queue_changed(value, "queue-b")),
+        "the queued prompt was never announced as running"
+    );
+    Ok(())
 }
 
 // ---- fragmented stdin regression -----------------------------------------

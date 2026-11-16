@@ -46,6 +46,54 @@ fn protocol_and_unknown_methods_are_outside_the_host_set() {
     );
 }
 
+const WIRE_SURFACE_GOLDEN: &str = include_str!("../../tests/fixtures/acp_wire_surface_v1.json");
+
+fn golden_strings(golden: &Value, key: &str) -> Vec<String> {
+    golden["hostMethods"][key]
+        .as_array()
+        .unwrap_or_else(|| panic!("golden hostMethods.{key}"))
+        .iter()
+        .map(|name| name.as_str().expect("golden name").to_owned())
+        .collect()
+}
+
+/// A rename, removal or unlisted addition of a host method changes the wire
+/// that Studio and the pager already speak; the golden must change with it.
+#[test]
+fn host_method_wire_names_match_the_golden_surface() {
+    let golden: Value = serde_json::from_str(WIRE_SURFACE_GOLDEN).unwrap();
+    let names = golden_strings(&golden, "names");
+    let unique: std::collections::BTreeSet<_> = names.iter().collect();
+    assert_eq!(unique.len(), names.len(), "duplicate golden host method");
+    let mut listed = Vec::new();
+    for name in &names {
+        let method = HostMethod::parse(name)
+            .unwrap_or_else(|| panic!("golden host method {name} no longer parses"));
+        listed.push(method);
+    }
+    for family in golden_strings(&golden, "prefixFamilies") {
+        let method = HostMethod::parse(&format!("{family}/probe"))
+            .unwrap_or_else(|| panic!("golden family {family} no longer parses"));
+        assert_eq!(method.as_str(), family, "family prefix drifted");
+        listed.push(method);
+    }
+    for method in HostMethod::ALL {
+        assert!(
+            listed.contains(&method),
+            "{method:?} is on the wire but not in acp_wire_surface_v1.json"
+        );
+    }
+}
+
+#[test]
+fn execution_observe_const_matches_the_golden_surface() {
+    let golden: Value = serde_json::from_str(WIRE_SURFACE_GOLDEN).unwrap();
+    assert_eq!(
+        golden["executionObserve"]["codeConst"],
+        crate::run_observation::METHOD
+    );
+}
+
 struct WireModel {
     calls: AtomicUsize,
     prompt_tokens: AtomicUsize,

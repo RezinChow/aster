@@ -63,6 +63,22 @@ A duplicate key stops at the ingress fact.
 
 ![The log decides the next transition](docs/charts/log-fold.png)
 
+## A damaged log is refused, not repaired
+
+`FileLog` reads a thread's JSONL log whole or not at all. A corrupt line, a
+truncated tail (a final record that is not valid JSON), a bad `seq`, a
+duplicate key, or a single record longer than `MAX_RECORD_BYTES` (12 MiB)
+returns `ActorError::Schema` from `read`, `append`, `truncate_after` and
+`freeze`. Aster does not skip a bad mid-file line and does not quarantine or
+rewrite the file, so a reader never sees a silently shortened history.
+`append` applies the same record bound before writing, so nothing Aster
+writes is later unreadable. The whole file stays under 16 MiB.
+
+One process writes a log directory at a time: a second `FileLog` on the same
+directory gets `ActorError::LogBusy` while a `try_writer_fence` is held.
+`FileLog::freeze` returns the `LogCut` and the committed byte length of the
+log it read.
+
 ## Both waits end on a fact
 
 The coding scheduler parks in `CodingPhase::Confirm` until a

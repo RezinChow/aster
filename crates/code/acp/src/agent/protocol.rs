@@ -67,6 +67,11 @@ impl acp::Agent for AsterCodeAgent {
                     "feedbackTraceOffer": false,
                     "aster": self.workspace_admission_meta(),
                     "openModelConfig": self.first_run_config,
+                    // P1-8: mechanism feature-stage registry digest for hosts
+                    // (not a remote rollout percentage; Stable/Experimental table only).
+                    "featureSwitchRegistryDigest": aster_core::capability::feature_switch_registry_digest()
+                        .map(|digest| digest.to_string())
+                        .unwrap_or_else(|_| String::new()),
                 })
                 .as_object()
                 .cloned(),

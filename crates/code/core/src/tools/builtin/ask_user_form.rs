@@ -76,7 +76,14 @@ impl Tool for AskUserFormTool {
             ctx.run_id().unwrap_or("0")
         );
         let run_id = ctx.session_id.as_deref().unwrap_or("run");
-        let event = match ask_user::begin(run_id, &question_id, prompt, &[], true) {
+        let event = match ask_user::begin_on_channel(
+            run_id,
+            &question_id,
+            prompt,
+            &[],
+            true,
+            crate::elicitation::ElicitationChannel::Form,
+        ) {
             Ok(event) => event,
             Err(AskUserError::CapExceeded) => {
                 return Ok(ToolOutput::error("ask_user question cap exceeded"));

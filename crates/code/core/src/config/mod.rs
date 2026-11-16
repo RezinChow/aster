@@ -14,9 +14,9 @@ mod account_import;
 mod acl_render;
 mod editor;
 mod execution_capabilities;
+mod forced_layer;
 mod goal_control;
 mod loader;
-#[cfg(test)]
 mod loader_tests;
 mod provider;
 mod search;
@@ -36,6 +36,7 @@ pub use reasoning_effort::ReasoningEffort;
 /// Built-in provider name for Cloud-admitted Inference route models.
 pub const ASTER_INFERENCE_PROVIDER: &str = "aster-inference";
 
+pub use forced_layer::{apply_forced_layers, load_forced_acl, ForcedLayerProvenance};
 pub use loader::{
     host_authoritative_block, withhold_untrusted_host_authoritative_blocks, LayerAcl,
     HOST_AUTHORITATIVE_BLOCKS,

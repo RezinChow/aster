@@ -1,0 +1,190 @@
+{
+  "schema": "kstudio.workflow-lineage.v1",
+  "wave_id": "bootstrap",
+  "roles": [
+    {
+      "role_id": "O",
+      "duty": "orchestrate",
+      "stage": "planned",
+      "depends_on": [],
+      "prompt": {
+        "path": ".kstudio/workflow/waves/bootstrap/roles/O.md"
+      },
+      "binding": {
+        "agent_id": null,
+        "model": null,
+        "environment_ref": null,
+        "session_id": null,
+        "bound_at": null
+      },
+      "code": {
+        "branch": null,
+        "head_sha": null,
+        "commits": []
+      },
+      "evidence": {
+        "dir": null,
+        "ready": null
+      }
+    },
+    {
+      "role_id": "B",
+      "duty": "implement",
+      "stage": "review_ready",
+      "depends_on": [],
+      "prompt": {
+        "path": ".kstudio/workflow/waves/bootstrap/roles/B.md"
+      },
+      "binding": {
+        "agent_id": null,
+        "model": null,
+        "environment_ref": null,
+        "session_id": null,
+        "bound_at": null
+      },
+      "code": {
+        "branch": null,
+        "head_sha": null,
+        "commits": []
+      },
+      "evidence": {
+        "dir": ".kstudio/evidence/T2026-11-16-daily-use-wiring",
+        "ready": true
+      },
+      "escalates_to": "I"
+    },
+    {
+      "role_id": "R",
+      "duty": "implement_remote",
+      "stage": "planned",
+      "depends_on": [],
+      "prompt": {
+        "path": ".kstudio/workflow/waves/bootstrap/roles/R.md"
+      },
+      "binding": {
+        "agent_id": null,
+        "model": null,
+        "environment_ref": null,
+        "session_id": null,
+        "bound_at": null
+      },
+      "code": {
+        "branch": null,
+        "head_sha": null,
+        "commits": []
+      },
+      "evidence": {
+        "dir": null,
+        "ready": null
+      },
+      "escalates_to": "I"
+    },
+    {
+      "role_id": "M",
+      "duty": "merge_verify",
+      "stage": "planned",
+      "depends_on": [
+        "B",
+        "R"
+      ],
+      "prompt": {
+        "path": ".kstudio/workflow/waves/bootstrap/roles/M.md"
+      },
+      "binding": {
+        "agent_id": null,
+        "model": null,
+        "environment_ref": null,
+        "session_id": null,
+        "bound_at": null
+      },
+      "code": {
+        "branch": null,
+        "head_sha": null,
+        "commits": []
+      },
+      "evidence": {
+        "dir": null,
+        "ready": null
+      }
+    },
+    {
+      "role_id": "I",
+      "duty": "hard_case",
+      "stage": "planned",
+      "depends_on": [],
+      "prompt": {
+        "path": ".kstudio/workflow/waves/bootstrap/roles/I.md"
+      },
+      "binding": {
+        "agent_id": null,
+        "model": null,
+        "environment_ref": null,
+        "session_id": null,
+        "bound_at": null
+      },
+      "code": {
+        "branch": null,
+        "head_sha": null,
+        "commits": []
+      },
+      "evidence": {
+        "dir": null,
+        "ready": null
+      }
+    },
+    {
+      "role_id": "S",
+      "duty": "after_action_review",
+      "stage": "done",
+      "depends_on": [
+        "B",
+        "R"
+      ],
+      "prompt": {
+        "path": ".kstudio/workflow/waves/bootstrap/roles/S.md"
+      },
+      "binding": {
+        "agent_id": null,
+        "model": null,
+        "environment_ref": null,
+        "session_id": null,
+        "bound_at": null
+      },
+      "code": {
+        "branch": null,
+        "head_sha": null,
+        "commits": []
+      },
+      "evidence": {
+        "dir": ".kstudio/wiki/Decisions.md",
+        "ready": true
+      }
+    },
+    {
+      "role_id": "D",
+      "duty": "docs_goals",
+      "stage": "done",
+      "depends_on": [],
+      "prompt": {
+        "path": ".kstudio/workflow/waves/bootstrap/roles/D.md"
+      },
+      "binding": {
+        "agent_id": null,
+        "model": null,
+        "environment_ref": null,
+        "session_id": null,
+        "bound_at": null
+      },
+      "code": {
+        "branch": null,
+        "head_sha": null,
+        "commits": []
+      },
+      "evidence": {
+        "dir": ".kstudio/evidence/T2026-11-16-codex-absorb",
+        "ready": true
+      }
+    }
+  ],
+  "edges": []
+}

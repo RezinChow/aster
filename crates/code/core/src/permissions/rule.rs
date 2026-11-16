@@ -1,6 +1,25 @@
 use crate::tool_name::canonical_tool_name;
 use serde::{Deserialize, Serialize};
 
+/// Load-time example for a permission rule's `match` / `not_match` self-tests.
+///
+/// - A bare string is treated as a Bash `command` when the rule targets bash,
+///   otherwise as `file_path` for path-oriented tools, else as `command`.
+/// - An object may set `tool` and any tool args (`command`, `file_path`, …).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum RuleMatchExample {
+    /// Shorthand invocation payload (see [`PermissionRule::example_invocation`]).
+    Shorthand(String),
+    /// Explicit tool (optional) plus args object.
+    Explicit {
+        #[serde(default)]
+        tool: Option<String>,
+        #[serde(flatten)]
+        args: serde_json::Map<String, serde_json::Value>,
+    },
+}
+
 /// A permission rule with pattern matching support
 ///
 /// Format: `ToolName(pattern)` or `ToolName` (matches all)
@@ -17,7 +36,15 @@ use serde::{Deserialize, Serialize};
 /// allow:
 ///   - read                   # plain string
 ///   - rule: "Bash(cargo:*)"  # struct form
+///     match:
+///       - "cargo test"
+///     not_match:
+///       - "cargo tox"
 /// ```
+///
+/// `match` / `not_match` are load-time self-tests: examples that must (or must
+/// not) match **this** rule. Invalid examples reject deserialization / policy
+/// validation — they do not change runtime evaluation order.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct PermissionRule {
     /// The original rule string
@@ -28,6 +55,12 @@ pub struct PermissionRule {
     /// Parsed argument pattern (None means match all)
     #[serde(skip)]
     pub(crate) arg_pattern: Option<String>,
+    /// Examples that must match this rule (validated at load).
+    #[serde(default, rename = "match", skip_serializing_if = "Vec::is_empty")]
+    pub match_examples: Vec<RuleMatchExample>,
+    /// Examples that must not match this rule (validated at load).
+    #[serde(default, rename = "not_match", skip_serializing_if = "Vec::is_empty")]
+    pub not_match_examples: Vec<RuleMatchExample>,
 }
 
 impl<'de> Deserialize<'de> for PermissionRule {
@@ -40,15 +73,32 @@ impl<'de> Deserialize<'de> for PermissionRule {
         #[serde(untagged)]
         enum RuleRepr {
             Plain(String),
-            Struct { rule: String },
+            Struct {
+                rule: String,
+                #[serde(default, rename = "match")]
+                match_examples: Vec<RuleMatchExample>,
+                #[serde(default, rename = "not_match")]
+                not_match_examples: Vec<RuleMatchExample>,
+            },
         }
 
-        let rule_str = match RuleRepr::deserialize(deserializer)? {
-            RuleRepr::Plain(s) => s,
-            RuleRepr::Struct { rule } => rule,
+        let parsed = match RuleRepr::deserialize(deserializer)? {
+            RuleRepr::Plain(s) => PermissionRule::new(&s),
+            RuleRepr::Struct {
+                rule,
+                match_examples,
+                not_match_examples,
+            } => {
+                let mut rule = PermissionRule::new(&rule);
+                rule.match_examples = match_examples;
+                rule.not_match_examples = not_match_examples;
+                rule
+            }
         };
-        // `new()` calls `parse_rule()` to populate tool_name and arg_pattern.
-        Ok(PermissionRule::new(&rule_str))
+        parsed
+            .validate_examples("rule")
+            .map_err(serde::de::Error::custom)?;
+        Ok(parsed)
     }
 }
 
@@ -60,7 +110,78 @@ impl PermissionRule {
             rule: rule.to_string(),
             tool_name,
             arg_pattern,
+            match_examples: Vec::new(),
+            not_match_examples: Vec::new(),
         }
+    }
+
+    /// Resolve a self-test example into `(tool_name, args)`.
+    pub fn example_invocation(
+        &self,
+        example: &RuleMatchExample,
+    ) -> Result<(String, serde_json::Value), String> {
+        match example {
+            RuleMatchExample::Shorthand(text) => {
+                let tool = self.tool_name.clone().ok_or_else(|| {
+                    format!(
+                        "rule `{}` has no tool name for shorthand example",
+                        self.rule
+                    )
+                })?;
+                let tool_canon = canonical_tool_name(&tool);
+                let args = match tool_canon.to_ascii_lowercase().as_str() {
+                    "bash" => serde_json::json!({ "command": text }),
+                    "read" | "office_read" | "write" | "edit" | "download" | "office_file" => {
+                        serde_json::json!({ "file_path": text })
+                    }
+                    "ls" => serde_json::json!({ "path": text }),
+                    _ => serde_json::json!({ "command": text }),
+                };
+                Ok((tool, args))
+            }
+            RuleMatchExample::Explicit { tool, args } => {
+                let tool = tool
+                    .clone()
+                    .or_else(|| self.tool_name.clone())
+                    .ok_or_else(|| {
+                        format!("rule `{}` example is missing a tool name", self.rule)
+                    })?;
+                Ok((tool, serde_json::Value::Object(args.clone())))
+            }
+        }
+    }
+
+    /// Whether this rule matches an example under the same semantics used for
+    /// Bash word-boundary prefixes (`matches_shell_command`) or general args.
+    pub fn matches_example(&self, example: &RuleMatchExample) -> Result<bool, String> {
+        let (tool, args) = self.example_invocation(example)?;
+        if canonical_tool_name(&tool).eq_ignore_ascii_case("bash") {
+            if let Some(command) = args.get("command").and_then(serde_json::Value::as_str) {
+                return Ok(self.matches_shell_command(&tool, command));
+            }
+        }
+        Ok(self.matches(&tool, &args))
+    }
+
+    /// Validate embedded `match` / `not_match` examples. Empty lists succeed.
+    pub fn validate_examples(&self, bucket: &str) -> Result<(), String> {
+        for (idx, example) in self.match_examples.iter().enumerate() {
+            if !self.matches_example(example)? {
+                return Err(format!(
+                    "{bucket} `{}` match[{idx}] does not match this rule: {example:?}",
+                    self.rule
+                ));
+            }
+        }
+        for (idx, example) in self.not_match_examples.iter().enumerate() {
+            if self.matches_example(example)? {
+                return Err(format!(
+                    "{bucket} `{}` not_match[{idx}] unexpectedly matches this rule: {example:?}",
+                    self.rule
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// Parse rule string into tool name and argument pattern

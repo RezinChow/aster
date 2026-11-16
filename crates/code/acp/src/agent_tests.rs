@@ -734,6 +734,104 @@ async fn ask_env_locked<F: std::future::Future>(test: impl FnOnce() -> F) -> F::
     outcome
 }
 
+/// ACP `session/request_permission` owns the Permission elicitation ledger for
+/// the duration of the host HITL (pending → resolved / cancelled).
+#[tokio::test]
+async fn permission_ask_records_elicitation_across_the_host_hitl() {
+    let root = tempfile::tempdir().unwrap();
+    let local = tokio::task::LocalSet::new();
+    local
+        .run_until(async {
+            let handler_agent = AsterCodeAgent::new(tests::test_launch(None));
+            let (client_end, agent_end) = tokio::io::duplex(64 * 1024);
+            use tokio::io::{AsyncBufReadExt, AsyncWriteExt as _};
+            use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+            let (agent_read, agent_write) = tokio::io::split(agent_end);
+            let (conn, io) = acp::AgentSideConnection::new(
+                handler_agent,
+                agent_write.compat_write(),
+                agent_read.compat(),
+                |fut| {
+                    tokio::task::spawn_local(fut);
+                },
+            );
+            tokio::task::spawn_local(io);
+            tokio::task::spawn_local(async move {
+                let (read, mut write) = tokio::io::split(client_end);
+                let mut reader = tokio::io::BufReader::new(read);
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).await.unwrap_or(0) == 0 {
+                        return;
+                    }
+                    let frame: serde_json::Value = match serde_json::from_str(&line) {
+                        Ok(frame) => frame,
+                        Err(_) => continue,
+                    };
+                    if frame["method"] != "session/request_permission" {
+                        continue;
+                    }
+                    let tool_id = frame["params"]["toolCall"]["toolCallId"]
+                        .as_str()
+                        .unwrap_or("tool-elicitation");
+                    let session = frame["params"]["sessionId"]
+                        .as_str()
+                        .unwrap_or("s-elicitation");
+                    let id = aster_core::elicitation::permission_id(session, tool_id);
+                    let pending =
+                        aster_core::elicitation::get(&id).expect("ledger open during ask");
+                    assert_eq!(
+                        pending.phase,
+                        aster_core::elicitation::ElicitationPhase::Pending
+                    );
+                    assert_eq!(
+                        pending.channel,
+                        aster_core::elicitation::ElicitationChannel::Permission
+                    );
+                    let reply = serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": frame["id"],
+                        "result": {
+                            "outcome": {
+                                "outcome": "selected",
+                                "optionId": "allow-once"
+                            }
+                        }
+                    });
+                    write
+                        .write_all(format!("{reply}\n").as_bytes())
+                        .await
+                        .unwrap();
+                    return;
+                }
+            });
+            let agent = AsterCodeAgent::new(tests::test_launch(None));
+            agent.set_client(Rc::new(conn));
+
+            let session_id = acp::SessionId::new("s-elicitation");
+            let tool_id = "tool-elicitation";
+            let elicitation_id =
+                aster_core::elicitation::permission_id(session_id.0.as_ref(), tool_id);
+            let approved = agent
+                .request_tool_permission(
+                    &session_id,
+                    tool_id,
+                    "bash",
+                    &serde_json::json!({"command": "ls"}),
+                    root.path(),
+                )
+                .await;
+            assert!(approved, "allow-once must approve");
+            let settled = aster_core::elicitation::get(&elicitation_id).expect("ledger settled");
+            assert_eq!(
+                settled.phase,
+                aster_core::elicitation::ElicitationPhase::Resolved
+            );
+            assert_eq!(settled.answer.as_deref(), Some("allow-once"));
+        })
+        .await;
+}
+
 /// One agent whose client connection is answered by nobody: both ask kinds
 /// must fail closed at the (env-shortened) deadline instead of parking.
 #[tokio::test]
@@ -1000,6 +1098,7 @@ fn tool_cards_use_pager_kind_and_raw_input() {
         Some(&serde_json::json!({"command": "echo hi"})),
         "hi\n",
         0,
+        None,
     )
     .unwrap();
     assert_eq!(bash["type"], "Bash");
@@ -1007,12 +1106,51 @@ fn tool_cards_use_pager_kind_and_raw_input() {
     assert_eq!(bash["command"], "echo hi");
     assert_eq!(bash["output"], "hi\n");
     assert_eq!(bash["total_bytes"], 3);
+    assert!(bash.get("sandbox_violation").is_none());
+
+    let denied = tool_raw_output(
+        "bash",
+        Some(&serde_json::json!({"command": "curl https://example.com"})),
+        "sandbox.violation.network_denied: blocked",
+        1,
+        Some(&serde_json::json!({
+            "sandbox_violation": { "code": "sandbox.violation.network_denied" },
+            "command_started": false
+        })),
+    )
+    .unwrap();
+    assert_eq!(
+        denied["sandbox_violation"]["code"],
+        "sandbox.violation.network_denied"
+    );
+
+    let edit_fail = tool_raw_output(
+        "edit",
+        Some(&serde_json::json!({"path": "a.rs", "old_string": "x", "new_string": "y"})),
+        "not found",
+        1,
+        Some(&serde_json::json!({ "edit": { "code": "edit.not_found" } })),
+    )
+    .unwrap();
+    assert_eq!(edit_fail["type"], "Edit");
+    assert_eq!(edit_fail["edit"]["code"], "edit.not_found");
+
+    let patch_fail = tool_raw_output(
+        "patch",
+        None,
+        "context mismatch",
+        1,
+        Some(&serde_json::json!({ "patch": { "code": "patch.context_mismatch" } })),
+    )
+    .unwrap();
+    assert_eq!(patch_fail["type"], "Patch");
+    assert_eq!(patch_fail["patch"]["code"], "patch.context_mismatch");
 
     let search_output = "result-line\n".repeat(500);
     assert!(search_output.len() > 4_000);
     for name in ["grep", "glob", "search", "web_search"] {
         assert_eq!(
-            tool_raw_output(name, None, &search_output, 0),
+            tool_raw_output(name, None, &search_output, 0, None),
             Some(serde_json::Value::String(search_output.clone())),
             "{name} must keep full details beyond the ACP preview"
         );
@@ -1661,13 +1799,13 @@ fn tui_mappings_cover_cards_catalog_and_questions() {
         Some(&serde_json::json!({"path": "a", "content": "z"}))
     )
     .is_some());
-    assert!(tool_raw_output("read", None, "out", 0).is_none());
-    assert!(tool_raw_output("shell", None, "out", 1).is_some());
+    assert!(tool_raw_output("read", None, "out", 0, None).is_none());
+    assert!(tool_raw_output("shell", None, "out", 1, None).is_some());
     assert_eq!(
-        tool_raw_output("Skill", None, "Skill 'missing-skill' not found", 1),
+        tool_raw_output("Skill", None, "Skill 'missing-skill' not found", 1, None),
         Some(serde_json::json!("Skill 'missing-skill' not found"))
     );
-    assert!(tool_raw_output("Skill", None, "", 1).is_none());
+    assert!(tool_raw_output("Skill", None, "", 1, None).is_none());
 
     assert!(effort_guideline("low").is_some());
     assert!(effort_guideline("high").is_some());
@@ -1814,6 +1952,20 @@ async fn tui_turn_renders_every_pager_event() {
     .expect("initialize");
     let meta = init.meta.expect("meta");
     assert_eq!(meta.get("asterCode"), Some(&serde_json::Value::Bool(true)));
+    let digest = meta
+        .get("featureSwitchRegistryDigest")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    assert!(
+        digest.starts_with("sha256:"),
+        "initialize must project the feature-stage registry digest: {digest}"
+    );
+    assert_eq!(
+        digest,
+        aster_core::capability::feature_switch_registry_digest()
+            .expect("digest")
+            .as_str()
+    );
     acp::Agent::authenticate(&agent, acp::AuthenticateRequest::new("none"))
         .await
         .expect("authenticate");
@@ -2189,7 +2341,7 @@ fn tui_session_function_coverage_is_at_least_95_percent() {
     record("edit-diff", edit_diff("edit", Some(&edit)).is_some());
     record(
         "bash-output",
-        tool_raw_output("bash", None, "ok", 0).is_some(),
+        tool_raw_output("bash", None, "ok", 0, None).is_some(),
     );
     let session_id = acp::SessionId::new("s");
     let permission = tool_permission_request(

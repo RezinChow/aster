@@ -1,0 +1,47 @@
+---
+description: Auto-load .kstudio k-* skills (/k-init /k-status /k-progress /k-plan /k-go /k-yolo /k-task /k-loop /k-goal /k-wiki /k-clean /k-review)
+alwaysApply: true
+---
+
+# KStudio `k-*` skills (P15)
+
+Any agent in this repo MUST treat these as first-class:
+
+| Slash | Authoritative skill |
+| --- | --- |
+| `/k-init` | `.kstudio/skills/k-init/SKILL.md` (global bootstrap when project root is absent) |
+| `/k-status` | `.kstudio/skills/k-status/SKILL.md` |
+| `/k-progress` | `.kstudio/skills/k-progress/SKILL.md` |
+| `/k-plan` | `.kstudio/skills/k-plan/SKILL.md` |
+| `/k-go` | `.kstudio/skills/k-go/SKILL.md` |
+| `/k-yolo` | `.kstudio/skills/k-yolo/SKILL.md` |
+| `/k-task` | `.kstudio/skills/k-task/SKILL.md` |
+| `/k-loop` | `.kstudio/skills/k-loop/SKILL.md` |
+| `/k-goal` | `.kstudio/skills/k-goal/SKILL.md` |
+| `/k-wiki` | `.kstudio/skills/k-wiki/SKILL.md` |
+| `/k-clean` | `.kstudio/skills/k-clean/SKILL.md` |
+| `/k-review` | `.kstudio/skills/k-review/SKILL.md` |
+
+## Auto behavior
+
+1. On session start (or before first `/k-*`), if project `.kstudio/skills` exists: run `python3 .kstudio/workflow/sync-k-skills.py` when `.cursor/skills` may be stale. With no engineering root, use the global `/k-init` bootstrap when initialization is requested; do not initialize an unrelated project automatically.
+2. User types any slash above → **immediately Read** `.kstudio/skills/<name>/SKILL.md` and execute.
+3. Natural language routing:
+   - 初始化项目 AI 工程 / 建立 .kstudio / 空项目工程起步 → **k-init**
+   - 完成度 / 百分比进度 / 整体进度 / 还差多少 → **k-progress**
+   - 波次态势 / sitrep / 席位 / dispatch·hold → **k-status**
+   - DeepWiki / 文档站 / 整理 wiki / 可打开 HTML → **k-wiki**
+   - 规划后自动做完 / 一口气干完 / plan then finish here → **k-go**
+   - 全自动 / 无人值守 / 不完成不要停 / YOLO / 按总体目标自主干完 → **k-yolo**
+   - 全项目 / 下一轮 / 全角色规划（只要计划不要自动执行） → **k-plan**；当前任务 / 指定角色派工 / 发给 / 开执行席 → **k-task**
+   - 明确要求执行 / 恢复某项任务的持久循环 → **k-loop**；讨论或创建技能不启动任务
+   - 目标/愿景 → k-goal；清理错误代码/垃圾 → k-clean
+   - 代码评审 / 审查改动 / AI 工程可信性审查 → **k-review**
+4. `/k-plan` MUST apply **P18**（全席真活或持守）+ **P19**（先读短报写「教训」）+ **P11**（代价约 `$… USD tokens`）。军事简报：短、实、突出重点；不要线框、不要抽象。
+   `/k-go` MUST run `/k-plan` once, then finish every real `### 发给 X` in order in the **same session**; no recursive `/k-go`, no silent replan to expand scope.
+   `/k-yolo` MUST drive continuous sense→plan→act→verify from GOALS with quick wins first, freely composing other `/k-*`, and MUST NOT idle-stop while authorized goal work remains; no recursive `/k-yolo`.
+   `/k-task` only selects relevant roles for the current task; no unrelated assignments or hold list. Pass selected roles explicitly to `print-paste.sh`; never invoke its full-role default for a local task.
+5. P17: never privately create git branches/worktrees.
+6. **总体%≠Pass**（k-progress）；**波次%≠Pass**（k-status）；**wiki≠Pass**（k-wiki）。Orchestration-only `.kstudio` edits when the skill allows.
+7. `/k-review` separates checks_passed, source review and product acceptance. `/k-clean` uses reviewed evidence, defaults to dry-run, and consumes an exact plan for authorized deletions. Existing execution authorization persists; O still delegates product-source changes.
+8. `/k-loop` executes only an explicitly requested task with finite persisted budgets and verification progress. Review-ready is a checkpoint: review findings return to the same run; task acceptance is not product Pass. Do not reset a run, recursively loop or promise offline continuation. Existing final-publish authorization remains valid for M after acceptance.

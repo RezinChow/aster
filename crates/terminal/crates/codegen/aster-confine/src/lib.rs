@@ -1,8 +1,15 @@
 //! Compatibility stub for the retired in-tree Aster OS sandbox.
 //!
-//! Confinement and MicroVM isolation live in external **kbox**. This crate keeps
-//! the historical API surface so the TUI/shell continue to compile; every
-//! enforcement entry point is a no-op and profiles resolve to [`ProfileName::Off`].
+//! **This crate is not an execution authority.** It never confines, mediates,
+//! allows or denies a command; every enforcement entry point is a no-op, every
+//! `verify_*` reports success without checking anything, and profiles resolve to
+//! [`ProfileName::Off`]. It exists only so the TUI/shell keep compiling against
+//! the historical API. Do not read it for policy and do not revive it.
+//!
+//! Command isolation is owned by `aster-core`'s `sandbox` module, whose native
+//! adapter wraps **ksandbox**. Permission profile intersection and the stable
+//! `sandbox.violation.*` codes live there too
+//! (`crates/code/core/src/sandbox/permission_profile.rs`).
 
 #![forbid(unsafe_code)]
 
@@ -126,6 +133,7 @@ pub fn profile_name() -> Option<&'static str> {
     None
 }
 
+/// No-op: violations are reported by `aster-core` as `sandbox.violation.*` codes.
 pub fn log_violation(_target: &str, _operation: &str) {}
 
 pub fn flush() {}
@@ -141,10 +149,7 @@ pub fn verify_hook_write_deny_enforced() -> Result<(), String> {
     Ok(())
 }
 
-pub fn verify_read_deny_enforced(
-    _profile: &ProfileName,
-    _workspace: &Path,
-) -> Result<(), String> {
+pub fn verify_read_deny_enforced(_profile: &ProfileName, _workspace: &Path) -> Result<(), String> {
     Ok(())
 }
 

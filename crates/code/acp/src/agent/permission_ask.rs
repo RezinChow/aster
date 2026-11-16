@@ -288,6 +288,12 @@ impl AsterCodeAgent {
         let Some(client) = client else {
             return false;
         };
+        // P2-10 Permission channel: ledger spans the host HITL, not the hook gate.
+        let elicitation_id = aster_core::elicitation::permission_id(session_id.0.as_ref(), tool_id);
+        let _ = aster_core::elicitation::begin(
+            &elicitation_id,
+            aster_core::elicitation::ElicitationChannel::Permission,
+        );
         let ask = client.request_permission(request);
         let response = match tokio::time::timeout(ask_deadline(), ask).await {
             Ok(result) => result,
@@ -299,12 +305,24 @@ impl AsterCodeAgent {
                     tool = tool_name,
                     "permission ask timed out unanswered; denying"
                 );
+                let _ = aster_core::elicitation::cancel(&elicitation_id);
                 return false;
             }
         };
         match response {
             Ok(response) => {
                 let approved = permission_response_approved(&response);
+                if approved {
+                    let answer = match &response.outcome {
+                        acp::RequestPermissionOutcome::Selected(selected) => {
+                            selected.option_id.0.as_ref()
+                        }
+                        _ => "approved",
+                    };
+                    let _ = aster_core::elicitation::resolve(&elicitation_id, answer);
+                } else {
+                    let _ = aster_core::elicitation::cancel(&elicitation_id);
+                }
                 if approved && permission_response_always(&response) && tool_name == "bash" {
                     let command = args
                         .get("command")
@@ -324,7 +342,10 @@ impl AsterCodeAgent {
                 }
                 approved
             }
-            Err(_) => false,
+            Err(_) => {
+                let _ = aster_core::elicitation::cancel(&elicitation_id);
+                false
+            }
         }
     }
 

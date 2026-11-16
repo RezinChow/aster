@@ -1,0 +1,65 @@
+{
+  "schema": "kstudio.workflow-template.v1",
+  "id": "parallel-lanes-example",
+  "title": "并行席位示例（ARIL · 未绑定）",
+  "description": "编制席位用 ARIL 单字母；智能体/模型/环境由用户在实例中绑定（呼号层）。法则：docs/agent-role-id-law.md · 避冲突：docs/assignment-conflict-avoidance.md",
+  "evidence_glob": null,
+  "roles": [
+    {
+      "id": "O",
+      "title": "Conductor / 指挥",
+      "duty": "orchestrate",
+      "write_policy": "orchestrate_only",
+      "prompt_path": null,
+      "branch_hint": null,
+      "depends_on": []
+    },
+    {
+      "id": "B",
+      "title": "Builder / 主攻",
+      "duty": "implement",
+      "prompt_path": null,
+      "branch_hint": null,
+      "escalates_to": "I",
+      "depends_on": []
+    },
+    {
+      "id": "R",
+      "title": "Remote / 侧翼",
+      "duty": "implement_remote",
+      "prompt_path": null,
+      "escalates_to": "I",
+      "depends_on": []
+    },
+    {
+      "id": "M",
+      "title": "Merge / 会合",
+      "duty": "merge_verify",
+      "prompt_path": null,
+      "depends_on": ["B", "R"]
+    },
+    {
+      "id": "I",
+      "title": "Investigator / 研究员",
+      "duty": "hard_case",
+      "prompt_path": null,
+      "depends_on": [],
+      "aliases": ["H"]
+    },
+    {
+      "id": "S",
+      "title": "Chief of Staff / 参谋长",
+      "duty": "after_action_review",
+      "write_policy": "docs_ok",
+      "prompt_path": null,
+      "depends_on": ["B", "R"]
+    },
+    {
+      "id": "D",
+      "title": "Docs / 史政",
+      "duty": "docs_goals",
+      "prompt_path": null,
+      "depends_on": []
+    }
+  ]
+}

@@ -1918,10 +1918,7 @@ mod tests {
         let windows = &["windows-x86_64"];
         let windows_releases = [libkrun.clone(), product.clone()];
         let windows_choice = choose_release(&windows_releases, windows, "kbox").unwrap();
-        assert_eq!(
-            windows_choice.asset.name,
-            "kbox-v3.3.0-windows-x86_64.zip"
-        );
+        assert_eq!(windows_choice.asset.name, "kbox-v3.3.0-windows-x86_64.zip");
         let windows_libkrun_only = [libkrun];
         let windows_libkrun = match choose_release(&windows_libkrun_only, windows, "kbox") {
             Ok(choice) => panic!("selected {}", choice.asset.name),
@@ -1932,10 +1929,7 @@ mod tests {
         let linux = &["linux-arm64"];
         let linux_releases = [product];
         let linux_choice = choose_release(&linux_releases, linux, "kbox").unwrap();
-        assert_eq!(
-            linux_choice.asset.name,
-            "kbox-v3.3.0-linux-arm64.tar.gz"
-        );
+        assert_eq!(linux_choice.asset.name, "kbox-v3.3.0-linux-arm64.tar.gz");
     }
 
     #[test]
@@ -1956,14 +1950,10 @@ mod tests {
         let archive = tar_gz_files(&[
             ("kbox-v3.3.0-macos-arm64/kbox", script),
             ("kbox-v3.3.0-macos-arm64/kbox-shim", b"shim"),
-            (
-                "kbox-v3.3.0-macos-arm64/kbox-guest-init",
-                b"guest-init",
-            ),
+            ("kbox-v3.3.0-macos-arm64/kbox-guest-init", b"guest-init"),
             ("kbox-v3.3.0-macos-arm64/lib/libkrun.dylib", b"libkrun"),
         ]);
-        let extracted =
-            extract_tree("kbox-v3.3.0-macos-arm64.tar.gz", &archive, "kbox").unwrap();
+        let extracted = extract_tree("kbox-v3.3.0-macos-arm64.tar.gz", &archive, "kbox").unwrap();
         assert_eq!(extracted.executable, script);
         let mut paths: Vec<&str> = extracted
             .companions
@@ -1973,11 +1963,7 @@ mod tests {
         paths.sort_unstable();
         assert_eq!(
             paths,
-            vec![
-                "kbox-guest-init",
-                "kbox-shim",
-                "lib/libkrun.dylib",
-            ]
+            vec!["kbox-guest-init", "kbox-shim", "lib/libkrun.dylib",]
         );
     }
 
@@ -1987,10 +1973,7 @@ mod tests {
         let archive = tar_gz_files(&[
             ("kbox-v3.3.0-macos-arm64/kbox", script),
             ("kbox-v3.3.0-macos-arm64/kbox-shim", b"shim"),
-            (
-                "kbox-v3.3.0-macos-arm64/kbox-guest-init",
-                b"guest-init",
-            ),
+            ("kbox-v3.3.0-macos-arm64/kbox-guest-init", b"guest-init"),
             ("kbox-v3.3.0-macos-arm64/lib/libkrun.dylib", b"libkrun"),
         ]);
         let digest = hex_encode(&Sha256::digest(&archive));
@@ -2149,8 +2132,7 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
         assert!(
-            text.lines()
-                .any(|line| line.starts_with("kbox version ")),
+            text.lines().any(|line| line.starts_with("kbox version ")),
             "{text}"
         );
         store.remove_sync("kbox").unwrap();
@@ -2170,10 +2152,7 @@ mod tests {
 
     #[test]
     fn kbox_without_a_checksum_is_refused() {
-        let archive = tar_gz(
-            "kbox",
-            b"#!/bin/sh\nprintf '%s\\n' 'kbox version 3.3.0'\n",
-        );
+        let archive = tar_gz("kbox", b"#!/bin/sh\nprintf '%s\\n' 'kbox version 3.3.0'\n");
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         let listed = serde_json::json!([

@@ -207,7 +207,7 @@ impl AsterCodeAgent {
             fields = fields.raw_input(raw_input);
         }
         if let Some(raw_output) = tool_publication_output(name, metadata, exit_code)
-            .or_else(|| tool_raw_output(name, args, output, exit_code))
+            .or_else(|| tool_raw_output(name, args, output, exit_code, metadata))
         {
             fields = fields.raw_output(raw_output);
         }

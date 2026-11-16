@@ -49,6 +49,26 @@ pub fn begin(
     options: &[String],
     allow_free_text: bool,
 ) -> Result<UserQuestionV1, AskUserError> {
+    begin_on_channel(
+        run_id,
+        question_id,
+        question,
+        options,
+        allow_free_text,
+        crate::elicitation::ElicitationChannel::AskUser,
+    )
+}
+
+/// Same as [`begin`], tagging the elicitation ledger with an explicit channel
+/// (AskUser vs Form) so concurrent host surfaces do not cross-label.
+pub fn begin_on_channel(
+    run_id: &str,
+    question_id: &str,
+    question: &str,
+    options: &[String],
+    allow_free_text: bool,
+    channel: crate::elicitation::ElicitationChannel,
+) -> Result<UserQuestionV1, AskUserError> {
     if question.trim().is_empty() {
         return Err(AskUserError::Invalid("question is required"));
     }
@@ -63,13 +83,15 @@ pub fn begin(
     *count += 1;
     let sequence = *count;
     drop(counts);
-    Ok(UserQuestionV1 {
+    let question = UserQuestionV1 {
         schema: USER_QUESTION_SCHEMA.to_string(),
         question_id: format!("{question_id}-{sequence}"),
         question: question.to_string(),
         options: options.to_vec(),
         allow_free_text,
-    })
+    };
+    let _ = crate::elicitation::begin(&question.question_id, channel);
+    Ok(question)
 }
 
 fn pending_answers() -> &'static Mutex<HashMap<String, String>> {
@@ -93,6 +115,7 @@ pub fn answer(question_id: &str, text: &str) -> bool {
         .lock()
         .expect("ask-user answers")
         .insert(question_id.to_string(), text.to_string());
+    let _ = crate::elicitation::resolve(question_id, text);
     answer_notify().notify_waiters();
     false
 }
@@ -112,17 +135,22 @@ pub async fn wait_for_answer(
             return Some(text);
         }
         if cancel.is_cancelled() {
+            let _ = crate::elicitation::cancel(question_id);
             return None;
         }
         tokio::select! {
             _ = notified => {}
-            _ = cancel.cancelled() => return None,
+            _ = cancel.cancelled() => {
+                let _ = crate::elicitation::cancel(question_id);
+                return None;
+            }
         }
     }
 }
 
 /// Cancellation no longer synthesizes an unanswered result.
-pub fn cancel(_question_id: &str) -> bool {
+pub fn cancel(question_id: &str) -> bool {
+    let _ = crate::elicitation::cancel(question_id);
     false
 }
 
