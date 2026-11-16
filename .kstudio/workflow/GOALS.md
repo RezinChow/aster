@@ -13,9 +13,9 @@ Updated: 2026-11-16 · by: S via /k-goal · status: **locked**
 ## Near-term hard goals
 
 1. Codex→Aster 机制吸收清单（排序 · 路径映射 · 可验证完成定义）— **wave-locked**（S）；证据齐；≠产品 Pass。
-2. **本波首批已落地（待 commit）**：按锁定清单 **P0-1…P0-4** 均有可复跑证据；≠产品 Pass；门禁绿 alone ≠ 日常稳定使用证明。
-3. **受阻（待用户授权）**：将已吸收机制推进到用户可日常稳定使用的发布/通道水位（需 commit/推送/发布契约动作；`/k-yolo` 不自授）。
-4. **吸收清单 P0–P2 均已落地（待 commit）**：可复跑证据齐；生产路径接线（hooks/forced_layer/elicitation）已做；≠产品 Pass。
+2. **P0–P2 吸收 + 生产接线已落地并进仓**：可复跑证据齐；hooks/forced_layer/elicitation 等接线在 tip；≠产品 Pass。
+3. **发布水位已推到通道（本命名 YOLO）**：`aster-cli-v0.3.9` + `aster-acp-v9.2.7` 已发布；`aster-cli-stable` → `0.3.9`；证据 `docs/evidence/code/2026-11-16-cli-0.3.9-acp-9.2.7-release/OUTCOME.md`。用户侧 `aster update`/重装后的日常稳定使用仍须可复跑证明；≠产品 Pass。
+4. Studio 桌面版 gitlink / 桌面 Release 未随本 tip 同步（本切片范围外）。
 
 ## Non-goals
 

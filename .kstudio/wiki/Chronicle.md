@@ -91,3 +91,4 @@
 - B：只读扫描 `openai/codex`（临时 clone `/tmp/openai-codex` @ `5cb38e7`）→ `.kstudio/evidence/T2026-11-16-codex-scan/`
 - D：合成排序吸收清单 → [Codex-Aster-Absorption.md](Codex-Aster-Absorption.md) + `.kstudio/evidence/T2026-11-16-codex-absorb/`
 - 未记产品 Pass
+- 2026-11-16 · published aster-cli 0.3.9 / aster-acp 9.2.7 @ 22856ef33; aster-cli-stable→0.3.9 (named YOLO wrap+release).
