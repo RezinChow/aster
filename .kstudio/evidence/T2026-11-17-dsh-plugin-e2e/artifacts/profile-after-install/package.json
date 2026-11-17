@@ -1,0 +1,15 @@
+{
+  "name": "dsh-profile-aster-e2e",
+  "private": true,
+  "dependencies": {
+    "dsh-aster-e2e-hello": "link:/Users/roylin/code/aster/.kstudio/evidence/T2026-11-17-dsh-plugin-e2e/fixture"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "dsh-aster-e2e-hello"
+      ]
+    }
+  }
+}

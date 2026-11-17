@@ -1,0 +1,11 @@
+{
+  "name": "dsh-profile-aster-e2e",
+  "private": true,
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base"
+      ]
+    }
+  }
+}

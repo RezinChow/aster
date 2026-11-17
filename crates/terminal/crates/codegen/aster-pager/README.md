@@ -34,6 +34,92 @@ src/
 - **AgentView** — one per session; owns the prompt, scrollback, tool panes, and modals
 - **PromptWidget** — text editor component with file search (`@`), slash commands (`/`), history search, and paste elements
 - **Action/Effect** — Elm-style architecture: input → Action → dispatch → Effect → state update
+- **Appearance Arc** — `AppearanceConfig` is shared with `Arc` from `AppView` through scrollback into each `BlockContext`, so the O(history) layout/render path does not deep-clone the nested theme tree (HG2)
+
+## Appearance sharing (HG2)
+
+`AppearanceConfig` (from `~/.aster/pager.toml`) is a nested tree. Hot-path
+`BlockContext` builds share one heap allocation via `Arc::clone` instead of
+deep-cloning per entry.
+
+### Ownership
+
+```
+┌──────────────────┐
+│     AppView      │  appearance: Arc<AppearanceConfig>
+└────────┬─────────┘
+         │ Arc::clone (session set / hot-reload fan-out)
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌────────┐
+│Scroll- │ │Scroll- │  appearance: Arc<…>
+│back #1 │ │back #N │  set_appearance_arc / appearance_arc()
+└───┬────┘ └───┬────┘
+    │          │
+    └────┬─────┘
+         │ with_appearance_arc → appearance_shared()
+         ▼
+┌──────────────────┐
+│  EntryRenderer   │
+└────────┬─────────┘
+         │ context_arc / ensure_cached_arc
+         ▼
+┌──────────────────┐
+│   BlockContext   │  appearance: Arc<…>
+└────────┬─────────┘
+         │ block.output / measure
+         ▼
+┌──────────────────┐
+│   RenderBlock    │
+└──────────────────┘
+```
+
+Cold paths that only have `&AppearanceConfig` still call `context(…)` /
+`ensure_cached(…)`; those wrap `Arc::new(appearance.clone())` once. Prefer the
+`*_arc` APIs when an `Arc` is already in hand.
+
+### Write path (set / hot-reload)
+
+```
+settings / pager.toml reload
+         │
+         ▼
+ AppView::set_appearance(owned AppearanceConfig)
+         │
+         ├─ Arc::new(config)          ← one deep ownership transfer
+         │
+         ├─ for each agent / subagent
+         │      ScrollbackState::set_appearance_arc(Arc::clone)
+         │           ├─ swap Arc
+         │           ├─ bidi flag
+         │           └─ invalidate layout + entry caches
+         │
+         └─ self.appearance = new Arc
+```
+
+### Read path (per-frame layout / render)
+
+```
+ScrollbackState.appearance
+         │  Arc::clone(&self.appearance)   ← O(1); field split from layout_cache mut borrow
+         ▼
+EntryRenderer::with_appearance_arc
+         │  appearance_shared()
+         ▼
+ScrollbackEntry::context_arc / ensure_cached_arc
+         │  move Arc into BlockContext
+         ▼
+RenderBlock::output(&BlockContext)
+         │
+         └─ CachedOutput / line heights
+```
+
+| Layer | Type | Role |
+|-------|------|------|
+| `AppView.appearance` | `Arc<AppearanceConfig>` | session-level handle |
+| `ScrollbackState.appearance` | `Arc<AppearanceConfig>` | per-scrollback; `set_appearance_arc` swaps |
+| `EntryRenderer` | `Option<Arc<…>>` | frame injector |
+| `BlockContext.appearance` | `Arc<AppearanceConfig>` | block render/measure context |
 
 ## Keyboard Shortcuts
 

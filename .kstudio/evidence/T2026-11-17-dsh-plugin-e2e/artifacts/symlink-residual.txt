@@ -1,0 +1,2 @@
+SYMLINK_RESIDUAL=yes
+lrwxr-xr-x@ 1 lyon  wheel  97 11月 17 20:11 /tmp/aster-dsh-e2e-rerun.llhgMd/home/profiles/aster-e2e/node_modules/dsh-aster-e2e-hello -> ../../../../../../../Users/roylin/code/aster/.kstudio/evidence/T2026-11-17-dsh-plugin-e2e/fixture

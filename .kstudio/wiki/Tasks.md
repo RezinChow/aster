@@ -6,7 +6,855 @@
 
 单人任务可自行登记；并行工作由指定的 D/O 或台账写入者汇总真实短报后，再发布最终完成报告。证据不足时保持部分完成/未验证，不列为完成。
 
-每个任务的验收证据分路径保存，不覆盖旧报告。当前源码链接可更新，历史结论以回执或快照为准；`/k-wiki` 刷新本页入口并打包实际引用的产物。
+每个任务的验收证据分路径保存，不覆盖旧报告。当前源码链接可更新，历史结论以回执或快照为准；`/wiki` 刷新本页入口并打包实际引用的产物。
+
+## T2026-11-17-dsh-plugin-e2e
+
+- **完成日期**: 2026-11-17
+- **结果**: `/k-yolo` 命名范围 — 真实 `dsh` 0.2.2-rc.1 插件 **安装 / 使用 / 卸载** E2E（hermetic `$DSH_HOME` + 官方 bundle 形 fixture）。`run.sh` 可复跑 PASS。≠ Meta Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-dsh-plugin-e2e/OUTCOME.md`
+- **验证**: `bash .kstudio/evidence/T2026-11-17-dsh-plugin-e2e/run.sh` → PASS；dump 层 / apply marker / 负向 boot
+- **限制**: remove 后可能残留 `node_modules` symlink（层与运行时已卸）；未走 DeepSeek API；≠ cordis→Core；≠ Meta Done
+
+## T2026-11-17-appview-arc-readme
+
+- **完成日期**: 2026-11-17
+- **结果**: `/go` — Appearance Arc 架构/写读路径 ASCII 图写入 `aster-pager/README.md`（与 README 既有 box 风格一致）。≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-appview-arc-readme/OUTCOME.md`
+- **验证**: `git diff --check` README
+- **限制**: ≠ HG2 Pass；≠ Meta Done
+
+## T2026-11-17-appview-appearance-arc
+
+- **完成日期**: 2026-11-17
+- **结果**: HG2 — `AppView.appearance` 共享 `Arc<AppearanceConfig>`；会话路径 `set_appearance_arc` 不再深拷贝。≠高效关。
+- **产物**: `.kstudio/evidence/T2026-11-17-appview-appearance-arc/OUTCOME.md`
+- **验证**: aster-pager `app_view` 279 passed（跳过无关 slash-gate `/init`）
+- **限制**: slash-gate 失败未修；≠ Meta Done；H2 仍 park
+
+## T2026-11-17-headed-daily-use-park
+
+- **完成日期**: 2026-11-17（park）
+- **结果**: headed/daily-use Pass **park** — 需 Studio land 或显式脏树 headed 授权 + GUI oracle；hermetic 替代≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-headed-daily-use-park/OUTCOME.md`
+- **验证**: unattended 33/33 · tui913 11/11（≠ headed）
+- **限制**: 缺 Studio commit/push 或 headed 授权；≠ Meta Done
+
+## T2026-11-17-e4-generate-object-stream
+
+- **完成日期**: 2026-11-17
+- **结果**: E4 — `generate_object` 流式省略上报 `discarded_bytes`/`stream_partial_omitted`（结果仍带全对象）。≠ E4 全关。
+- **产物**: `.kstudio/evidence/T2026-11-17-e4-generate-object-stream/OUTCOME.md`
+- **验证**: lib 1/1 · hermetic `hg2_e4_generate_object_stream` 1/1
+- **限制**: ≠ Meta Done
+
+## T2026-11-17-tui913-hermetic-reconfirm
+
+- **完成日期**: 2026-11-17
+- **结果**: `tui_913_hermetic` **11/11**。≠ headed Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-tui913-hermetic-reconfirm/OUTCOME.md`
+- **验证**: `cargo test -p aster-acp --test tui_913_hermetic`
+- **限制**: ≠ Meta Done；≠ GUI E2E
+
+## T2026-11-17-efficient-e4-c1-pack
+
+- **完成日期**: 2026-11-17
+- **结果**: hermetic 高效/E4/C1 包 **7/7**（latency/discard/json/Arc/update_plan/bm25/confine）。≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-efficient-e4-c1-pack/OUTCOME.md`
+- **验证**: verify-hermetic-perf-e2e.py ×7
+- **限制**: ≠全 pack；≠ Meta Done
+
+## T2026-11-17-e1-doc-drift-12mib
+
+- **完成日期**: 2026-11-17
+- **结果**: E1 文档漂移关闭 — audit 不再声称 wiki 仍写 4 MiB；与代码 12 MiB 一致。≠ E1 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-e1-doc-drift-12mib/OUTCOME.md`
+- **验证**: effect `MAX_RECORD_BYTES` · wiki P0-2「12 MiB」
+- **限制**: ≠ Meta Done
+
+## T2026-11-17-p7-protocol-feature-switch-stages
+
+- **完成日期**: 2026-11-17
+- **结果**: ACP `PROTOCOL.md` 叙述 `featureSwitches`/`featureSwitchStages`（HG1 可组合）。≠ Experimental 闸。
+- **产物**: `.kstudio/evidence/T2026-11-17-p7-protocol-feature-switch-stages/OUTCOME.md`
+- **验证**: PROTOCOL 章节存在；配合 `T2026-11-17-p7-feature-switch-stages`
+- **限制**: ≠ Meta Done
+
+## T2026-11-17-e4-bm25-query-discarded
+
+- **完成日期**: 2026-11-17
+- **结果**: E4 — BM25 回显查询预算上报 `query_discarded_chars`/`query_display_budget`。≠ E4 全关。
+- **产物**: `.kstudio/evidence/T2026-11-17-e4-bm25-query-discarded/OUTCOME.md`
+- **验证**: lib 1/1 · hermetic `hg2_e4_bm25_query_discarded` 1/1
+- **限制**: ≠ Meta Done
+
+## T2026-11-17-unattended-e2e-yolo-reconfirm
+
+- **完成日期**: 2026-11-17
+- **结果**: unattended_e2e hermetic **33/33** 复跑。≠日常 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-unattended-e2e-yolo-reconfirm/OUTCOME.md`
+- **验证**: verify-hermetic-perf-e2e.py `--suite unattended_e2e`
+- **限制**: ≠ headed/live-provider Pass；≠ Meta Done
+
+## T2026-11-17-hermetic-arc-e4-c1
+
+- **完成日期**: 2026-11-17
+- **结果**: hermetic pack 注册 Arc/E4/C1 三级 **3/3**。≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-hermetic-arc-e4-c1/OUTCOME.md`
+- **验证**: verify-hermetic-perf-e2e.py ×3
+- **限制**: 未重跑全 pack 默认清单
+
+## T2026-11-17-e4-update-plan-discarded
+
+- **完成日期**: 2026-11-17
+- **结果**: E4 — `update_plan` 步骤截断上报 `discarded_chars`/`step_char_budget` 元数据。≠ E4 全关。
+- **产物**: `.kstudio/evidence/T2026-11-17-e4-update-plan-discarded/OUTCOME.md`
+- **验证**: `update_plan` lib 9/9
+- **限制**: ≠ Meta Done；其它工具 E4 仍 partial
+
+## T2026-11-17-p7-feature-switch-stages
+
+- **完成日期**: 2026-11-17
+- **结果**: P7 加深 — ACP `featureSwitchStages`；`sandbox.permission_profile`/`compaction.ledger` → Stable；`tools.patch_codes` 仍 Experimental。≠全量 Experimental 闸。
+- **产物**: `.kstudio/evidence/T2026-11-17-p7-feature-switch-stages/OUTCOME.md`
+- **验证**: feature_stage 2/2 · initialize admission 1/1 · hermetic P7×2（见 OUTCOME）
+- **限制**: ≠ Meta Done；≠ call-site Experimental hard refuse
+
+## T2026-11-17-c1-verify-stub-fail-closed
+
+- **完成日期**: 2026-11-17
+- **结果**: C1 诚实刀 — `aster-confine` `verify_*` 失败关闭（稳定 stub 文案）+ `is_enforcement_authority=false`。≠ OS 隔离 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-c1-verify-stub-fail-closed/OUTCOME.md`
+- **验证**: `cargo test -p aster-confine --lib` 2/2
+- **限制**: stub 仍非执行权威；≠ Meta Done；H2 仍 park
+
+## T2026-11-17-blockcontext-appearance-arc
+
+- **完成日期**: 2026-11-17
+- **结果**: HG2 — `BlockContext`/`ScrollbackState` 共享 `Arc<AppearanceConfig>`；热路径不再深拷贝外观树；`Arc::ptr_eq` 单测绿；hg2_pager_latency 1/1。≠高效关。
+- **产物**: `.kstudio/evidence/T2026-11-17-blockcontext-appearance-arc/OUTCOME.md`
+- **验证**: aster-pager lib：ptr_eq 1 · thinking 10 · preamble 4 · entry 24 · hermetic latency 1 · fmt
+- **限制**: ≠ live latency Pass；≠ Meta Done；H2 仍 park
+
+## T2026-11-17-hermetic-e2-e8-p7-p8
+
+- **完成日期**: 2026-11-17
+- **结果**: hermetic pack 注册 E2/E8/P7/P8 四级 **4/4**。≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-hermetic-e2-e8-p7-p8/OUTCOME.md`
+- **验证**: verify-hermetic-perf-e2e.py ×4
+- **限制**: 未重跑全 pack 默认清单
+
+## T2026-11-17-efficient-yolo-reconfirm
+
+- **完成日期**: 2026-11-17
+- **结果**: HG2 efficient hermetic **4/4**（latency/json×2/discard）。≠高效关。
+- **产物**: `.kstudio/evidence/T2026-11-17-efficient-yolo-reconfirm/OUTCOME.md`
+- **验证**: verify-hermetic-perf-e2e.py
+- **限制**: ≠Pass；≠ live 字段
+
+## T2026-11-17-p7-feature-switch-enabled
+
+- **完成日期**: 2026-11-17
+- **结果**: P7 — `feature_switch_enabled`；`tools.parallel_task` **Removed**；ACP `featureSwitches`；动态注册拒绝 Removed 名。≠全量 Experimental 闸门。
+- **产物**: `.kstudio/evidence/T2026-11-17-p7-feature-switch-enabled/OUTCOME.md`
+- **验证**: feature_stage 2/2 · initialize 1/1 · dynamic refuse 1/1 · hermetic `hg2_p7_*`
+- **限制**: ≠ Meta Done
+
+## T2026-11-17-p8-permission-denial-code
+
+- **完成日期**: 2026-11-17
+- **结果**: P8 ACP permission denial 带稳定码 `permission.denied`（rawOutput）。≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-p8-permission-denial-code/OUTCOME.md`
+- **验证**: `permission_denial_raw_output_carries_stable_code` 1/1
+- **限制**: 尚未细分多种 denial 码；≠ Meta Done
+
+## T2026-11-17-e2-empty-line-refuse
+
+- **完成日期**: 2026-11-17
+- **结果**: E2 effect log 中途空行 **fail-closed**（不再静默跳过）。≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-e2-empty-line-refuse/OUTCOME.md`
+- **验证**: `empty_mid_file_line_refuses_the_whole_read` 1/1
+- **限制**: ≠ Meta Done；不修复已损生产日志
+
+## T2026-11-17-aster-eng-gitignore
+
+- **完成日期**: 2026-11-17
+- **结果**: `.gitignore` 允许跟踪 `.aster/` 工程标记，运行时（`config.acl`/sessions/memory）仍忽略。≠本仓 migrate。
+- **产物**: `.kstudio/evidence/T2026-11-17-aster-eng-gitignore/OUTCOME.md`
+- **验证**: `git check-ignore -q` 对照表
+- **限制**: 未迁 `.kstudio/`→`.aster/`；≠Pass
+
+## T2026-11-17-e8-compaction-failed-phase
+
+- **完成日期**: 2026-11-17
+- **结果**: E8 compaction ledger **Failed** 相 + ACP `auto_compact_failed`；attach 中途失败不再卡在 Started。≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-e8-compaction-failed-phase/OUTCOME.md`
+- **验证**: `mid_flight_failure_leaves_failed_not_started` 1/1
+- **限制**: soft post-target 仍 Ok；≠ Meta Done
+
+## T2026-11-17-hg6-close
+
+- **完成日期**: 2026-11-17
+- **结果**: **HG6 关**（Q13：Core 内化自动触发 + hermetic/L3 证据齐）。≠产品 Pass；≠ Meta Harness Done。
+- **产物**: `.kstudio/evidence/T2026-11-17-hg6-close/OUTCOME.md`
+- **验证**: `hg2_kburn_*` 11 suites / 18 passed；`verify-ai-eng.py --level L3` PASS
+- **限制**: 本仓现网仍 `.kstudio/`（`.aster/` 为 gitignore 运行时）；H2/headed park
+
+## T2026-11-17-shipped-tui-launch-resume-reconfirm
+
+- **完成日期**: 2026-11-17
+- **结果**: `shipped_tui_launch_resume_and_visible_commands` **1/1** 复跑通过；先前写 marker 失败判为 flake，非 `/yolo` 技能/模式撞名。
+- **产物**: `.kstudio/evidence/T2026-11-17-shipped-tui-launch-resume-reconfirm/OUTCOME.md`
+- **验证**: cargo test shipped_tui_e2e filter · 91.57s
+- **限制**: ≠headed Pass
+
+## T2026-11-17-shipped-retrieval-hermetic
+
+- **完成日期**: 2026-11-17
+- **结果**: shipped retrieval stdio **3/3**。≠Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-shipped-retrieval-hermetic/`
+- **验证**: semantic/hybrid/missing-assets
+- **限制**: 非 live 检索质量战役
+
+## T2026-11-17-shipped-tui-hermetic
+
+- **完成日期**: 2026-11-17
+- **结果**: shipped_tui hermetic 子集 **8/8**。≠headed Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-shipped-tui-hermetic/`
+- **验证**: readiness/session_wire/identity/refuse/palette/pre_analysis
+- **限制**: 未跑 real_llm / 交互全套
+
+## T2026-11-17-unattended-e2e-reconfirm
+
+- **完成日期**: 2026-11-17
+- **结果**: ACP `unattended_e2e` 全套 **33/33**。≠可信硬目标关。
+- **产物**: `.kstudio/evidence/T2026-11-17-unattended-e2e-reconfirm/OUTCOME.md`
+- **验证**: 33 passed / 0 failed / 43.46s
+- **限制**: 非 headed Studio；≠日常 Pass
+
+## T2026-11-17-efficient-latency-reconfirm
+
+- **完成日期**: 2026-11-17
+- **结果**: pager latency + JSON hermetic **3/3**。≠高效关。
+- **产物**: `.kstudio/evidence/T2026-11-17-efficient-latency-reconfirm/`
+- **验证**: hg2_pager_latency / json_serialized_len / json_update_sha256
+- **限制**: ≠Pass
+
+## T2026-11-17-hg6-core-slice-review
+
+- **完成日期**: 2026-11-17
+- **结果**: HG6 **Core 内化切片** review-ready 清单（arm/`.aster`/裸技能/helpers/E2E/L3）；**≠ HG6 关**。
+- **产物**: `.kstudio/evidence/T2026-11-17-hg6-core-slice-review/OUTCOME.md`
+- **验证**: 见 OUTCOME 绿表；`kstudio::` 18
+- **限制**: 本仓未迁 `.aster/`；H2/headed park
+
+## T2026-11-17-h2-studio-land-park
+
+- **完成日期**: 2026-11-17
+- **结果**: H2 **park** — `studio_land_guard` dirty（需 Studio commit/push 授权）
+- **产物**: `.kstudio/evidence/T2026-11-17-h2-studio-land-park/OUTCOME.md`
+- **验证**: `studio_land_guard.py check` refused dirty
+- **限制**: 未 commit/push Studio
+
+## T2026-11-17-l3-bare-skills-gate
+
+- **完成日期**: 2026-11-17
+- **结果**: L3 闸门改认裸技能名；`verify-ai-eng.py --level L3` **PASS**。≠产品 Pass。
+- **产物**: `.kstudio/workflow/verify-ai-eng.py`；证据 `T2026-11-17-l3-bare-skills-gate`
+- **验证**: L3 PASS after; FAIL before (12 k- prefix)
+- **限制**: L3≠产品 Pass
+
+## T2026-11-17-efficient-hermetic-reconfirm
+
+- **完成日期**: 2026-11-17
+- **结果**: 高效轴 hermetic 复跑 discard/token + helpers **4/4**。≠高效硬目标关。
+- **产物**: `.kstudio/evidence/T2026-11-17-efficient-hermetic-reconfirm/`
+- **验证**: hg2_core_discard / acp_token / web_search_discard / kburn_workflow_helpers
+- **限制**: 非 live 时延战役；≠Pass
+
+## T2026-11-17-kburn-workflow-helpers
+
+- **完成日期**: 2026-11-17
+- **结果**: Core factory 内嵌 eng-root 可移植 `sitrep`/`progress-scan`/`sync-k-skills`/`print-paste`；materialize 种子；`/kburn` 报告 helpers。≠ HG6 关。
+- **产物**: `factory/.../workflow/*`；`KSTUDIO_FACTORY_SEED_PATHS`；证据 `T2026-11-17-kburn-workflow-helpers`
+- **验证**: materialize helpers 1；sitrep smoke `.aster/`；ACP coverage 1
+- **限制**: 本仓现网仍用 `.kstudio/workflow/` 副本
+
+## T2026-11-17-conductor-e2e
+
+- **完成日期**: 2026-11-17
+- **结果**: YOLO 命名范围「规划测试用例并完成端到端测试」— TESTPLAN C1–C10 + hermetic `hg2_kburn_*` **10/10**。≠产品 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-conductor-e2e/{TESTPLAN,OUTCOME,hermetic-summary}.md|json`；`project.acl` 入 factory seeds；sitrep 裸技能名
+- **验证**: `kstudio::` 17；hermetic 10 suites / 17 passed / 0 failed
+- **限制**: 非 headed GUI；非 Meta Harness Done
+
+## T2026-11-17-conductor-acl-bare-skills
+
+- **完成日期**: 2026-11-17
+- **结果**: 工程 `project.acl`（替 `.kcl`）；12 技能去 `k-`（`/init`…`/yolo`）；`skills.mdc`。≠产品 Pass。
+- **产物**: `KBURN_SKILL_NAMES` 裸名；`.kstudio/skills/{init,…}`；factory/MANIFEST；证据 `T2026-11-17-conductor-acl-bare-skills`
+- **验证**: `kstudio::` 17；ACP 4；`sync-k-skills.py --check` OK；`load-config.py` 读 `project.acl`
+- **限制**: 历史 `T*-k-*` 证据目录未改名
+
+## T2026-11-17-kburn-aster-root
+
+- **完成日期**: 2026-11-17
+- **结果**: Q14 更正 — 工程树规范 **`.aster/`**（非 `.aster/kstudio`）；遗留 `.kstudio/` 兼容；仅 `config.acl` 不 auto-arm；skill root 末位 `.aster/skills`。≠产品 Pass。
+- **产物**: `kstudio::{canonical,legacy,aster_engineering_present}`；`agent_skill_roots`；`.kstudio/evidence/T2026-11-17-kburn-aster-root/OUTCOME.md`（supersedes nest）
+- **验证**: `kstudio::` 17；skill roots 1；ACP materialize/order/watched；hermetic `hg2_kburn_aster_root` 1/1
+- **限制**: 未迁移本仓现网 `.kstudio/` 目录
+
+## T2026-11-17-kburn-auto-arm
+
+- **完成日期**: 2026-11-17
+- **结果**: Q13 — Core `arm_kburn_runtime` 会话自动触发（有工程根才 materialize+加载）；TUI/Studio UI 非目标。≠产品 Pass。
+- **产物**: `kstudio::arm_kburn_runtime`；`capabilities::build_effective_skill_registry`；GOALS HG6；`.kstudio/evidence/T2026-11-17-kburn-auto-arm/OUTCOME.md`
+- **验证**: arm 2 passed；session skill_dirs 2 passed
+- **限制**: 无工程根不偷建；HG6 全关仍待证据齐
+
+## T2026-11-17-kburn-p0-factory-bundle
+
+- **完成日期**: 2026-11-17
+- **结果**: Core 内嵌 kburn factory 子集 + `materialize_kstudio_factory_seeds`；ACP `/kburn materialize`。≠产品 Pass；≠ HG6。
+- **产物**: `crates/code/core/src/kstudio/factory/`；`inspection_commands`；`.kstudio/evidence/T2026-11-17-kburn-p0-factory-bundle/OUTCOME.md`
+- **验证**: Core bundled/materialize；ACP format_kburn_report_materialize；hermetic `hg2_kburn_materialize`+`hg2_kburn_factory_bundle` 2/2
+- **限制**: 未嵌 12×SKILL 正文；Studio 未接；未跑满 hermetic-44 全量墙钟
+
+## T2026-11-17-kburn-p1-slash
+
+- **完成日期**: 2026-11-17
+- **结果**: ACP `/kburn` 组合 Core coverage；命令表公布。≠产品 Pass；≠ HG6。
+- **产物**: `inspection_commands.rs` · `commands.rs`；`.kstudio/evidence/T2026-11-17-kburn-p1-slash/OUTCOME.md`
+- **验证**: format + hermetic `hg2_kburn_slash_coverage` 1/1
+- **限制**: Studio UI 未做
+
+## T2026-11-17-kburn-p0-readme-skip
+
+- **完成日期**: 2026-11-17
+- **结果**: 技能根旁路 `README.md` 等不再作候选；`.kstudio/skills` 整树加载无假 Parse 错。≠产品 Pass。
+- **产物**: `skills/registry.rs`；`.kstudio/evidence/T2026-11-17-kburn-p0-readme-skip/OUTCOME.md`
+- **验证**: `test_load_from_dir`；hermetic `hg2_kburn_readme_skip`
+- **限制**: 仅列名 stem 跳过
+
+## T2026-11-17-kburn-p0-layout-contract
+
+- **完成日期**: 2026-11-17
+- **结果**: Vendored layout v1 JSON + `kburn_skill_coverage` + ACP compose 测 + hermetic graders（pack 声明 37→41）。≠产品 Pass；≠ HG6。
+- **产物**: `crates/code/core/src/kstudio/`；`scripts/verify-hermetic-perf-e2e.py`；`.kstudio/evidence/T2026-11-17-kburn-p0-layout-contract/OUTCOME.md`
+- **验证**: Core `kstudio::` 9；hermetic kburn 4 suites
+- **限制**: 未跑满 41 全量墙钟；工厂 skeleton 未 vendoring
+
+## T2026-11-17-kburn-p0-skill-names
+
+- **完成日期**: 2026-11-17
+- **结果**: Core `KBURN_SKILL_NAMES`（12）+ `load_kburn_skills` + MANIFEST 读。≠产品 Pass；≠ HG6 关闭。
+- **产物**: `crates/code/core/src/kstudio/`；`.kstudio/evidence/T2026-11-17-kburn-p0-skill-names/OUTCOME.md`；[Kburn-Aster-Absorption.md](Kburn-Aster-Absorption.md)
+- **验证**: `cargo test -p aster-core --lib kstudio::`（后扩至 7+）
+- **限制**: 未 vendoring SKILL 正文；宿主组合面未做
+
+## T2026-11-17-kburn-p0-layout-dirs
+
+- **完成日期**: 2026-11-17
+- **结果**: Core `KstudioCoreDirs` layout-v1 默认路径 API。≠产品 Pass。
+- **产物**: `kstudio.rs`；`.kstudio/evidence/T2026-11-17-kburn-p0-layout-dirs/OUTCOME.md`
+- **验证**: layout + skill-root align 2 passed（后并入 kstudio:: 4）
+- **限制**: 未嵌工厂资产 / schema 校验器
+
+## T2026-11-17-kburn-p0-kstudio-skill-root
+
+- **完成日期**: 2026-11-17
+- **结果**: `.kstudio/skills` 进 `agent_skill_roots`（末位）+ ACP watch/load。kburn P0-1。≠产品 Pass。
+- **产物**: `skills/mod.rs`；`acp/agent.rs` + tests；`.kstudio/evidence/T2026-11-17-kburn-p0-kstudio-skill-root/OUTCOME.md`
+- **验证**: Core 2 + ACP project_kstudio/workspace/watched 各 1 passed
+- **限制**: ≠ HG6 全关闭
+
+## T2026-11-17-h7-cancel-bg-toast
+
+- **完成日期**: 2026-11-17
+- **结果**: CancelComplete 时若仍有 Running bg_tasks 则 toast 诚实提示。≠产品 Pass。
+- **产物**: `dispatch/task_result.rs`；`.kstudio/evidence/T2026-11-17-h7-cancel-bg-toast/OUTCOME.md`
+- **验证**: `cancel_complete_toasts_when_background_tasks_still_run` 1 passed
+- **限制**: 未改 soft-Stop 不杀 bg 策略
+
+## T2026-11-17-a4-skill-override-report
+
+- **完成日期**: 2026-11-17
+- **结果**: `SkillLoadReport.overrides` 可枚举同名后写覆盖（later-wins 不变）。≠产品 Pass。
+- **产物**: `skills/registry.rs`；`.kstudio/evidence/T2026-11-17-a4-skill-override-report/OUTCOME.md`
+- **验证**: `test_load_from_dir_duplicate_name_overrides_previous_definition` 1 passed
+- **限制**: 未改信任序
+
+## T2026-11-17-hermetic-34-tui-chrome
+
+- **完成日期**: 2026-11-17
+- **结果**: hermetic pack +3 chrome graders（`hg2_tui_*` / `hg2_acp_stream_start_meta`）；三套单独跑 3/0。pack 31→34。≠产品 Pass。
+- **产物**: `scripts/verify-hermetic-perf-e2e.py`；`.kstudio/evidence/T2026-11-17-hermetic-34-tui-chrome/OUTCOME.md`
+- **验证**: 三 suite exit 0
+- **限制**: 本 OUTCOME 未跑满 34 套全量墙钟
+
+## T2026-11-17-a5-nested-task-deny
+
+- **完成日期**: 2026-11-17
+- **结果**: scoped_tools 名 `task` 硬拒绝（A5）。≠产品 Pass。
+- **产物**: `tools/task.rs`；`.kstudio/evidence/T2026-11-17-a5-nested-task-deny/OUTCOME.md`
+- **验证**: `scoped_tools_reject_nested_task_name` 1 passed
+- **限制**: MCP 其它别名未扫
+
+## T2026-11-17-headers-timeout-meta
+
+- **完成日期**: 2026-11-17
+- **结果**: ACP meta 打 `streamHeadersTimeoutMs`（默认仍 120s）。≠产品 Pass。
+- **产物**: `llm/http.rs` · `emit.rs`；`.kstudio/evidence/T2026-11-17-headers-timeout-meta/OUTCOME.md`
+- **验证**: `notification_meta_stamps_turn_and_stream_start_ms` 含该键
+- **限制**: pager UI 未渲染该字段
+
+## T2026-11-17-tui-first-token-chrome
+
+- **完成日期**: 2026-11-17
+- **结果**: 简单 prompt 发出后立即 Thinking chrome；ACP 打 `streamStartMs`/`turnStartMs`；回合开始 meta-only thought。≠产品 Pass。
+- **产物**: `aster-pager` start_turn/tracker；`aster-acp` emit/protocol；`.kstudio/evidence/T2026-11-17-tui-first-token-chrome/OUTCOME.md`
+- **验证**: `first_stream_start_pre_creates_thinking` · `start_turn_pre_creates_thinking_chrome` · `notification_meta_stamps_turn_and_stream_start_ms` 各 1 passed
+- **限制**: headed/live 慢模型 E2E 未跑；未改 headers 120s 默认；≠ Meta Harness Done
+
+## T2026-11-17-hermetic-31-h6-grader
+
+- **完成日期**: 2026-11-17
+- **结果**: hermetic pack **31/262/0**（+`hg2_h6_toolcallid`）。≠产品 Pass。
+- **产物**: `scripts/verify-hermetic-perf-e2e.py`；`.kstudio/evidence/T2026-11-17-hermetic-31-h6-grader/OUTCOME.md`
+- **验证**: full pack failed_suites []
+- **限制**: named YOLO ≠Done
+
+## T2026-11-17-hermetic-30-reconfirm
+
+- **完成日期**: 2026-11-17
+- **结果**: hermetic-perf-e2e **30 套 261/0**（含 `hg2_shell_merge_meta`）。≠产品 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-17-hermetic-30-reconfirm/OUTCOME.md`
+- **验证**: `python3 scripts/verify-hermetic-perf-e2e.py` → failed_suites []
+- **限制**: named YOLO ≠Done
+
+## T2026-11-17-h6-tooluseid-plumb
+
+- **完成日期**: 2026-11-17
+- **结果**: H5/H6 — ACP spawn parent `toolCallId` 进 wire；Studio 映射 `toolUseId`；修正 `subagent_type`→`taskType`/`subagentType` 错位，board↔footer 可去重。≠产品 Pass。
+- **产物**: `crates/code/acp/src/agent/{rs,turn,emit,attempt}.rs`；`apps/studio/src-tauri/.../stream.rs`；`AgentSessionBackgroundTasks.tsx`；`.kstudio/evidence/T2026-11-17-h6-tooluseid-plumb/OUTCOME.md`
+- **验证**: `emit::tests::subagent_finished_wire_copies_parent_tool_call_id` ok；`usage_meta_tests::spawn_parent_tools…` ok；Studio `cargo check --lib` Finished
+- **限制**: Studio 全量 lib test 仍缺 fixture；H2 push/gitlink park；headed GUI 未跑；named YOLO ≠Done
+
+## T2026-11-16-porcelain-sha-json-feed
+
+- **完成日期**: 2026-11-16
+- **结果**: porcelain stamp/entry digest 流式写入 Sha256，免 `to_vec`。≠产品 Pass。
+- **产物**: `porcelain.rs`；`.kstudio/evidence/T2026-11-16-porcelain-sha-json-feed/OUTCOME.md`
+- **验证**: porcelain **59/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-batch-ref-borrow-walk
+
+- **完成日期**: 2026-11-16
+- **结果**: batch `$ref` 路径借用 walk，仅叶节点 clone。≠产品 Pass。
+- **产物**: `batch.rs`；`.kstudio/evidence/T2026-11-16-batch-ref-borrow-walk/OUTCOME.md`
+- **验证**: batch **27/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-grep-discarded-items
+
+- **完成日期**: 2026-11-16
+- **结果**: grep search meta `discarded_items`（完整=0；截断=null）。≠ E4 Done。
+- **产物**: `grep.rs`；`.kstudio/evidence/T2026-11-16-grep-discarded-items/OUTCOME.md`
+- **验证**: grep **21/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-registry-schema-fingerprint
+
+- **完成日期**: 2026-11-16
+- **结果**: tool schema 校验一次 `to_writer` 同时计长度+指纹，免 `Vec`。≠产品 Pass。
+- **产物**: `tools/registry.rs`；`.kstudio/evidence/T2026-11-16-registry-schema-fingerprint/OUTCOME.md`
+- **验证**: registry **22/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-effect-log-json-len
+
+- **完成日期**: 2026-11-16
+- **结果**: effect `byte_limit_diagnostic` 免 `to_vec` 计字节。≠产品 Pass。
+- **产物**: `crates/effect/src/log.rs`；`.kstudio/evidence/T2026-11-16-effect-log-json-len/OUTCOME.md`
+- **验证**: aster-effect log **50/0**（1 ignored）
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-acp-progress-move
+
+- **完成日期**: 2026-11-16
+- **结果**: `subagent_finished_update` 按值拿走 ChildProgress，command/disposition move 进 wire。≠产品 Pass。
+- **产物**: `emit.rs` · `agent.rs`；`.kstudio/evidence/T2026-11-16-acp-progress-move/OUTCOME.md`
+- **验证**: bash_terminal_events **1/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-hermetic-28-stream-snapshot
+
+- **完成日期**: 2026-11-16
+- **结果**: hermetic +`hg2_stream_toolcall_snapshot`（28 套）。≠ HG2 Pass。
+- **产物**: `streaming.rs`；`scripts/verify-hermetic-perf-e2e.py`；`.kstudio/evidence/T2026-11-16-hermetic-28-stream-snapshot/OUTCOME.md`
+- **验证**: suite **1/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-hermetic-27-web-search-discard
+
+- **完成日期**: 2026-11-16
+- **结果**: hermetic +`hg2_web_search_discard`（27 套）。≠ HG2 Pass。
+- **产物**: `scripts/verify-hermetic-perf-e2e.py`；web_search tests；`.kstudio/evidence/T2026-11-16-hermetic-27-web-search-discard/OUTCOME.md`
+- **验证**: suite **1/0**；full 见 STATUS
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-json-serialized-len
+
+- **完成日期**: 2026-11-16
+- **结果**: `json_serialized_len` 扩到 web_search/ACP/batch/porcelain/gemini/generate_object/task/structured；hermetic **26 套 257/0**。≠产品 Pass。
+- **产物**: `byte_budget.rs` + 上述调用点；`.kstudio/evidence/T2026-11-16-json-serialized-len/OUTCOME.md`
+- **验证**: hg2 **1/0**；batch **27/0**；gemini **21/0**；structured **123/0**；full pack **26/257/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-hermetic-25-cancel-banner
+
+- **完成日期**: 2026-11-16
+- **结果**: hermetic pack +`hg2_cancel_banner_line`（25 套 **256/0**）。≠ HG2 Pass。
+- **产物**: `scripts/verify-hermetic-perf-e2e.py`；`.kstudio/evidence/T2026-11-16-hermetic-25-cancel-banner/OUTCOME.md`
+- **验证**: suite **1/0**；full pack **25/256/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-stream-toolcall-get-mut
+
+- **完成日期**: 2026-11-16
+- **结果**: streaming `apply_tool_call_snapshot` 用 get_mut，免 bound 三元组 clone+reinsert。≠产品 Pass。
+- **产物**: `llm/openai/streaming.rs`；`.kstudio/evidence/T2026-11-16-stream-toolcall-get-mut/OUTCOME.md`
+- **验证**: empty_name_tests **8/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-web-search-discarded
+
+- **完成日期**: 2026-11-16
+- **结果**: web_search JSON `discarded_chars` + meta `discarded_items`。≠ E4 Done。
+- **产物**: `web_search.rs`；`.kstudio/evidence/T2026-11-16-web-search-discarded/OUTCOME.md`
+- **验证**: json_search_result_bounds **1/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-bm25-discarded-items
+
+- **完成日期**: 2026-11-16
+- **结果**: BM25 candidate meta 加 `discarded_items`。≠ E4 Done。
+- **产物**: `bm25/mod.rs`；`.kstudio/evidence/T2026-11-16-bm25-discarded-items/OUTCOME.md`
+- **验证**: bm25 **17/0**；hermetic **24 套 255/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-hermetic-hg2-read-batch-fit-len
+
+- **完成日期**: 2026-11-16
+- **结果**: hermetic pack +`hg2_read_batch_fit_len`（24 套）。≠ HG2 Pass。
+- **产物**: `scripts/verify-hermetic-perf-e2e.py`；`.kstudio/evidence/T2026-11-16-hermetic-hg2-lib-suites/OUTCOME.md`
+- **验证**: suite **1/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-search-snippet-discarded-chars
+
+- **完成日期**: 2026-11-16
+- **结果**: SourceSnippet + hybrid/semantic meta 加 `discarded_chars`。≠ E4 Done。
+- **产物**: `search_snippet.rs`；`.kstudio/evidence/T2026-11-16-search-snippet-discarded-chars/OUTCOME.md`
+- **验证**: search_snippet 5；hybrid/semantic 见 OUTCOME
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-tui-cancel-banner-line
+
+- **完成日期**: 2026-11-16
+- **结果**: `CancelledBy::banner_line` 静态臂；estimate/message 免拼 period String。≠产品 Pass。
+- **产物**: `cancel_cause.rs`；`.kstudio/evidence/T2026-11-16-tui-cancel-banner-line/OUTCOME.md`
+- **验证**: aster-pager cancel+hg2 **6/0**；hermetic **23 套 254/0**
+- **限制**: BlockContext Arc 仍 park；named YOLO ≠Done
+
+## T2026-11-16-hermetic-hg2-lib-suites
+
+- **完成日期**: 2026-11-16
+- **结果**: hermetic pack 纳入 3 个 HG2 lib grader（core discard · acp token · pager latency）。套件 **20→23**。≠ HG2 Pass。
+- **产物**: `scripts/verify-hermetic-perf-e2e.py`；`.kstudio/evidence/T2026-11-16-hermetic-hg2-lib-suites/OUTCOME.md`
+- **验证**: 3 lib suites **3/0**
+- **限制**: named YOLO ≠Done；HG2 graders ≠ HG2 Pass
+
+## T2026-11-16-plan-replay-running-fail-closed
+
+- **完成日期**: 2026-11-16
+- **结果**: plan replay 测例对齐 resume 对 checkpoint-running 子任务 fail-closed→stopped；transcript replay 走 prepared_raw_input。≠产品 Pass。
+- **产物**: `plan_replay_tests.rs` · `extensions.rs`；`.kstudio/evidence/T2026-11-16-plan-replay-running-fail-closed/OUTCOME.md`
+- **验证**: extensions::plan_replay **4/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-read-batch-fit-len
+
+- **完成日期**: 2026-11-16
+- **结果**: batch 预算探测改 length-only，免每次 binary-search clone segments。≠产品 Pass。
+- **产物**: `tools/builtin/read.rs`；`.kstudio/evidence/T2026-11-16-read-batch-fit-len/OUTCOME.md`
+- **验证**: batch_response_len_matches 1；batch_tests 8；hermetic subset tui_913+unattended **44/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-deserialize-migration-acp
+
+- **完成日期**: 2026-11-16
+- **结果**: migration / document_read / plugin_mcp / session_snapshot / event_protocol / inspection `deserialize(&Value)` 免 clone。≠产品 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-16-deserialize-migration-acp/OUTCOME.md`
+- **验证**: core 16 · acp 35/0 (2 ignored)；hermetic **20 套 251/0**
+- **限制**: named YOLO ≠Done；%≠Pass
+
+## T2026-11-16-read-batch-discarded
+
+- **完成日期**: 2026-11-16
+- **结果**: read 单页 + batch meta 加 `discarded_bytes`/`discarded_items`（E4）。≠ E4 Done。
+- **产物**: `tools/builtin/read.rs`；`.kstudio/evidence/T2026-11-16-read-batch-discarded/OUTCOME.md`
+- **验证**: read batch/line_endings 12；hermetic **251/0**
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-artifact-discarded-bytes
+
+- **完成日期**: 2026-11-16
+- **结果**: 共享 tool-output artifact meta 加 `discarded_bytes`。≠ E4 Done / named YOLO Done。
+- **产物**: `tools/mod.rs`；`.kstudio/evidence/T2026-11-16-artifact-discarded-bytes/OUTCOME.md`
+- **验证**: registry::tests 71；hermetic 17 套 **246/0**
+- **限制**: %≠Pass
+
+## T2026-11-16-page-discarded-items
+
+- **完成日期**: 2026-11-16
+- **结果**: 共享 `Page::metadata` 加 `discarded_items`（glob/ls/grep 分页）。≠ E4 Done / named YOLO Done。
+- **产物**: `pagination.rs`；`.kstudio/evidence/T2026-11-16-page-discarded-items/OUTCOME.md`
+- **验证**: pagination 6 · glob 8 · ls 6
+- **限制**: %≠Pass
+
+## T2026-11-16-program-discarded-bytes
+
+- **完成日期**: 2026-11-16
+- **结果**: program/PTC host-tool 结果与 call receipt 暴露 discarded 字节。≠ E4 Done / named YOLO Done。
+- **产物**: `program_tool.rs`；`.kstudio/evidence/T2026-11-16-program-discarded-bytes/OUTCOME.md`
+- **验证**: program_tool::tests 39；hermetic tui_913+unattended 44/0（前序 bg/task 后）
+- **限制**: %≠Pass
+
+## T2026-11-16-batch-meta-discarded
+
+- **完成日期**: 2026-11-16
+- **结果**: batch `compact_child_metadata` 加 `discarded_bytes`。≠ E4 Done / named YOLO Done。
+- **产物**: `batch.rs`；`.kstudio/evidence/T2026-11-16-batch-meta-discarded/OUTCOME.md`
+- **验证**: compact_child_metadata 2
+- **限制**: %≠Pass
+
+## T2026-11-16-bg-task-discarded-bytes
+
+- **完成日期**: 2026-11-16
+- **结果**: background capture + task/parallel-task meta 暴露 `discarded_bytes`。≠ E4 Done / named YOLO Done。
+- **产物**: `background.rs` · `task/result_projection.rs`；`.kstudio/evidence/T2026-11-16-bg-task-discarded-bytes/OUTCOME.md`
+- **验证**: compact/format task 3 · background::tests 29
+- **限制**: grep/read 等仍可能缺 discard；%≠Pass
+
+## T2026-11-16-command-summary-discarded
+
+- **完成日期**: 2026-11-16
+- **结果**: `CommandOutputSummary::discarded_bytes()`；bash meta 调用。≠ E4 Done。
+- **产物**: `workspace/mod.rs`；`.kstudio/evidence/T2026-11-16-command-summary-discarded/OUTCOME.md`
+- **验证**: shared_budgets / tool_capture_discard / output_deltas_coalesce
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-web-fetch-discarded-chars
+
+- **完成日期**: 2026-11-16
+- **结果**: WebFetch range meta 加 `discarded_chars`。≠ E4 Done / named YOLO Done。
+- **产物**: `web_fetch.rs`；`.kstudio/evidence/T2026-11-16-web-fetch-discarded-chars/OUTCOME.md`
+- **验证**: content_range_stops ok
+- **限制**: 其它工具仍可能缺 discard 字段
+
+## T2026-11-16-git-diff-discarded-bytes
+
+- **完成日期**: 2026-11-16
+- **结果**: Git diff 分页 meta 加 `discarded_bytes`（共享 byte_budget）。≠ E4 Done / named YOLO Done。
+- **产物**: `git.rs`；`.kstudio/evidence/T2026-11-16-git-diff-discarded-bytes/OUTCOME.md`
+- **验证**: test_diff_is_utf8_safe ok
+- **限制**: 其它工具仍可能缺 discarded 字段
+
+## T2026-11-16-acp-deserialize-borrow
+
+- **完成日期**: 2026-11-16
+- **结果**: ACP permissionRules / plugin / knowledgeCompile / office / wiki / output_check `deserialize` 免 clone。≠产品 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-16-acp-deserialize-borrow/OUTCOME.md`
+- **验证**: permission 9 · host 15 · plugin 14 · wiki 9 · output_check 10 · office_ 40；hermetic tui_913 11 + conf 15
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-tui-sent-message-widths
+
+- **完成日期**: 2026-11-16
+- **结果**: TUI `estimate_line_widths` 穷尽含 SentMessage 借 text。≠产品 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-16-tui-sent-message-widths/OUTCOME.md`
+- **验证**: estimate_line_widths_borrows_subagent ok
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-deserialize-args-borrow
+
+- **完成日期**: 2026-11-16
+- **结果**: task/transcript/observation 热路径 `deserialize(&Value)` 免 clone；A1 并行 schema 测例改不同 prompt；unattended fixture race harden。≠ named YOLO Done。
+- **产物**: `task.rs` · `transcript.rs` · `unattended_e2e.rs`；`.kstudio/evidence/T2026-11-16-deserialize-args-borrow/OUTCOME.md`
+- **验证**: parallel_isolates_schema 1 · external_observation 15 · transcript 11 · unattended **33/0**
+- **限制**: %≠Pass
+
+## T2026-11-16-hg2-discard-freeze
+
+- **完成日期**: 2026-11-16
+- **结果**: HG2 discard freeze grader（4096/8→4088 等）。≠ HG2 Pass / named YOLO Done。
+- **产物**: `byte_budget.rs`；`.kstudio/evidence/T2026-11-16-hg2-discard-freeze/OUTCOME.md`
+- **验证**: hg2_discard_freeze_grader 1；hermetic 20 套 **251/0**
+- **限制**: %≠Pass
+
+## T2026-11-16-porcelain-paths-discarded
+
+- **完成日期**: 2026-11-16
+- **结果**: porcelain `changed_paths` 截断时暴露 `changed_paths_discarded`。≠ named YOLO Done。
+- **产物**: `porcelain.rs`；`.kstudio/evidence/T2026-11-16-porcelain-paths-discarded/OUTCOME.md`
+- **验证**: porcelain::receipt_tests 39；hermetic 20 套 **251/0**
+- **限制**: %≠Pass
+
+## T2026-11-16-search-discarded-items
+
+- **完成日期**: 2026-11-16
+- **结果**: semantic/hybrid `bounded_results` 暴露 `discarded_items`。≠ E4 Done / named YOLO Done。
+- **产物**: `search_snippet.rs`；`.kstudio/evidence/T2026-11-16-search-discarded-items/OUTCOME.md`
+- **验证**: search_snippet 5；tui+conf 26/0
+- **限制**: %≠Pass
+
+## T2026-11-16-tui-session-event-widths
+
+- **完成日期**: 2026-11-16
+- **结果**: SessionEvent estimate 多静态/借用臂（含 DiskFull），减 `message()` String。≠ named YOLO Done。
+- **产物**: `block.rs`；`.kstudio/evidence/T2026-11-16-tui-session-event-widths/OUTCOME.md`
+- **验证**: estimate_line_widths 4；hermetic 19 套 **250/0**
+- **限制**: %≠Pass
+
+## T2026-11-16-hermetic-perf-e2e-runner
+
+- **完成日期**: 2026-11-16
+- **结果**: 冻结 hermetic 包 runner（`--no-run`→`just build`→run 防 BUILD_ID）；`just hermetic-perf-e2e` **20 套**。≠ named YOLO Done。
+- **产物**: `scripts/verify-hermetic-perf-e2e.py`；`justfile`；`.kstudio/evidence/T2026-11-16-hermetic-perf-e2e-runner/`
+- **验证**: summary.json **251/0**（+memory_management · consumer_deny · startup_error · plugin · codex · …；boundary/v912 未入包）
+- **限制**: headed/live / e_bash 仍 park；%≠Pass
+
+## T2026-11-16-stream-meta-take
+
+- **完成日期**: 2026-11-16
+- **结果**: OpenAI stream Done meta `mem::take` provider/model/url，免二次 clone。≠产品 Pass。
+- **产物**: `streaming.rs`；`.kstudio/evidence/T2026-11-16-stream-meta-take/OUTCOME.md`
+- **验证**: openai::tests 54
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-hg2-token-latency-freeze
+
+- **完成日期**: 2026-11-16
+- **结果**: HG2 可复跑 **token**（usage wire）+ **latency**（estimate widths）freeze graders；TUI Subagent/Btw/SessionEvent estimate borrow。≠ HG2 Pass / named YOLO Done。
+- **产物**: `turn.rs` · `block.rs`/`entry.rs`；`.kstudio/evidence/T2026-11-16-hg2-token-latency-freeze/OUTCOME.md`
+- **验证**: acp hg2_token_freeze 1 · pager estimate_line_widths 4
+- **限制**: hermetic grader ≠ 生产 SLO；headed/live 仍 park
+
+## T2026-11-16-fact-deserialize-borrow-2
+
+- **完成日期**: 2026-11-16
+- **结果**: fact_reads / history_seed / refusal / receipts 热路径 `deserialize(&Value)` 免 payload clone。≠产品 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-16-fact-deserialize-borrow-2/OUTCOME.md`
+- **验证**: recorded_tool 2 · refusal_cycle 17
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-hg2-waste-knife-ledger
+
+- **完成日期**: 2026-11-16
+- **结果**: HG2 近端「浪费/alloc 关闭刀」台账 + hermetic 包计数；后续已补 token/latency freeze graders（见上条）。
+- **产物**: `.kstudio/evidence/T2026-11-16-hg2-waste-knife-ledger/OUTCOME.md`
+- **验证**: 见 OUTCOME 表（tui_913 11 / unattended 33 / LH 75·68 / conformance 15）
+- **限制**: 台账本身 ≠ Pass
+
+## T2026-11-16-end-text-conditional-clone
+
+- **完成日期**: 2026-11-16
+- **结果**: ACP End 仅在需再 emit 时 clone `text`；`message_from_fact` deserialize 免 payload clone。≠产品 Pass。
+- **产物**: `turn.rs`；`fact_reads.rs`；`.kstudio/evidence/T2026-11-16-end-text-conditional-clone/OUTCOME.md`
+- **验证**: compaction_transcript ok；conformance 15
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-stream-tool-args-take
+
+- **完成日期**: 2026-11-16
+- **结果**: **尝试后回退** — Start 时 `take(entry.2)` 会掏空 `[DONE]` finalize 的 ToolUse args，导致 tui_913 multi-turn 超时；已恢复 clone。证据保留教训。≠产品 Pass。
+- **产物**: `.kstudio/evidence/T2026-11-16-stream-tool-args-take/OUTCOME.md`
+- **验证**: 回退后 `three_turns_fix…` ok
+- **限制**: 安全 take 需第二套累加器
+
+## T2026-11-16-stream-finalize-take
+
+- **完成日期**: 2026-11-16
+- **结果**: OpenAI `[DONE]`/无 DONE finalize `take` tool_calls/usage/response ids。≠产品 Pass。
+- **产物**: `streaming.rs`；`.kstudio/evidence/T2026-11-16-stream-finalize-take/OUTCOME.md`
+- **验证**: openai tests 54 绿；tui_913 one_turn smoke ok
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-tool-end-output-take
+
+- **完成日期**: 2026-11-16
+- **结果**: tool completion `mem::take` 工具输出；ToolEnd 仅在有 event channel 时 clone。≠产品 Pass。
+- **产物**: `tool_completion_runtime.rs`；`.kstudio/evidence/T2026-11-16-tool-end-output-take/OUTCOME.md`
+- **验证**: tool_completion 26 绿；bg settle ok
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-receipt-deserialize-borrow
+
+- **完成日期**: 2026-11-16
+- **结果**: checkpoint/refusal/history_seed 收据解析 `deserialize(&Value)` 免 `Value` clone。≠产品 Pass。
+- **产物**: `checkpoints.rs`；`refusal.rs`；`history_seed.rs`；`.kstudio/evidence/T2026-11-16-receipt-deserialize-borrow/OUTCOME.md`
+- **验证**: `both_adapters_ordinary_checkpoint` ok
+- **限制**: named YOLO ≠Done
+
+## T2026-11-16-sse-hold-blank-cr
+
+- **完成日期**: 2026-11-16
+- **结果**: SSE 截断空白 trailing `\r` 直至下一字节/EOF；修 `streaming_split_cr_does_not_emit_partial_event`（HEAD 既有红）。≠产品 Pass。
+- **产物**: `sse.rs`；`sse_tests.rs`；`.kstudio/evidence/T2026-11-16-sse-hold-blank-cr/OUTCOME.md`
+- **验证**: sse 相关绿；`streaming_split_cr` ok；`streaming_crlf_data_frame` ok
+- **限制**: named YOLO / Meta Harness ≠Done
+
+## T2026-11-16-tui-tool-body-widths
+
+- **完成日期**: 2026-11-16
+- **结果**: Read/ListDir/Other/Skill/WebFetch/BgTask estimate 借 body `&str`。≠产品 Pass。
+- **产物**: `aster-pager` `block.rs`；`.kstudio/evidence/T2026-11-16-tui-tool-body-widths/OUTCOME.md`
+- **验证**: `estimate_line_widths_borrows` 2 绿
+- **限制**: BlockContext Arc 仍 park
+
+## T2026-11-16-e4-yielded-compaction-freeze
+
+- **完成日期**: 2026-11-16
+- **结果**: `turn.yielded` 与 compaction append 走 `read_freeze`；yielded 补 `log_cut`/`log_byte_len`。≠产品 Pass。
+- **产物**: `turn_facts.rs`；`fact_reads.rs`；`.kstudio/evidence/T2026-11-16-e4-yielded-compaction-freeze/OUTCOME.md`
+- **验证**: bg_subagent 5 · compact source_guard 4 · conformance 15
+- **限制**: 全 E4 catalog / headed 未宣称
+
+## T2026-11-16-acp-id-arcstr
+
+- **完成日期**: 2026-11-16
+- **结果**: Permission/replay/commands 路径 `ToolCallId`/`SessionId` 直接 `&str`→`Arc<str>`。≠产品 Pass。
+- **产物**: `permission_ask.rs`；`extensions.rs`；`commands.rs`；`.kstudio/evidence/T2026-11-16-acp-id-arcstr/OUTCOME.md`
+- **验证**: permission_ask HITL ok；conformance 15
+- **限制**: 非 wire 变更
+
+## T2026-11-16-tui-single-field-widths
+
+- **完成日期**: 2026-11-16
+- **结果**: Stub/UserPrompt/System/ContextInfo `estimate_line_widths` 借字段 `&str`，免 searchable join clone。≠产品 Pass。
+- **产物**: `aster-pager` `block.rs`/`entry.rs`；`.kstudio/evidence/T2026-11-16-tui-single-field-widths/OUTCOME.md`
+- **验证**: focused pager 3 绿
+- **限制**: BlockContext Arc 仍 park
+
+## T2026-11-16-perf-e2e-pack
+
+- **完成日期**: 2026-11-16
+- **结果**: Core/ACP/TUI 性能刀一批（emit-move · equal-meta · bash-slim · read_freeze · merge_stream owned · TUI line-widths 等）+ hermetic E2E：`tui_913` 11/11、long_horizon 75/68、unattended 33、acp_conformance 15。≠产品 Pass / named YOLO Done。
+- **产物**: `.kstudio/evidence/T2026-11-16-perf-e2e-pack/OUTCOME.md`；同族 `T2026-11-16-{acp-emit-move,shell-equal-meta-merge,bash-delta-slim,e4-filelog-read-freeze,merge-stream-owned,p6-bg-settlement-twin,e4-yielded-compaction-freeze,acp-id-arcstr,tui-single-field-widths,…}`
+- **验证**: 见 OUTCOME 表；paired `just build` + `ASTER_*_BIN`；本周期复绿同上
+- **限制**: H2 land / headed-live / `boundary_e2e::e_bash` seatbelt / BlockContext Arc park
 
 ## T2026-11-16-first-run-session-open
 
@@ -152,10 +1000,10 @@
 - **验证**: 源钉扎与路径存在；未把 Codex 源码拷进本仓
 - **限制**: 非功能对等清单；未改业务源码；未开 branch/worktree
 
-## T2026-11-16-k-init
+## T2026-11-16-init
 
 - **完成日期**: 2026-11-16
 - **结果**: 在 `/Users/roylin/code/aster` 以 create-missing 方式完成 KStudio 工程根初始化；`AGENTS.md` 保留；冲突 0；创建 84 个路径。
 - **产物**: `.kstudio/`（含 skills / workflow / wiki / evidence）、`.cursor/skills/`、`.cursor/commands/`、`.cursor/rules/{git-branch-discipline,k-skills}.mdc`
 - **验证**: `sync-k-skills.py --check` exit 0；`verify-ai-eng.py --level L3` exit 0 → `PASS (L3) aster HEAD=bootstrap`
-- **限制**: 产品目标仍为 unknown；未跑应用测试；未 commit；未观察到原生技能选择器刷新。证据：`.kstudio/evidence/T2026-11-16-k-init/OUTCOME.md`
+- **限制**: 产品目标仍为 unknown；未跑应用测试；未 commit；未观察到原生技能选择器刷新。证据：`.kstudio/evidence/T2026-11-16-init/OUTCOME.md`

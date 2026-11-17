@@ -1,0 +1,15 @@
+=== rerun install ===
+dsh: initialized profile aster-e2e at /tmp/aster-dsh-e2e-rerun.llhgMd/home/profiles/aster-e2e
+Already up to date
+
+dependencies:
++ dsh-aster-e2e-hello link:../../../../../../Users/roylin/code/aster/.kstudio/evidence/T2026-11-17-dsh-plugin-e2e/fixture
+
+Done in 32ms using pnpm v12.6.0
+=== rerun remove ===
+Already up to date
+
+dependencies:
+- dsh-aster-e2e-hello link:/Users/roylin/code/aster/.kstudio/evidence/T2026-11-17-dsh-plugin-e2e/fixture
+
+Done in 28ms using pnpm v12.6.0
