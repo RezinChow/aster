@@ -9,15 +9,9 @@ use serde::Deserialize;
 const MEMORY_USAGE: &str =
     "Usage: /memory [list [query] | next <cursor> [query] | read <id> | delete <id> <revision>]";
 const TASKS_USAGE: &str = "Usage: /tasks [stop <task-id>]";
-const ENG_USAGE: &str = "Usage: /eng [status | materialize]";
-
 pub(super) enum InspectionCommand {
     Memory(MemoryManagementRequest),
     Tasks(Option<String>),
-    /// Host composition of Core engineering skill coverage / factory seeds.
-    Eng {
-        materialize: bool,
-    },
 }
 
 pub(super) fn parse(prompt: &str) -> Option<Result<InspectionCommand, &'static str>> {
@@ -37,11 +31,6 @@ pub(super) fn parse(prompt: &str) -> Option<Result<InspectionCommand, &'static s
                 }
                 _ => Err(TASKS_USAGE),
             }
-        }),
-        "/eng" => Some(match args {
-            "" | "status" => Ok(InspectionCommand::Eng { materialize: false }),
-            "materialize" => Ok(InspectionCommand::Eng { materialize: true }),
-            _ => Err(ENG_USAGE),
         }),
         _ => None,
     }
@@ -99,9 +88,6 @@ impl AsterCodeAgent {
         command: Result<InspectionCommand, &'static str>,
     ) -> acp::Result<String> {
         let command = command.map_err(|usage| acp::Error::invalid_params().data(usage))?;
-        if let InspectionCommand::Eng { materialize } = command {
-            return format_kburn_report(session.workspace(), materialize);
-        }
         let query = match &command {
             InspectionCommand::Memory(MemoryManagementRequest::List { query, .. }) => query.clone(),
             _ => String::new(),
@@ -121,7 +107,6 @@ impl AsterCodeAgent {
                 };
                 (method, params)
             }
-            InspectionCommand::Eng { .. } => unreachable!("eng handled before ext_method"),
         };
         let raw = serde_json::value::to_raw_value(&params)
             .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
@@ -172,6 +157,9 @@ impl AsterCodeAgent {
     }
 }
 
+/// Host-side composition helpers retained for hermetic coverage of Core APIs
+/// (not a user slash — engineering arming is automatic in Core).
+#[cfg(test)]
 fn format_kburn_report(workspace: &std::path::Path, materialize: bool) -> acp::Result<String> {
     let mut text = String::new();
     if materialize {
@@ -191,6 +179,7 @@ fn format_kburn_report(workspace: &std::path::Path, materialize: bool) -> acp::R
     Ok(text)
 }
 
+#[cfg(test)]
 fn format_kburn_coverage(workspace: &std::path::Path) -> String {
     let coverage = aster_core::kstudio::kburn_skill_coverage(workspace);
     let dirs = aster_core::kstudio::KstudioCoreDirs::for_workspace(workspace);

@@ -52,7 +52,8 @@ fn commands_parse_mechanical_syntax_and_refuse_invalid_mutations() {
         "/memory-extra",
         "explain /memory",
         "/tasks-extra",
-        "/eng-extra",
+        "/eng",
+        "/kburn",
     ] {
         assert!(parse(text).is_none());
     }
@@ -63,23 +64,9 @@ fn commands_parse_mechanical_syntax_and_refuse_invalid_mutations() {
         "/memory unknown",
         "/tasks stop",
         "/tasks delete id",
-        "/eng extra",
-        "/eng materialize now",
     ] {
         assert!(parse(text).unwrap().is_err(), "{text}");
     }
-    assert!(matches!(
-        parse("/eng").unwrap().unwrap(),
-        InspectionCommand::Eng { materialize: false }
-    ));
-    assert!(matches!(
-        parse("/eng materialize").unwrap().unwrap(),
-        InspectionCommand::Eng { materialize: true }
-    ));
-    assert!(matches!(
-        parse("/eng status").unwrap().unwrap(),
-        InspectionCommand::Eng { materialize: false }
-    ));
     let InspectionCommand::Memory(MemoryManagementRequest::Read { id }) =
         parse(" /memory\tread id with spaces ").unwrap().unwrap()
     else {
@@ -298,7 +285,7 @@ async fn terminal_memory_commands_use_revision_guards_and_do_not_call_the_model(
     .unwrap();
     assert!(memory.store().retrieve(&record.id).await.unwrap().is_none());
     // The fixture has no reachable model endpoint: a dispatch fallthrough fails here.
-    for text in ["/memory", "/tasks", "/eng"] {
+    for text in ["/memory", "/tasks"] {
         let response = tokio::time::timeout(
             std::time::Duration::from_secs(5),
             host.prompt(acp::PromptRequest::new(
