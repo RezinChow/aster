@@ -35,8 +35,8 @@ pub(super) fn acp_commands() -> Vec<acp::AvailableCommand> {
             )),
         ),
         acp::AvailableCommand::new(
-            "kburn",
-            "Report kburn / .kstudio skill coverage; optionally materialize factory seeds",
+            "eng",
+            "Report engineering skill coverage; optionally materialize factory seeds",
         )
         .input(acp::AvailableCommandInput::Unstructured(
             acp::UnstructuredCommandInput::new("[status | materialize]"),
@@ -123,7 +123,7 @@ mod tests {
         let commands = merge_commands(Vec::new()).expect("empty Core catalog");
         assert_eq!(
             names(&commands),
-            ["dream", "flush", "goal", "kburn", "memory", "tasks"]
+            ["dream", "eng", "flush", "goal", "memory", "tasks"]
         );
     }
 
@@ -140,7 +140,7 @@ mod tests {
         .expect("Core catalog");
         assert_eq!(
             names(&commands),
-            ["dream", "flush", "goal", "help", "kburn", "memory", "model", "tasks"]
+            ["dream", "eng", "flush", "goal", "help", "memory", "model", "tasks"]
         );
         let help = commands.iter().find(|c| c.name == "help").expect("help");
         assert_eq!(help.description, "List available commands");
@@ -163,7 +163,7 @@ mod tests {
         .expect("ACP owns goal");
         assert_eq!(
             names(&commands),
-            ["dream", "flush", "goal", "kburn", "memory", "tasks"]
+            ["dream", "eng", "flush", "goal", "memory", "tasks"]
         );
         let goal = commands.iter().find(|c| c.name == "goal").expect("goal");
         assert_eq!(

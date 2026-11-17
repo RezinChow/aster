@@ -9,13 +9,13 @@ use serde::Deserialize;
 const MEMORY_USAGE: &str =
     "Usage: /memory [list [query] | next <cursor> [query] | read <id> | delete <id> <revision>]";
 const TASKS_USAGE: &str = "Usage: /tasks [stop <task-id>]";
-const KBURN_USAGE: &str = "Usage: /kburn [status | materialize]";
+const ENG_USAGE: &str = "Usage: /eng [status | materialize]";
 
 pub(super) enum InspectionCommand {
     Memory(MemoryManagementRequest),
     Tasks(Option<String>),
-    /// Host composition of Core kburn coverage / factory seeds (HG6 means).
-    Kburn {
+    /// Host composition of Core engineering skill coverage / factory seeds.
+    Eng {
         materialize: bool,
     },
 }
@@ -38,10 +38,10 @@ pub(super) fn parse(prompt: &str) -> Option<Result<InspectionCommand, &'static s
                 _ => Err(TASKS_USAGE),
             }
         }),
-        "/kburn" => Some(match args {
-            "" | "status" => Ok(InspectionCommand::Kburn { materialize: false }),
-            "materialize" => Ok(InspectionCommand::Kburn { materialize: true }),
-            _ => Err(KBURN_USAGE),
+        "/eng" => Some(match args {
+            "" | "status" => Ok(InspectionCommand::Eng { materialize: false }),
+            "materialize" => Ok(InspectionCommand::Eng { materialize: true }),
+            _ => Err(ENG_USAGE),
         }),
         _ => None,
     }
@@ -99,7 +99,7 @@ impl AsterCodeAgent {
         command: Result<InspectionCommand, &'static str>,
     ) -> acp::Result<String> {
         let command = command.map_err(|usage| acp::Error::invalid_params().data(usage))?;
-        if let InspectionCommand::Kburn { materialize } = command {
+        if let InspectionCommand::Eng { materialize } = command {
             return format_kburn_report(session.workspace(), materialize);
         }
         let query = match &command {
@@ -121,7 +121,7 @@ impl AsterCodeAgent {
                 };
                 (method, params)
             }
-            InspectionCommand::Kburn { .. } => unreachable!("kburn handled before ext_method"),
+            InspectionCommand::Eng { .. } => unreachable!("eng handled before ext_method"),
         };
         let raw = serde_json::value::to_raw_value(&params)
             .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
@@ -195,7 +195,7 @@ fn format_kburn_coverage(workspace: &std::path::Path) -> String {
     let coverage = aster_core::kstudio::kburn_skill_coverage(workspace);
     let dirs = aster_core::kstudio::KstudioCoreDirs::for_workspace(workspace);
     let mut text = format!(
-        "eng root: {}\nkburn skill coverage · {}/{} present\nskills: {}\n\n",
+        "eng root: {}\nskill coverage · {}/{} present\nskills: {}\n\n",
         dirs.root.display(),
         coverage.present.len(),
         aster_core::kstudio::KBURN_SKILL_NAMES.len(),
