@@ -50,6 +50,22 @@ impl CancelledBy {
             Self::Unspecified => "Turn cancelled",
         }
     }
+
+    /// Static banner line with trailing period (no elapsed).
+    pub fn banner_line(self) -> &'static str {
+        match self {
+            Self::User => "Turn cancelled by user.",
+            Self::SessionClosed => "Turn cancelled because the session closed.",
+            Self::Shutdown => "Turn cancelled because the session shut down.",
+            Self::MaxTurns => "Turn cancelled after reaching the turn limit.",
+            Self::PermissionDenied => "Turn cancelled because a permission was denied.",
+            Self::PermissionDismissed => {
+                "Turn cancelled because a permission prompt was dismissed."
+            }
+            Self::HostInterrupt => "Turn cancelled by the agent host.",
+            Self::Unspecified => "Turn cancelled.",
+        }
+    }
 }
 
 #[cfg(test)]
@@ -120,5 +136,21 @@ mod tests {
             CancelledBy::from_meta(Some("mouse"), Some(MAX_TURNS_REACHED_CATEGORY)),
             CancelledBy::MaxTurns
         );
+    }
+
+    #[test]
+    fn banner_line_is_phrase_with_period() {
+        for cause in [
+            CancelledBy::User,
+            CancelledBy::SessionClosed,
+            CancelledBy::Shutdown,
+            CancelledBy::MaxTurns,
+            CancelledBy::PermissionDenied,
+            CancelledBy::PermissionDismissed,
+            CancelledBy::HostInterrupt,
+            CancelledBy::Unspecified,
+        ] {
+            assert_eq!(cause.banner_line(), format!("{}.", cause.phrase()));
+        }
     }
 }

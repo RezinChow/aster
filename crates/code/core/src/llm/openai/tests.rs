@@ -10,6 +10,31 @@ fn make_client() -> OpenAiClient {
 }
 
 #[test]
+fn append_stream_delta_moves_owned_bytes_into_the_event() {
+    let mut accum = String::new();
+    let out = OpenAiClient::append_stream_delta(&mut accum, "hello".into()).unwrap();
+    assert_eq!(accum, "hello");
+    assert_eq!(out, "hello");
+    assert!(OpenAiClient::append_stream_delta(&mut accum, String::new()).is_none());
+    assert_eq!(accum, "hello");
+    let second = OpenAiClient::append_stream_delta(&mut accum, " world".into()).unwrap();
+    assert_eq!(accum, "hello world");
+    assert_eq!(second, " world");
+}
+
+#[test]
+fn merge_stream_text_moves_owned_prefix_snapshot_without_recloning_body() {
+    let mut accum = String::new();
+    let first = OpenAiClient::merge_stream_text(&mut accum, "hel".into()).unwrap();
+    assert_eq!((accum.as_str(), first.as_str()), ("hel", "hel"));
+    let second = OpenAiClient::merge_stream_text(&mut accum, "hello".into()).unwrap();
+    assert_eq!((accum.as_str(), second.as_str()), ("hello", "lo"));
+    assert!(OpenAiClient::merge_stream_text(&mut accum, "hello".into()).is_none());
+    let appended = OpenAiClient::merge_stream_text(&mut accum, "!".into()).unwrap();
+    assert_eq!((accum.as_str(), appended.as_str()), ("hello!", "!"));
+}
+
+#[test]
 fn reasoning_model_sends_reasoning_effort_and_keeps_output_room() {
     let client =
         OpenAiClient::new("k".to_string(), "gpt-5.4".to_string()).with_reasoning_effort("xhigh");

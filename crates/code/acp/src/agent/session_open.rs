@@ -79,7 +79,8 @@ impl AsterCodeAgent {
                     .with_manual_delegation_enabled(true);
             }
             guideline = format!(
-                "The thinking budget is a maximum, not a quota. thinking_budget={}. Do not expand the task or invent checks to spend the budget. Stop when the user's outcome is done.", limits.thinking_budget
+                "The thinking budget is a maximum, not a quota. thinking_budget={}. Do not expand the task or invent checks to spend the budget. Stop when the user's outcome is done.",
+                limits.thinking_budget
             );
             if !aster_core::llm::model_sends_native_effort(model_id) {
                 if let Some(extra) = effort_guideline(limits.token) {
@@ -405,6 +406,7 @@ impl AsterCodeAgent {
         }
         let live = LiveSession {
             turn_started: std::sync::Mutex::new(None),
+            turn_started_ms: std::sync::Mutex::new(None),
             session: Arc::new(session),
             workspace: setup.workspace,
             model_id: setup.model_id.to_string(),
@@ -570,6 +572,7 @@ impl AsterCodeAgent {
         }
         let mut live = LiveSession {
             turn_started: std::sync::Mutex::new(None),
+            turn_started_ms: std::sync::Mutex::new(None),
             session: Arc::new(session),
             workspace: setup.workspace,
             model_id: setup.model_id.to_string(),

@@ -19,7 +19,7 @@ impl acp::Agent for AsterCodeAgent {
             Some(_) => {
                 return Err(
                     acp::Error::invalid_params().data("aster/terminalMarkdown must be a boolean")
-                )
+                );
             }
         };
         let discovery = match args
@@ -32,7 +32,7 @@ impl acp::Agent for AsterCodeAgent {
             Some(_) => {
                 return Err(
                     acp::Error::invalid_params().data("aster/modelDiscovery must be a boolean")
-                )
+                );
             }
         };
         self.client_model_discovery.set(discovery);
@@ -67,11 +67,15 @@ impl acp::Agent for AsterCodeAgent {
                     "feedbackTraceOffer": false,
                     "aster": self.workspace_admission_meta(),
                     "openModelConfig": self.first_run_config,
-                    // P1-8: mechanism feature-stage registry digest for hosts
-                    // (not a remote rollout percentage; Stable/Experimental table only).
+                    // P1-8 / P7: mechanism feature-stage registry digest + per-switch
+                    // admission (Removed → false). Not a remote rollout percentage.
                     "featureSwitchRegistryDigest": aster_core::capability::feature_switch_registry_digest()
                         .map(|digest| digest.to_string())
                         .unwrap_or_else(|_| String::new()),
+                    "featureSwitches": feature_switch_admission_meta(),
+                    // P7 deepen: stage map so hosts can distinguish Stable vs
+                    // Experimental without mistaking enabled=true for Stable.
+                    "featureSwitchStages": feature_switch_stage_meta(),
                 })
                 .as_object()
                 .cloned(),
@@ -238,7 +242,10 @@ impl acp::Agent for AsterCodeAgent {
             .map_err(|error| acp::Error::invalid_params().data(error))?;
         self.validate_plugin_selection(args.meta.as_ref(), &args.mcp_servers)?;
         let session_id = args.session_id.0.to_string();
-        let loading = self.session_loads.begin(&session_id);
+        let loading = self
+            .session_loads
+            .begin(&session_id)
+            .map_err(|_| acp::Error::invalid_params().data("session load already in progress"))?;
         let workspace = self.admit_resume(&session_id, &args.cwd).await?;
         let queue = self
             .sessions
@@ -531,6 +538,7 @@ impl acp::Agent for AsterCodeAgent {
         };
         let session_key = args.session_id.0.to_string();
         let turn_started = std::time::Instant::now();
+        let turn_started_ms = super::emit::unix_now_ms() as i64;
         let turn_queue = self
             .sessions
             .lock()
@@ -634,6 +642,10 @@ impl acp::Agent for AsterCodeAgent {
                 .turn_started
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(turn_started);
+            *live
+                .turn_started_ms
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(turn_started_ms);
         }
         {
             let client = self.client.borrow().clone();
@@ -655,6 +667,9 @@ impl acp::Agent for AsterCodeAgent {
                     .await?;
             }
         }
+        // After queue identity: unlock Thinking / streamStartMs before hooks/LLM.
+        // Must not precede `_aster/queue/changed` (ACP `queue-running-identity`).
+        self.emit_turn_started_chrome(&args.session_id).await;
         if let Some(posture) = requested_posture {
             self.emit_permission_mode(args.session_id.clone(), posture)
                 .await;
@@ -856,4 +871,26 @@ impl acp::Agent for AsterCodeAgent {
         }
         Ok(())
     }
+}
+
+/// Initialize meta map: each governed switch id → enabled (Removed is false).
+fn feature_switch_admission_meta() -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    for spec in aster_core::capability::FEATURE_SWITCHES {
+        let enabled = aster_core::capability::feature_switch_enabled(spec.id).unwrap_or(false);
+        map.insert(spec.id.to_string(), serde_json::Value::Bool(enabled));
+    }
+    serde_json::Value::Object(map)
+}
+
+/// Initialize meta map: each governed switch id → stage string.
+fn feature_switch_stage_meta() -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    for spec in aster_core::capability::FEATURE_SWITCHES {
+        map.insert(
+            spec.id.to_string(),
+            serde_json::Value::String(spec.stage.as_str().to_string()),
+        );
+    }
+    serde_json::Value::Object(map)
 }

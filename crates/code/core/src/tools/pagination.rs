@@ -91,6 +91,7 @@ impl<T> Page<T> {
             "applied_limit": self.applied_limit,
             "returned_items": self.items.len(),
             "total_items": self.total_items,
+            "discarded_items": self.total_items.saturating_sub(self.items.len()),
             "next_cursor": self.next_cursor,
             "truncated": self.next_cursor.is_some(),
             "limit_clamped": self.requested_limit != self.applied_limit,
@@ -115,6 +116,9 @@ mod tests {
         assert_eq!(page.items, vec![2, 3, 4]);
         assert_eq!(page.next_cursor.as_deref(), Some("5"));
         assert_eq!(page.metadata()["limit_clamped"], true);
+        assert_eq!(page.metadata()["discarded_items"], 3);
+        assert_eq!(page.metadata()["returned_items"], 3);
+        assert_eq!(page.metadata()["total_items"], 6);
     }
 
     #[test]

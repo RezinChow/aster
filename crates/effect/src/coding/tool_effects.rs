@@ -181,9 +181,7 @@ impl ToolEffectObservationV1 {
     pub fn exceeds_canonical_bound(&self) -> bool {
         self.changes.len() > MAX_TOOL_EFFECT_PATHS
             || self.unresolved_external_operations.len() > MAX_TOOL_EFFECT_PATHS
-            || serde_json::to_vec(self)
-                .map(|bytes| bytes.len() > MAX_TOOL_EFFECT_CANONICAL_BYTES)
-                .unwrap_or(true)
+            || bound_json(self).is_err()
     }
 
     pub fn validate(&self) -> Result<(), ActorError> {
@@ -352,17 +350,39 @@ pub fn tool_information_digest(
 }
 
 pub(super) fn digest_json<T: Serialize>(domain: &str, value: &T) -> Result<String, ActorError> {
-    let bytes = serde_json::to_vec(value).map_err(|error| ActorError::Schema(error.to_string()))?;
     let mut digest = Sha256::new();
     digest.update(domain.as_bytes());
     digest.update([0]);
-    digest.update(&bytes);
+    struct Writer<'a>(&'a mut Sha256);
+    impl std::io::Write for Writer<'_> {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.update(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    serde_json::to_writer(Writer(&mut digest), value)
+        .map_err(|error| ActorError::Schema(error.to_string()))?;
     Ok(format!("sha256:{:x}", digest.finalize()))
 }
 
 fn bound_json<T: Serialize>(value: &T) -> Result<(), ActorError> {
-    let bytes = serde_json::to_vec(value).map_err(|error| ActorError::Schema(error.to_string()))?;
-    if bytes.len() > MAX_TOOL_EFFECT_CANONICAL_BYTES {
+    struct Counter(usize);
+    impl std::io::Write for Counter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0 = self.0.saturating_add(buf.len());
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter(0);
+    serde_json::to_writer(&mut counter, value)
+        .map_err(|error| ActorError::Schema(error.to_string()))?;
+    if counter.0 > MAX_TOOL_EFFECT_CANONICAL_BYTES {
         return Err(observation_error("tool effect evidence exceeds byte bound"));
     }
     Ok(())

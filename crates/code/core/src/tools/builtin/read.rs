@@ -336,6 +336,22 @@ impl Tool for ReadTool {
         } else {
             range.next_offset
         };
+        let discarded_bytes = if budget_cut {
+            range.lines[page.returned..]
+                .iter()
+                .enumerate()
+                .map(|(index, line)| {
+                    format!(
+                        "{:>6}\t{}\n",
+                        offset + page.returned + index + 1,
+                        display_read_line(line, 0)
+                    )
+                    .len()
+                })
+                .sum()
+        } else {
+            0
+        };
         let mut metadata = serde_json::json!({
             "source_anchors": [workspace_path.as_str()],
             "range": {
@@ -348,6 +364,8 @@ impl Tool for ReadTool {
                 "total_lines": range.total_lines,
                 "limit_clamped": requested_limit != limit,
                 "budget_clamped": budget_cut,
+                "discarded_bytes": discarded_bytes,
+                "discarded_items": range.lines.len().saturating_sub(page.returned),
                 "final_line_ending": final_line_ending.map(SourceLineEnding::as_str),
             }
         });
@@ -435,6 +453,7 @@ async fn execute_batch_read(args: &serde_json::Value, ctx: &ToolContext) -> Resu
     let mut successful_files = 0usize;
     let mut failed_files = 0usize;
     let mut returned_lines = 0usize;
+    let mut discarded_bytes = 0usize;
 
     // Prefetch every entry's resolution and ranged read CONCURRENTLY:
     // entries are independent (the schema caps the batch at
@@ -653,6 +672,8 @@ async fn execute_batch_read(args: &serde_json::Value, ctx: &ToolContext) -> Resu
             if segments.is_empty() {
                 return Ok(batch_budget_too_small(max_output_bytes));
             }
+            // Prefetched lines for this file never enter the page.
+            discarded_bytes = discarded_bytes.saturating_add(joined_line_bytes(&lines));
             break;
         }
 
@@ -661,6 +682,9 @@ async fn execute_batch_read(args: &serde_json::Value, ctx: &ToolContext) -> Resu
         returned_lines += shown;
         successful_files += 1;
         source_anchors.push(workspace_path.as_str().to_string());
+        if shown < lines.len() {
+            discarded_bytes = discarded_bytes.saturating_add(joined_line_bytes(&lines[shown..]));
+        }
         if progress[index].is_some() {
             break;
         }
@@ -689,6 +713,8 @@ async fn execute_batch_read(args: &serde_json::Value, ctx: &ToolContext) -> Resu
             "returned_lines": returned_lines,
             "max_output_bytes": max_output_bytes,
             "output_bytes": content.len(),
+            "discarded_bytes": discarded_bytes,
+            "discarded_items": continuation.len(),
             "truncated": truncated,
             "continuation": continuation,
         }
@@ -821,6 +847,14 @@ fn batch_content_segment(display_path: &str, lines: &[String]) -> String {
     format!("=== {display_path} ===\n{}", lines.join("\n"))
 }
 
+/// Byte length of numbered batch lines joined with `\n` (E4 discard surface).
+fn joined_line_bytes(lines: &[String]) -> usize {
+    if lines.is_empty() {
+        return 0;
+    }
+    lines.iter().map(String::len).sum::<usize>() + lines.len().saturating_sub(1)
+}
+
 fn batch_candidate_fits(
     segments: &[String],
     segment: &str,
@@ -828,20 +862,14 @@ fn batch_candidate_fits(
     entries: &[BatchReadEntry],
     budget: usize,
 ) -> bool {
-    let mut proposed = segments.to_vec();
-    proposed.push(segment.to_string());
-    render_batch_response(&proposed, progress, entries).len() <= budget
+    // Length-only probe: avoid cloning every retained segment on each binary-search step.
+    batch_response_len(segments, Some(segment), progress, entries) <= budget
 }
 
-fn render_batch_response(
-    segments: &[String],
-    progress: &[Option<BatchReadEntry>],
-    entries: &[BatchReadEntry],
-) -> String {
-    let mut output = segments.join("\n\n");
+fn batch_footer(progress: &[Option<BatchReadEntry>], entries: &[BatchReadEntry]) -> String {
     let continuation = batch_continuation(progress);
     let total = entries.len();
-    let footer = if continuation.is_empty() {
+    if continuation.is_empty() {
         format!("(Complete: all {total} file(s) processed.)")
     } else {
         let encoded = serde_json::to_string(&continuation).unwrap_or_else(|_| "[]".to_string());
@@ -850,7 +878,46 @@ fn render_batch_response(
             "(Partial: {} of {total} file(s) complete, {} partially read, {} not started. Continue with files={encoded}.)",
             counts.complete, counts.partial, counts.not_started
         )
-    };
+    }
+}
+
+fn batch_response_len(
+    segments: &[String],
+    extra: Option<&str>,
+    progress: &[Option<BatchReadEntry>],
+    entries: &[BatchReadEntry],
+) -> usize {
+    let mut body = 0usize;
+    let mut count = 0usize;
+    for segment in segments {
+        if count > 0 {
+            body += 2; // "\n\n"
+        }
+        body += segment.len();
+        count += 1;
+    }
+    if let Some(segment) = extra {
+        if count > 0 {
+            body += 2;
+        }
+        body += segment.len();
+        count += 1;
+    }
+    let footer = batch_footer(progress, entries).len();
+    if count == 0 {
+        footer
+    } else {
+        body + 2 + footer
+    }
+}
+
+fn render_batch_response(
+    segments: &[String],
+    progress: &[Option<BatchReadEntry>],
+    entries: &[BatchReadEntry],
+) -> String {
+    let mut output = segments.join("\n\n");
+    let footer = batch_footer(progress, entries);
     if !output.is_empty() {
         output.push_str("\n\n");
     }

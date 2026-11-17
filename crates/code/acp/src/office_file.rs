@@ -199,7 +199,7 @@ impl Tool for OfficeFileTool {
         self.workspace.validate_current().ok()?;
         let metadata = output.metadata.as_ref()?;
         let requested = args.get("file_path")?.as_str()?;
-        let kind: Kind = serde_json::from_value(args.get("kind")?.clone()).ok()?;
+        let kind: Kind = serde::Deserialize::deserialize(args.get("kind")?).ok()?;
         if metadata.get("validated")?.as_bool()? != true
             || metadata.get("artifact_requested_path")?.as_str()? != requested
             || metadata.get("kind")?.as_str()? != kind.as_str()
@@ -265,10 +265,10 @@ async fn create(
 ) -> Result<Value> {
     validate_access()?;
     ensure!(
-        serde_json::to_vec(args)?.len() <= MAX_INPUT_BYTES,
+        aster_core::byte_budget::json_serialized_len(args)? <= MAX_INPUT_BYTES,
         "input exceeds 1 MiB"
     );
-    let input: Input = serde_json::from_value(args.clone())?;
+    let input: Input = serde::Deserialize::deserialize(args)?;
     ensure!(
         ctx.workspace_services.capabilities().write,
         "workspace does not grant writes"
@@ -466,7 +466,7 @@ async fn build_office(input: &Input, ctx: &ToolContext) -> Result<(Vec<u8>, Stri
                     for (column, value) in values.iter().enumerate() {
                         let path = format!("{sheet_path}/{}{}", column_name(column), row + 1);
                         let (value, number_format) = if value.is_object() {
-                            match serde_json::from_value::<ExtendedCell>(value.clone())? {
+                            match ExtendedCell::deserialize(value)? {
                                 ExtendedCell::Formula(cell) => {
                                     ensure_xml_safe_text(
                                         &cell.formula,

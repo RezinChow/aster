@@ -131,7 +131,8 @@ impl AsterCodeAgent {
             for record in records {
                 let item = ManagedMemory::from_session_item(&workspace, &id, request.layer, record)
                     .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
-                bytes += serde_json::to_vec(&item).map_err(|_| invalid())?.len();
+                bytes +=
+                    aster_core::byte_budget::json_serialized_len(&item).map_err(|_| invalid())?;
                 if items.len() >= 10_000 || bytes > 16 * 1024 * 1024 {
                     return Err(acp::Error::internal_error()
                         .data("live memory snapshot exceeds inspection bounds"));

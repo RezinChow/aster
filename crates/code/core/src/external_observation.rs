@@ -391,7 +391,7 @@ impl Drop for ChildWriteClaimGuard {
 }
 
 pub fn observation_from_value(value: &Value) -> Option<ExternalObservationV1> {
-    serde_json::from_value(value.clone()).ok()
+    ExternalObservationV1::deserialize(value).ok()
 }
 
 #[cfg(test)]

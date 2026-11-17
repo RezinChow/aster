@@ -379,14 +379,16 @@ fn validate_tool_result_transform_metadata(
         return Ok(());
     };
     let binding: crate::tools::ToolResultTransformBindingV1 =
-        serde_json::from_value(encoded_binding.clone()).map_err(|error| {
-            anyhow::anyhow!(
+        crate::tools::ToolResultTransformBindingV1::deserialize(encoded_binding).map_err(
+            |error| {
+                anyhow::anyhow!(
                 "run {:?} event {} in session {:?} has malformed Tool result transform binding: {error}",
                 run_id,
                 event_index,
                 session_id
             )
-        })?;
+            },
+        )?;
     binding.validate_for_policy(policy).map_err(|error| {
         anyhow::anyhow!(
             "run {:?} event {} in session {:?} has invalid Tool result transform binding: {error}",
@@ -407,7 +409,7 @@ fn validate_tool_result_transform_metadata(
             )
         })?;
     let evidence: crate::tools::ToolResultEvidenceV1 =
-        serde_json::from_value(encoded_evidence.clone()).map_err(|error| {
+        crate::tools::ToolResultEvidenceV1::deserialize(encoded_evidence).map_err(|error| {
             anyhow::anyhow!(
                 "run {:?} event {} in session {:?} has malformed Tool result evidence: {error}",
                 run_id,

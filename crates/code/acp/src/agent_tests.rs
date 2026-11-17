@@ -79,6 +79,51 @@ async fn unknown_model_id_is_rejected_before_session_lookup() {
     );
 }
 
+#[tokio::test]
+async fn initialize_projects_feature_switch_admission() {
+    let agent = AsterCodeAgent::new(test_launch(None));
+    let init = acp::Agent::initialize(
+        &agent,
+        acp::InitializeRequest::new(acp::ProtocolVersion::V1),
+    )
+    .await
+    .expect("initialize");
+    let meta = init.meta.expect("meta");
+    let switches = meta
+        .get("featureSwitches")
+        .and_then(|value| value.as_object())
+        .expect("featureSwitches object");
+    assert_eq!(
+        switches.get("tools.parallel_task"),
+        Some(&serde_json::Value::Bool(false)),
+        "Removed parallel_task must advertise enabled=false"
+    );
+    assert_eq!(
+        switches.get("acp.wire_surface_v1"),
+        Some(&serde_json::Value::Bool(true)),
+    );
+    let stages = meta
+        .get("featureSwitchStages")
+        .and_then(|value| value.as_object())
+        .expect("featureSwitchStages object");
+    assert_eq!(
+        stages.get("tools.parallel_task"),
+        Some(&serde_json::Value::String("removed".into())),
+    );
+    assert_eq!(
+        stages.get("tools.patch_codes"),
+        Some(&serde_json::Value::String("experimental".into())),
+    );
+    assert_eq!(
+        stages.get("sandbox.permission_profile"),
+        Some(&serde_json::Value::String("stable".into())),
+    );
+    assert_eq!(
+        stages.get("compaction.ledger"),
+        Some(&serde_json::Value::String("stable".into())),
+    );
+}
+
 #[test]
 fn effort_tokens_adjust_thinking_without_setting_a_tool_ceiling() {
     let meta = |effort: &str| {
@@ -639,7 +684,7 @@ fn subagent_progress_reports_the_resolved_window() {
         &serde_json::json!({"tool": "read", "exit_code": 0, "prompt_tokens": 4_000}),
     );
     assert_eq!(progress.tokens_used, 4_000);
-    let finished = subagent_finished_update("task-1", "child-1", true, "ok", 500, &progress);
+    let finished = subagent_finished_update("task-1", "child-1", true, "ok", 500, progress.clone());
     assert_eq!(finished["tool_calls"], 3);
     assert_eq!(finished["turns"], 2);
     assert_eq!(finished["tokens_used"], 4_000);
@@ -665,8 +710,14 @@ fn bash_terminal_events_preserve_the_real_disposition_and_command() {
         "finished",
         &serde_json::json!({"disposition":"failed","exitCode":7}),
     );
-    let failed =
-        subagent_finished_update("bash-1", "bash-1", false, "exit status 7", 300, &progress);
+    let failed = subagent_finished_update(
+        "bash-1",
+        "bash-1",
+        false,
+        "exit status 7",
+        300,
+        progress.clone(),
+    );
     assert_eq!(failed["status"], "error");
     assert_eq!(failed["command"], "exit 7");
     assert_eq!(failed["exitCode"], 7);
@@ -676,7 +727,7 @@ fn bash_terminal_events_preserve_the_real_disposition_and_command() {
         &serde_json::json!({"disposition":"cancelled"}),
     );
     assert_eq!(
-        subagent_finished_update("bash-1", "bash-1", false, "", 300, &progress)["status"],
+        subagent_finished_update("bash-1", "bash-1", false, "", 300, progress)["status"],
         "stopped"
     );
 }
@@ -828,6 +879,79 @@ async fn permission_ask_records_elicitation_across_the_host_hitl() {
                 aster_core::elicitation::ElicitationPhase::Resolved
             );
             assert_eq!(settled.answer.as_deref(), Some("allow-once"));
+        })
+        .await;
+}
+
+/// A second pending ask for the same permission id must deny without opening
+/// another host HITL (defect P1 — begin Err must not be ignored).
+#[tokio::test]
+async fn duplicate_pending_permission_elicitation_denies_without_host_ask() {
+    let root = tempfile::tempdir().unwrap();
+    let local = tokio::task::LocalSet::new();
+    local
+        .run_until(async {
+            let handler_agent = AsterCodeAgent::new(tests::test_launch(None));
+            let (client_end, agent_end) = tokio::io::duplex(64 * 1024);
+            use tokio::io::AsyncBufReadExt;
+            use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+            let (agent_read, agent_write) = tokio::io::split(agent_end);
+            let (conn, io) = acp::AgentSideConnection::new(
+                handler_agent,
+                agent_write.compat_write(),
+                agent_read.compat(),
+                |fut| {
+                    tokio::task::spawn_local(fut);
+                },
+            );
+            tokio::task::spawn_local(io);
+            let host_asks = Rc::new(std::cell::Cell::new(0u32));
+            let host_asks_reader = Rc::clone(&host_asks);
+            tokio::task::spawn_local(async move {
+                let (read, _write) = tokio::io::split(client_end);
+                let mut reader = tokio::io::BufReader::new(read);
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).await.unwrap_or(0) == 0 {
+                        return;
+                    }
+                    let frame: serde_json::Value = match serde_json::from_str(&line) {
+                        Ok(frame) => frame,
+                        Err(_) => continue,
+                    };
+                    if frame["method"] == "session/request_permission" {
+                        host_asks_reader.set(host_asks_reader.get() + 1);
+                    }
+                }
+            });
+            let agent = AsterCodeAgent::new(tests::test_launch(None));
+            agent.set_client(Rc::new(conn));
+
+            let session_id = acp::SessionId::new("s-dup-elicitation");
+            let tool_id = "tool-dup";
+            let elicitation_id =
+                aster_core::elicitation::permission_id(session_id.0.as_ref(), tool_id);
+            aster_core::elicitation::begin(
+                &elicitation_id,
+                aster_core::elicitation::ElicitationChannel::Permission,
+            )
+            .expect("seed pending ledger");
+            let approved = agent
+                .request_tool_permission(
+                    &session_id,
+                    tool_id,
+                    "bash",
+                    &serde_json::json!({"command": "ls"}),
+                    root.path(),
+                )
+                .await;
+            assert!(!approved, "duplicate pending must deny");
+            assert_eq!(
+                host_asks.get(),
+                0,
+                "host must not receive a second permission ask"
+            );
+            let _ = aster_core::elicitation::cancel(&elicitation_id);
         })
         .await;
 }
@@ -1105,8 +1229,31 @@ fn tool_cards_use_pager_kind_and_raw_input() {
     assert_eq!(bash["exit_code"], 0);
     assert_eq!(bash["command"], "echo hi");
     assert_eq!(bash["output"], "hi\n");
+    assert_eq!(bash["output_for_prompt"], "hi\n");
     assert_eq!(bash["total_bytes"], 3);
+    assert_eq!(bash["truncated"], false);
     assert!(bash.get("sandbox_violation").is_none());
+
+    let truncated = tool_raw_output(
+        "bash",
+        Some(&serde_json::json!({"command": "yes"})),
+        "partial\n",
+        0,
+        Some(&serde_json::json!({
+            "output": {
+                "truncated": true,
+                "timed_out": false,
+                "total_bytes": 4096,
+                "captured_bytes": 8,
+                "discarded_bytes": 4088
+            }
+        })),
+    )
+    .unwrap();
+    assert_eq!(truncated["truncated"], true);
+    assert_eq!(truncated["timed_out"], false);
+    assert_eq!(truncated["total_bytes"], 4096);
+    assert_eq!(truncated["discarded_bytes"], 4088);
 
     let denied = tool_raw_output(
         "bash",
@@ -1157,10 +1304,38 @@ fn tool_cards_use_pager_kind_and_raw_input() {
     }
 
     let delta = streaming_bash_delta("chunk");
-    assert_eq!(
-        (&delta["output"], &delta["output_delta"]),
-        (&"".into(), &"chunk".into())
-    );
+    assert_eq!(delta["type"], "Bash");
+    assert_eq!(delta["output_delta"], "chunk");
+    assert_eq!(delta["total_bytes"], 5);
+    // Slim delta: pager BashOutput defaults fill omitted terminal fields.
+    for omitted in [
+        "output",
+        "exit_code",
+        "command",
+        "truncated",
+        "timed_out",
+        "current_dir",
+        "output_file",
+        "output_for_prompt",
+        "description",
+        "signal",
+    ] {
+        assert!(
+            delta.get(omitted).is_none(),
+            "delta still carries {omitted}"
+        );
+    }
+
+    assert_eq!(preview_text("short", 4_000), "short");
+    let long: String = "a".repeat(5_000);
+    assert_eq!(preview_text(&long, 4_000).chars().count(), 4_000);
+    let wide: String = "字".repeat(5_000);
+    assert_eq!(preview_text(&wide, 4_000).chars().count(), 4_000);
+
+    let moved = preview_text_owned("chunk".into(), 4_000);
+    assert_eq!(moved, "chunk");
+    let truncated = preview_text_owned("a".repeat(5_000), 4_000);
+    assert_eq!(truncated.chars().count(), 4_000);
 }
 
 #[test]
@@ -1966,6 +2141,12 @@ async fn tui_turn_renders_every_pager_event() {
             .expect("digest")
             .as_str()
     );
+    assert_eq!(
+        meta.get("featureSwitches")
+            .and_then(|value| value.get("tools.parallel_task")),
+        Some(&serde_json::Value::Bool(false)),
+        "Removed switches must advertise enabled=false on initialize"
+    );
     acp::Agent::authenticate(&agent, acp::AuthenticateRequest::new("none"))
         .await
         .expect("authenticate");
@@ -2030,6 +2211,8 @@ async fn tui_turn_renders_every_pager_event() {
         prompted_questions: std::collections::HashSet::new(),
         painted_tools: std::collections::HashSet::new(),
         pending_tools: std::collections::HashSet::new(),
+        open_spawn_tool_id: None,
+        subagent_parent_tool: HashMap::new(),
         last_turn_usage: None,
         end_usage: None,
         model_calls: 0,
@@ -2470,6 +2653,7 @@ fn workspace_and_home_skill_roots_are_loaded_when_they_exist() {
             ".agents/skills",
             ".claude/skills",
             ".codex/skills",
+            ".kstudio/skills",
         ] {
             std::fs::create_dir_all(base.join(rel)).unwrap();
         }
@@ -2482,6 +2666,7 @@ fn workspace_and_home_skill_roots_are_loaded_when_they_exist() {
             ".agents/skills",
             ".claude/skills",
             ".codex/skills",
+            ".kstudio/skills",
         ] {
             assert!(
                 dirs.iter().any(|dir| dir == &base.join(rel)),
@@ -2495,6 +2680,54 @@ fn workspace_and_home_skill_roots_are_loaded_when_they_exist() {
         "an unconfigured directory outside the workspace and home stays unloaded"
     );
     assert!(missing.is_empty());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn acp_host_can_compose_kburn_skill_coverage_from_core() {
+    let root =
+        std::env::temp_dir().join(format!("aster-acp-kburn-coverage-{}", uuid::Uuid::new_v4()));
+    let _ = std::fs::remove_dir_all(&root);
+    let skills = aster_core::kstudio::KstudioCoreDirs::for_workspace(&root).skills;
+    std::fs::create_dir_all(skills.join("status")).unwrap();
+    std::fs::write(
+        skills.join("status").join("SKILL.md"),
+        "---\nname: status\n---\n",
+    )
+    .unwrap();
+    let coverage = aster_core::kstudio::kburn_skill_coverage(&root);
+    assert_eq!(coverage.present, vec!["status".to_owned()]);
+    assert_eq!(coverage.missing.len(), 11);
+    assert!(!coverage.is_complete());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn project_kstudio_skills_load_after_other_project_roots() {
+    let root =
+        std::env::temp_dir().join(format!("aster-acp-kstudio-skills-{}", uuid::Uuid::new_v4()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("skills")).unwrap();
+    std::fs::create_dir_all(root.join(".kstudio").join("skills")).unwrap();
+    std::fs::create_dir_all(root.join(".aster").join("skills")).unwrap();
+    let (dirs, missing) = interactive_skill_dirs_from(&root, &[], None);
+    assert!(missing.is_empty());
+    let skills_idx = dirs
+        .iter()
+        .position(|dir| dir == &root.join("skills"))
+        .expect("skills root");
+    let legacy_idx = dirs
+        .iter()
+        .position(|dir| dir == &root.join(".kstudio").join("skills"))
+        .expect(".kstudio/skills root");
+    let aster_idx = dirs
+        .iter()
+        .position(|dir| dir == &root.join(".aster").join("skills"))
+        .expect(".aster/skills root");
+    assert!(
+        skills_idx < legacy_idx && legacy_idx < aster_idx,
+        ".aster/skills must load last so later-wins favors Aster-native packs: {dirs:?}"
+    );
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -2538,6 +2771,7 @@ fn interactive_skill_dirs_load_an_explicit_profile_without_reading_home() {
     let workspace = root.join("workspace");
     std::fs::create_dir_all(profile.join(".codex").join("skills")).unwrap();
     std::fs::create_dir_all(profile.join(".grok").join("skills")).unwrap();
+    std::fs::create_dir_all(workspace.join(".aster").join("skills")).unwrap();
     std::fs::create_dir_all(&workspace).unwrap();
 
     let (dirs, absent) = interactive_skill_dirs_under(&workspace, &[], Some(profile.as_path()));
@@ -2552,6 +2786,18 @@ fn interactive_skill_dirs_load_an_explicit_profile_without_reading_home() {
         "{dirs:?}"
     );
     assert!(absent.is_empty());
+    let home_idx = dirs
+        .iter()
+        .position(|dir| dir == &profile.join(".codex").join("skills"))
+        .expect("home skills");
+    let project_idx = dirs
+        .iter()
+        .position(|dir| dir == &workspace.join(".aster").join("skills"))
+        .expect("project skills");
+    assert!(
+        home_idx < project_idx,
+        "workspace skills must load after home so later-wins favors project: {dirs:?}"
+    );
 
     let (without_home, _) = interactive_skill_dirs_under(&workspace, &[], None);
     assert!(
@@ -2580,10 +2826,11 @@ fn watched_skill_dirs_include_home_agent_roots_before_they_exist() {
     let dirs = watched_skill_dirs(workspace);
     for root_name in [
         "skills",
-        ".aster/skills",
         ".agents/skills",
         ".claude/skills",
         ".codex/skills",
+        ".kstudio/skills",
+        ".aster/skills",
     ] {
         assert!(
             dirs.iter().any(|dir| dir == &workspace.join(root_name)),
@@ -2597,10 +2844,11 @@ fn watched_skill_dirs_include_home_agent_roots_before_they_exist() {
     let home = std::path::PathBuf::from(home);
     for root in [
         "skills",
-        ".aster/skills",
         ".agents/skills",
         ".claude/skills",
         ".codex/skills",
+        ".kstudio/skills",
+        ".aster/skills",
     ] {
         let personal = home.join(root);
         assert!(
@@ -2751,6 +2999,8 @@ async fn user_question_with_form_round_trips_the_submitted_values() {
                 prompted_questions: std::collections::HashSet::new(),
                 painted_tools: std::collections::HashSet::new(),
                 pending_tools: std::collections::HashSet::new(),
+        open_spawn_tool_id: None,
+        subagent_parent_tool: HashMap::new(),
         last_turn_usage: None,
         end_usage: None,
         model_calls: 0,
@@ -2876,6 +3126,8 @@ async fn user_question_choices_round_trip_typed_and_selected_answers() {
                 prompted_questions: std::collections::HashSet::new(),
                 painted_tools: std::collections::HashSet::new(),
                 pending_tools: std::collections::HashSet::new(),
+                open_spawn_tool_id: None,
+                subagent_parent_tool: HashMap::new(),
                 last_turn_usage: None,
                 end_usage: None,
                 model_calls: 0,

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kstudio.project-layout.v1",
+  "title": "Project engineering layout manifest (.aster canonical; .kstudio legacy)",
+  "description": "Stable core directories + optional extensions/contexts. Unknown extension keys must be ignored.",
+  "type": "object",
+  "required": ["schema", "schema_version"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "kstudio.project-manifest.v1" },
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "core": {
+      "type": "object",
+      "description": "Stable bounded-context projections on disk",
+      "additionalProperties": false,
+      "properties": {
+        "workflow": { "type": "string", "default": "workflow" },
+        "workflows": { "type": "string", "default": "workflows" },
+        "evidence": { "type": "string", "default": "evidence" },
+        "wiki": { "type": "string", "default": "wiki" },
+        "lanes": { "type": "string", "default": "lanes" },
+        "migration": { "type": "string", "default": "migration" },
+        "skills": {
+          "type": "string",
+          "default": "skills",
+          "description": "Conductor skills (P15); entries named init|goal|status|…"
+        }
+      }
+    },
+    "project_config": {
+      "type": "object",
+      "description": "P16 Kense KCL project config paths under the engineering root (.aster/ or legacy .kstudio/)",
+      "properties": {
+        "config": { "type": "string", "default": "project.acl" },
+        "config_example": { "type": "string", "default": "project.acl.example" },
+        "config_local": { "type": "string", "default": "project.local.acl" },
+        "schema": { "const": "kstudio.project-config.v1" }
+      }
+    },
+    "extensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "path"],
+        "properties": {
+          "id": { "type": "string" },
+          "path": { "type": "string" },
+          "enabled": { "type": "boolean", "default": true },
+          "api_version": { "type": "integer", "minimum": 1 },
+          "contributes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "templates",
+                "wiki_namespace",
+                "evidence_roots",
+                "hooks",
+                "contexts"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "contexts": {
+      "type": "array",
+      "description": "Optional BC projections (not a second workflow engine)",
+      "items": {
+        "type": "object",
+        "required": ["name", "path"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "fleet",
+              "agents",
+              "workspace",
+              "workflow",
+              "evidence",
+              "project",
+              "custom"
+            ]
+          },
+          "path": { "type": "string" },
+          "custom_name": { "type": "string" }
+        }
+      }
+    },
+    "bounded_contexts": {
+      "type": "array",
+      "description": "Documentation map for DDD; optional at runtime",
+      "items": {
+        "type": "object",
+        "required": ["id", "disk"],
+        "properties": {
+          "id": { "type": "string" },
+          "disk": { "type": "string" },
+          "ubiquitous_language_ref": { "type": "string" }
+        }
+      }
+    },
+    "conductor": {
+      "type": "object",
+      "description": "Conductor (billet O) write/output policy; elevation=on_planning_request (P10e)",
+      "properties": {
+        "role_id": { "type": "string", "pattern": "^[A-Z]$", "default": "O" },
+        "write_policy": { "const": "orchestrate_only" },
+        "never_writes_code": { "type": "boolean" },
+        "output_profile": { "type": "string" },
+        "elevation": {
+          "type": "string",
+          "enum": ["on_planning_request", "explicit_only"],
+          "default": "on_planning_request",
+          "description": "P10e: session that receives planning request becomes Conductor"
+        },
+        "elevation_ref": { "type": "string" },
+        "environment_prompt_ref": { "type": "string" },
+        "ref": { "type": "string" },
+        "output_ref": { "type": "string" },
+        "report_ref": { "type": "string" }
+      }
+    },
+    "ai_engineering": {
+      "type": "object",
+      "description": "AI eng conformance stamp; see docs/ai-engineering-conformance.md",
+      "properties": {
+        "conformance": { "type": "string", "enum": ["L0", "L1", "L2", "L3"] },
+        "conformance_ref": { "type": "string" },
+        "aril_ref": { "type": "string" },
+        "conductor_output_ref": { "type": "string" },
+        "elevation_ref": { "type": "string" },
+        "environment_prompt_ref": { "type": "string" },
+        "token_cost_ref": { "type": "string" },
+        "report_copy_ref": { "type": "string" },
+        "billets_path": { "type": "string" },
+        "head_wave": { "type": "string" },
+        "verify": { "type": "string" },
+        "verified_at": { "type": "string" },
+        "principles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "e.g. P10c P10d P10e P11 P12"
+        },
+        "local_adrs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "universal_billets": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Z]$" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "kstudio.review-checks.v1",
+  "checks": [
+    {
+      "id": "skill-sync",
+      "argv": [
+        "python3",
+        ".aster/workflow/sync-k-skills.py",
+        "--check"
+      ]
+    },
+    {
+      "id": "ai-engineering",
+      "argv": [
+        "python3",
+        ".aster/workflow/verify-ai-eng.py",
+        "--level",
+        "L3"
+      ]
+    }
+  ]
+}

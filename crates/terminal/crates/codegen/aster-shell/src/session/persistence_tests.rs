@@ -2518,3 +2518,78 @@ async fn stamp_session_identity_falls_back_to_snapshot_when_disk_has_none() {
     assert_eq!(on_disk.agent_id.as_deref(), Some("ag1.c0ffee"));
     assert_eq!(on_disk.attempt_id, Some(stamped.attempt_id));
 }
+
+fn generation_delta_chunk(info: &Info, text: &str) -> acp::SessionNotification {
+    let mut meta = serde_json::Map::new();
+    meta.insert("asterGenerationDelta".into(), serde_json::json!(true));
+    acp::SessionNotification::new(
+        info.id.clone(),
+        acp::SessionUpdate::AgentMessageChunk(
+            acp::ContentChunk::new(acp::ContentBlock::Text(acp::TextContent::new(text)))
+                .meta(Some(meta)),
+        ),
+    )
+}
+
+#[test]
+fn equal_aster_generation_delta_meta_merges_consecutive_chunks() {
+    let info = Info {
+        id: acp::SessionId::new("merge-gen-delta"),
+        cwd: "/test".into(),
+    };
+    let (_tx, rx) = mpsc::unbounded_channel();
+    let (disk_full_tx, _disk_full_rx) = tokio::sync::watch::channel(false);
+    let sampling_client = OaiCompatClient::new(aster_sampler::SamplerConfig::default()).unwrap();
+    let summary =
+        crate::session::summary::SummaryGenerator::new(crate::session::summary::SummaryConfig {
+            sampling_client,
+            model: String::new(),
+            persistence_tx: mpsc::unbounded_channel::<PersistenceMsg>().0.downgrade(),
+        });
+    let mut persistence = SessionPersistence {
+        info: info.clone(),
+        storage: Arc::new(JsonlStorageAdapter::with_explicit_session_dir(
+            std::env::temp_dir().join("aster-merge-gen-delta-unused"),
+        )),
+        pending_notification: None,
+        rx,
+        remote_sync: None,
+        created_fresh: false,
+        relay_sync: None,
+        summary,
+        registry_title_sync: None,
+        gateway: None,
+        search_index: crate::session::storage::search::SharedSearchIndex::never_indexed(),
+        disk_full_tx,
+        disk_full_notified: false,
+        dirty_files: Default::default(),
+        pending_write_error: None,
+        last_usage_live: None,
+        last_usage_turn: None,
+        last_incoming_turn: None,
+    };
+
+    assert!(
+        persistence
+            .maybe_merge_notification(generation_delta_chunk(&info, "hel"))
+            .is_none(),
+        "first chunk stays pending"
+    );
+    assert!(
+        persistence
+            .maybe_merge_notification(generation_delta_chunk(&info, "lo"))
+            .is_none(),
+        "equal asterGenerationDelta meta must merge instead of flushing"
+    );
+    let pending = persistence
+        .pending_notification
+        .take()
+        .expect("merged pending chunk");
+    let acp::SessionUpdate::AgentMessageChunk(chunk) = pending.update else {
+        panic!("expected AgentMessageChunk");
+    };
+    let acp::ContentBlock::Text(text) = chunk.content else {
+        panic!("expected text content");
+    };
+    assert_eq!(text.text, "hello");
+}

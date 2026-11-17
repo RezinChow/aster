@@ -926,6 +926,12 @@ pub(super) fn dispatch_task_result(result: TaskResult, app: &mut AppView) -> Vec
         }
         TaskResult::CancelComplete => {
             tracing::trace!("Cancel notification sent successfully");
+            // H7 honesty: soft Stop leaves shared background tasks running.
+            if let Some(agent) = get_active_agent_mut(app)
+                && agent.session.has_running_bg_tasks()
+            {
+                agent.show_toast("Turn cancelled; background tasks are still running.");
+            }
             vec![]
         }
         TaskResult::SetSessionModeFailed { session_id } => {

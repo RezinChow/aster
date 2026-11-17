@@ -503,12 +503,14 @@ fn log_cut_or_freeze_exposes_committed_byte_len() {
     let facts = log
         .append("thread", &[input("one", "one"), input("two", "two")], None)
         .expect("append");
-    let frozen = log.freeze("thread").expect("freeze");
+    let (read_facts, frozen) = log.read_freeze("thread").expect("read_freeze");
     let on_disk = std::fs::metadata(root.path().join("thread.jsonl"))
         .expect("size")
         .len();
+    assert_eq!(read_facts, facts);
     assert_eq!(frozen.byte_len, on_disk);
     assert_eq!(frozen.cut, crate::cut_log(&facts));
+    assert_eq!(log.freeze("thread").expect("freeze"), frozen);
     log.append("thread", &[input("three", "three")], None)
         .expect("grow");
     assert!(log.freeze("thread").expect("grown").byte_len > frozen.byte_len);

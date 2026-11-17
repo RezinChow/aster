@@ -71,7 +71,7 @@ impl Tool for TaskControlTool {
             .ok_or_else(|| anyhow::anyhow!("task control requires a session"))?;
         let (tracker, id, timeout_ms) = match self {
             Self::Output(tracker) => {
-                let request: OutputRequest = serde_json::from_value(args.clone())?;
+                let request: OutputRequest = OutputRequest::deserialize(args)?;
                 anyhow::ensure!(
                     request.timeout_ms <= MAX_WAIT_MS,
                     "timeout_ms exceeds 300000"
@@ -79,7 +79,7 @@ impl Tool for TaskControlTool {
                 (tracker, request.task_id, request.timeout_ms)
             }
             Self::Stop(tracker) => {
-                let request: StopRequest = serde_json::from_value(args.clone())?;
+                let request: StopRequest = StopRequest::deserialize(args)?;
                 (tracker, request.task_id, 0)
             }
         };

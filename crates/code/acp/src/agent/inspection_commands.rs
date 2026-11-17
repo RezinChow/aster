@@ -4,14 +4,20 @@ use super::*;
 use aster_core::durable_memory_vec::management::{
     MemoryManagementFailure, MemoryManagementRequest, MemoryManagementResponse,
 };
+use serde::Deserialize;
 
 const MEMORY_USAGE: &str =
     "Usage: /memory [list [query] | next <cursor> [query] | read <id> | delete <id> <revision>]";
 const TASKS_USAGE: &str = "Usage: /tasks [stop <task-id>]";
+const KBURN_USAGE: &str = "Usage: /kburn [status | materialize]";
 
 pub(super) enum InspectionCommand {
     Memory(MemoryManagementRequest),
     Tasks(Option<String>),
+    /// Host composition of Core kburn coverage / factory seeds (HG6 means).
+    Kburn {
+        materialize: bool,
+    },
 }
 
 pub(super) fn parse(prompt: &str) -> Option<Result<InspectionCommand, &'static str>> {
@@ -31,6 +37,11 @@ pub(super) fn parse(prompt: &str) -> Option<Result<InspectionCommand, &'static s
                 }
                 _ => Err(TASKS_USAGE),
             }
+        }),
+        "/kburn" => Some(match args {
+            "" | "status" => Ok(InspectionCommand::Kburn { materialize: false }),
+            "materialize" => Ok(InspectionCommand::Kburn { materialize: true }),
+            _ => Err(KBURN_USAGE),
         }),
         _ => None,
     }
@@ -88,6 +99,9 @@ impl AsterCodeAgent {
         command: Result<InspectionCommand, &'static str>,
     ) -> acp::Result<String> {
         let command = command.map_err(|usage| acp::Error::invalid_params().data(usage))?;
+        if let InspectionCommand::Kburn { materialize } = command {
+            return format_kburn_report(session.workspace(), materialize);
+        }
         let query = match &command {
             InspectionCommand::Memory(MemoryManagementRequest::List { query, .. }) => query.clone(),
             _ => String::new(),
@@ -107,6 +121,7 @@ impl AsterCodeAgent {
                 };
                 (method, params)
             }
+            InspectionCommand::Kburn { .. } => unreachable!("kburn handled before ext_method"),
         };
         let raw = serde_json::value::to_raw_value(&params)
             .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
@@ -116,8 +131,15 @@ impl AsterCodeAgent {
             .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
         if method == "aster/memory/manage" {
             let outcome: Result<MemoryManagementResponse, MemoryManagementFailure> =
-                serde_json::from_value(value["outcome"].clone())
-                    .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+                match value.get("outcome") {
+                    Some(outcome) => {
+                        Result::<MemoryManagementResponse, MemoryManagementFailure>::deserialize(
+                            outcome,
+                        )
+                    }
+                    None => Err(serde::de::Error::missing_field("outcome")),
+                }
+                .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
             return match outcome {
                 Ok(result) => format_memory(result, &query),
                 Err(error) => Err(acp::Error::invalid_params().data(error.to_string())),
@@ -148,6 +170,59 @@ impl AsterCodeAgent {
         }
         Ok(text)
     }
+}
+
+fn format_kburn_report(workspace: &std::path::Path, materialize: bool) -> acp::Result<String> {
+    let mut text = String::new();
+    if materialize {
+        let created = aster_core::kstudio::materialize_kstudio_factory_seeds(workspace)
+            .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+        if created.is_empty() {
+            text.push_str("materialize: no missing factory seeds (existing files kept).\n\n");
+        } else {
+            text.push_str(&format!("materialize: created {} path(s)\n", created.len()));
+            for path in &created {
+                text.push_str(&format!("- {}\n", path.display()));
+            }
+            text.push('\n');
+        }
+    }
+    text.push_str(&format_kburn_coverage(workspace));
+    Ok(text)
+}
+
+fn format_kburn_coverage(workspace: &std::path::Path) -> String {
+    let coverage = aster_core::kstudio::kburn_skill_coverage(workspace);
+    let dirs = aster_core::kstudio::KstudioCoreDirs::for_workspace(workspace);
+    let mut text = format!(
+        "eng root: {}\nkburn skill coverage · {}/{} present\nskills: {}\n\n",
+        dirs.root.display(),
+        coverage.present.len(),
+        aster_core::kstudio::KBURN_SKILL_NAMES.len(),
+        dirs.skills.display()
+    );
+    if coverage.is_complete() {
+        text.push_str("Complete: all 12 canonical skill packages found.\n");
+    } else {
+        text.push_str("Present:\n");
+        for name in &coverage.present {
+            text.push_str(&format!("- {name}\n"));
+        }
+        text.push_str("Missing:\n");
+        for name in &coverage.missing {
+            text.push_str(&format!("- {name}\n"));
+        }
+    }
+    let helpers = aster_core::kstudio::present_kstudio_workflow_helpers(workspace);
+    text.push_str(&format!(
+        "\nworkflow helpers · {}/{}\n",
+        helpers.len(),
+        aster_core::kstudio::KSTUDIO_WORKFLOW_HELPERS.len()
+    ));
+    for path in &helpers {
+        text.push_str(&format!("- {}\n", path.display()));
+    }
+    text
 }
 
 fn format_memory(response: MemoryManagementResponse, query: &str) -> acp::Result<String> {

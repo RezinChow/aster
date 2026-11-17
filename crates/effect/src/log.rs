@@ -258,7 +258,12 @@ impl FileLog {
         )?;
         let text = std::str::from_utf8(&raw).map_err(storage_error)?;
         let mut keys = HashSet::new();
-        for line in text.lines().filter(|line| !line.is_empty()) {
+        // E2: never silently skip blank lines — a mid-file empty line fails closed
+        // so damaged separators cannot be treated as a contiguous seq stream.
+        for line in text.lines() {
+            if line.is_empty() {
+                return Err(storage_error("fact log contains an empty line"));
+            }
             if opened.facts.len() == MAX_LOG_FACTS {
                 return Err(storage_error("fact log fact-count limit exceeded"));
             }
@@ -320,10 +325,10 @@ impl FileLog {
         self.dir.open_with(name, &options).map_err(storage_error)
     }
 
-    /// Freeze the log as read now: its `LogCut` and committed byte length.
+    /// Read facts and freeze the log in one open (cut + committed byte length).
     /// Refuses (like `read`) on a corrupt, truncated or oversized log. An
     /// absent thread freezes as the empty cut at zero bytes.
-    pub fn freeze(&self, thread_id: &str) -> Result<LogFreeze, ActorError> {
+    pub fn read_freeze(&self, thread_id: &str) -> Result<(Vec<Fact>, LogFreeze), ActorError> {
         valid_thread(thread_id)?;
         let _guard = self
             .lock
@@ -334,10 +339,16 @@ impl FileLog {
             Some(opened) => (opened.facts, opened.metadata.len()),
             None => (Vec::new(), 0),
         };
-        Ok(LogFreeze {
+        let freeze = LogFreeze {
             cut: cut_log(&facts),
             byte_len,
-        })
+        };
+        Ok((facts, freeze))
+    }
+
+    /// Freeze the log as read now: its `LogCut` and committed byte length.
+    pub fn freeze(&self, thread_id: &str) -> Result<LogFreeze, ActorError> {
+        Ok(self.read_freeze(thread_id)?.1)
     }
 
     /// Discard every fact after `seq`, keeping the retained prefix.
@@ -591,12 +602,26 @@ fn is_byte_limit_error(error: &ActorError) -> bool {
 
 /// The log cannot take `added` even after pruning. Name what fills it so the
 /// operator can tell a runaway producer from an uncompacted run.
+fn json_len(value: &(impl serde::Serialize + ?Sized)) -> usize {
+    struct Counter(usize);
+    impl std::io::Write for Counter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0 = self.0.saturating_add(buf.len());
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter(0);
+    let _ = serde_json::to_writer(&mut counter, value);
+    counter.0
+}
+
 fn byte_limit_diagnostic(facts: &[Fact], added: &[Fact], reason: &str) -> ActorError {
     let mut by_kind: HashMap<&str, u64> = HashMap::new();
     for fact in facts {
-        let size = serde_json::to_vec(fact)
-            .map(|bytes| bytes.len())
-            .unwrap_or(0);
+        let size = json_len(fact);
         *by_kind.entry(fact.kind.as_str()).or_default() += size as u64 + 1;
     }
     let largest = by_kind

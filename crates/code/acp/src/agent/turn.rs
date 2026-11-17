@@ -79,10 +79,10 @@ impl AsterCodeAgent {
                     state.saw_text = true;
                 }
                 state.delta_text.push_str(&text);
-                self.emit_text(session_id, &text, true).await;
+                self.emit_text(session_id, text, true).await;
             }
             AgentEvent::ReasoningDelta { text } => {
-                self.emit_thought(session_id, &text).await;
+                self.emit_thought(session_id, text).await;
             }
             AgentEvent::ToolStart { .. } => {
                 // Streaming and the fact runner both announce a call before its
@@ -96,6 +96,9 @@ impl AsterCodeAgent {
                 args: tool_args,
             } => {
                 state.pending_tools.insert(id.clone());
+                if is_spawn_parent_tool(&name) {
+                    state.open_spawn_tool_id = Some(id.clone());
+                }
                 match note_tool_row(&mut state.painted_tools, &id) {
                     ToolRowPaint::Open => {
                         self.emit_tool_call(session_id, &id, &name, Some(&tool_args))
@@ -108,7 +111,7 @@ impl AsterCodeAgent {
                 }
             }
             AgentEvent::ToolOutputDelta { id, name, delta } => {
-                self.emit_tool_call_output_delta(session_id, &id, &name, &delta)
+                self.emit_tool_call_output_delta(session_id, &id, &name, delta)
                     .await;
             }
             AgentEvent::ToolEnd {
@@ -142,6 +145,9 @@ impl AsterCodeAgent {
                     .await;
                 }
                 state.pending_tools.remove(&id);
+                if state.open_spawn_tool_id.as_deref() == Some(id.as_str()) {
+                    state.open_spawn_tool_id = None;
+                }
             }
             AgentEvent::ConfirmationRequired {
                 tool_id,
@@ -202,6 +208,10 @@ impl AsterCodeAgent {
                 state
                     .subagent_started_ms
                     .insert(task_id.clone(), started_ms);
+                let tool_call_id = state.open_spawn_tool_id.clone();
+                if let Some(parent) = tool_call_id.clone() {
+                    state.subagent_parent_tool.insert(task_id.clone(), parent);
+                }
                 self.emit_subagent_start(
                     session_id,
                     &task_id,
@@ -210,6 +220,7 @@ impl AsterCodeAgent {
                     &agent,
                     &description,
                     started_ms,
+                    tool_call_id.as_deref(),
                 )
                 .await;
             }
@@ -224,6 +235,7 @@ impl AsterCodeAgent {
                     .get(&task_id)
                     .copied()
                     .unwrap_or(0);
+                let tool_call_id = state.subagent_parent_tool.get(&task_id).cloned();
                 let progress = state.child_progress.entry(task_id.clone()).or_default();
                 note_child_progress(progress, &status, &metadata);
                 self.emit_subagent_progress(
@@ -234,6 +246,7 @@ impl AsterCodeAgent {
                     &metadata,
                     started_ms,
                     progress,
+                    tool_call_id.as_deref(),
                 )
                 .await;
             }
@@ -258,6 +271,7 @@ impl AsterCodeAgent {
                 self.emit_xai_session_update(session_id, update).await;
                 state.subagent_started_ms.remove(&task_id);
                 state.child_progress.remove(&task_id);
+                state.subagent_parent_tool.remove(&task_id);
             }
             AgentEvent::TurnEnd { usage, .. } => {
                 state.model_calls = state.model_calls.saturating_add(1);
@@ -280,7 +294,6 @@ impl AsterCodeAgent {
                 info["sessionTotalTokens"] = serde_json::json!(session.recorded_usage_tokens().2);
                 self.emit_xai_session_update(session_id, info).await;
                 state.end_usage = Some(usage);
-                state.end_text = Some(text.clone());
                 state.end_outcome = Some(turn_outcome_payload(
                     &completion_terminal,
                     &verification_summary,
@@ -295,8 +308,12 @@ impl AsterCodeAgent {
                         acp::StopReason::MaxTurnRequests
                     }
                 });
+                // Clone only when the host still needs a streamed copy; otherwise move.
                 if should_emit_end_text(state.saw_text, &text) {
-                    self.emit_text(session_id, &text, false).await;
+                    state.end_text = Some(text.clone());
+                    self.emit_text(session_id, text, false).await;
+                } else {
+                    state.end_text = Some(text);
                 }
             }
             AgentEvent::Error { message } => {
@@ -330,20 +347,25 @@ impl AsterCodeAgent {
                 tokens_after,
             } => {
                 let (_, percentage) = context_usage(context_window, tokens_used);
-                let update = if phase == "started" {
-                    serde_json::json!({
+                let update = match phase.as_str() {
+                    "started" => serde_json::json!({
                         "sessionUpdate": "auto_compact_started",
                         "tokens_used": tokens_used,
                         "context_window": context_window,
                         "percentage": percentage,
                         "reason": "threshold",
-                    })
-                } else {
-                    serde_json::json!({
+                    }),
+                    "failed" => serde_json::json!({
+                        "sessionUpdate": "auto_compact_failed",
+                        "tokens_used": tokens_used,
+                        "context_window": context_window,
+                        "percentage": percentage,
+                    }),
+                    _ => serde_json::json!({
                         "sessionUpdate": "auto_compact_completed",
                         "tokens_before": tokens_used,
                         "tokens_after": tokens_after,
-                    })
+                    }),
                 };
                 self.emit_xai_session_update(session_id, update).await;
             }
@@ -358,6 +380,10 @@ impl AsterCodeAgent {
                     self.emit_tool_call(session_id, &tool_id, &tool_name, Some(&tool_args))
                         .await;
                 }
+                // P8: stable permission.denied code for hosts (not reason text alone).
+                let denial_meta = serde_json::json!({
+                    "permission_denial": { "code": "permission.denied" }
+                });
                 self.emit_tool_call_completed(
                     session_id,
                     &tool_id,
@@ -365,7 +391,7 @@ impl AsterCodeAgent {
                     Some(&tool_args),
                     &reason,
                     1,
-                    None,
+                    Some(&denial_meta),
                 )
                 .await;
             }
@@ -792,6 +818,10 @@ impl AsterCodeAgent {
                 false
             };
             if let Some(live) = sessions.get(session_key).filter(|_| current) {
+                *live
+                    .turn_started_ms
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
                 live.turn_started
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -836,6 +866,11 @@ impl AsterCodeAgent {
         }
         response
     }
+}
+
+/// Parent tools that own a Studio board row and must bind `toolCallId` onto subagent wire.
+fn is_spawn_parent_tool(name: &str) -> bool {
+    matches!(name, "task" | "background")
 }
 
 /// End restates a reply that already streamed. Emit it only when no deltas arrived.
@@ -1104,6 +1139,23 @@ mod usage_meta_tests {
         assert_eq!(wire["_meta"]["estimatedOtherContextTokens"], 96);
     }
 
+    /// HG2 token freeze grader: fixed snapshot+transcript → exact wire token fields.
+    /// This is the measurable **token** surface for near-term hard goal 高效; not product Pass.
+    #[test]
+    fn hg2_token_freeze_grader_usage_update_wire() {
+        let transcript = vec![aster_core::Message::user("你好")];
+        let wire =
+            serde_json::to_value(usage_update(&snapshot(), 16_384, &transcript, 2_048)).unwrap();
+        assert_eq!(wire["used"], 90);
+        assert_eq!(wire["size"], 16_384);
+        assert_eq!(wire["_meta"]["sessionTotalTokens"], 2_048);
+        assert_eq!(wire["_meta"]["totalTokens"], 130);
+        assert_eq!(wire["_meta"]["completionTokens"], 40);
+        // "user" + pad + UTF-8「你好」→ (4+4+6+3)/4 = 4
+        assert_eq!(wire["_meta"]["estimatedUserTokens"], 4);
+        assert_eq!(wire["_meta"]["estimatedOtherContextTokens"], 96);
+    }
+
     fn usage(prompt: usize, completion: usize) -> aster_core::llm::TokenUsage {
         aster_core::llm::TokenUsage {
             prompt_tokens: prompt,
@@ -1134,6 +1186,14 @@ mod usage_meta_tests {
         assert_eq!(payload["measuredOutputTokens"], 80);
         assert_eq!(payload["generationDurationMs"], 4_000);
         assert!(payload.get("requestModel").is_none());
+    }
+
+    #[test]
+    fn spawn_parent_tools_are_task_and_background_only() {
+        assert!(super::is_spawn_parent_tool("task"));
+        assert!(super::is_spawn_parent_tool("background"));
+        assert!(!super::is_spawn_parent_tool("bash"));
+        assert!(!super::is_spawn_parent_tool("read"));
     }
 
     #[test]

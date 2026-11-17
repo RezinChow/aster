@@ -7,6 +7,7 @@ use crate::store::{
     TranscriptToolResult,
 };
 use aster_effect::{Fact, LogStore, ModelDecision};
+use serde::Deserialize;
 use std::collections::HashSet;
 
 const MAX_PAGE_LIMIT: usize = 256;
@@ -173,12 +174,14 @@ pub(crate) fn project_entries(facts: &[Fact]) -> Result<Vec<TranscriptEntry>> {
         match fact.kind.as_str() {
             super::migration::LEGACY_STUDIO_ENTRY_FACT_KIND => {
                 let stored: super::migration::LegacyStudioEntryFact =
-                    serde_json::from_value(fact.payload.clone()).map_err(|error| {
-                        transcript_error(format!(
-                            "corrupt imported legacy entry at seq {}: {error}",
-                            fact.seq
-                        ))
-                    })?;
+                    super::migration::LegacyStudioEntryFact::deserialize(&fact.payload).map_err(
+                        |error| {
+                            transcript_error(format!(
+                                "corrupt imported legacy entry at seq {}: {error}",
+                                fact.seq
+                            ))
+                        },
+                    )?;
                 entries.push(entry(
                     &facts[index..=index],
                     TranscriptEntryPayload::LegacyHistory {
@@ -230,8 +233,8 @@ pub(crate) fn project_entries(facts: &[Fact]) -> Result<Vec<TranscriptEntry>> {
                 )?);
             }
             "model.turn" => {
-                let decision: ModelDecision = serde_json::from_value(fact.payload.clone())
-                    .map_err(|error| {
+                let decision: ModelDecision =
+                    ModelDecision::deserialize(&fact.payload).map_err(|error| {
                         transcript_error(format!("corrupt model.turn at seq {}: {error}", fact.seq))
                     })?;
                 match decision {
@@ -358,7 +361,7 @@ pub(crate) fn project_entries(facts: &[Fact]) -> Result<Vec<TranscriptEntry>> {
                     run_id: Option<String>,
                 }
                 let yielded: YieldedTurn =
-                    serde_json::from_value(fact.payload.clone()).map_err(|error| {
+                    YieldedTurn::deserialize(&fact.payload).map_err(|error| {
                         transcript_error(format!(
                             "corrupt turn.yielded at seq {}: {error}",
                             fact.seq
@@ -377,8 +380,8 @@ pub(crate) fn project_entries(facts: &[Fact]) -> Result<Vec<TranscriptEntry>> {
             }
             "turn.complete" => {
                 let terminal = required_string(fact, "terminal")?.to_string();
-                let log_cut: TranscriptSourceCut = serde_json::from_value(
-                    fact.payload.get("log_cut").cloned().ok_or_else(|| {
+                let log_cut: TranscriptSourceCut = TranscriptSourceCut::deserialize(
+                    fact.payload.get("log_cut").ok_or_else(|| {
                         transcript_error(format!("turn.complete seq {} lacks log_cut", fact.seq))
                     })?,
                 )
@@ -501,7 +504,7 @@ fn pending_interaction(facts: &[Fact]) -> Result<bool> {
             "model.turn" => {
                 confirmations.clear();
                 let decision: ModelDecision =
-                    serde_json::from_value(fact.payload.clone()).map_err(transcript_error)?;
+                    ModelDecision::deserialize(&fact.payload).map_err(transcript_error)?;
                 match decision {
                     ModelDecision::Question { .. } => question = true,
                     ModelDecision::Tool { call, also } => {

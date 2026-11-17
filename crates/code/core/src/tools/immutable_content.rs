@@ -522,12 +522,11 @@ fn ensure_within_binding(
 }
 
 fn canonical_digest(value_domain: &str, value: &impl Serialize) -> Result<String, String> {
-    let encoded = serde_json::to_vec(value)
-        .map_err(|error| format!("could not encode canonical digest input: {error}"))?;
     let mut hasher = Sha256::new();
     hasher.update(value_domain.as_bytes());
     hasher.update([0]);
-    hasher.update(encoded);
+    crate::byte_budget::json_update_sha256(&mut hasher, value)
+        .map_err(|error| format!("could not encode canonical digest input: {error}"))?;
     Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 

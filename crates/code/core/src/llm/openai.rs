@@ -64,44 +64,52 @@ impl OpenAiClient {
 
     // A delta carries new bytes even when it repeats earlier content. Only
     // explicit message snapshots use merge_stream_text's replay handling.
-    fn append_stream_delta(text_content: &mut String, incoming: &str) -> Option<String> {
+    // Take ownership so callers that already hold a String (serde delta) do
+    // not pay a second heap copy into StreamEvent::TextDelta / ReasoningDelta.
+    pub(crate) fn append_stream_delta(
+        text_content: &mut String,
+        incoming: String,
+    ) -> Option<String> {
         if incoming.is_empty() {
             return None;
         }
-        text_content.push_str(incoming);
-        Some(incoming.to_string())
+        text_content.push_str(&incoming);
+        Some(incoming)
     }
 
-    fn merge_stream_text(text_content: &mut String, incoming: &str) -> Option<String> {
+    /// Merge a full-message snapshot into the accumulator without recloning the
+    /// growing body when the provider re-sends the whole prefix each tick.
+    pub(crate) fn merge_stream_text(text_content: &mut String, incoming: String) -> Option<String> {
         if incoming.is_empty() {
             return None;
         }
         if text_content.is_empty() {
-            text_content.push_str(incoming);
-            return Some(incoming.to_string());
+            text_content.push_str(&incoming);
+            return Some(incoming);
         }
-        if incoming == text_content.as_str() || text_content.ends_with(incoming) {
+        if incoming.as_str() == text_content.as_str() || text_content.ends_with(incoming.as_str()) {
             return None;
         }
         // If incoming contains text_content as a prefix (incoming is the full content),
         // replace text_content instead of appending (avoids duplicate full content)
         if incoming.starts_with(text_content.as_str()) && incoming.len() > text_content.len() {
-            let suffix = &incoming[text_content.len()..];
-            if !suffix.is_empty() {
-                *text_content = incoming.to_string();
-                return Some(suffix.to_string());
+            let suffix = incoming[text_content.len()..].to_string();
+            if suffix.is_empty() {
+                return None;
             }
-            return None;
+            *text_content = incoming;
+            return Some(suffix);
         }
         if let Some(suffix) = incoming.strip_prefix(text_content.as_str()) {
             if suffix.is_empty() {
                 return None;
             }
-            text_content.push_str(suffix);
-            return Some(suffix.to_string());
+            let owned = suffix.to_string();
+            text_content.push_str(&owned);
+            return Some(owned);
         }
-        text_content.push_str(incoming);
-        Some(incoming.to_string())
+        text_content.push_str(&incoming);
+        Some(incoming)
     }
 
     pub fn new(api_key: String, model: String) -> Self {

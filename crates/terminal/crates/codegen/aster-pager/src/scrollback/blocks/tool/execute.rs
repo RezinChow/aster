@@ -1040,7 +1040,7 @@ mod tests {
             width: 120,
             raw: false,
             max_lines: None,
-            appearance,
+            appearance: std::sync::Arc::new(appearance),
             is_selected: false,
             cwd: None,
         };

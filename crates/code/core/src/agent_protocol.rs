@@ -853,8 +853,9 @@ fn validate_json_size(
     value: &serde_json::Value,
     max: usize,
 ) -> Result<(), AgentProtocolError> {
-    let encoded = serde_json::to_vec(value).map_err(|_| AgentProtocolError::Encoding)?;
-    if encoded.len() > max {
+    let len =
+        crate::byte_budget::json_serialized_len(value).map_err(|_| AgentProtocolError::Encoding)?;
+    if len > max {
         Err(AgentProtocolError::InvalidField(field))
     } else {
         Ok(())
@@ -871,12 +872,10 @@ pub(crate) fn bound_projected_event_record(
     projected: &mut AgentProtocolEventRecordV1,
 ) -> Result<(), AgentProtocolError> {
     let original_payload = projected.event.payload.clone();
-    let original_digest = format!(
-        "sha256:{:x}",
-        Sha256::digest(
-            serde_json::to_vec(&original_payload).map_err(|_| AgentProtocolError::Encoding)?
-        )
-    );
+    let mut payload_hasher = Sha256::new();
+    crate::byte_budget::json_update_sha256(&mut payload_hasher, &original_payload)
+        .map_err(|_| AgentProtocolError::Encoding)?;
+    let original_digest = format!("sha256:{:x}", payload_hasher.finalize());
 
     for _ in 0..128 {
         if projected_record_fits_limits(projected) {
@@ -951,8 +950,8 @@ fn projected_record_fits_limits(projected: &AgentProtocolEventRecordV1) -> bool 
                 .is_ok()
             })
             .unwrap_or(true)
-        && serde_json::to_vec(projected)
-            .map(|encoded| encoded.len() <= AGENT_PROTOCOL_MAX_EVENT_RECORD_BYTES)
+        && crate::byte_budget::json_serialized_len(projected)
+            .map(|encoded| encoded <= AGENT_PROTOCOL_MAX_EVENT_RECORD_BYTES)
             .unwrap_or(false)
 }
 
@@ -968,9 +967,9 @@ fn bounded_event_payload_stub(
     if let Some(obj) = original.as_object() {
         for key in ["id", "name", "exit_code", "tool_id", "tool_name", "turn"] {
             if let Some(value) = obj.get(key) {
-                let encoded =
-                    serde_json::to_vec(value).map_err(|_| AgentProtocolError::Encoding)?;
-                if encoded.len() <= 512 {
+                let len = crate::byte_budget::json_serialized_len(value)
+                    .map_err(|_| AgentProtocolError::Encoding)?;
+                if len <= 512 {
                     stub[key] = value.clone();
                 }
             }
@@ -1066,8 +1065,10 @@ fn digest_validated<T: Serialize>(
     validate: impl FnOnce() -> Result<(), AgentProtocolError>,
 ) -> Result<String, AgentProtocolError> {
     validate()?;
-    let encoded = serde_json::to_vec(value).map_err(|_| AgentProtocolError::Encoding)?;
-    Ok(format!("sha256:{:x}", Sha256::digest(encoded)))
+    let mut hasher = Sha256::new();
+    crate::byte_budget::json_update_sha256(&mut hasher, value)
+        .map_err(|_| AgentProtocolError::Encoding)?;
+    Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
 #[cfg(test)]

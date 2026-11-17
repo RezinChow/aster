@@ -152,10 +152,13 @@ fn replaced_handler_drops_after_the_registry_lock_is_released() {
 fn complete_registration_replaces_and_removes_definition_with_handler() {
     let engine = HookEngine::new();
     let handler: Arc<dyn HookHandler> = Arc::new(ContinueHandler);
-    let retired = engine.register_registration(
-        Hook::new("complete", HookEventType::PreToolUse),
-        Some(Arc::clone(&handler)),
-    );
+    let retired = engine
+        .register_registration(
+            Hook::new("complete", HookEventType::PreToolUse),
+            Some(Arc::clone(&handler)),
+            crate::hooks::HookSource::Managed,
+        )
+        .expect("managed registration must admit");
     assert!(retired.0.is_none());
     assert!(retired.1.is_none());
     assert!(engine.get_hook("complete").is_some());
@@ -164,8 +167,13 @@ fn complete_registration_replaces_and_removes_definition_with_handler() {
         &handler
     ));
 
-    let retired =
-        engine.register_registration(Hook::new("complete", HookEventType::PostToolUse), None);
+    let retired = engine
+        .register_registration(
+            Hook::new("complete", HookEventType::PostToolUse),
+            None,
+            crate::hooks::HookSource::Managed,
+        )
+        .expect("managed replacement must admit");
     assert_eq!(
         retired.0.as_deref().unwrap().event_type,
         HookEventType::PreToolUse
@@ -740,4 +748,30 @@ fn managed_only_engine_ignores_user_sourced_hooks() {
     ));
     assert!(engine.get_hook("managed").is_some());
     assert!(engine.get_hook("user").is_none());
+}
+
+#[test]
+fn managed_only_engine_refuses_user_register_registration() {
+    use crate::hooks::{HookAdmissionPolicy, HookSource};
+
+    let engine = HookEngine::new().with_admission_policy(HookAdmissionPolicy::managed_only());
+    let handler: Arc<dyn HookHandler> = Arc::new(ContinueHandler);
+    assert!(engine
+        .register_registration(
+            Hook::new("sneak", HookEventType::PermissionRequest),
+            Some(Arc::clone(&handler)),
+            HookSource::User,
+        )
+        .is_none());
+    assert!(engine.get_hook("sneak").is_none());
+    assert!(!read_or_recover(&engine.handlers).contains_key("sneak"));
+
+    assert!(engine
+        .register_registration(
+            Hook::new("ok", HookEventType::PermissionRequest),
+            Some(handler),
+            HookSource::Managed,
+        )
+        .is_some());
+    assert!(engine.get_hook("ok").is_some());
 }

@@ -196,6 +196,10 @@ impl Tool for WebFetchTool {
                     "applied_max_chars": max_chars,
                     "returned_chars": range.returned_chars,
                     "total_chars": range.total_chars,
+                    "discarded_chars": crate::byte_budget::discarded_bytes(
+                        range.total_chars,
+                        range.returned_chars,
+                    ),
                     "next_offset": range.next_offset,
                     "eof": range.next_offset.is_none(),
                     "limit_clamped": requested_max_chars != max_chars,

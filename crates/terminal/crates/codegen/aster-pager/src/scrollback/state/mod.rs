@@ -174,8 +174,9 @@ pub struct ScrollbackState {
     tick: u64,
 
     // Appearance
-    /// Current appearance configuration (hot-reloadable).
-    appearance: AppearanceConfig,
+    /// Current appearance configuration (hot-reloadable), Arc-shared with
+    /// per-entry `BlockContext` builds so layout/render clones stay pointer-cheap.
+    appearance: std::sync::Arc<AppearanceConfig>,
 
     // Batching
     /// When > 0, `push()` skips `rebuild_turns()` and `invalidate_layout_cache()`.
@@ -258,7 +259,7 @@ impl ScrollbackState {
             structural_scroll_anchor: None,
             thinking_display_mode: DisplayMode::Collapsed,
             tick: 0,
-            appearance: AppearanceConfig::default(),
+            appearance: std::sync::Arc::new(AppearanceConfig::default()),
             batch_depth: 0,
             gaps_may_be_dirty: false,
             full_settlement_pending: false,
@@ -366,6 +367,11 @@ impl ScrollbackState {
 
     /// Update the appearance configuration.
     pub fn set_appearance(&mut self, appearance: AppearanceConfig) {
+        self.set_appearance_arc(std::sync::Arc::new(appearance));
+    }
+
+    /// Share an existing appearance handle without deep-cloning the nested tree.
+    pub fn set_appearance_arc(&mut self, appearance: std::sync::Arc<AppearanceConfig>) {
         crate::render::bidi::set_enabled(appearance.scrollback.display.rtl_bidi);
         self.appearance = appearance;
         // Invalidate caches since appearance affects rendering
@@ -377,6 +383,11 @@ impl ScrollbackState {
             entry.invalidate_cache();
         }
         self.bump_generation();
+    }
+
+    /// Shared appearance handle for hot-path `BlockContext` / renderer builds.
+    pub fn appearance_arc(&self) -> std::sync::Arc<AppearanceConfig> {
+        std::sync::Arc::clone(&self.appearance)
     }
 
     /// Remeasure every entry when a process-wide visibility flag flips (e.g. show thinking blocks) without changing `AppearanceConfig`.
@@ -402,7 +413,7 @@ impl ScrollbackState {
 
     /// Get current appearance config.
     pub fn appearance(&self) -> &AppearanceConfig {
-        &self.appearance
+        self.appearance.as_ref()
     }
 
     /// Current animation tick value (for spinner frame selection, etc.).
@@ -720,7 +731,7 @@ impl ScrollbackState {
             && let RenderBlock::AgentMessage(ref mut msg) = entry.block
         {
             msg.push_chunk(chunk);
-            entry.invalidate_cache();
+            entry.invalidate_after_stream_chunk(chunk);
             self.dirty_heights.insert(id);
             self.bump_content_generation();
             return true;
@@ -734,7 +745,7 @@ impl ScrollbackState {
             && let RenderBlock::AgentMessage(ref mut msg) = entry.block
         {
             msg.push_chunk_deferred(chunk);
-            entry.invalidate_cache();
+            entry.invalidate_after_stream_chunk(chunk);
             self.dirty_heights.insert(id);
             self.bump_content_generation();
             return true;
@@ -767,7 +778,7 @@ impl ScrollbackState {
             && let RenderBlock::Thinking(ref mut block) = entry.block
         {
             block.push_chunk(chunk);
-            entry.invalidate_cache();
+            entry.invalidate_after_stream_chunk(chunk);
             self.dirty_heights.insert(id);
             self.bump_content_generation();
             return true;
@@ -781,7 +792,7 @@ impl ScrollbackState {
             && let RenderBlock::Thinking(ref mut block) = entry.block
         {
             block.push_chunk_deferred(chunk);
-            entry.invalidate_cache();
+            entry.invalidate_after_stream_chunk(chunk);
             self.dirty_heights.insert(id);
             self.bump_content_generation();
             return true;
@@ -804,7 +815,8 @@ impl ScrollbackState {
             && let RenderBlock::ToolCall(ToolCallBlock::Execute(ref mut block)) = entry.block
         {
             block.push_output(chunk);
-            entry.invalidate_cache();
+            // Keep/extend line-width profile (same as agent/thinking streaming).
+            entry.invalidate_after_stream_chunk(chunk);
             // Always mark dirty: word wrap may change line count even for same-line appends
             // HashSet dedup makes this cheap when called repeatedly.
             self.dirty_heights.insert(id);

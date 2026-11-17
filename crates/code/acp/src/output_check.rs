@@ -192,7 +192,7 @@ impl Tool for OutputCheckTool {
     }
 
     async fn execute(&self, args: &Value, _ctx: &ToolContext) -> Result<ToolOutput> {
-        let check: Check = match serde_json::from_value(args.clone()) {
+        let check: Check = match serde::Deserialize::deserialize(args) {
             Ok(check) => check,
             Err(error) => {
                 return Ok(ToolOutput::error(format!(

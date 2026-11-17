@@ -26,25 +26,37 @@ Silicon often runs `x86_64` TB images; native Linux aarch64 hosts use
 `aarch64-unknown-linux-musl`:
 
 ```bash
-# x86_64 Harbor task images (common on Docker Desktop):
+# From the Aster repository root. x86_64 Harbor task images (common on
+# Docker Desktop / OrbStack on Apple Silicon):
 cargo zigbuild --locked --target x86_64-unknown-linux-musl \
-  --release --no-default-features --example terminal_bench_runner
+  --release --no-default-features --example terminal_bench_runner -p aster-core
 
 # aarch64 Harbor task images:
 cargo zigbuild --locked --target aarch64-unknown-linux-musl \
-  --release --no-default-features --example terminal_bench_runner
+  --release --no-default-features --example terminal_bench_runner -p aster-core
 ```
 
 The runner binds Harbor host Passed verification reports to Core completion-gate
 mutation digests (same contract as the Python Harbor smoke adapter). Harbor's
 native verifier remains the task acceptance authority.
 
-Run an official Terminal-Bench 4.0 task with the local Codex login:
+Install Harbor once on the host (`uv tool install 'harbor[modal]'`), then run
+an official Terminal-Bench 4.0 task. Convenience wrapper:
+
+```bash
+# Diagnostic one-task run (provider ACL via env; see scripts/harbor/native-tb.acl):
+ASTER_TB_INCLUDE_TASK=bun-sourcemap-leak \
+ASTER_TB_DEFAULT_MODEL=deepseek/deepseek-flash \
+DEEPSEEK_API_KEY=… \
+  ./scripts/harbor/run_native_tb.sh
+```
+
+Or with the local Codex login:
 
 ```bash
 TB_TARGET=x86_64-unknown-linux-musl   # or aarch64-unknown-linux-musl
 ASTER_TERMINAL_BENCH_BINARY="$PWD/target/${TB_TARGET}/release/examples/terminal_bench_runner" \
-ASTER_CONFIG="$PWD/../../.aster/config.acl" \
+ASTER_CONFIG="$PWD/.aster/config.acl" \
 ASTERX_AUTH_FILE="$HOME/.codex/auth.json" \
 ASTERX_MODEL=gpt-6-astra \
 ASTERX_REASONING_EFFORT=max \
@@ -56,7 +68,7 @@ harbor run -d terminal-bench/terminal-bench@4.0.0 \
 
 DeepSeek (or other ACL providers) can replace Codex by pointing
 `ASTER_CONFIG` at an ACL that sets `default_model` and `providers` from env
-(see monorepo `scripts/harbor/native-tb.acl`) and omitting the Codex env vars.
+(see `scripts/harbor/native-tb.acl`) and omitting the Codex env vars.
 
 For a leaderboard-compatible run, use the complete tagged dataset, five
 attempts per task, and a GPU-capable sandbox as required by Terminal-Bench:

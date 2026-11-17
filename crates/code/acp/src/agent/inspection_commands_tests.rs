@@ -2,8 +2,58 @@ use super::*;
 use agent_client_protocol::Agent as _;
 
 #[test]
+fn format_kburn_report_materialize_creates_seeds_once() {
+    let root = tempfile::tempdir().unwrap();
+    let first = format_kburn_report(root.path(), true).unwrap();
+    assert!(first.contains("materialize: created"), "{first}");
+    assert!(root.path().join(".aster").join("MANIFEST.json").is_file());
+    assert!(
+        root.path().join(".aster").join("project.acl").is_file(),
+        "materialize must create project.acl"
+    );
+    assert!(!root.path().join(".aster").join("config.kcl").exists());
+    let second = format_kburn_report(root.path(), true).unwrap();
+    assert!(second.contains("no missing factory seeds"), "{second}");
+}
+
+#[test]
+fn format_kburn_coverage_reports_complete_and_partial_workspaces() {
+    let root = tempfile::tempdir().unwrap();
+    let skills = aster_core::kstudio::KstudioCoreDirs::for_workspace(root.path()).skills;
+    for name in aster_core::kstudio::KBURN_SKILL_NAMES {
+        let dir = skills.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("SKILL.md"), format!("---\nname: {name}\n---\n")).unwrap();
+    }
+    let complete = format_kburn_coverage(root.path());
+    assert!(
+        complete.contains(&format!(
+            "eng root: {}",
+            root.path().join(".aster").display()
+        )),
+        "{complete}"
+    );
+    assert!(complete.contains("12/12 present"), "{complete}");
+    assert!(complete.contains("Complete:"), "{complete}");
+    assert!(
+        complete.contains("workflow helpers ·"),
+        "coverage must report workflow helpers: {complete}"
+    );
+
+    std::fs::remove_dir_all(skills.join("yolo")).unwrap();
+    let partial = format_kburn_coverage(root.path());
+    assert!(partial.contains("11/12 present"), "{partial}");
+    assert!(partial.contains("Missing:\n- yolo\n"), "{partial}");
+}
+
+#[test]
 fn commands_parse_mechanical_syntax_and_refuse_invalid_mutations() {
-    for text in ["/memory-extra", "explain /memory", "/tasks-extra"] {
+    for text in [
+        "/memory-extra",
+        "explain /memory",
+        "/tasks-extra",
+        "/kburn-extra",
+    ] {
         assert!(parse(text).is_none());
     }
     for text in [
@@ -13,9 +63,23 @@ fn commands_parse_mechanical_syntax_and_refuse_invalid_mutations() {
         "/memory unknown",
         "/tasks stop",
         "/tasks delete id",
+        "/kburn extra",
+        "/kburn materialize now",
     ] {
         assert!(parse(text).unwrap().is_err(), "{text}");
     }
+    assert!(matches!(
+        parse("/kburn").unwrap().unwrap(),
+        InspectionCommand::Kburn { materialize: false }
+    ));
+    assert!(matches!(
+        parse("/kburn materialize").unwrap().unwrap(),
+        InspectionCommand::Kburn { materialize: true }
+    ));
+    assert!(matches!(
+        parse("/kburn status").unwrap().unwrap(),
+        InspectionCommand::Kburn { materialize: false }
+    ));
     let InspectionCommand::Memory(MemoryManagementRequest::Read { id }) =
         parse(" /memory\tread id with spaces ").unwrap().unwrap()
     else {
@@ -234,7 +298,7 @@ async fn terminal_memory_commands_use_revision_guards_and_do_not_call_the_model(
     .unwrap();
     assert!(memory.store().retrieve(&record.id).await.unwrap().is_none());
     // The fixture has no reachable model endpoint: a dispatch fallthrough fails here.
-    for text in ["/memory", "/tasks"] {
+    for text in ["/memory", "/tasks", "/kburn"] {
         let response = tokio::time::timeout(
             std::time::Duration::from_secs(5),
             host.prompt(acp::PromptRequest::new(

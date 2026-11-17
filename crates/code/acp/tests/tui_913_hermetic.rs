@@ -825,7 +825,7 @@ fn submit_line(pty: &mut PtySession, text: &str) {
     pty.enter();
 }
 
-/// Confirm the typed model ID, then accept the selected reasoning effort.
+/// Confirm the typed model ID, then accept the selected reasoning effort when shown.
 fn submit_model(pty: &mut PtySession, command: &str) {
     pty.clear_line();
     pty.type_text(command);
@@ -841,8 +841,52 @@ fn submit_model(pty: &mut PtySession, command: &str) {
     );
     assert_no_secret(&armed);
     pty.enter();
-    pty.wait_for("Heavy reasoning", Duration::from_secs(3));
-    pty.enter();
+    // Catalog fixtures without `reasoningEfforts` skip the effort picker.
+    // Keep this poll short: confirmation chrome can flash and scroll away.
+    let deadline = Instant::now() + Duration::from_millis(800);
+    let mut saw_effort = false;
+    while Instant::now() < deadline {
+        let screen = pty.screen();
+        if screen.contains("Heavy reasoning") || screen.contains("Set reasoning effort") {
+            saw_effort = true;
+            break;
+        }
+        if screen.contains("Default model:") {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    if saw_effort {
+        pty.wait_for("Heavy reasoning", Duration::from_secs(5));
+        pty.enter();
+    }
+}
+
+/// Settle after `/model` when confirmation chrome may have already scrolled off.
+fn wait_for_model_status(pty: &mut PtySession, model: &str, timeout: Duration) -> String {
+    let deadline = Instant::now() + timeout;
+    let mut last = String::new();
+    while Instant::now() < deadline {
+        last = pty.screen();
+        if last.contains("Couldn't switch model") {
+            return last;
+        }
+        if last.contains(&format!("Default model: {model}")) {
+            return last;
+        }
+        // Status chrome ends with the active model id (no effort suffix).
+        if last.lines().any(|line| {
+            let trimmed = line.trim_end();
+            trimmed.ends_with(model) && (trimmed.contains("tok/s") || trimmed.contains("tokens"))
+        }) {
+            return last;
+        }
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    panic!(
+        "timed out waiting for model status {model}\n{}",
+        redact(&last)
+    );
 }
 
 fn wait_for_refusal(pty: &mut PtySession, timeout: Duration) -> String {
@@ -1080,11 +1124,17 @@ fn core_catalog_history_reaches_the_backend_instead_of_prompt_search() {
     assert_no_secret(&stats);
     assert!(
         mock.bodies.lock().unwrap().iter().all(|body| {
-            let request: serde_json::Value = serde_json::from_str(body).unwrap();
+            let body = body.trim();
+            if body.is_empty() {
+                return true;
+            }
+            let Ok(request) = serde_json::from_str::<serde_json::Value>(body) else {
+                return false;
+            };
             request["messages"]
                 .as_array()
-                .unwrap()
-                .iter()
+                .into_iter()
+                .flatten()
                 .filter(|message| message["role"] == "user")
                 .all(|message| !message["content"].to_string().contains("/history"))
         }),
@@ -1102,7 +1152,8 @@ fn model_command_selects_the_catalog_model() {
     let fixture = prepare(&catalog_acl(&format!("http://{addr}/v1")));
     let mut pty = open_on_model(&fixture, ACL_MODEL);
     submit_model(&mut pty, &format!("/model {ALT_MODEL}"));
-    let settled = pty.wait_for(&format!("{ALT_MODEL} ("), Duration::from_secs(15));
+    // Effort-less fixtures omit `(effort)`; status chrome is the durable settle oracle.
+    let settled = wait_for_model_status(&mut pty, ALT_MODEL, Duration::from_secs(15));
     assert!(
         !settled.contains("Couldn't switch model"),
         "model switch failed\n{}",

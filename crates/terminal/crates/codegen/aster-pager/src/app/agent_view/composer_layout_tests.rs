@@ -121,4 +121,9 @@ fn followup_composer_pads_arrow_inside_fill_with_status_on_page() {
             && !status.contains('\u{2570}'),
         "no box border glyphs around the Cursor-like composer, got {status:?}"
     );
+    let last_row = row_text(&buf, buf.area.height - 1);
+    assert!(
+        last_row.contains("Shift+Tab") && last_row.contains("shortcuts"),
+        "the final terminal row paints shortcuts, got {last_row:?}"
+    );
 }

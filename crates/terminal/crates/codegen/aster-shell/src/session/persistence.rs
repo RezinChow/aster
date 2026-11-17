@@ -1730,9 +1730,10 @@ impl SessionPersistence {
 
     /// Attempt to merge consecutive ACP text notifications to reduce storage writes.
     /// Returns Some(notification) if the pending notification should be written now.
+    /// Takes `incoming` by value so hot streams do not clone every flush candidate.
     fn maybe_merge_notification(
         &mut self,
-        incoming: &acp::SessionNotification,
+        incoming: acp::SessionNotification,
     ) -> Option<acp::SessionNotification> {
         // Always skip empty chunks: don't store them at all
         if Self::is_empty_chunk(&incoming.update) {
@@ -1740,47 +1741,86 @@ impl SessionPersistence {
         }
 
         let Some(pending) = self.pending_notification.take() else {
-            self.pending_notification = Some(incoming.clone());
+            self.pending_notification = Some(incoming);
             return None;
         };
 
-        let pending_update = pending.update.clone();
-        match (&incoming.update, pending_update) {
+        match (incoming.update, pending.update) {
             (
                 acp::SessionUpdate::AgentMessageChunk(new_chunk),
                 acp::SessionUpdate::AgentMessageChunk(mut pending_chunk),
-            )
-            | (
-                acp::SessionUpdate::AgentThoughtChunk(new_chunk),
-                acp::SessionUpdate::AgentThoughtChunk(mut pending_chunk),
             ) => {
-                let did_merge = pending_chunk.meta.is_none()
-                    && new_chunk.meta.is_none()
+                // Equal meta (including shared asterGenerationDelta) still merges;
+                // requiring both None forced a per-token clone/write on ACP streams.
+                let did_merge = pending_chunk.meta == new_chunk.meta
                     && Self::try_merge_text(&mut pending_chunk.content, &new_chunk.content);
-
                 if did_merge {
-                    let merged_update = match &incoming.update {
-                        acp::SessionUpdate::AgentMessageChunk(_) => {
-                            acp::SessionUpdate::AgentMessageChunk(pending_chunk)
-                        }
-                        acp::SessionUpdate::AgentThoughtChunk(_) => {
-                            acp::SessionUpdate::AgentThoughtChunk(pending_chunk)
-                        }
-                        _ => unreachable!(),
-                    };
                     self.pending_notification = Some(
-                        acp::SessionNotification::new(incoming.session_id.clone(), merged_update)
-                            .meta(incoming.meta.clone()),
+                        acp::SessionNotification::new(
+                            incoming.session_id,
+                            acp::SessionUpdate::AgentMessageChunk(pending_chunk),
+                        )
+                        .meta(incoming.meta),
                     );
                     None
                 } else {
-                    self.pending_notification = Some(incoming.clone());
-                    Some(pending)
+                    self.pending_notification = Some(
+                        acp::SessionNotification::new(
+                            incoming.session_id,
+                            acp::SessionUpdate::AgentMessageChunk(new_chunk),
+                        )
+                        .meta(incoming.meta),
+                    );
+                    Some(
+                        acp::SessionNotification::new(
+                            pending.session_id,
+                            acp::SessionUpdate::AgentMessageChunk(pending_chunk),
+                        )
+                        .meta(pending.meta),
+                    )
                 }
             }
-            _ => {
-                self.pending_notification = Some(incoming.clone());
-                Some(pending)
+            (
+                acp::SessionUpdate::AgentThoughtChunk(new_chunk),
+                acp::SessionUpdate::AgentThoughtChunk(mut pending_chunk),
+            ) => {
+                let did_merge = pending_chunk.meta == new_chunk.meta
+                    && Self::try_merge_text(&mut pending_chunk.content, &new_chunk.content);
+                if did_merge {
+                    self.pending_notification = Some(
+                        acp::SessionNotification::new(
+                            incoming.session_id,
+                            acp::SessionUpdate::AgentThoughtChunk(pending_chunk),
+                        )
+                        .meta(incoming.meta),
+                    );
+                    None
+                } else {
+                    self.pending_notification = Some(
+                        acp::SessionNotification::new(
+                            incoming.session_id,
+                            acp::SessionUpdate::AgentThoughtChunk(new_chunk),
+                        )
+                        .meta(incoming.meta),
+                    );
+                    Some(
+                        acp::SessionNotification::new(
+                            pending.session_id,
+                            acp::SessionUpdate::AgentThoughtChunk(pending_chunk),
+                        )
+                        .meta(pending.meta),
+                    )
+                }
+            }
+            (incoming_update, pending_update) => {
+                self.pending_notification = Some(
+                    acp::SessionNotification::new(incoming.session_id, incoming_update)
+                        .meta(incoming.meta),
+                );
+                Some(
+                    acp::SessionNotification::new(pending.session_id, pending_update)
+                        .meta(pending.meta),
+                )
             }
         }
     }
@@ -1915,11 +1955,14 @@ impl SessionPersistence {
     }
 
     fn queue_acp_sync(&self, notification: acp::SessionNotification) {
-        if let Some(sync) = &self.remote_sync {
-            sync.queue(notification.clone());
-        }
-        if let Some(relay) = &self.relay_sync {
-            relay.queue(notification);
+        match (&self.remote_sync, &self.relay_sync) {
+            (Some(sync), Some(relay)) => {
+                sync.queue(notification.clone());
+                relay.queue(notification);
+            }
+            (Some(sync), None) => sync.queue(notification),
+            (None, Some(relay)) => relay.queue(notification),
+            (None, None) => {}
         }
     }
 
@@ -1992,10 +2035,12 @@ impl SessionPersistence {
             // NotCommitted.
             // This record is restored below for retry, so a latch from *this* miss is stale A fire-and-forget durable append (TurnCompleted drops its ack) would otherwise make the next.
             let had_prior_latch = self.pending_write_error.is_some();
-            let result = self
-                .write_update(&SessionUpdate::Acp(Box::new(notification.clone())))
-                .await;
-            match Self::finish_pending_append(notification, result) {
+            let update = SessionUpdate::Acp(Box::new(notification));
+            let result = self.write_update(&update).await;
+            let SessionUpdate::Acp(notification) = update else {
+                unreachable!("ACP box just constructed");
+            };
+            match Self::finish_pending_append(*notification, result) {
                 PendingAppendOutcome::CommittedOk(notification) => {
                     self.queue_acp_sync(notification);
                 }
@@ -2183,16 +2228,16 @@ impl SessionPersistence {
                     match update {
                         SessionUpdate::Acp(notification) => {
                             // ACP notifications use merging to coalesce consecutive text chunks
-                            if let Some(to_write) = self.maybe_merge_notification(&notification) {
-                                match self
-                                    .write_update(&SessionUpdate::Acp(Box::new(to_write.clone())))
-                                    .await
-                                {
+                            if let Some(to_write) = self.maybe_merge_notification(*notification) {
+                                let update = SessionUpdate::Acp(Box::new(to_write));
+                                match self.write_update(&update).await {
                                     Ok(())
                                     | Err(crate::session::storage::AppendUpdateError::Committed(
                                         _,
                                     )) => {
-                                        self.queue_acp_sync(to_write);
+                                        if let SessionUpdate::Acp(n) = update {
+                                            self.queue_acp_sync(*n);
+                                        }
                                     }
                                     Err(error) => tracing::warn!(%error, "failed to write update"),
                                 }

@@ -143,7 +143,7 @@ impl Tool for GenerateObjectTool {
     }
 
     async fn execute(&self, args: &Value, ctx: &ToolContext) -> Result<ToolOutput> {
-        let params: GenerateObjectParams = match serde_json::from_value(args.clone()) {
+        let params: GenerateObjectParams = match GenerateObjectParams::deserialize(args) {
             Ok(params) => params,
             Err(error) => {
                 return Ok(invalid_argument(format!(
@@ -167,7 +167,7 @@ impl Tool for GenerateObjectTool {
                 "'schema' must be a JSON object (a valid JSON Schema)".to_string(),
             ));
         }
-        let schema_bytes = serde_json::to_vec(&schema)?.len();
+        let schema_bytes = crate::byte_budget::json_serialized_len(&schema)?;
         if schema_bytes > MAX_SCHEMA_BYTES {
             return Ok(invalid_argument(format!(
                 "'schema' exceeds the {MAX_SCHEMA_BYTES} byte limit"
@@ -316,8 +316,9 @@ impl Tool for GenerateObjectTool {
                         return;
                     }
                     *last_event = Some(now);
-                    let encoded = serde_json::to_vec(partial).unwrap_or_default();
-                    let delta = if encoded.len() <= MAX_PARTIAL_EVENT_BYTES {
+                    let partial_bytes =
+                        crate::byte_budget::json_serialized_len(partial).unwrap_or(usize::MAX);
+                    let delta = if partial_bytes <= MAX_PARTIAL_EVENT_BYTES {
                         serde_json::json!({
                             "object_partial": partial,
                             "final": false,
@@ -325,7 +326,7 @@ impl Tool for GenerateObjectTool {
                     } else {
                         serde_json::json!({
                             "object_partial_omitted": true,
-                            "partial_bytes": encoded.len(),
+                            "partial_bytes": partial_bytes,
                             "final": false,
                         })
                     };
@@ -369,19 +370,21 @@ impl Tool for GenerateObjectTool {
 
         match result {
             Ok(sr) => {
+                let object_bytes =
+                    crate::byte_budget::json_serialized_len(&sr.object).unwrap_or(usize::MAX);
+                let stream_partial_omitted = object_bytes > MAX_PARTIAL_EVENT_BYTES;
                 if let Some(ref tx) = ctx.event_tx {
-                    let object_bytes = serde_json::to_vec(&sr.object).unwrap_or_default().len();
-                    let final_delta = if object_bytes <= MAX_PARTIAL_EVENT_BYTES {
+                    let final_delta = if stream_partial_omitted {
                         serde_json::json!({
-                            "object_partial": sr.object,
+                            "object_partial_omitted": true,
+                            "partial_bytes": object_bytes,
                             "final": true,
                             "mode_used": sr.mode_used,
                             "repair_rounds": sr.repair_rounds,
                         })
                     } else {
                         serde_json::json!({
-                            "object_partial_omitted": true,
-                            "partial_bytes": object_bytes,
+                            "object_partial": sr.object,
                             "final": true,
                             "mode_used": sr.mode_used,
                             "repair_rounds": sr.repair_rounds,
@@ -415,6 +418,15 @@ impl Tool for GenerateObjectTool {
                     "usage": output["usage"].clone(),
                     "raw_text_included": include_raw_text,
                     "generation_admission": admission_metadata,
+                    // E4: stream delta may omit a large object; tool result still carries it.
+                    "object_bytes": object_bytes,
+                    "stream_partial_budget": MAX_PARTIAL_EVENT_BYTES,
+                    "stream_partial_omitted": stream_partial_omitted,
+                    "discarded_bytes": if stream_partial_omitted {
+                        object_bytes
+                    } else {
+                        0
+                    },
                 });
                 Ok(ToolOutput::success(serde_json::to_string(&output)?).with_metadata(metadata))
             }
@@ -964,6 +976,13 @@ mod tests {
         assert_eq!(metadata["schema_name"], "colors");
         assert_eq!(metadata["requested_mode"], "tool");
         assert_eq!(metadata["raw_text_included"], false);
+        assert_eq!(metadata["stream_partial_omitted"], false);
+        assert_eq!(metadata["discarded_bytes"], 0);
+        assert_eq!(
+            metadata["stream_partial_budget"],
+            serde_json::json!(MAX_PARTIAL_EVENT_BYTES)
+        );
+        assert!(metadata["object_bytes"].as_u64().unwrap() > 0);
         assert_eq!(
             metadata["generation_admission"]["max_concurrency"],
             serde_json::json!(1)

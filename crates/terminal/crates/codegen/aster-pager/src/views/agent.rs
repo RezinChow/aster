@@ -219,11 +219,6 @@ impl AgentViewLayout {
             compact,
         } = params;
         let outer_vpad = layout_cfg.eff_outer_vpad(compact);
-        let bottom_vpad = if area.height <= SHORT_TERMINAL_ROWS {
-            0
-        } else {
-            outer_vpad
-        };
         let cta_height = if area.height <= SHORT_TERMINAL_ROWS {
             0
         } else {
@@ -239,7 +234,7 @@ impl AgentViewLayout {
             layout_cfg.eff_hpad_left(compact),
             layout_cfg.eff_hpad_right(compact),
             top_vpad,
-            bottom_vpad,
+            0,
         ));
         let inner_area = outer_block.inner(area);
         let mut constraints = vec![
@@ -301,7 +296,9 @@ impl AgentViewLayout {
             .fold(0u16, u16::saturating_add);
         let reserved = pushed.saturating_add(shortcuts_height);
         let status_line_height = status_line_height.min(inner_area.height.saturating_sub(reserved));
-        let shortcuts_gap = u16::from(bottom_vpad > 0 && status_line_height == 0);
+        let shortcuts_gap = u16::from(
+            area.height > SHORT_TERMINAL_ROWS && outer_vpad > 0 && status_line_height == 0,
+        );
         if shortcuts_gap > 0 {
             constraints.push(Constraint::Length(shortcuts_gap));
         }
@@ -2040,7 +2037,7 @@ mod tests {
     #[test]
     fn status_line_row_yields_to_a_prompt_at_its_cap() {
         let area = Rect::new(0, 0, 80, 20);
-        let layout = layout_with_status_line(area, area.height / 2, 3);
+        let layout = layout_with_status_line(area, area.height / 2 + 1, 3);
         assert_eq!(
             layout.status_line.height, 0,
             "no rows are left over for the status row, got {:?}",
@@ -2073,9 +2070,10 @@ mod tests {
             layout.shortcuts,
             layout.status_line,
         );
-        assert!(
-            layout.shortcuts.height == 1 && layout.shortcuts.bottom() < area.bottom(),
-            "the shortcuts bar keeps its row inside the padded inner area, got {:?}",
+        assert_eq!(
+            layout.shortcuts.bottom(),
+            area.bottom(),
+            "the shortcuts bar uses the last terminal row, got {:?}",
             layout.shortcuts,
         );
         assert!(
@@ -2085,12 +2083,19 @@ mod tests {
         );
     }
     #[test]
+    fn shortcuts_bar_uses_the_last_terminal_row_without_a_status_line() {
+        let area = Rect::new(0, 0, 80, 40);
+        let layout = layout_with_rows(area, 0, 0, 0);
+        assert_eq!(layout.shortcuts.height, 1);
+        assert_eq!(layout.shortcuts.bottom(), area.bottom());
+    }
+    #[test]
     fn prompt_budget_counts_the_rows_above_the_prompt() {
         let area = Rect::new(0, 0, 80, 25);
         let plain = base_params(area);
         assert_eq!(
             AgentViewLayout::rows_available_for_prompt(plain),
-            25 - 11,
+            25 - 10,
             "a frame with no optional row gives everything else to the prompt"
         );
         let with_rows = AgentViewLayoutParams {
@@ -2100,7 +2105,7 @@ mod tests {
         };
         assert_eq!(
             AgentViewLayout::rows_available_for_prompt(with_rows),
-            25 - 11 - 4,
+            25 - 10 - 4,
             "each row above the prompt takes its own height plus the gap above it"
         );
     }

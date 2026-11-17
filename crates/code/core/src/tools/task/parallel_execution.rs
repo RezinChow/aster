@@ -522,6 +522,7 @@ impl TaskExecutor {
                     emit_start: true,
                     parent_cancellation,
                     admitted_capability_subtask: None,
+                    content_lease: None,
                     parallel_lifecycle,
                     terminal_persistence: None,
                 },

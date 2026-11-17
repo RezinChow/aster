@@ -220,9 +220,9 @@ fn validate_json_size(label: &str, value: Option<&Value>, limit: usize) -> Resul
     let Some(value) = value else {
         return Ok(());
     };
-    let bytes = serde_json::to_vec(value)
+    let len = crate::byte_budget::json_serialized_len(value)
         .with_context(|| format!("failed to encode MCP {label} for bounded projection"))?;
-    if bytes.len() > limit {
+    if len > limit {
         return Err(anyhow!(
             "MCP {label} exceeds the {} MiB projection limit",
             limit / (1024 * 1024)

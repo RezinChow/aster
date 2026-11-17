@@ -61,7 +61,10 @@ async fn selected_catalog_updates_the_menu_and_execution() {
             } else {
                 "text/event-stream"
             };
-            let response = format!("HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
             socket
                 .get_mut()
                 .write_all(response.as_bytes())
@@ -180,7 +183,10 @@ async fn switches_rebuild_native_controls() {
             }
             if first.starts_with("GET /v1/models ") {
                 let body = serde_json::json!({"data":[{"id":"deepseek-flash","context_window":1_048_576,"max_output_tokens":393_216}]}).to_string();
-                let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
                 socket.write_all(response.as_bytes()).await.unwrap();
                 continue;
             }
@@ -202,7 +208,10 @@ async fn switches_rebuild_native_controls() {
             } else {
                 ("application/json", serde_json::json!({"id":"fixture","choices":[{"index":0,"message":{"role":"assistant","content":"READY"},"finish_reason":"stop"}],"usage":usage}).to_string())
             };
-            let response = format!("HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
             socket.write_all(response.as_bytes()).await.unwrap();
         }
     });

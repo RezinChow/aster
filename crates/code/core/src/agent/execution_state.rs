@@ -460,8 +460,14 @@ impl ExecutionLoopState {
     }
 
     pub(super) fn tool_signature(tool_name: &str, args: &Value) -> String {
-        let encoded = serde_json::to_vec(args).unwrap_or_default();
-        format!("{}:{}", tool_name, sha256::digest(encoded))
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        // Match prior fail-open: unserializable args hash as empty bytes
+        // (never leave a partially-written digest in the hasher).
+        if crate::byte_budget::json_update_sha256(&mut hasher, args).is_err() {
+            hasher = Sha256::new();
+        }
+        format!("{}:{:x}", tool_name, hasher.finalize())
     }
 }
 

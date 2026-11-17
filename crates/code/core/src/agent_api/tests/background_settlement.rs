@@ -62,7 +62,7 @@ impl crate::llm::LlmClient for BackgroundTwinClient {
                 content: vec![crate::llm::ContentBlock::ToolUse {
                     id: "bg-2".into(),
                     name: "read".into(),
-                    input: serde_json::json!({ "path": "README.md" }),
+                    input: serde_json::json!({ "file_path": "README.md" }),
                 }],
                 reasoning_content: None,
                 transcript_text: None,
@@ -133,7 +133,9 @@ async fn the_run_receives_background_output_and_settles_the_task() {
                 .with_sandbox_handle(Arc::clone(&sandbox) as Arc<dyn crate::sandbox::BashSandbox>)
                 .with_planning_mode(crate::prompts::PlanningMode::Disabled)
                 .with_auto_delegation_enabled(false)
-                .with_manual_delegation_enabled(false),
+                .with_manual_delegation_enabled(false)
+                // P6: Ask without HITL is confirmation_required, not implicit Allow.
+                .with_permission_policy(crate::permissions::PermissionPolicy::new().allow("*")),
         )
         .unwrap();
 

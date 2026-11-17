@@ -435,9 +435,10 @@ fn test_task_result_clone() {
 
 #[test]
 fn test_compact_task_output_preserves_small_output() {
-    let (output, truncated) = compact_task_output("short result");
+    let (output, truncated, discarded) = compact_task_output("short result");
     assert_eq!(output, "short result");
     assert!(!truncated);
+    assert_eq!(discarded, 0);
 }
 
 #[test]
@@ -453,8 +454,9 @@ fn test_format_task_result_for_context_truncates_large_output() {
         completion: crate::harness_loop::CompletionTerminal::Narrative,
     };
 
-    let (formatted, truncated) = format_task_result_for_context(&result);
+    let (formatted, truncated, discarded) = format_task_result_for_context(&result);
     assert!(truncated);
+    assert!(discarded > 0);
     assert!(formatted.contains("Output excerpt"));
     assert!(formatted.contains("bytes omitted"));
     assert!(formatted.contains("Artifact ID: task-output:task-1"));
@@ -482,8 +484,9 @@ fn test_task_artifact_reference_is_stable() {
         "aster://tasks/session-1/runs/task-1/output"
     );
 
-    let (formatted, truncated) = format_task_result_for_context(&result);
+    let (formatted, truncated, discarded) = format_task_result_for_context(&result);
     assert!(!truncated);
+    assert_eq!(discarded, 0);
     assert!(formatted.contains("Artifact URI: aster://tasks/session-1/runs/task-1/output"));
 }
 
@@ -1325,6 +1328,123 @@ fn test_task_params_max_steps_zero_is_rejected() {
 }
 
 #[tokio::test]
+async fn execute_background_settles_owned_workspace_child_when_launch_refuses() {
+    let workspace = tempfile::tempdir().unwrap();
+    let executor = Arc::new(TaskExecutor::new(
+        test_registry_with_text_worker(),
+        Arc::new(BlockingTaskClient {
+            started: Arc::new(Notify::new()),
+            calls: Arc::new(AtomicUsize::new(0)),
+        }),
+        workspace.path().to_string_lossy().to_string(),
+    ));
+    let task_id = executor.execute_background(
+        TaskParams {
+            agent: "worker".to_string(),
+            description: "blank".to_string(),
+            prompt: "   ".to_string(),
+            background: true,
+            max_steps: None,
+            output_schema: None,
+        },
+        None,
+        None,
+    );
+    assert!(
+        !crate::porcelain::workspace_child_pending(&task_id),
+        "A9: refused BG launch must not leave an unsettleable workspace_child slot"
+    );
+}
+
+#[tokio::test]
+async fn task_tool_rejects_duplicate_in_flight_content_fingerprint() {
+    let workspace = tempfile::tempdir().unwrap();
+    let started = Arc::new(Notify::new());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let executor = Arc::new(TaskExecutor::new(
+        test_registry_with_text_worker(),
+        Arc::new(BlockingTaskClient {
+            started: Arc::clone(&started),
+            calls: Arc::clone(&calls),
+        }),
+        workspace.path().to_string_lossy().to_string(),
+    ));
+    let task = TaskTool::new(Arc::clone(&executor));
+    let (event_tx, _events) = broadcast::channel(16);
+    let context = ToolContext::new(workspace.path().to_path_buf())
+        .with_session_id("parent-session")
+        .with_agent_event_tx(event_tx);
+    let args = serde_json::json!({
+        "agent": "worker",
+        "description": "same work",
+        "prompt": "identical delegated prompt"
+    });
+    let started_wait = started.notified();
+    let first = {
+        let task = TaskTool::new(Arc::clone(&executor));
+        let context = context.clone();
+        let args = args.clone();
+        tokio::spawn(async move { task.execute(&args, &context).await })
+    };
+    tokio::time::timeout(Duration::from_secs(2), started_wait)
+        .await
+        .expect("first child must start before duplicate check");
+    let duplicate = tokio::time::timeout(Duration::from_secs(1), task.execute(&args, &context))
+        .await
+        .expect("duplicate must fail closed without blocking on the first child")
+        .unwrap();
+    assert!(!duplicate.success, "{duplicate:#?}");
+    assert!(
+        duplicate
+            .content
+            .contains("Duplicate in-flight task content"),
+        "{duplicate:#?}"
+    );
+    assert!(matches!(
+        duplicate.error_kind,
+        Some(crate::tools::ToolErrorKind::InvalidArgument { .. })
+    ));
+
+    let fanout = serde_json::json!({
+        "tasks": [
+            {
+                "agent": "worker",
+                "description": "batch twin",
+                "prompt": "same row twice"
+            },
+            {
+                "agent": "worker",
+                "description": "batch twin",
+                "prompt": "same row twice"
+            }
+        ]
+    });
+    let batch = task.execute(&fanout, &context).await.unwrap();
+    assert!(!batch.success, "{batch:#?}");
+    assert!(
+        batch.content.contains("duplicates earlier in-call content"),
+        "{batch:#?}"
+    );
+
+    let blank = task
+        .execute(
+            &serde_json::json!({
+                "agent": "worker",
+                "description": "blank",
+                "prompt": "   "
+            }),
+            &context,
+        )
+        .await
+        .unwrap();
+    assert!(!blank.success, "{blank:#?}");
+    assert!(blank.content.contains("prompt must not be empty"));
+
+    first.abort();
+    let _ = first.await;
+}
+
+#[tokio::test]
 async fn task_tool_rejects_zero_max_steps_before_foreground_background_or_fanout_launch() {
     let workspace = tempfile::tempdir().unwrap();
     let calls = Arc::new(AtomicUsize::new(0));
@@ -2153,9 +2273,12 @@ async fn parallel_isolates_schema_coercion_failure_from_sibling() {
     ));
     // A plain step (no schema → succeeds) alongside a schema'd step whose
     // coercion fails. The failure must not drop or fail the sibling.
+    // Distinct prompts: A1 in-flight content fingerprint refuses identical
+    // agent/description/prompt while a sibling is still running.
     let specs = vec![
-        AgentStepSpec::new("plain", "general", "d", "p"),
-        AgentStepSpec::new("schemad", "general", "d", "p").with_output_schema(verdict_schema()),
+        AgentStepSpec::new("plain", "general", "d-plain", "prompt-plain"),
+        AgentStepSpec::new("schemad", "general", "d-schema", "prompt-schema")
+            .with_output_schema(verdict_schema()),
     ];
     let out = crate::orchestration::execute_steps_parallel(executor, specs, None).await;
 
@@ -2166,7 +2289,11 @@ async fn parallel_isolates_schema_coercion_failure_from_sibling() {
     assert_eq!(out[1].task_id, "schemad");
     assert!(!out[1].success, "schema-failing step surfaces as failure");
     assert_eq!(out[1].structured, None);
-    assert!(out[1].output.contains("[structured output failed"));
+    assert!(
+        out[1].output.contains("[structured output failed"),
+        "got: {:?}",
+        out[1].output
+    );
 }
 
 #[tokio::test]
@@ -6500,6 +6627,42 @@ async fn scoped_tool_name_collision_fails_before_child_execution() {
         error
             .to_string()
             .contains("conflicts with another child capability"),
+        "unexpected error: {error}"
+    );
+}
+
+#[tokio::test]
+async fn scoped_tools_reject_nested_task_name() {
+    let workspace = tempfile::tempdir().unwrap();
+    let nested_task = Arc::new(BatchSourceTool {
+        name: "task",
+        source_anchor: "https://example.test/nested-task",
+    });
+    let executor = TaskExecutor::new(
+        test_registry_with_text_worker(),
+        Arc::new(StaticLlmClient::new("should not run")),
+        workspace.path().to_string_lossy().to_string(),
+    )
+    .with_scoped_tools(vec![nested_task]);
+    let error = executor
+        .execute(
+            TaskParams {
+                agent: "worker".to_string(),
+                description: "nested task".to_string(),
+                prompt: "nope".to_string(),
+                background: false,
+                max_steps: Some(1),
+                output_schema: None,
+            },
+            None,
+            Some("parent"),
+        )
+        .await
+        .expect_err("projected nested task must fail closed");
+    assert!(
+        error
+            .to_string()
+            .contains("nested task delegation is not allowed"),
         "unexpected error: {error}"
     );
 }

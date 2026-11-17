@@ -97,9 +97,11 @@ impl OpenAiClient {
             let (tx, rx) = mpsc::channel(100);
 
             let mut stream = streaming_resp.byte_stream;
-            let provider_name = self.provider_name.clone();
-            let request_model = self.model.clone();
-            let request_url = url.clone();
+            // Owned once for the spawn; taken into Done meta on whichever finalize
+            // path fires (early [DONE] returns, so trailing never double-takes).
+            let mut provider_name = self.provider_name.clone();
+            let mut request_model = self.model.clone();
+            let mut request_url = url.clone();
             let stream_cancellation = cancel_token.clone();
             tokio::spawn(async move {
                 let mut buffer = String::new();
@@ -153,22 +155,23 @@ impl OpenAiClient {
                                 if data == "[DONE]" {
                                     if !text_content.is_empty() {
                                         content_blocks.push(ContentBlock::Text {
-                                            text: text_content.clone(),
+                                            text: std::mem::take(&mut text_content),
                                         });
                                     }
-                                    for (index, (id, name, args)) in tool_calls.iter() {
+                                    for (index, (id, name, args)) in std::mem::take(&mut tool_calls)
+                                    {
                                         let id = if id.is_empty() {
                                             format!("call_{index}")
                                         } else {
-                                            id.clone()
+                                            id
                                         };
+                                        let input = Self::parse_tool_arguments(&name, &args);
                                         content_blocks.push(ContentBlock::ToolUse {
                                             id,
-                                            name: name.clone(),
-                                            input: Self::parse_tool_arguments(name, args),
+                                            name,
+                                            input,
                                         });
                                     }
-                                    tool_calls.clear();
                                     crate::telemetry::record_llm_usage(
                                         usage.prompt_tokens,
                                         usage.completion_tokens,
@@ -188,16 +191,16 @@ impl OpenAiClient {
                                             transcript_text: None,
                                             transcript_visibility: Default::default(),
                                         },
-                                        usage: usage.clone(),
+                                        usage: std::mem::take(&mut usage),
                                         stop_reason: std::mem::take(&mut finish_reason),
                                         token_logprobs: std::mem::take(&mut token_logprobs),
                                         meta: Some(LlmResponseMeta {
-                                            provider: Some(provider_name.clone()),
-                                            request_model: Some(request_model.clone()),
-                                            request_url: Some(request_url.clone()),
-                                            response_id: response_id.clone(),
-                                            response_model: response_model.clone(),
-                                            response_object: response_object.clone(),
+                                            provider: Some(std::mem::take(&mut provider_name)),
+                                            request_model: Some(std::mem::take(&mut request_model)),
+                                            request_url: Some(std::mem::take(&mut request_url)),
+                                            response_id: response_id.take(),
+                                            response_model: response_model.take(),
+                                            response_object: response_object.take(),
                                             first_token_ms,
                                             duration_ms: Some(
                                                 request_started_at.elapsed().as_millis() as u64,
@@ -265,7 +268,7 @@ impl OpenAiClient {
                                                 }
                                                 if let Some(delta) = Self::merge_stream_text(
                                                     &mut reasoning_content_accum,
-                                                    &reasoning,
+                                                    reasoning,
                                                 ) {
                                                     let _ = tx
                                                         .send(StreamEvent::ReasoningDelta(delta))
@@ -285,7 +288,7 @@ impl OpenAiClient {
                                                     }
                                                     if let Some(delta) = Self::merge_stream_text(
                                                         &mut text_content,
-                                                        &content,
+                                                        content,
                                                     ) {
                                                         let _ = tx
                                                             .send(StreamEvent::TextDelta(delta))
@@ -297,7 +300,7 @@ impl OpenAiClient {
                                                 apply_tool_call_snapshot(&mut tool_calls, tcs);
                                             }
                                         } else if let Some(delta) = choice.delta {
-                                            if let Some(ref rc) = delta.reasoning_content {
+                                            if let Some(rc) = delta.reasoning_content {
                                                 // Reasoning stays in reasoning_content, never text_content
                                                 // (see the message-branch note above).
                                                 if first_token_ms.is_none() {
@@ -325,7 +328,7 @@ impl OpenAiClient {
                                                 }
                                                 if let Some(delta) = Self::append_stream_delta(
                                                     &mut text_content,
-                                                    &content,
+                                                    content,
                                                 ) {
                                                     let _ = tx
                                                         .send(StreamEvent::TextDelta(delta))
@@ -385,6 +388,9 @@ impl OpenAiClient {
                                                             (
                                                                 entry.0.clone(),
                                                                 entry.1.clone(),
+                                                                // Keep entry.2 for [DONE] finalize
+                                                                // ToolUse input; clone for the
+                                                                // Start/first delta event only.
                                                                 entry.2.clone(),
                                                             )
                                                         });
@@ -408,13 +414,22 @@ impl OpenAiClient {
                                                                     as u64,
                                                             );
                                                         }
-                                                        let _ = tx
-                                                            .send(StreamEvent::ToolUseStart {
-                                                                id: id.clone(),
-                                                                name,
-                                                            })
-                                                            .await;
-                                                        if !buffered_arguments.is_empty() {
+                                                        // Move `id` into the delta when present;
+                                                        // otherwise move it into ToolUseStart.
+                                                        if buffered_arguments.is_empty() {
+                                                            let _ = tx
+                                                                .send(StreamEvent::ToolUseStart {
+                                                                    id,
+                                                                    name,
+                                                                })
+                                                                .await;
+                                                        } else {
+                                                            let _ = tx
+                                                                .send(StreamEvent::ToolUseStart {
+                                                                    id: id.clone(),
+                                                                    name,
+                                                                })
+                                                                .await;
                                                             let _ = tx
                                                                 .send(
                                                                     StreamEvent::ToolUseInputDelta {
@@ -492,7 +507,7 @@ impl OpenAiClient {
                                     }
                                     if let Some(delta) = Self::merge_stream_text(
                                         &mut reasoning_content_accum,
-                                        &reasoning,
+                                        reasoning,
                                     ) {
                                         let _ = tx.send(StreamEvent::ReasoningDelta(delta)).await;
                                     }
@@ -507,7 +522,7 @@ impl OpenAiClient {
                                             );
                                         }
                                         if let Some(delta) =
-                                            Self::merge_stream_text(&mut text_content, &content)
+                                            Self::merge_stream_text(&mut text_content, content)
                                         {
                                             let _ = tx.send(StreamEvent::TextDelta(delta)).await;
                                         }
@@ -517,7 +532,7 @@ impl OpenAiClient {
                                     apply_tool_call_snapshot(&mut tool_calls, tcs);
                                 }
                             } else if let Some(delta) = choice.delta {
-                                if let Some(ref rc) = delta.reasoning_content {
+                                if let Some(rc) = delta.reasoning_content {
                                     // Reasoning → reasoning_content only, never text_content
                                     // (see the note in complete_streaming).
                                     if first_token_ms.is_none() {
@@ -536,7 +551,7 @@ impl OpenAiClient {
                                             Some(request_started_at.elapsed().as_millis() as u64);
                                     }
                                     if let Some(delta) =
-                                        Self::append_stream_delta(&mut text_content, &content)
+                                        Self::append_stream_delta(&mut text_content, content)
                                     {
                                         let _ = tx.send(StreamEvent::TextDelta(delta)).await;
                                     }
@@ -573,7 +588,7 @@ impl OpenAiClient {
                                     first_token_ms =
                                         Some(request_started_at.elapsed().as_millis() as u64);
                                 }
-                                let _ = Self::merge_stream_text(&mut text_content, &text);
+                                let _ = Self::merge_stream_text(&mut text_content, text);
                             }
                             if let Some(reasoning) = choice.message.reasoning_content {
                                 reasoning_content_accum.push_str(&reasoning);
@@ -642,22 +657,18 @@ impl OpenAiClient {
                     );
                     if !text_content.is_empty() {
                         content_blocks.push(ContentBlock::Text {
-                            text: text_content.clone(),
+                            text: std::mem::take(&mut text_content),
                         });
                     }
-                    for (index, (id, name, args)) in tool_calls.iter() {
+                    for (index, (id, name, args)) in std::mem::take(&mut tool_calls) {
                         let id = if id.is_empty() {
                             format!("call_{index}")
                         } else {
-                            id.clone()
+                            id
                         };
-                        content_blocks.push(ContentBlock::ToolUse {
-                            id,
-                            name: name.clone(),
-                            input: Self::parse_tool_arguments(name, args),
-                        });
+                        let input = Self::parse_tool_arguments(&name, &args);
+                        content_blocks.push(ContentBlock::ToolUse { id, name, input });
                     }
-                    tool_calls.clear();
                     crate::telemetry::record_llm_usage(
                         usage.prompt_tokens,
                         usage.completion_tokens,
@@ -676,16 +687,16 @@ impl OpenAiClient {
                             transcript_text: None,
                             transcript_visibility: Default::default(),
                         },
-                        usage: usage.clone(),
+                        usage: std::mem::take(&mut usage),
                         stop_reason: std::mem::take(&mut finish_reason),
                         token_logprobs: std::mem::take(&mut token_logprobs),
                         meta: Some(LlmResponseMeta {
-                            provider: Some(provider_name.clone()),
-                            request_model: Some(request_model.clone()),
-                            request_url: Some(request_url.clone()),
-                            response_id: response_id.clone(),
-                            response_model: response_model.clone(),
-                            response_object: response_object.clone(),
+                            provider: Some(std::mem::take(&mut provider_name)),
+                            request_model: Some(std::mem::take(&mut request_model)),
+                            request_url: Some(std::mem::take(&mut request_url)),
+                            response_id: response_id.take(),
+                            response_model: response_model.take(),
+                            response_object: response_object.take(),
                             first_token_ms,
                             duration_ms: Some(request_started_at.elapsed().as_millis() as u64),
                         }),
@@ -735,26 +746,21 @@ fn apply_tool_call_snapshot(
     calls: Vec<OpenAiToolCall>,
 ) {
     for (index, call) in calls.into_iter().enumerate() {
-        if let Some((bound_id, bound_name, bound_args)) = tool_calls.get(&index) {
-            if snapshot_conflicts(bound_id, bound_name, &call.id, &call.function.name) {
+        if let Some(entry) = tool_calls.get_mut(&index) {
+            if snapshot_conflicts(&entry.0, &entry.1, &call.id, &call.function.name) {
                 continue;
             }
-            let id = if call.id.is_empty() {
-                bound_id.clone()
-            } else {
-                call.id
-            };
-            let name = if call.function.name.is_empty() {
-                bound_name.clone()
-            } else {
-                call.function.name
-            };
-            let arguments = if call.function.arguments.is_empty() {
-                bound_args.clone()
-            } else {
-                call.function.arguments
-            };
-            tool_calls.insert(index, (id, name, arguments));
+            // Keep bound identity/args in place when the snapshot omits them —
+            // avoid clone+reinsert of the three owned strings.
+            if !call.id.is_empty() {
+                entry.0 = call.id;
+            }
+            if !call.function.name.is_empty() {
+                entry.1 = call.function.name;
+            }
+            if !call.function.arguments.is_empty() {
+                entry.2 = call.function.arguments;
+            }
             continue;
         }
         tool_calls.insert(
@@ -914,6 +920,31 @@ mod empty_name_tests {
         assert_eq!(id, "call_1");
         assert_eq!(name, "write");
         assert_eq!(args, r#"{"keep":true}"#);
+    }
+
+    /// HG2 freeze: empty snapshot args must keep bound args (get_mut path).
+    #[test]
+    fn hg2_stream_toolcall_snapshot_preserves_bound_args() {
+        let mut tool_calls = std::collections::BTreeMap::new();
+        tool_calls.insert(
+            0,
+            ("call_1".into(), "write".into(), r#"{"keep":true}"#.into()),
+        );
+        apply_tool_call_snapshot(
+            &mut tool_calls,
+            vec![OpenAiToolCall {
+                id: String::new(),
+                function: OpenAiFunction {
+                    name: String::new(),
+                    arguments: String::new(),
+                },
+            }],
+        );
+        let (id, name, args) = tool_calls.get(&0).expect("slot 0");
+        assert_eq!(
+            (id.as_str(), name.as_str(), args.as_str()),
+            ("call_1", "write", r#"{"keep":true}"#)
+        );
     }
 
     #[test]

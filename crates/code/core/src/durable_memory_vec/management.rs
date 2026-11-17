@@ -226,10 +226,7 @@ impl ManagedMemory {
             MemoryType::Procedural => StoredMemoryType::Procedural,
         };
         let mut managed = Self {
-            id: digest(
-                &serde_json::to_vec(&(workspace, session_id, layer, &item.id))
-                    .map_err(MemoryManagementFailure::failed)?,
-            ),
+            id: digest_json(&(workspace, session_id, layer, &item.id))?,
             content: item.content,
             tags: item.tags,
             importance: item.importance,
@@ -240,8 +237,9 @@ impl ManagedMemory {
             last_accessed: item.last_accessed.map(|value| value.to_rfc3339()),
             revision: String::new(),
         };
-        let bytes = serde_json::to_vec(&managed).map_err(MemoryManagementFailure::failed)?;
-        if bytes.len() + 64 > MAX_RECORD_BYTES
+        let bytes = crate::byte_budget::json_serialized_len(&managed)
+            .map_err(MemoryManagementFailure::failed)?;
+        if bytes + 64 > MAX_RECORD_BYTES
             || !managed.importance.is_finite()
             || !(0.0..=1.0).contains(&managed.importance)
         {
@@ -250,7 +248,7 @@ impl ManagedMemory {
                 "live memory record exceeds inspection bounds",
             ));
         }
-        managed.revision = digest(&bytes);
+        managed.revision = digest_json(&managed)?;
         Ok(managed)
     }
 }
@@ -308,8 +306,11 @@ struct InspectedMeta {
     tags: Option<Vec<String>>,
 }
 
-fn digest(value: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(value))
+fn digest_json(value: &(impl Serialize + ?Sized)) -> ManagementResult<String> {
+    let mut hasher = Sha256::new();
+    crate::byte_budget::json_update_sha256(&mut hasher, value)
+        .map_err(MemoryManagementFailure::failed)?;
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn inspect(document: &Doc, path: &Path) -> ManagementResult<ManagedMemory> {
@@ -354,19 +355,16 @@ fn inspect(document: &Doc, path: &Path) -> ManagementResult<ManagedMemory> {
     if let Some(stamp) = &meta.last_accessed {
         DateTime::parse_from_rfc3339(stamp).map_err(MemoryManagementFailure::failed)?;
     }
-    let revision = digest(
-        &serde_json::to_vec(&(
-            path.to_string_lossy(),
-            &id,
-            &content,
-            &tags,
-            importance.to_bits(),
-            &memory_type,
-            &timestamp,
-            &meta_raw,
-        ))
-        .map_err(MemoryManagementFailure::failed)?,
-    );
+    let revision = digest_json(&(
+        path.to_string_lossy(),
+        &id,
+        &content,
+        &tags,
+        importance.to_bits(),
+        &memory_type,
+        &timestamp,
+        &meta_raw,
+    ))?;
     let item = ManagedMemory {
         id,
         content,
@@ -379,9 +377,7 @@ fn inspect(document: &Doc, path: &Path) -> ManagementResult<ManagedMemory> {
         last_accessed: meta.last_accessed,
         revision,
     };
-    if serde_json::to_vec(&item)
-        .map_err(MemoryManagementFailure::failed)?
-        .len()
+    if crate::byte_budget::json_serialized_len(&item).map_err(MemoryManagementFailure::failed)?
         > MAX_RECORD_BYTES
     {
         return Err(MemoryManagementFailure::new(
@@ -487,16 +483,13 @@ impl VecMemoryStore {
                     .map_err(MemoryManagementFailure::failed)?;
                 let generation = documents.revision();
                 let query = query.trim().to_lowercase();
-                let filter = digest(
-                    &serde_json::to_vec(&(
-                        self.path.to_string_lossy(),
-                        &query,
-                        memory_type,
-                        &created_after,
-                        &created_before,
-                    ))
-                    .map_err(MemoryManagementFailure::failed)?,
-                );
+                let filter = digest_json(&(
+                    self.path.to_string_lossy(),
+                    &query,
+                    memory_type,
+                    &created_after,
+                    &created_before,
+                ))?;
                 let offset = if let Some(raw) = cursor {
                     let cursor: Cursor = serde_json::from_str(&raw).map_err(|_| {
                         MemoryManagementFailure::new(
@@ -521,9 +514,8 @@ impl VecMemoryStore {
                         &document.map_err(MemoryManagementFailure::failed)?,
                         &self.path,
                     )?;
-                    bytes += serde_json::to_vec(&item)
-                        .map_err(MemoryManagementFailure::failed)?
-                        .len();
+                    bytes += crate::byte_budget::json_serialized_len(&item)
+                        .map_err(MemoryManagementFailure::failed)?;
                     if bytes > MAX_SCAN_BYTES {
                         return Err(MemoryManagementFailure::new(
                             MemoryManagementCode::Limit,
@@ -552,9 +544,8 @@ impl VecMemoryStore {
                 let mut end = offset;
                 let mut page_bytes = 0usize;
                 for item in items.iter().skip(offset).take(PAGE_SIZE) {
-                    let next_bytes = serde_json::to_vec(item)
-                        .map_err(MemoryManagementFailure::failed)?
-                        .len();
+                    let next_bytes = crate::byte_budget::json_serialized_len(item)
+                        .map_err(MemoryManagementFailure::failed)?;
                     if page_bytes + next_bytes > 256 * 1024 {
                         break;
                     }
@@ -612,9 +603,8 @@ impl VecMemoryStore {
                     ));
                 }
                 item.content = content;
-                if serde_json::to_vec(&item)
+                if crate::byte_budget::json_serialized_len(&item)
                     .map_err(MemoryManagementFailure::failed)?
-                    .len()
                     > MAX_RECORD_BYTES
                 {
                     return Err(MemoryManagementFailure::new(

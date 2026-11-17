@@ -1,0 +1,16 @@
+---
+description: P17 — no private git branch/worktree for any seat (incl. Conductor)
+alwaysApply: true
+---
+
+# P17 Git branch / worktree discipline
+
+**Authority:** `.aster/skills/plan/references/portable.md` (legacy `.kstudio/...` ok)
+
+Any agent in this repo (O / B / R / M / I / S / D and aliases):
+
+1. MUST NOT privately run `git switch -c`, `git checkout -b`, `git branch <new>`, or `git worktree add` unless the **user or conductor explicitly authorized that exact branch/worktree in this turn**.
+2. MUST work only on the branch named in the dispatch note or `lineage.roles[].code.branch`.
+3. If a new branch is required: **ask first**, then record it in lineage after approval.
+4. MUST NOT silently move the user’s workspace onto a private branch (causes apparent feature rollback at merge).
+5. Short reports MUST state the actual branch used.

@@ -134,7 +134,8 @@ fn digest_stamps(stamps: &[ContentStamp]) -> String {
     let mut digest = Sha256::new();
     digest.update(b"stamps\0");
     for stamp in stamps {
-        digest.update(serde_json::to_vec(stamp).unwrap_or_default());
+        crate::byte_budget::json_update_sha256(&mut digest, stamp)
+            .expect("ContentStamp always serializes");
         digest.update([0]);
     }
     format!("sha256:{:x}", digest.finalize())
@@ -791,7 +792,10 @@ pub(crate) const STATUS_RECORD_CAP: usize = 65_536;
 const NONGIT_WALK_CAP: usize = 1 << 18;
 const OBSERVATION_PATH_BYTE_CAP: usize = 4_096;
 /// Bytes a baseline may hash. Baselines run before every mutating call.
-pub(crate) const OBSERVATION_BYTE_CAP: u64 = 64 * 1024 * 1024;
+///
+/// Aligned with `aster_effect::MAX_RECORD_BYTES` (E3): hashing more than a
+/// single effect record can persist only burns CPU then fails at append.
+pub(crate) const OBSERVATION_BYTE_CAP: u64 = aster_effect::MAX_RECORD_BYTES as u64;
 /// Bytes one receipt may hash for its changed paths. A changed file without
 /// byte identity leaves an obligation that nothing can discharge, so this
 /// covers the data files a task writes; beyond it the receipt is incomplete.
@@ -853,14 +857,16 @@ impl FileIndex {
                 "incomplete": self.incomplete,
                 "budget_exceeded": self.budget,
             });
-            if serde_json::to_vec(&full).is_ok_and(|bytes| bytes.len() <= CONTENT_BASELINE_BYTE_CAP)
+            if crate::byte_budget::json_serialized_len(&full)
+                .is_ok_and(|bytes| bytes <= CONTENT_BASELINE_BYTE_CAP)
             {
                 return full;
             }
         }
         let mut digest = Sha256::new();
         for entry in &self.entries {
-            digest.update(serde_json::to_vec(entry).unwrap_or_default());
+            crate::byte_budget::json_update_sha256(&mut digest, entry)
+                .expect("file-index entry always serializes");
             digest.update(b"\n");
         }
         serde_json::json!({
@@ -1187,6 +1193,10 @@ pub(crate) fn attach(metadata: &mut Option<Value>, paths: &[String]) {
         object.insert("changed_paths".to_string(), serde_json::json!(shown));
         if truncated {
             object.insert("changed_paths_truncated".to_string(), Value::Bool(true));
+            object.insert(
+                "changed_paths_discarded".to_string(),
+                Value::from(paths.len().saturating_sub(shown.len())),
+            );
         }
     }
     *metadata = Some(value);

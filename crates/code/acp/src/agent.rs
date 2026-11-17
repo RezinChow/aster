@@ -77,8 +77,8 @@ use session_open::{acp_mcp_to_config, session_mcp_configs};
 #[cfg(test)]
 use tool_render::edit_diff;
 use tool_render::{
-    prepared_raw_input, streaming_bash_delta, task_to_plan_entry, tool_call_content, tool_kind_for,
-    tool_publication_output, tool_raw_output, tool_title,
+    prepared_raw_input, preview_text, preview_text_owned, streaming_bash_delta, task_to_plan_entry,
+    tool_call_content, tool_kind_for, tool_publication_output, tool_raw_output, tool_title,
 };
 use turn::{agent_failure_error, worker_join_failure};
 #[cfg(test)]
@@ -174,20 +174,20 @@ impl InflightSessionLoads {
         })
     }
 
-    fn begin(self: &Arc<Self>, session_id: &str) -> SessionLoadGuard {
+    /// Admit one exclusive `session/load` owner. A second concurrent begin for
+    /// the same id fails closed (E5) instead of returning an empty no-op guard
+    /// that still ran a parallel unguarded load.
+    fn begin(self: &Arc<Self>, session_id: &str) -> Result<SessionLoadGuard, ()> {
         let mut open = self.open.lock().unwrap_or_else(|err| err.into_inner());
         if open.contains_key(session_id) {
-            return SessionLoadGuard {
-                loads: None,
-                id: String::new(),
-            };
+            return Err(());
         }
         let (sender, _) = watch::channel(false);
         open.insert(session_id.to_string(), sender);
-        SessionLoadGuard {
+        Ok(SessionLoadGuard {
             loads: Some(Arc::clone(self)),
             id: session_id.to_string(),
-        }
+        })
     }
 
     async fn wait(&self, session_id: &str) {
@@ -269,6 +269,8 @@ struct LiveSession {
     /// When the in-flight turn started (WC-NOTIFY1: the completion bell
     /// fires only for runs past the configured floor).
     turn_started: std::sync::Mutex<Option<std::time::Instant>>,
+    /// UTC ms for the same turn start (pager `turnStartMs` / `streamStartMs`).
+    turn_started_ms: std::sync::Mutex<Option<i64>>,
     /// Serializes turns: a prompt arriving mid-turn queues here instead of
     /// failing with "already has an active operation" (the pager's send-now
     /// and queue reissue both rely on the agent accepting and serializing).
@@ -417,9 +419,9 @@ fn process_skill_home() -> Option<PathBuf> {
 
 /// Directories a session should WATCH for later installs even though they do
 /// not exist yet. Workspace and home use the same roots (`skills`,
-/// `.aster/skills`, `.agents/skills`, `.claude/skills`, `.codex/skills`).
-/// The first install creates one of these; the next catalog refresh or Skill
-/// lookup then loads the package.
+/// `.agents/skills`, `.claude/skills`, `.codex/skills`, `.kstudio/skills`,
+/// `.aster/skills`). The first install creates one of these; the next catalog
+/// refresh or Skill lookup then loads the package.
 fn watched_skill_dirs(workspace: &std::path::Path) -> Vec<PathBuf> {
     watched_skill_dirs_under(workspace, process_skill_home().as_deref())
 }
@@ -448,11 +450,16 @@ fn interactive_skill_dirs_under(
     configured: &[PathBuf],
     home: Option<&std::path::Path>,
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
+    // Trust order for the skill registry (later path wins same name): home →
+    // configured → workspace/project. Alphabetical `sort()` inverted that
+    // (P4) so a home path could shadow the project by name alone.
     let mut dirs = Vec::new();
     let mut missing = Vec::new();
-    for project in aster_core::skills::agent_skill_roots(workspace) {
-        if project.is_dir() {
-            dirs.push(project);
+    if let Some(home) = home {
+        for personal in aster_core::skills::agent_skill_roots(home) {
+            if personal.is_dir() {
+                dirs.push(personal);
+            }
         }
     }
     for dir in configured {
@@ -467,18 +474,22 @@ fn interactive_skill_dirs_under(
             missing.push(path);
         }
     }
-    if let Some(home) = home {
-        for personal in aster_core::skills::agent_skill_roots(home) {
-            if personal.is_dir() {
-                dirs.push(personal);
-            }
+    for project in aster_core::skills::agent_skill_roots(workspace) {
+        if project.is_dir() {
+            dirs.push(project);
         }
     }
-    dirs.sort();
-    dirs.dedup();
-    missing.sort();
-    missing.dedup();
+    dirs = dedup_paths_preserve_order(dirs);
+    missing = dedup_paths_preserve_order(missing);
     (dirs, missing)
+}
+
+fn dedup_paths_preserve_order(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut seen = std::collections::HashSet::new();
+    paths
+        .into_iter()
+        .filter(|path| seen.insert(path.clone()))
+        .collect()
 }
 
 /// Snapshot directory for one interactive core session.
@@ -804,7 +815,7 @@ impl AsterCodeAgent {
             (None, None) => Ok(()),
             (Some(host), Some(value)) => {
                 let cursor: aster_use_reconcile::SelectionCursor =
-                    serde_json::from_value(value.clone())
+                    serde::Deserialize::deserialize(value)
                         .map_err(|error| acp::Error::invalid_params().data(error.to_string()))?;
                 if &cursor != host.cursor()
                     || !crate::plugin_tools::entries_from_meta(meta).is_empty()
@@ -1030,13 +1041,17 @@ struct TurnState {
     /// updates that row instead of opening another Run card.
     painted_tools: HashSet<String>,
     pending_tools: HashSet<String>,
+    /// In-flight `task` / `background` toolCallId — Studio binds board rows via toolUseId.
+    open_spawn_tool_id: Option<String>,
+    /// `subagent_id` → parent toolCallId for progress/finish wire fields.
+    subagent_parent_tool: HashMap<String, String>,
     /// Last model invocation's usage, paired with End's response metadata for measured TPS.
     last_turn_usage: Option<aster_core::llm::TokenUsage>,
     end_usage: Option<aster_core::llm::TokenUsage>,
     model_calls: u64,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct ChildProgress {
     turn_count: u32,
     tool_call_count: u32,
@@ -1170,3 +1185,25 @@ mod turn_input_tests;
 #[cfg(test)]
 #[path = "agent/lifecycle_tests.rs"]
 mod lifecycle_tests;
+
+#[cfg(test)]
+mod inflight_session_load_tests {
+    use super::InflightSessionLoads;
+    use std::sync::Arc;
+
+    #[test]
+    fn concurrent_begin_for_same_session_fails_closed() {
+        let loads = InflightSessionLoads::new();
+        let first = loads.begin("sess-a").expect("first load owns the slot");
+        assert!(
+            loads.begin("sess-a").is_err(),
+            "second concurrent load must not get an empty no-op guard"
+        );
+        assert!(loads.begin("sess-b").is_ok());
+        drop(first);
+        assert!(
+            loads.begin("sess-a").is_ok(),
+            "slot must free after the owner drops"
+        );
+    }
+}

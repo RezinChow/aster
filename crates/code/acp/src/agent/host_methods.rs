@@ -690,6 +690,7 @@ impl AsterCodeAgent {
             self.attach_local_assets(&child, &host, &asset_denies)?;
             let mut live = LiveSession {
                 turn_started: std::sync::Mutex::new(None),
+                turn_started_ms: std::sync::Mutex::new(None),
                 session: Arc::clone(&child),
                 workspace,
                 model_id,

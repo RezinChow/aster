@@ -1662,7 +1662,9 @@ impl FactRun {
         attachments: &[Attachment],
     ) -> Result<aster_effect::Settlement<CodingView>> {
         let log = self.open_log()?;
-        let key = format!("m-{}", log.read(&self.thread).unwrap_or_default().len());
+        // E4: do not full-parse the JSONL effect log just to mint a key —
+        // ingest/append will read again. Uuid keeps keys unique without O(n).
+        let key = format!("m-{}", uuid::Uuid::new_v4());
         ingest_coding_with_optional_limit(
             &self.actor,
             log.as_ref(),
@@ -1715,7 +1717,7 @@ impl FactRun {
         approved: bool,
     ) -> Result<aster_effect::Settlement<CodingView>> {
         let log = self.open_log()?;
-        let key = format!("c-{}", log.read(&self.thread).unwrap_or_default().len());
+        let key = format!("c-{}", uuid::Uuid::new_v4());
         ingest_coding_with_optional_limit(
             &self.actor,
             log.as_ref(),
@@ -1731,35 +1733,36 @@ impl FactRun {
 
     /// Append `confirmation.answered` only when this tool id is the parked one.
     pub async fn confirm_if_pending(&self, tool_call_id: &str, approved: bool) -> Result<bool> {
-        let pending = match self.resume_limit(0).await {
+        // Reuse the resume settlement's log length — avoid a second full
+        // JSONL parse via read_facts() just to detect append.
+        let before = match self.resume_limit(0).await {
             Ok(settled) => {
-                settled.view.phase == CodingPhase::Confirm
+                let pending = settled.view.phase == CodingPhase::Confirm
                     && settled
                         .view
                         .pending_confirmation
                         .as_ref()
-                        .is_some_and(|pending| pending.tool_call_id == tool_call_id)
+                        .is_some_and(|pending| pending.tool_call_id == tool_call_id);
+                if !pending {
+                    return Ok(false);
+                }
+                settled.log.len()
             }
             Err(error) => {
                 let rendered = format!("{error:#}");
                 if rendered.contains("StepLimit") {
-                    false
-                } else {
-                    return Err(error);
+                    return Ok(false);
                 }
+                return Err(error);
             }
         };
-        if !pending {
-            return Ok(false);
-        }
-        let before = self.read_facts()?.len();
         let settled = self.confirm(tool_call_id, approved).await?;
         Ok(settled.log.len() > before)
     }
 
     pub async fn answer(&self, text: &str) -> Result<aster_effect::Settlement<CodingView>> {
         let log = self.open_log()?;
-        let key = format!("a-{}", log.read(&self.thread).unwrap_or_default().len());
+        let key = format!("a-{}", uuid::Uuid::new_v4());
         ingest_coding_with_optional_limit(
             &self.actor,
             log.as_ref(),

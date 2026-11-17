@@ -953,6 +953,7 @@ async fn execute_host_tool_json(
     if output.len() > max_output_bytes {
         output = truncate_utf8(&output, max_output_bytes).to_string();
     }
+    let discarded = crate::byte_budget::discarded_bytes(original_output_bytes, output.len());
     let success = result.exit_code == 0;
     let metadata = result.metadata.clone();
     let exit_code = result.exit_code;
@@ -983,6 +984,7 @@ async fn execute_host_tool_json(
         "exitCode": exit_code,
         "truncated": truncated,
         "originalOutputBytes": original_output_bytes,
+        "discardedBytes": discarded,
         "metadata": metadata,
     }))
     .map_err(|err| JsError::new_from_js_message("tool result", "json", err.to_string()))
@@ -1050,6 +1052,10 @@ fn script_record_to_value(record: &ScriptCallRecord) -> serde_json::Value {
         "exit_code": record.exit_code,
         "output_bytes": record.output_bytes,
         "original_output_bytes": record.original_output_bytes,
+        "discarded_bytes": crate::byte_budget::discarded_bytes(
+            record.original_output_bytes,
+            record.output_bytes,
+        ),
         "truncated": record.truncated,
         "start_offset_ms": record.start_offset_ms,
         "duration_ms": record.duration_ms,

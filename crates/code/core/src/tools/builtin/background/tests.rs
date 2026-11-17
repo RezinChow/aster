@@ -787,6 +787,17 @@ async fn failed_command_still_records_and_folds_workspace_changes() {
         .iter()
         .any(|path| path == "changed.txt"));
     assert!(terminal.payload["output"]["total_bytes"].as_u64().unwrap() > 0);
+    assert_eq!(
+        terminal.payload["output"]["discarded_bytes"]
+            .as_u64()
+            .unwrap(),
+        crate::byte_budget::discarded_bytes(
+            terminal.payload["output"]["total_bytes"].as_u64().unwrap() as usize,
+            terminal.payload["output"]["captured_bytes"]
+                .as_u64()
+                .unwrap() as usize,
+        ) as u64
+    );
     assert!(
         !crate::harness_loop::absorb_open_workspace_children(
             &mut ledger,

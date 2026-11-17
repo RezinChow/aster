@@ -994,6 +994,159 @@ impl RenderBlock {
         }
     }
 
+    /// Line widths for cheap off-screen height estimates.
+    /// Agent/thinking use raw markdown source (avoids cloning rendered plain text
+    /// on every streaming chunk). Search still uses [`Self::searchable_text`].
+    pub(crate) fn estimate_line_widths(&self) -> Vec<u32> {
+        fn line_widths_from_text(text: &str) -> Vec<u32> {
+            let text = text.strip_suffix('\n').unwrap_or(text);
+            text.split('\n')
+                .map(|line| unicode_width::UnicodeWidthStr::width(line) as u32)
+                .collect()
+        }
+        match self {
+            RenderBlock::AgentMessage(b) => {
+                if b.is_empty() {
+                    return Vec::new();
+                }
+                b.content().with_source(line_widths_from_text)
+            }
+            RenderBlock::Thinking(b) => {
+                if b.content().is_empty() {
+                    return Vec::new();
+                }
+                b.content().with_source(line_widths_from_text)
+            }
+            // Output/content-first: matches on-screen body; avoids searchable join clone.
+            RenderBlock::ToolCall(ToolCallBlock::Execute(b)) => match b.output.as_deref() {
+                None | Some("") => Vec::new(),
+                Some(text) => line_widths_from_text(text),
+            },
+            RenderBlock::ToolCall(ToolCallBlock::Read(b)) => match b.content.as_deref() {
+                None | Some("") => line_widths_from_text(&b.path),
+                Some(text) => line_widths_from_text(text),
+            },
+            RenderBlock::ToolCall(ToolCallBlock::ListDir(b)) => {
+                if b.output.is_empty() {
+                    line_widths_from_text(&b.path)
+                } else {
+                    line_widths_from_text(&b.output)
+                }
+            }
+            RenderBlock::ToolCall(ToolCallBlock::Other(b) | ToolCallBlock::Skill(b)) => {
+                match b.output.as_deref() {
+                    None | Some("") => line_widths_from_text(&b.summary),
+                    Some(text) => line_widths_from_text(text),
+                }
+            }
+            RenderBlock::ToolCall(ToolCallBlock::WebFetch(b)) => match b.output.as_deref() {
+                None | Some("") => line_widths_from_text(&b.url),
+                Some(text) => line_widths_from_text(text),
+            },
+            RenderBlock::ToolCall(ToolCallBlock::WebSearch(b)) => match b.content.as_deref() {
+                None | Some("") => line_widths_from_text(&b.query),
+                Some(text) => line_widths_from_text(text),
+            },
+            RenderBlock::ToolCall(ToolCallBlock::Search(b)) => line_widths_from_text(&b.pattern),
+            RenderBlock::ToolCall(ToolCallBlock::UseTool(b)) => match b.output.as_deref() {
+                None | Some("") => line_widths_from_text(&b.tool_name),
+                Some(text) => line_widths_from_text(text),
+            },
+            RenderBlock::ToolCall(ToolCallBlock::MemorySearch(b)) => {
+                line_widths_from_text(&b.query)
+            }
+            // Path-only estimate: full diff searchable_text is O(hunks) clone.
+            RenderBlock::ToolCall(ToolCallBlock::Edit(b)) => line_widths_from_text(&b.path),
+            RenderBlock::ToolCall(ToolCallBlock::IntegrationSearch(b)) => {
+                match b.content.as_deref() {
+                    None | Some("") => line_widths_from_text(&b.query),
+                    Some(text) => line_widths_from_text(text),
+                }
+            }
+            RenderBlock::ToolCall(ToolCallBlock::SentMessage(b)) => match b
+                .input
+                .as_ref()
+                .map(|input| input.text.as_str())
+            {
+                None | Some("") => Vec::new(),
+                Some(text) => line_widths_from_text(text),
+            },
+            RenderBlock::BgTask(b) => line_widths_from_text(&b.command),
+            RenderBlock::Workflow(b) => line_widths_from_text(&b.name),
+            // Single-field blocks: borrow in place — searchable_text would clone+join.
+            RenderBlock::Stub(b) => line_widths_from_text(&b.text),
+            RenderBlock::UserPrompt(b) => line_widths_from_text(&b.text),
+            RenderBlock::System(b) => line_widths_from_text(&b.text),
+            RenderBlock::ContextInfo(b) => line_widths_from_text(&b.model),
+            RenderBlock::Subagent(b) => line_widths_from_text(&b.description),
+            RenderBlock::Btw(b) => line_widths_from_text(&b.question),
+            RenderBlock::MemoryCapture(b) => line_widths_from_text(b.estimate_text()),
+            // Prefer borrowed / static message over searchable join of a fresh String.
+            RenderBlock::SessionEvent(b) => match &b.event {
+                SessionEvent::TurnOutcome { line } => line_widths_from_text(line),
+                SessionEvent::TurnCompleted { elapsed: None } => {
+                    line_widths_from_text("Turn completed.")
+                }
+                SessionEvent::TurnCancelled {
+                    elapsed: None,
+                    cause,
+                } => line_widths_from_text(cause.banner_line()),
+                SessionEvent::TurnBlockedByHook { elapsed: None } => {
+                    line_widths_from_text("Turn blocked by a hook.")
+                }
+                SessionEvent::CompactionCancelled => {
+                    line_widths_from_text("Compaction cancelled.")
+                }
+                SessionEvent::CompactionStarted { reason, .. }
+                    if reason
+                        == aster_shell::extensions::notification::MODEL_FAMILY_SWITCH_COMPACT_BANNER =>
+                {
+                    line_widths_from_text(
+                        aster_shell::extensions::notification::MODEL_FAMILY_SWITCH_COMPACT_BANNER,
+                    )
+                }
+                SessionEvent::ReAuthRequired => line_widths_from_text(
+                    "Authentication required: your session has expired or your \
+                     credentials were rejected. Run /login to re-authenticate, then resend \
+                     your message.",
+                ),
+                SessionEvent::ContextTooLarge => line_widths_from_text(
+                    "This conversation is too large for the model's context window. \
+                     Use /new to start a new session.",
+                ),
+                SessionEvent::CompactStarted => {
+                    line_widths_from_text("Compacting conversation…")
+                }
+                SessionEvent::DiskFull => line_widths_from_text(
+                    aster_shell::extensions::notification::DISK_FULL_USER_MESSAGE,
+                ),
+                SessionEvent::MemoryCommandStarted { command } => {
+                    line_widths_from_text(command.started_text())
+                }
+                SessionEvent::CompactionFailed { error } if error.trim().is_empty() => {
+                    line_widths_from_text("Compaction failed.")
+                }
+                SessionEvent::HookAnnotation { message }
+                | SessionEvent::HookOutcome { message } => line_widths_from_text(message),
+                SessionEvent::TurnFailed {
+                    error,
+                    elapsed: None,
+                } => {
+                    let mut line = String::with_capacity(13 + error.len());
+                    line.push_str("Turn failed: ");
+                    line.push_str(error);
+                    line_widths_from_text(&line)
+                }
+                SessionEvent::ModelUnavailable {
+                    new_model_id,
+                    reason,
+                    ..
+                } if new_model_id.is_empty() => line_widths_from_text(reason),
+                other => line_widths_from_text(&other.message()),
+            },
+        }
+    }
+
     /// Full searchable text of this block for full-text scrollback search. Searching `is important` finds the rendered
     /// `is important` rather than missing the source `is important`. This reads the renderer's last-rendered view
     /// without running layout (`output()` word-wrap) or re-highlighting syntax.
@@ -1123,7 +1276,7 @@ mod tests {
             width: 80,
             raw: false,
             max_lines: None,
-            appearance: AppearanceConfig::default(),
+            appearance: std::sync::Arc::new(AppearanceConfig::default()),
             is_selected: false,
             cwd: None,
         }

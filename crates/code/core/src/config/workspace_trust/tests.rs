@@ -221,6 +221,24 @@ agent_dirs = ["{home}"]
 }
 
 #[test]
+fn untrusted_directories_fail_closed_when_canonicalize_fails() {
+    let root = tempfile::tempdir().unwrap();
+    // Lexically under root but missing — previously admitted via starts_with.
+    let body = r#"
+skill_dirs = [".aster/missing-skills"]
+"#;
+    let layers = untrusted(body);
+    let mut config = merged(&layers);
+    let admission =
+        admit_untrusted_layers(&mut config, &layers, root.path(), &Default::default()).unwrap();
+    assert_eq!(config.skill_dirs, vec![PathBuf::from("/host/skills")]);
+    assert_eq!(
+        admission.dropped_dirs,
+        vec![PathBuf::from(".aster/missing-skills")]
+    );
+}
+
+#[test]
 fn host_owned_paths_and_executables_are_withheld_from_the_repository() {
     let root = tempfile::tempdir().unwrap();
     let body = r#"
@@ -299,7 +317,19 @@ fn trusted_only_layers_are_untouched() {
     let before = config.mcp_servers.len();
     let admission =
         admit_untrusted_layers(&mut config, &layers, root.path(), &Default::default()).unwrap();
-    assert_eq!(admission, WorkspaceLayerAdmission::default());
+    // Provenance digest is always attached; MCP/dir admission stays empty when
+    // every layer is already trusted.
+    assert!(
+        admission
+            .forced_layer_digest
+            .as_deref()
+            .is_some_and(|digest| digest.starts_with("sha256:")),
+        "forced-layer provenance missing: {:?}",
+        admission.forced_layer_digest
+    );
+    assert!(admission.withheld_blocks.is_empty());
+    assert!(admission.workspace_mcp.is_empty());
+    assert!(admission.dropped_dirs.is_empty());
     assert_eq!(config.mcp_servers.len(), before);
     assert_eq!(config.sessions_dir, Some(PathBuf::from("/srv/sessions")));
 }

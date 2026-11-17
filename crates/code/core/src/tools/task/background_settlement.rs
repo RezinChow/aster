@@ -41,9 +41,9 @@ pub(super) async fn retain(
     // Cancellation can retain late evidence in the original logs; this closure starts no child work.
     tokio::task::spawn_blocking(move || -> Result<()> {
         let child_log = aster_effect::FileLog::open(crate::session_folder::child_effect_log_dir(&context.workspace, &binding.child_session_id)?)?;
-        let facts = child_log.read(&crate::fact_control::thread_for_session(&binding.child_session_id))?;
+        let child_thread = crate::fact_control::thread_for_session(&binding.child_session_id);
+        let (facts, freeze) = child_log.read_freeze(&child_thread)?;
         anyhow::ensure!(facts.last().is_some_and(|fact| fact.kind == crate::fact_control::TURN_COMPLETE_FACT_KIND), "background child has no original completion fact");
-        let cut = aster_effect::cut_log(&facts);
         let log = context.fact_log.as_ref().ok_or_else(|| anyhow::anyhow!("background parent fact log missing"))?;
         let session = context.session_id.as_deref().ok_or_else(|| anyhow::anyhow!("background parent session missing"))?;
         log.append(&crate::fact_control::thread_for_session(session), &[aster_effect::NewFact {
@@ -51,7 +51,8 @@ pub(super) async fn retain(
             payload: serde_json::json!({
                 "workspace_child":binding.task_id, "task_id":binding.task_id,
                 "background_subagent":binding,
-                "child_log_cut":{"seq":cut.seq,"digest":cut.digest},
+                "child_log_cut":{ "seq": freeze.cut.seq, "digest": freeze.cut.digest },
+                "child_log_byte_len": freeze.byte_len,
                 "changed_paths":effects.changes.iter().map(|change| &change.path).collect::<Vec<_>>(),
                 "effects":effects,
             }),
@@ -80,6 +81,12 @@ pub(super) async fn start(
         .session_id
         .clone()
         .ok_or_else(|| anyhow::anyhow!("background parent session missing"))?;
+    if let Some(message) = refuse_blank_task_prompt(&params) {
+        anyhow::bail!("{message}");
+    }
+    let content_lease = executor
+        .admit_in_flight_task_content(&task_id, &params)
+        .map_err(anyhow::Error::msg)?;
     let child = format!("task-run-{task_id}");
     let event_tx = context.agent_event_tx.clone();
     let start = AgentEvent::SubagentStart {
@@ -127,6 +134,7 @@ pub(super) async fn start(
     let id = task_id.clone();
     let mut workspace_child = crate::porcelain::WorkspaceChildGuard::new(&id);
     let future = async move {
+        let content_lease = content_lease;
         let execution = async {
             let (guard, hooks) = plan.admit(&id, &context.workspace).await?;
             let mut executor = executor.as_ref().clone();
@@ -148,6 +156,7 @@ pub(super) async fn start(
                                 emit_start: false,
                                 parent_cancellation: Some(&cancellation),
                                 admitted_capability_subtask: Some(subtask),
+                                content_lease: Some(content_lease),
                                 parallel_lifecycle: None,
                                 terminal_persistence: Some(&persistence),
                             },

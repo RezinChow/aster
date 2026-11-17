@@ -120,6 +120,7 @@ pub mod harness_loop;
 pub mod hitl;
 pub mod hooks;
 pub mod host_env;
+pub mod kstudio;
 pub(crate) mod language;
 pub mod llm;
 pub mod loop_checkpoint;

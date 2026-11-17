@@ -24,6 +24,17 @@ fn context_with_files(files: &[(&str, &str)]) -> (tempfile::TempDir, ToolContext
 }
 
 #[test]
+fn bounded_query_display_reports_discarded_chars() {
+    let long = "a".repeat(MAX_QUERY_DISPLAY_BYTES + 17);
+    let (shown, discarded) = bounded_query_display(&long);
+    assert_eq!(shown.len(), MAX_QUERY_DISPLAY_BYTES);
+    assert_eq!(discarded, 17);
+    let (short, discarded_short) = bounded_query_display("hi");
+    assert_eq!(short, "hi");
+    assert_eq!(discarded_short, 0);
+}
+
+#[test]
 fn schema_exposes_bounded_plain_text_search() {
     let tool = Bm25Tool;
     let schema = tool.parameters();

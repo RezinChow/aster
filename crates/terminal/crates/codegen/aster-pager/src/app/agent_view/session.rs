@@ -2344,6 +2344,21 @@ mod status_window_tests {
         assert!(agent.pending_cancel_resend.is_none());
     }
     #[test]
+    fn start_turn_pre_creates_thinking_chrome() {
+        crate::appearance::cache::set_show_thinking_blocks(true);
+        let mut agent = test_agent_view(Some("s1"), std::path::PathBuf::from("/tmp"));
+        assert_eq!(agent.scrollback.len(), 0);
+        agent.start_turn_boundary(Some("p-local"));
+        assert_eq!(agent.scrollback.len(), 1);
+        assert!(
+            agent
+                .scrollback
+                .get(0)
+                .is_some_and(|entry| entry.block.is_thinking()),
+            "local turn start must show Thinking… before first ACP chunk"
+        );
+    }
+    #[test]
     fn adopt_running_prompt_marks_front_committed() {
         let mut agent = test_agent_view(Some("s1"), std::path::PathBuf::from("/tmp"));
         agent.start_turn_boundary(Some("p-local"));

@@ -156,6 +156,12 @@ impl MarkdownContent {
         self.state.borrow().renderer.source().to_string()
     }
 
+    /// Borrow the source markdown without cloning (cold height estimates).
+    pub fn with_source<R>(&self, f: impl FnOnce(&str) -> R) -> R {
+        let state = self.state.borrow();
+        f(state.renderer.source())
+    }
+
     /// Whether the source markdown is empty (zero-alloc, unlike `text()`).
     pub fn is_empty(&self) -> bool {
         self.state.borrow().renderer.source().is_empty()

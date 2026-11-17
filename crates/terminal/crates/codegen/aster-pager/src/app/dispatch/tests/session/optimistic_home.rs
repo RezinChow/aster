@@ -1222,7 +1222,7 @@ fn get_active_agent_ignores_home_session_on_dashboard() {
 #[test]
 fn reveal_home_session_keeps_agent_composer_setup() {
     let mut app = test_app();
-    app.appearance.prompt.compact = true;
+    std::sync::Arc::make_mut(&mut app.appearance).prompt.compact = true;
     maybe_create_home_session(&mut app);
     app.welcome_prompt.set_text("keep draft");
     assert!(

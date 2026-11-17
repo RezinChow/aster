@@ -257,7 +257,7 @@ fn build_fork_placeholder(
     worktree: bool,
 ) -> AgentView {
     let mut scrollback = ScrollbackState::new();
-    scrollback.set_appearance(app.appearance.clone());
+    scrollback.set_appearance_arc(std::sync::Arc::clone(&app.appearance));
     let mut agent = AgentView::from_app(
         app,
         AgentSession {

@@ -1569,6 +1569,15 @@ pub fn apply_sandbox(
         }
     }
     if sandbox_profile != aster_confine::ProfileName::Off {
+        // C1 honesty: configured profile names are retained for API/UI compat, but
+        // aster-confine never enforces. Real isolation is aster-core/ksandbox.
+        if !aster_confine::is_enforcement_authority() {
+            eprintln!(
+                "note: aster-confine is a compatibility stub (not OS enforcement); \
+                 command isolation is aster-core sandbox/ksandbox \
+                 (requested profile: {sandbox_profile})"
+            );
+        }
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         let requires_protection = {
             let is_custom = matches!(sandbox_profile, aster_confine::ProfileName::Custom(_));

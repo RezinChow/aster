@@ -1,6 +1,7 @@
 //! Read-side projections of a workspace fact log.
 
 use super::*;
+use serde::Deserialize;
 
 pub fn read_workspace_facts(workspace: &Path, thread: &str) -> Result<Vec<aster_effect::Fact>> {
     let log = FileLog::open(crate::session_folder::effect_log_dir(workspace, thread))
@@ -27,7 +28,7 @@ pub(crate) fn tool_result_weights(workspace: &Path, thread: &str) -> Result<Vec<
     for fact in read_workspace_facts(workspace, thread)? {
         if fact.kind == "model.turn" {
             if let Ok(ModelDecision::Tool { call, also }) =
-                serde_json::from_value::<ModelDecision>(fact.payload)
+                ModelDecision::deserialize(&fact.payload)
             {
                 pending = std::iter::once(call).chain(also).collect();
             }
@@ -125,7 +126,11 @@ pub(crate) fn append_compaction_done(
     if !writer.is_for(log)? {
         anyhow::bail!("compaction requires the original log writer");
     }
-    let existing = log.read(&thread).map_err(|error| anyhow::anyhow!(error))?;
+    // Writer fence is already held; read_freeze reuses the nested fence and
+    // avoids a second open for the same durable-source check.
+    let (existing, _freeze) = log
+        .read_freeze(&thread)
+        .map_err(|error| anyhow::anyhow!(error))?;
     if crate::store::SessionFactSourceV1::from_facts(session_id, &existing)?.as_ref() != source {
         anyhow::bail!("compaction durable source changed before append");
     }
@@ -179,7 +184,7 @@ pub(super) fn message_from_fact(fact: &aster_effect::Fact) -> Option<Message> {
             Some(Message::user(text))
         }
         "model.turn" => {
-            let decided = serde_json::from_value::<ModelDecision>(fact.payload.clone()).ok()?;
+            let decided = ModelDecision::deserialize(&fact.payload).ok()?;
             match decided {
                 ModelDecision::Text { text } => Some(Message::assistant(&text)),
                 ModelDecision::Tool { call, also } => {

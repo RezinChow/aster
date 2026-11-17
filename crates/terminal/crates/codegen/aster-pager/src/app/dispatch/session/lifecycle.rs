@@ -404,7 +404,7 @@ pub(in crate::app::dispatch) fn dispatch_new_session_inner_with_id(
     let agent_id = AgentId(app.next_agent_id);
     app.next_agent_id += 1;
     let mut scrollback = ScrollbackState::new();
-    scrollback.set_appearance(app.appearance.clone());
+    scrollback.set_appearance_arc(std::sync::Arc::clone(&app.appearance));
     let agent = AgentView::from_app(
         app,
         AgentSession {
@@ -1232,7 +1232,7 @@ pub(in crate::app::dispatch) fn dispatch_new_worktree_session(
     let agent_id = AgentId(app.next_agent_id);
     app.next_agent_id += 1;
     let mut scrollback = ScrollbackState::new();
-    scrollback.set_appearance(app.appearance.clone());
+    scrollback.set_appearance_arc(std::sync::Arc::clone(&app.appearance));
     let mut agent = AgentView::from_app(
         app,
         AgentSession {

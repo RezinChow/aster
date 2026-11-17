@@ -93,12 +93,11 @@ impl ExecutionIdentityV1 {
         let canonical = serde_json::to_value(value)
             .map(canonicalize)
             .map_err(|error| ExecutionIdentityError::Serialization(error.to_string()))?;
-        let bytes = serde_json::to_vec(&canonical)
-            .map_err(|error| ExecutionIdentityError::Serialization(error.to_string()))?;
         let mut hasher = Sha256::new();
         hasher.update(domain.as_bytes());
         hasher.update([0]);
-        hasher.update(bytes);
+        crate::byte_budget::json_update_sha256(&mut hasher, &canonical)
+            .map_err(|error| ExecutionIdentityError::Serialization(error.to_string()))?;
         let digest = format!("sha256:{:x}", hasher.finalize());
         Ok(Self {
             schema: EXECUTION_IDENTITY_SCHEMA_V1.to_string(),

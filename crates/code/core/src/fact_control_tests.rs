@@ -1390,6 +1390,19 @@ async fn fact_log_steer_is_a_user_message_fact() {
             .count(),
         2
     );
+    // Efficiency: keys are uuid-backed (m-<uuid>), not O(n) log.read().len() indices.
+    for fact in facts.iter().filter(|fact| fact.kind == "user.message") {
+        let key = fact.key.as_str();
+        assert!(
+            key.starts_with("m-") && key.len() > 3,
+            "expected uuid-backed user.message key, got {key}"
+        );
+        let uuid = &key[2..];
+        assert!(
+            uuid::Uuid::parse_str(uuid).is_ok(),
+            "user.message key must mint via Uuid, got {key}"
+        );
+    }
 }
 
 struct HangClient;

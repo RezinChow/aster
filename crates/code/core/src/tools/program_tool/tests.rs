@@ -1153,6 +1153,10 @@ async fn program_child_truncation_preserves_structured_flags_original_bytes_and_
     assert_eq!(call["original_output_bytes"], 3000);
     assert!(call["output_bytes"].as_u64().unwrap() <= 1024);
     assert_eq!(
+        call["discarded_bytes"].as_u64().unwrap(),
+        3000 - call["output_bytes"].as_u64().unwrap()
+    );
+    assert_eq!(
         call["metadata"]["artifact_uri"],
         "aster://tool-output/fixture"
     );

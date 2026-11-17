@@ -603,7 +603,7 @@ mod tests {
             width,
             raw: false,
             max_lines: None,
-            appearance: AppearanceConfig::default(),
+            appearance: std::sync::Arc::new(AppearanceConfig::default()),
             is_selected: false,
             cwd: None,
         }
@@ -614,8 +614,7 @@ mod tests {
         let mut block = ThinkingBlock::new("reasoning");
         block.set_output_language(Some("zh-CN"));
         let mut context = ctx(DisplayMode::Collapsed, 40);
-        context
-            .appearance
+        std::sync::Arc::make_mut(&mut context.appearance)
             .scrollback
             .blocks
             .thinking
@@ -650,7 +649,7 @@ mod tests {
         let mut appearance = AppearanceConfig::default();
         appearance.scrollback.blocks.thinking.header = true;
         let ctx = BlockContext {
-            appearance,
+            appearance: std::sync::Arc::new(appearance),
             ..ctx(DisplayMode::Expanded, 40)
         };
         let block = ThinkingBlock::new("hello world");
@@ -678,7 +677,7 @@ mod tests {
         let mut appearance = AppearanceConfig::default();
         appearance.scrollback.blocks.thinking.header = false;
         let ctx = BlockContext {
-            appearance,
+            appearance: std::sync::Arc::new(appearance),
             ..ctx(DisplayMode::Expanded, 10)
         };
         let block = ThinkingBlock::new("hello world this should wrap across lines");
@@ -694,7 +693,7 @@ mod tests {
         let mut appearance = AppearanceConfig::default();
         appearance.scrollback.blocks.thinking.header = false;
         let ctx = BlockContext {
-            appearance,
+            appearance: std::sync::Arc::new(appearance),
             ..ctx(DisplayMode::Expanded, 40)
         };
         let block = ThinkingBlock::new("> QUOTE alpha");
@@ -746,7 +745,7 @@ mod tests {
         appearance.scrollback.blocks.thinking.header = false;
         appearance.scrollback.blocks.thinking.body_dim_italic = true;
         let ctx = BlockContext {
-            appearance,
+            appearance: std::sync::Arc::new(appearance),
             ..ctx(DisplayMode::Expanded, 40)
         };
         let block = ThinkingBlock::new("weighing the `options` with **care**");
@@ -782,7 +781,7 @@ mod tests {
         let rail = crate::glyphs::accent_bar();
 
         let with_rail = block.output(&BlockContext {
-            appearance: appearance_with(true),
+            appearance: std::sync::Arc::new(appearance_with(true)),
             ..ctx(DisplayMode::Expanded, 40)
         });
         assert!(
@@ -795,7 +794,7 @@ mod tests {
         );
 
         let without = block.output(&BlockContext {
-            appearance: appearance_with(false),
+            appearance: std::sync::Arc::new(appearance_with(false)),
             ..ctx(DisplayMode::Expanded, 40)
         });
         assert!(
@@ -819,7 +818,7 @@ mod tests {
         let mut appearance = AppearanceConfig::default();
         appearance.scrollback.blocks.thinking.rail_under_bullet = true;
         let ctx = BlockContext {
-            appearance,
+            appearance: std::sync::Arc::new(appearance),
             ..ctx(DisplayMode::Expanded, 40)
         };
 
@@ -853,7 +852,7 @@ mod tests {
         let mut appearance = AppearanceConfig::default();
         appearance.scrollback.blocks.thinking.collapsed_expand_hint = true;
         let hinted = |mode, width| BlockContext {
-            appearance: appearance.clone(),
+            appearance: std::sync::Arc::new(appearance.clone()),
             ..ctx(mode, width)
         };
         let text_of = |out: &BlockOutput| {

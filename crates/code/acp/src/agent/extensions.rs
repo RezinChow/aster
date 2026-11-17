@@ -103,13 +103,15 @@ fn transcript_replay_notifications(
                     Some(_) => acp::ToolCallStatus::Failed,
                     None => acp::ToolCallStatus::InProgress,
                 };
-                let tool_call = acp::ToolCall::new(
-                    acp::ToolCallId::new(call.id.clone()),
+                let mut tool_call = acp::ToolCall::new(
+                    acp::ToolCallId::new(call.id.as_str()),
                     tool_title(&call.name),
                 )
                 .kind(tool_kind_for(&call.name))
-                .status(status)
-                .raw_input(call.args.clone());
+                .status(status);
+                if let Some(raw_input) = prepared_raw_input(&call.name, &call.args) {
+                    tool_call = tool_call.raw_input(raw_input);
+                }
                 notifications.push(replay_session(
                     session_id,
                     acp::SessionUpdate::ToolCall(tool_call),
@@ -129,7 +131,7 @@ fn transcript_replay_notifications(
                     notifications.push(replay_session(
                         session_id,
                         acp::SessionUpdate::ToolCallUpdate(acp::ToolCallUpdate::new(
-                            acp::ToolCallId::new(call.id.clone()),
+                            acp::ToolCallId::new(call.id.as_str()),
                             fields,
                         )),
                         meta.clone(),

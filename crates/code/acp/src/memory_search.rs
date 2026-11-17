@@ -160,7 +160,7 @@ fn validate_reply(value: &Value, session: &str, query: &str, scope: Scope) -> an
         "inconsistent memory coverage"
     );
     anyhow::ensure!(
-        hits.len() <= 12 && serde_json::to_vec(hits)?.len() <= 48 * 1024,
+        hits.len() <= 12 && aster_core::byte_budget::json_serialized_len(hits)? <= 48 * 1024,
         "memory evidence exceeds budget"
     );
     anyhow::ensure!(

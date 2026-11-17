@@ -93,8 +93,8 @@ impl Tool for UpdatePlanTool {
     }
 
     async fn execute(&self, args: &serde_json::Value, ctx: &ToolContext) -> Result<ToolOutput> {
-        let tasks = match parse_plan_args(args) {
-            Ok(tasks) => tasks,
+        let parsed = match parse_plan_args(args) {
+            Ok(parsed) => parsed,
             Err(message) => return Ok(ToolOutput::error(message)),
         };
 
@@ -102,15 +102,26 @@ impl Tool for UpdatePlanTool {
         if let Some(tx) = ctx.agent_event_tx.as_ref() {
             let _ = tx.send(AgentEvent::TaskUpdated {
                 session_id,
-                tasks: tasks.clone(),
+                tasks: parsed.tasks.clone(),
             });
         }
 
-        Ok(ToolOutput::success(summarize_plan(&tasks)))
+        Ok(
+            ToolOutput::success(summarize_plan(&parsed.tasks)).with_metadata(serde_json::json!({
+                "discarded_chars": parsed.discarded_chars,
+                "step_char_budget": MAX_STEP_CHARS,
+            })),
+        )
     }
 }
 
-fn parse_plan_args(args: &serde_json::Value) -> Result<Vec<Task>, String> {
+struct ParsedPlan {
+    tasks: Vec<Task>,
+    /// Characters dropped when step labels hit [`MAX_STEP_CHARS`] (E4 honesty).
+    discarded_chars: usize,
+}
+
+fn parse_plan_args(args: &serde_json::Value) -> Result<ParsedPlan, String> {
     let rows = args
         .get("plan")
         .and_then(serde_json::Value::as_array)
@@ -126,7 +137,12 @@ fn parse_plan_args(args: &serde_json::Value) -> Result<Vec<Task>, String> {
     }
 
     let mut tasks = Vec::with_capacity(rows.len());
+    let mut discarded_chars = 0usize;
     let mut seen_ids = std::collections::HashSet::new();
+    // A2: plan execution keys by step content — duplicate prose fans out
+    // duplicate delegated work. Refuse same truncated content in one plan.
+    let mut seen_content = std::collections::HashSet::new();
+    let mut in_progress = 0usize;
     for (index, row) in rows.iter().enumerate() {
         let step = row
             .get("step")
@@ -134,7 +150,8 @@ fn parse_plan_args(args: &serde_json::Value) -> Result<Vec<Task>, String> {
             .map(str::trim)
             .filter(|step| !step.is_empty())
             .ok_or_else(|| format!("plan[{index}].step must be a non-empty string"))?;
-        let content = truncate_chars(step, MAX_STEP_CHARS);
+        let (content, dropped) = truncate_chars(step, MAX_STEP_CHARS);
+        discarded_chars = discarded_chars.saturating_add(dropped);
         let status = row
             .get("status")
             .and_then(serde_json::Value::as_str)
@@ -150,11 +167,28 @@ fn parse_plan_args(args: &serde_json::Value) -> Result<Vec<Task>, String> {
         if !seen_ids.insert(id.clone()) {
             return Err(format!("plan step id '{id}' is duplicated"));
         }
+        if !seen_content.insert(content.clone()) {
+            return Err(format!(
+                "plan step content is duplicated at plan[{index}]; each step must be unique"
+            ));
+        }
+        if status == TaskStatus::InProgress {
+            in_progress += 1;
+            if in_progress > 1 {
+                return Err(
+                    "plan may have at most one in_progress step; finish or demote the others"
+                        .to_string(),
+                );
+            }
+        }
         let mut task = Task::new(id, content);
         task.status = status;
         tasks.push(task);
     }
-    Ok(tasks)
+    Ok(ParsedPlan {
+        tasks,
+        discarded_chars,
+    })
 }
 
 fn parse_status(status: &str) -> Result<TaskStatus, String> {
@@ -174,7 +208,8 @@ fn parse_status(status: &str) -> Result<TaskStatus, String> {
     }
 }
 
-fn truncate_chars(value: &str, max_chars: usize) -> String {
+fn truncate_chars(value: &str, max_chars: usize) -> (String, usize) {
+    let total = value.chars().count();
     let mut out = String::new();
     for (count, ch) in value.chars().enumerate() {
         if count >= max_chars {
@@ -182,7 +217,8 @@ fn truncate_chars(value: &str, max_chars: usize) -> String {
         }
         out.push(ch);
     }
-    out
+    let retained = out.chars().count();
+    (out, total.saturating_sub(retained))
 }
 
 fn summarize_plan(tasks: &[Task]) -> String {
@@ -286,12 +322,56 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn update_plan_rejects_duplicate_step_content_and_multi_in_progress() {
+        let ctx = ToolContext::new(std::path::PathBuf::from("/tmp"));
+        let dup_content = UpdatePlanTool
+            .execute(
+                &serde_json::json!({
+                    "plan": [
+                        {"step": "Same work", "status": "pending", "id": "a"},
+                        {"step": "Same work", "status": "pending", "id": "b"}
+                    ]
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert!(!dup_content.success);
+        assert!(
+            dup_content.content.contains("content is duplicated"),
+            "{}",
+            dup_content.content
+        );
+
+        let multi = UpdatePlanTool
+            .execute(
+                &serde_json::json!({
+                    "plan": [
+                        {"step": "One", "status": "in_progress", "id": "a"},
+                        {"step": "Two", "status": "in_progress", "id": "b"}
+                    ]
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert!(!multi.success);
+        assert!(
+            multi.content.contains("at most one in_progress"),
+            "{}",
+            multi.content
+        );
+    }
+
     #[test]
     fn parse_plan_args_bounds_length() {
         let rows: Vec<_> = (0..MAX_PLAN_TASKS + 1)
             .map(|i| serde_json::json!({"step": format!("s{i}"), "status": "pending"}))
             .collect();
-        let err = parse_plan_args(&serde_json::json!({ "plan": rows })).unwrap_err();
+        let Err(err) = parse_plan_args(&serde_json::json!({ "plan": rows })) else {
+            panic!("expected plan length refusal");
+        };
         assert!(err.contains("maximum"));
     }
 
@@ -308,15 +388,18 @@ mod tests {
 
     #[test]
     fn parse_plan_args_rejects_empty_plan() {
-        let err = parse_plan_args(&serde_json::json!({ "plan": [] })).unwrap_err();
+        let Err(err) = parse_plan_args(&serde_json::json!({ "plan": [] })) else {
+            panic!("expected empty plan refusal");
+        };
         assert!(err.contains("at least one step"));
     }
 
     #[test]
     fn truncate_chars_stops_at_max_and_summarize_without_in_progress() {
         let long: String = "字".repeat(MAX_STEP_CHARS + 8);
-        let truncated = truncate_chars(&long, MAX_STEP_CHARS);
+        let (truncated, discarded) = truncate_chars(&long, MAX_STEP_CHARS);
         assert_eq!(truncated.chars().count(), MAX_STEP_CHARS);
+        assert_eq!(discarded, 8);
 
         let tasks = vec![
             {
@@ -333,5 +416,27 @@ mod tests {
         let summary = summarize_plan(&tasks);
         assert_eq!(summary, "Updated plan: 1/2 done");
         assert!(!summary.contains("in progress"));
+    }
+
+    #[tokio::test]
+    async fn update_plan_reports_discarded_chars_when_steps_truncate() {
+        let ctx = ToolContext::new(std::path::PathBuf::from("/tmp"));
+        let long: String = "a".repeat(MAX_STEP_CHARS + 12);
+        let output = UpdatePlanTool
+            .execute(
+                &serde_json::json!({
+                    "plan": [{"step": long, "status": "pending", "id": "long"}]
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert!(output.success);
+        let meta = output.metadata.expect("discard metadata");
+        assert_eq!(meta.get("discarded_chars"), Some(&serde_json::json!(12)));
+        assert_eq!(
+            meta.get("step_char_budget"),
+            Some(&serde_json::json!(MAX_STEP_CHARS))
+        );
     }
 }

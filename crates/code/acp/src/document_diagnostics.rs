@@ -70,7 +70,8 @@ impl<'de> Deserialize<'de> for Severity {
 
 pub(super) fn validate(publications: &[Publication], snapshot: &Snapshot) -> Result<()> {
     anyhow::ensure!(
-        publications.len() <= 16 && serde_json::to_vec(publications)?.len() <= 96 * 1024,
+        publications.len() <= 16
+            && aster_core::byte_budget::json_serialized_len(publications)? <= 96 * 1024,
         "diagnostic observation exceeds limit"
     );
     let mut publishers = HashSet::new();
@@ -83,7 +84,7 @@ pub(super) fn validate(publications: &[Publication], snapshot: &Snapshot) -> Res
                 && publication.sequence <= 9_007_199_254_740_991
                 && publication.version == snapshot.version
                 && publication.items.len() <= 128
-                && serde_json::to_vec(&publication.items)?.len() <= 16 * 1024,
+                && aster_core::byte_budget::json_serialized_len(&publication.items)? <= 16 * 1024,
             "invalid diagnostic publication binding"
         );
         for item in &publication.items {

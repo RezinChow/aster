@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cell::OnceCell;
 use std::path::Path;
+use std::sync::Arc;
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -26,6 +27,8 @@ pub struct EntryRenderer<'a> {
     /// Deliberately NOT an eager `AppearanceConfig::default()`: that conversion reads `Theme::current()` and quantizes every color.
     /// Profiling a resize showed it running once per entry only to be overwritten.
     appearance: OnceCell<Cow<'a, AppearanceConfig>>,
+    /// Shared Arc from scrollback state — preferred for `BlockContext` builds (no deep clone).
+    appearance_arc: Option<Arc<AppearanceConfig>>,
     tick: u64,
     /// Number of rows to skip from the top of the entry.
     /// When non-zero, the renderer acts as if the entry starts `skip_rows` rows lower, omitting that many top rows (vpad, then content lines).
@@ -64,6 +67,7 @@ impl<'a> EntryRenderer<'a> {
             entry,
             theme,
             appearance: OnceCell::new(),
+            appearance_arc: None,
             tick: 0,
             skip_rows: 0,
             groupable: false,
@@ -119,7 +123,7 @@ impl<'a> EntryRenderer<'a> {
     fn accent(&self, content_width: u16) -> Option<AccentStyle> {
         let mut ctx = self
             .entry
-            .context(content_width, self.appearance(), self.cwd);
+            .context_arc(content_width, self.appearance_shared(), self.cwd);
         ctx.is_selected = self.is_selected;
         self.entry.block.accent(&ctx)
     }
@@ -145,9 +149,25 @@ impl<'a> EntryRenderer<'a> {
         self
     }
 
+    /// Preferred when the caller already owns an `Arc` (scrollback state): `BlockContext` builds share it.
+    pub fn with_appearance_arc(mut self, appearance: Arc<AppearanceConfig>) -> Self {
+        self.appearance_arc = Some(appearance);
+        self
+    }
+
     fn appearance(&self) -> &AppearanceConfig {
+        if let Some(arc) = &self.appearance_arc {
+            return arc.as_ref();
+        }
         self.appearance
             .get_or_init(|| Cow::Owned(AppearanceConfig::default()))
+    }
+
+    fn appearance_shared(&self) -> Arc<AppearanceConfig> {
+        if let Some(arc) = &self.appearance_arc {
+            return Arc::clone(arc);
+        }
+        Arc::new(self.appearance().clone())
     }
 
     pub fn with_tick(mut self, tick: u64) -> Self {
@@ -423,14 +443,14 @@ impl<'a> EntryRenderer<'a> {
         // `ensure_cached` takes the RefCell mutably on a miss, so the `Ref` from `cached_output_ref` must come after it
         let ctx = self
             .entry
-            .context(content_width, self.appearance(), self.cwd);
+            .context_arc(content_width, self.appearance_shared(), self.cwd);
         let vpad_top: u16 = if self.entry.block.has_vpad(&ctx) {
             1
         } else {
             0
         };
         self.entry
-            .ensure_cached(content_width, self.appearance(), false, self.cwd);
+            .ensure_cached_arc(content_width, self.appearance_shared(), false, self.cwd);
         let output = self.entry.cached_output_ref();
         let starts = output
             .lines
@@ -552,7 +572,7 @@ impl Renderable for EntryRenderer<'_> {
         // The is_selected flag only affects styling (e.g., UserPrompt prefix color), not line count
         // The non-selected cached output therefore gives the correct height
         self.entry
-            .ensure_cached(content_width, self.appearance(), false, self.cwd);
+            .ensure_cached_arc(content_width, self.appearance_shared(), false, self.cwd);
         // Clamp the line count: a pathologically large block could exceed u16.
         let content_lines = self.entry.cached_output_ref().len().min(u16::MAX as usize) as u16;
         self.assemble_height(content_width, content_lines)
@@ -610,9 +630,9 @@ impl Renderable for EntryRenderer<'_> {
 
         // Build context directly: we only need it for background/accent decisions, not the output
         // This avoids a full block.output() call (including syntax highlighting for edit blocks) that was previously thrown away
-        let mut ctx = self
-            .entry
-            .context(content_area.width, self.appearance(), self.cwd);
+        let mut ctx =
+            self.entry
+                .context_arc(content_area.width, self.appearance_shared(), self.cwd);
         ctx.is_selected = self.is_selected;
         // Minimal mode blends committed/tail blocks with the real terminal background
         // Suppress the block's own band; accents and per-line code shading stay
@@ -742,8 +762,12 @@ impl Renderable for EntryRenderer<'_> {
         // When timestamps are enabled, wrap content at a narrower width so text never collides with the right-aligned timestamp
         let ts_reserved = self.timestamp_reserved();
         let text_width = content_area.width.saturating_sub(ts_reserved);
-        self.entry
-            .ensure_cached(text_width, self.appearance(), self.is_selected, self.cwd);
+        self.entry.ensure_cached_arc(
+            text_width,
+            self.appearance_shared(),
+            self.is_selected,
+            self.cwd,
+        );
         let cached_ref = self.entry.cached_output_ref();
         let output: &BlockOutput = &cached_ref;
         let has_vpad = self.entry.block.has_vpad(&ctx);
@@ -908,7 +932,7 @@ mod tests {
         let theme = Theme::current();
         let appearance = AppearanceConfig::default();
         let assert_joiners = |entry: &ScrollbackEntry, width: u16| {
-            let renderer = EntryRenderer::new(entry, &theme).with_appearance(appearance.clone());
+            let renderer = EntryRenderer::new(entry, &theme).with_appearance_ref(&appearance);
             let height = renderer.desired_height(width);
             let wraps = renderer.row_soft_wraps(height);
             let output = entry.cached_output_ref();

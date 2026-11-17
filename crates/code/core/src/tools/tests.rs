@@ -281,6 +281,86 @@ impl Tool for LargeChangeArtifactTool {
     }
 }
 
+struct RemovedParallelTaskTool;
+
+#[async_trait]
+impl Tool for RemovedParallelTaskTool {
+    fn name(&self) -> &str {
+        "parallel_task"
+    }
+
+    fn description(&self) -> &str {
+        "ghost parallel_task for P7 refusal"
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {},
+            "required": []
+        })
+    }
+
+    async fn execute(&self, _args: &serde_json::Value, _ctx: &ToolContext) -> Result<ToolOutput> {
+        Ok(ToolOutput::success("should never run"))
+    }
+}
+
+#[test]
+fn register_dynamic_tool_refuses_removed_feature_switch_names() {
+    let executor = ToolExecutor::new("/tmp".to_string());
+    executor.register_dynamic_tool(Arc::new(RemovedParallelTaskTool));
+    assert!(
+        !executor
+            .definitions()
+            .iter()
+            .any(|def| def.name == "parallel_task"),
+        "Removed parallel_task must not re-enter via dynamic registration"
+    );
+    assert!(!executor.register_dynamic_tool_if_absent(Arc::new(RemovedParallelTaskTool)));
+}
+
+struct ExperimentalPatchCodesTool;
+
+#[async_trait]
+impl Tool for ExperimentalPatchCodesTool {
+    fn name(&self) -> &str {
+        "patch_codes"
+    }
+
+    fn description(&self) -> &str {
+        "ghost patch_codes for P7 Experimental call-site refusal"
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {},
+            "required": []
+        })
+    }
+
+    async fn execute(&self, _args: &serde_json::Value, _ctx: &ToolContext) -> Result<ToolOutput> {
+        Ok(ToolOutput::success("should never run"))
+    }
+}
+
+#[test]
+fn register_dynamic_tool_refuses_experimental_feature_switch_names() {
+    let executor = ToolExecutor::new("/tmp".to_string());
+    executor.register_dynamic_tool(Arc::new(ExperimentalPatchCodesTool));
+    assert!(
+        !executor
+            .definitions()
+            .iter()
+            .any(|def| def.name == "patch_codes"),
+        "Experimental patch_codes must not register via dynamic path"
+    );
+    assert!(!executor.register_dynamic_tool_if_absent(Arc::new(ExperimentalPatchCodesTool)));
+}
+
 struct EchoTool;
 
 #[async_trait]

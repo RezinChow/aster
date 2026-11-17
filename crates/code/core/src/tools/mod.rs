@@ -201,6 +201,10 @@ pub(crate) fn merge_tool_output_artifact_metadata(
         "artifact_uri": artifact.artifact_uri,
         "original_bytes": artifact.original_bytes,
         "shown_bytes": artifact.shown_bytes,
+        "discarded_bytes": crate::byte_budget::discarded_bytes(
+            artifact.original_bytes,
+            artifact.shown_bytes,
+        ),
     });
     if let Some(reference) = &artifact.content_reference {
         artifact_json["content_reference"] = serde_json::json!(reference);
@@ -362,7 +366,7 @@ pub(crate) fn ensure_tool_result_evidence_with_transform_binding(
         if value.get("aster_tool_result_evidence").is_some() {
             if let Some(encoded_binding) = value.get(TOOL_RESULT_TRANSFORM_BINDING_METADATA_KEY) {
                 let retained: ToolResultTransformBindingV1 =
-                    serde_json::from_value(encoded_binding.clone())?;
+                    ToolResultTransformBindingV1::deserialize(encoded_binding)?;
                 retained.validate()?;
                 anyhow::ensure!(
                     &retained == transform_binding,
@@ -397,6 +401,18 @@ pub(crate) fn has_tool_metadata_beyond_evidence(metadata: Option<&serde_json::Va
         }),
         Some(_) => true,
     }
+}
+
+/// P7: refuse dynamic registration when the feature-switch call-site gate fails
+/// (`Removed` / `Experimental` / `Development` — e.g. `parallel_task`, `patch_codes`).
+fn refused_feature_tool(name: &str) -> bool {
+    matches!(
+        crate::capability::feature_switch_call_site_allowed(name),
+        Some(false)
+    ) || matches!(
+        crate::capability::feature_switch_call_site_allowed(&format!("tools.{name}")),
+        Some(false)
+    )
 }
 
 fn estimated_text_tokens(value: &str) -> usize {
@@ -807,6 +823,13 @@ impl ToolExecutor {
     }
 
     pub fn register_dynamic_tool(&self, tool: Arc<dyn Tool>) {
+        if refused_feature_tool(tool.name()) {
+            tracing::warn!(
+                tool = tool.name(),
+                "refusing dynamic registration of non-Stable feature-switch tool"
+            );
+            return;
+        }
         self.registry.register(tool);
     }
 
@@ -814,6 +837,13 @@ impl ToolExecutor {
         &self,
         tool: Arc<dyn Tool>,
     ) -> (bool, Option<Arc<dyn Tool>>) {
+        if refused_feature_tool(tool.name()) {
+            tracing::warn!(
+                tool = tool.name(),
+                "refusing dynamic registration of non-Stable feature-switch tool"
+            );
+            return (false, None);
+        }
         self.registry.register_with_shadow(tool)
     }
 
@@ -827,6 +857,13 @@ impl ToolExecutor {
     }
 
     pub(crate) fn register_dynamic_tool_if_absent(&self, tool: Arc<dyn Tool>) -> bool {
+        if refused_feature_tool(tool.name()) {
+            tracing::warn!(
+                tool = tool.name(),
+                "refusing dynamic registration of non-Stable feature-switch tool"
+            );
+            return false;
+        }
         self.registry.register_if_absent(tool)
     }
 

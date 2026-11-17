@@ -588,7 +588,7 @@ fn exact_height(state: &ScrollbackState, idx: usize, width: u16) -> u16 {
     let theme = Theme::current();
     let entry = state.entry(idx).unwrap();
     EntryRenderer::new(entry, &theme)
-        .with_appearance(state.appearance().clone())
+        .with_appearance_ref(state.appearance())
         .with_cwd(state.cwd())
         .desired_height(width)
 }

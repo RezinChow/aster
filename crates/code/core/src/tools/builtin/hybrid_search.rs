@@ -121,7 +121,7 @@ fn render_result(mut result: WorkspaceHybridSearchResult, query: &str) -> ToolOu
             content.push('\n');
             content.push_str(fallback_message(fallback));
         }
-        return ToolOutput::success(content).with_metadata(result_metadata(&result, &[], false));
+        return ToolOutput::success(content).with_metadata(result_metadata(&result, &[], false, 0));
     }
 
     let mut snippets = result
@@ -129,7 +129,7 @@ fn render_result(mut result: WorkspaceHybridSearchResult, query: &str) -> ToolOu
         .iter()
         .map(|hit| source_snippet(&hit.chunk, query))
         .collect::<Vec<_>>();
-    let (mut content, count, budget_reached) = bounded_results(
+    let (mut content, count, budget_reached, discarded_items) = bounded_results(
         "Hybrid results",
         result
             .hits
@@ -151,7 +151,12 @@ fn render_result(mut result: WorkspaceHybridSearchResult, query: &str) -> ToolOu
         content.push_str("\nWarning: ");
         content.push_str(fallback_message(fallback));
     }
-    ToolOutput::success(content).with_metadata(result_metadata(&result, &snippets, budget_reached))
+    ToolOutput::success(content).with_metadata(result_metadata(
+        &result,
+        &snippets,
+        budget_reached,
+        discarded_items,
+    ))
 }
 
 fn render_hit(
@@ -187,6 +192,7 @@ fn result_metadata(
     result: &WorkspaceHybridSearchResult,
     snippets: &[SourceSnippet],
     budget_reached: bool,
+    discarded_items: usize,
 ) -> serde_json::Value {
     let mut seen_paths = HashSet::new();
     let source_anchors = result
@@ -208,6 +214,7 @@ fn result_metadata(
                 "chunk_start_line": hit.chunk.start_line,
                 "chunk_end_line": hit.chunk.end_line,
                 "snippet_truncated": snippet.truncated,
+                "discarded_chars": snippet.discarded_chars,
                 "source_revision": hit.chunk.source_revision,
                 "fused_score": hit.fused_score,
                 "rerank_score": hit.rerank_score,
@@ -232,6 +239,11 @@ fn result_metadata(
         "truncated": result.truncated,
         "output_budget_reached": budget_reached,
         "output_byte_limit": MAX_OUTPUT_BYTES,
+        "discarded_items": discarded_items,
+        "discarded_chars": snippets
+            .iter()
+            .map(|snippet| snippet.discarded_chars)
+            .sum::<usize>(),
         "source_anchors": source_anchors,
         "results": results,
         "returned_results": results.len(),

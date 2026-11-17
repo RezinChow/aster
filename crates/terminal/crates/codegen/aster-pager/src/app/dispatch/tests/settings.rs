@@ -483,7 +483,7 @@ fn hot_reload_rederive_syncs_prompt_widgets_on_every_agent() {
     assert!(!app.appearance.prompt.compact);
     assert!(!expect_agent(&app, id_a).prompt.compact());
     assert!(!expect_agent(&app, id_b).prompt.compact());
-    let mut config = app.appearance.clone();
+    let mut config = (*app.appearance).clone();
     config.prompt.compact = app.appearance.prompt.compact;
     app.set_appearance(config);
     app.apply_effective_compact();
@@ -574,7 +574,7 @@ fn set_timeline_emits_persist_setting_with_correct_payload() {
 #[test]
 fn set_timeline_toggles_displayed_state_when_current_ui_diverges() {
     let mut app = test_app_with_agent();
-    app.appearance.show_timeline = true;
+    std::sync::Arc::make_mut(&mut app.appearance).show_timeline = true;
     crate::appearance::cache::set_show_timeline(true);
     app.current_ui.show_timeline = None;
     assert!(

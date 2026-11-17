@@ -34,7 +34,7 @@ pub enum MemoryCommandKind {
 }
 
 impl MemoryCommandKind {
-    fn started_text(self) -> &'static str {
+    pub(crate) fn started_text(self) -> &'static str {
         match self {
             Self::Flush => "Flushing memory…",
             Self::Dream => "Consolidating memory…",
@@ -247,6 +247,14 @@ impl MemoryCaptureBlock {
         }
         parts.join("\n")
     }
+
+    /// Cheap height estimate: first statement only (avoids title/join alloc).
+    pub(crate) fn estimate_text(&self) -> &str {
+        self.entries
+            .first()
+            .map(|entry| entry.statement.as_str())
+            .unwrap_or("")
+    }
 }
 
 impl BlockContent for MemoryCaptureBlock {
@@ -395,7 +403,7 @@ impl SessionEvent {
             SessionEvent::TurnCancelled {
                 elapsed: None,
                 cause,
-            } => format!("{}.", cause.phrase()),
+            } => cause.banner_line().to_owned(),
             SessionEvent::TurnBlockedByHook {
                 elapsed: Some(elapsed),
             } => {
@@ -641,8 +649,7 @@ impl SessionEventBlock {
         };
         let header_style = header_text_style.add_modifier(Modifier::BOLD);
         // Non-selectable chrome (same as Thinking / tool label prefixes).
-        let header_line =
-            || BlockLine::separator(Line::from(Span::styled("Recap".to_string(), header_style)));
+        let header_line = || BlockLine::separator(Line::from(Span::styled("Recap", header_style)));
 
         // Loading: header only; the animated gray sidebar is the feedback.
         if ctx.is_running {
@@ -653,7 +660,7 @@ impl SessionEventBlock {
 
         match ctx.mode {
             DisplayMode::Collapsed => {
-                let mut spans = vec![Span::styled("Recap".to_string(), header_style)];
+                let mut spans = vec![Span::styled("Recap", header_style)];
                 let preview = summary.lines().next().unwrap_or(summary).trim();
                 if !preview.is_empty() {
                     spans.push(Span::styled(format!("  {preview}"), theme.muted()));
@@ -1118,7 +1125,7 @@ mod tests {
             width: 80,
             raw: false,
             max_lines: None,
-            appearance: crate::appearance::AppearanceConfig::default(),
+            appearance: std::sync::Arc::new(crate::appearance::AppearanceConfig::default()),
             is_selected: false,
             cwd: None,
         }
@@ -1334,7 +1341,11 @@ mod tests {
         );
 
         let mut no_bullet = ctx();
-        no_bullet.appearance.scrollback.blocks.tool.bullet = crate::appearance::ToolBullet::None;
+        std::sync::Arc::make_mut(&mut no_bullet.appearance)
+            .scrollback
+            .blocks
+            .tool
+            .bullet = crate::appearance::ToolBullet::None;
         assert!(
             !outcome.has_bullet(&no_bullet),
             "a user who turned tool bullets off gets none on hook lines either"

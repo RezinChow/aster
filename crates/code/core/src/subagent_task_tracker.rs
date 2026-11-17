@@ -117,11 +117,20 @@ impl InMemorySubagentTaskTracker {
     /// Register a `CancellationToken` for a running task so callers can
     /// trigger cancellation through `cancel(task_id)`. The task executor
     /// is expected to remove the entry on exit via `clear_canceller`.
-    pub async fn register_canceller(&self, task_id: &str, token: CancellationToken) {
-        self.cancellers
-            .write()
-            .await
-            .insert(task_id.to_string(), token);
+    ///
+    /// Returns `true` when this token is installed. A second live token for
+    /// the same `task_id` is **refused** (keeps the first) so background
+    /// plan→child double-register cannot silently last-write-wins (A6).
+    /// Replacing a cancelled/stale entry is allowed.
+    pub async fn register_canceller(&self, task_id: &str, token: CancellationToken) -> bool {
+        let mut cancellers = self.cancellers.write().await;
+        if let Some(existing) = cancellers.get(task_id) {
+            if !existing.is_cancelled() {
+                return false;
+            }
+        }
+        cancellers.insert(task_id.to_string(), token);
+        true
     }
 
     pub async fn clear_canceller(&self, task_id: &str) {
@@ -397,18 +406,32 @@ impl InMemorySubagentTaskTracker {
 
     /// Replace the tracker's task snapshots with the given set. Cancellers
     /// are **not** restored (they are runtime-only channels tied to live
-    /// child loops). After `replace_snapshots`, any task whose status was
-    /// `Running` at checkpoint time will appear `Running` in the tracker
-    /// but `cancel(task_id)` will return `false` because no canceller is
-    /// registered — callers should normally checkpoint at a quiescent
-    /// point so no tasks are `Running`.
+    /// child loops). Any snapshot that was `Running` is demoted to
+    /// `Cancelled` so rehydration cannot leave an uncancelable Running
+    /// zombie (A6). Callers should still prefer checkpointing at a
+    /// quiescent point.
     ///
     /// Used by [`SessionStore`](crate::store::SessionStore) rehydration to
     /// restore the materialized subagent view of a previously-saved
     /// session.
     pub async fn replace_snapshots(&self, snapshots: Vec<SubagentTaskSnapshot>) {
         let mut map = HashMap::with_capacity(snapshots.len());
-        for snap in snapshots {
+        for mut snap in snapshots {
+            if snap.status == SubagentStatus::Running {
+                let finished = snap.updated_ms.max(snap.started_ms);
+                snap.status = SubagentStatus::Cancelled;
+                snap.finished_ms = Some(finished);
+                snap.updated_ms = finished;
+                if snap.output.is_none() {
+                    snap.output = Some(
+                        "Subagent was Running at checkpoint but live cancellation handle was not restored"
+                            .to_string(),
+                    );
+                }
+                if snap.success.is_none() {
+                    snap.success = Some(false);
+                }
+            }
             map.insert(snap.task_id.clone(), snap);
         }
         *self.tasks.write().await = map;
@@ -637,7 +660,7 @@ mod tests {
             .await;
 
         let token = CancellationToken::new();
-        tracker.register_canceller("task-c", token.clone()).await;
+        assert!(tracker.register_canceller("task-c", token.clone()).await);
         assert!(!token.is_cancelled());
 
         let fired = tracker.cancel("task-c").await;
@@ -646,6 +669,48 @@ mod tests {
 
         let snap = tracker.get("task-c").await.unwrap();
         assert_eq!(snap.status, SubagentStatus::Cancelled);
+    }
+
+    #[tokio::test]
+    async fn register_canceller_keeps_first_live_token_instead_of_last_write_wins() {
+        let tracker = InMemorySubagentTaskTracker::new();
+        tracker
+            .record_event(&start_event("task-a6", "parent", "child"))
+            .await;
+        let first = CancellationToken::new();
+        let second = CancellationToken::new();
+        assert!(tracker.register_canceller("task-a6", first.clone()).await);
+        assert!(!tracker.register_canceller("task-a6", second.clone()).await);
+        assert!(tracker.cancel("task-a6").await);
+        assert!(first.is_cancelled());
+        assert!(!second.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn replace_snapshots_demotes_running_without_restoring_canceller() {
+        let tracker = InMemorySubagentTaskTracker::new();
+        tracker
+            .replace_snapshots(vec![SubagentTaskSnapshot {
+                task_id: "zombie".into(),
+                parent_session_id: "parent".into(),
+                child_session_id: "child".into(),
+                agent: "explore".into(),
+                description: "rehydrated".into(),
+                status: SubagentStatus::Running,
+                started_ms: 1,
+                updated_ms: 2,
+                finished_ms: None,
+                output: None,
+                success: None,
+                source_anchors: vec![],
+                progress: vec![],
+            }])
+            .await;
+        let snap = tracker.get("zombie").await.unwrap();
+        assert_eq!(snap.status, SubagentStatus::Cancelled);
+        assert!(snap.finished_ms.is_some());
+        assert!(!tracker.cancel("zombie").await);
+        assert!(tracker.list_pending().await.is_empty());
     }
 
     #[tokio::test]
@@ -661,7 +726,7 @@ mod tests {
             .record_event(&start_event("task-d", "parent", "child"))
             .await;
         let token = CancellationToken::new();
-        tracker.register_canceller("task-d", token).await;
+        assert!(tracker.register_canceller("task-d", token).await);
         assert!(tracker.cancel("task-d").await);
 
         // The cancelled child loop will still emit a (likely failed)
@@ -682,7 +747,7 @@ mod tests {
             .record_event(&start_event("task-e", "parent", "child"))
             .await;
         let token = CancellationToken::new();
-        tracker.register_canceller("task-e", token.clone()).await;
+        assert!(tracker.register_canceller("task-e", token.clone()).await);
         tracker.clear_canceller("task-e").await;
 
         assert!(!tracker.cancel("task-e").await);

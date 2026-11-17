@@ -230,9 +230,9 @@ impl RunCapabilityBindingV1 {
 }
 
 fn ceiling_digest(ceiling: &CapabilityCeiling) -> Result<Sha256Digest, RunCapabilityBindingError> {
-    let encoded = serde_json::to_vec(ceiling)
+    let len = crate::byte_budget::json_serialized_len(ceiling)
         .map_err(|error| RunCapabilityBindingError::Encoding(error.to_string()))?;
-    if encoded.len() as u64 > MAX_CAPABILITY_CANONICAL_BYTES {
+    if len as u64 > MAX_CAPABILITY_CANONICAL_BYTES {
         return Err(invalid_field(
             "capabilityCeiling",
             "the canonical authority ceiling exceeds the capability identity bound",
@@ -242,7 +242,8 @@ fn ceiling_digest(ceiling: &CapabilityCeiling) -> Result<Sha256Digest, RunCapabi
     hasher.update(CAPABILITY_CEILING_DIGEST_PREFIX);
     hasher.update(CAPABILITY_CEILING_DIGEST_DOMAIN.as_bytes());
     hasher.update([0]);
-    hasher.update(encoded);
+    crate::byte_budget::json_update_sha256(&mut hasher, ceiling)
+        .map_err(|error| RunCapabilityBindingError::Encoding(error.to_string()))?;
     Sha256Digest::new(format!("sha256:{:x}", hasher.finalize()))
         .map_err(|error| RunCapabilityBindingError::Encoding(error.to_string()))
 }

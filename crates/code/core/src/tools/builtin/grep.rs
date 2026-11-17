@@ -492,10 +492,18 @@ async fn count_matching_lines(
 }
 
 fn grep_search_metadata(result: &WorkspaceGrepResult) -> serde_json::Value {
+    // When the scan truncates, the backend did not report how many matches were
+    // dropped — expose `discarded_items: null` so hosts do not invent a count.
+    // Paginated modes already carry exact discard under `page.discarded_items`.
     serde_json::json!({
         "matching_lines": result.match_count,
         "matching_files": result.file_count,
         "truncated": result.truncated,
+        "discarded_items": if result.truncated {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::from(0)
+        },
     })
 }
 
@@ -867,7 +875,9 @@ mod tests {
         assert!(result.success, "{}", result.content);
         assert!(result.content.contains("80 matching line(s) in 1 file(s)"));
         assert!(!result.content.contains("needle-0"));
-        assert_eq!(result.metadata.unwrap()["search"]["truncated"], false);
+        let search = result.metadata.unwrap()["search"].clone();
+        assert_eq!(search["truncated"], false);
+        assert_eq!(search["discarded_items"], 0);
     }
 
     #[tokio::test]

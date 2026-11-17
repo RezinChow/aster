@@ -7,7 +7,8 @@ impl AsterCodeAgent {
         let Some(client) = self.client.borrow().as_ref().map(Rc::downgrade) else {
             return;
         };
-        let session_id = acp::SessionId::new(session_id.to_owned());
+        // &str → Arc<str> without an intermediate String.
+        let session_id = acp::SessionId::new(session_id);
         let mut usage = session.subscribe_usage();
         let cancellation = session.session_cancel_token();
         tokio::task::spawn_local(async move {
@@ -42,6 +43,18 @@ impl AsterCodeAgent {
         .await;
     }
 
+    /// Emit a meta-only thought chunk so hosts stamp `streamStartMs` / Thinking chrome
+    /// before the LLM returns headers (which can take up to ~120s by default).
+    pub(super) async fn emit_turn_started_chrome(&self, session_id: &acp::SessionId) {
+        self.emit(acp::SessionNotification::new(
+            session_id.clone(),
+            acp::SessionUpdate::AgentThoughtChunk(acp::ContentChunk::new(acp::ContentBlock::Text(
+                acp::TextContent::new(String::new()),
+            ))),
+        ))
+        .await;
+    }
+
     pub(super) async fn emit(&self, notification: acp::SessionNotification) {
         let client = self.client.borrow().clone();
         if let Some(client) = client {
@@ -61,17 +74,41 @@ impl AsterCodeAgent {
 
     fn notification_meta(&self, session_id: &acp::SessionId) -> acp::Meta {
         let mut meta = acp::Meta::new();
+        // Pager uses these for Thinking pre-create and turn-duration chrome.
+        // Without them the Code path stays blank until the first model chunk.
+        let now_ms = unix_now_ms() as i64;
+        meta.insert("agentTimestampMs".into(), now_ms.into());
         if let Some(prompt_id) = self.prompt_id_for_session(session_id) {
             meta.insert("promptId".into(), prompt_id.into());
         }
-        let language = self.sessions.try_lock().ok().and_then(|sessions| {
-            sessions
-                .get(session_id.0.as_ref())
-                .and_then(|live| live.session.reply_language())
-        });
+        let (language, turn_started_ms) = self
+            .sessions
+            .try_lock()
+            .ok()
+            .and_then(|sessions| {
+                let live = sessions.get(session_id.0.as_ref())?;
+                let language = live.session.reply_language();
+                let turn_started_ms = *live
+                    .turn_started_ms
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                Some((language, turn_started_ms))
+            })
+            .unwrap_or((None, None));
         if let Some(language) = language {
             meta.insert("outputLanguage".into(), language.into());
         }
+        if let Some(turn_ms) = turn_started_ms {
+            meta.insert("turnStartMs".into(), turn_ms.into());
+            // Turn-level stream anchor: Code does not yet mint a fresh stream id
+            // per tool→model hop; a stable stamp still unlocks first-token chrome.
+            meta.insert("streamStartMs".into(), turn_ms.into());
+        }
+        // Surface the stream-headers bound so hosts can show a real deadline
+        // during Thinking instead of an unexplained multi-minute blank wait.
+        // `0` means the env override disabled the bound (same as Core).
+        let headers_ms = aster_core::llm::http::stream_headers_timeout_ms();
+        meta.insert("streamHeadersTimeoutMs".into(), headers_ms.into());
         meta
     }
 
@@ -114,24 +151,34 @@ impl AsterCodeAgent {
     pub(super) async fn emit_text(
         &self,
         session_id: &acp::SessionId,
-        text: &str,
+        text: impl Into<String>,
         generation_delta: bool,
     ) {
+        let text = text.into();
         if text.is_empty() {
             return;
         }
-        tracing::info!(target: "perf_probe", len = text.len(), preview = %text.chars().take(60).collect::<String>(), "chunk_emit");
+        // Eager preview allocs on every chunk even when the target is off —
+        // gate the field build (高效 / ACP streaming).
+        if tracing::enabled!(target: "perf_probe", tracing::Level::INFO) {
+            tracing::info!(
+                target: "perf_probe",
+                len = text.len(),
+                preview = %text.chars().take(60).collect::<String>(),
+                "chunk_emit"
+            );
+        }
+        // Move owned Core delta bytes onto the wire (no second heap copy).
         self.emit(acp::SessionNotification::new(
             session_id.clone(),
             acp::SessionUpdate::AgentMessageChunk(
-                acp::ContentChunk::new(acp::ContentBlock::Text(acp::TextContent::new(
-                    text.to_string(),
-                )))
-                .meta(Some(
-                    [("asterGenerationDelta".into(), generation_delta.into())]
-                        .into_iter()
-                        .collect(),
-                )),
+                acp::ContentChunk::new(acp::ContentBlock::Text(acp::TextContent::new(text))).meta(
+                    Some(
+                        [("asterGenerationDelta".into(), generation_delta.into())]
+                            .into_iter()
+                            .collect(),
+                    ),
+                ),
             ),
         ))
         .await;
@@ -144,7 +191,7 @@ impl AsterCodeAgent {
         name: &str,
         args: Option<&serde_json::Value>,
     ) {
-        let mut call = acp::ToolCall::new(acp::ToolCallId::new(id.to_string()), tool_title(name))
+        let mut call = acp::ToolCall::new(acp::ToolCallId::new(id), tool_title(name))
             .kind(tool_kind_for(name))
             .status(acp::ToolCallStatus::InProgress);
         if let Some(raw_input) = args.and_then(|args| prepared_raw_input(name, args)) {
@@ -176,7 +223,7 @@ impl AsterCodeAgent {
         self.emit(acp::SessionNotification::new(
             session_id.clone(),
             acp::SessionUpdate::ToolCallUpdate(acp::ToolCallUpdate::new(
-                acp::ToolCallId::new(id.to_string()),
+                acp::ToolCallId::new(id),
                 fields,
             )),
         ))
@@ -198,14 +245,11 @@ impl AsterCodeAgent {
         } else {
             acp::ToolCallStatus::Failed
         };
+        // Start/started already published title/kind/rawInput — omit them on
+        // completion to avoid another prepared_raw_input args.clone() + JSON.
         let mut fields = acp::ToolCallUpdateFields::new()
-            .title(tool_title(name))
-            .kind(tool_kind_for(name))
             .status(status)
             .content(tool_call_content(name, args, output));
-        if let Some(raw_input) = args.and_then(|args| prepared_raw_input(name, args)) {
-            fields = fields.raw_input(raw_input);
-        }
         if let Some(raw_output) = tool_publication_output(name, metadata, exit_code)
             .or_else(|| tool_raw_output(name, args, output, exit_code, metadata))
         {
@@ -214,7 +258,7 @@ impl AsterCodeAgent {
         self.emit(acp::SessionNotification::new(
             session_id.clone(),
             acp::SessionUpdate::ToolCallUpdate(acp::ToolCallUpdate::new(
-                acp::ToolCallId::new(id.to_string()),
+                acp::ToolCallId::new(id),
                 fields,
             )),
         ))
@@ -226,40 +270,44 @@ impl AsterCodeAgent {
         session_id: &acp::SessionId,
         id: &str,
         name: &str,
-        delta: &str,
+        delta: impl Into<String>,
     ) {
+        let delta = delta.into();
         if delta.is_empty() {
             return;
         }
-        let preview: String = delta.chars().take(4_000).collect();
-        let mut fields = acp::ToolCallUpdateFields::new()
-            .title(tool_title(name))
-            .kind(tool_kind_for(name))
-            .status(acp::ToolCallStatus::InProgress)
-            .content(vec![acp::ToolCallContent::from(acp::ContentBlock::Text(
-                acp::TextContent::new(preview.clone()),
-            ))]);
+        // Coalesce already owns the flush; move short payloads into the preview.
+        let preview = preview_text_owned(delta, 4_000);
+        // Incremental deltas already have title/kind from the start/started
+        // notifications — omit them to cut per-chunk String + JSON work.
+        let mut fields = acp::ToolCallUpdateFields::new().status(acp::ToolCallStatus::InProgress);
         if matches!(name, "bash" | "shell" | "execute") {
+            // Build raw_output from the same owned preview, then move it into
+            // content — avoids a second 4k String clone on every delta.
             fields = fields.raw_output(streaming_bash_delta(&preview));
         }
+        fields = fields.content(vec![acp::ToolCallContent::from(acp::ContentBlock::Text(
+            acp::TextContent::new(preview),
+        ))]);
         self.emit(acp::SessionNotification::new(
             session_id.clone(),
             acp::SessionUpdate::ToolCallUpdate(acp::ToolCallUpdate::new(
-                acp::ToolCallId::new(id.to_string()),
+                acp::ToolCallId::new(id),
                 fields,
             )),
         ))
         .await;
     }
 
-    pub(super) async fn emit_thought(&self, session_id: &acp::SessionId, text: &str) {
+    pub(super) async fn emit_thought(&self, session_id: &acp::SessionId, text: impl Into<String>) {
+        let text = text.into();
         if text.is_empty() {
             return;
         }
         self.emit(acp::SessionNotification::new(
             session_id.clone(),
             acp::SessionUpdate::AgentThoughtChunk(acp::ContentChunk::new(acp::ContentBlock::Text(
-                acp::TextContent::new(text.to_string()),
+                acp::TextContent::new(text),
             ))),
         ))
         .await;
@@ -433,8 +481,20 @@ impl AsterCodeAgent {
                 }
             }
             // Detached children can finish after the parent's event forwarder closes.
+            // A10: bound the poll so a stuck Running / missing finished_ms cannot
+            // spin a spawn_local task for the whole session (100ms × forever).
+            let drain_deadline = tokio::time::Instant::now() + subagent_post_turn_drain_ttl();
             let mut tick = tokio::time::interval(std::time::Duration::from_millis(100));
             while !state.subagent_started_ms.is_empty() && !session.is_closed() {
+                if subagent_post_turn_drain_timed_out(drain_deadline, tokio::time::Instant::now()) {
+                    tracing::warn!(
+                        remaining = state.subagent_started_ms.len(),
+                        "ACP subagent post-turn drain timed out; dropping unfinished ids"
+                    );
+                    state.subagent_started_ms.clear();
+                    state.child_progress.clear();
+                    break;
+                }
                 tick.tick().await;
                 let pending: Vec<_> = state.subagent_started_ms.keys().cloned().collect();
                 for task_id in pending {
@@ -493,6 +553,7 @@ impl AsterCodeAgent {
             .await;
     }
 
+    #[allow(clippy::too_many_arguments)] // event surface arity is the ACP wire shape
     pub(super) async fn emit_subagent_start(
         &self,
         session_id: &acp::SessionId,
@@ -502,20 +563,21 @@ impl AsterCodeAgent {
         agent: &str,
         description: &str,
         started_ms: u64,
+        tool_call_id: Option<&str>,
     ) {
-        self.emit_xai_session_update(
-            session_id,
-            serde_json::json!({
-                "sessionUpdate": "subagent_spawned",
-                "subagent_id": task_id,
-                "parent_session_id": parent_session_id,
-                "child_session_id": child_session_id,
-                "subagent_type": agent,
-                "description": description,
-                "startedAt": started_ms,
-            }),
-        )
-        .await;
+        let mut update = serde_json::json!({
+            "sessionUpdate": "subagent_spawned",
+            "subagent_id": task_id,
+            "parent_session_id": parent_session_id,
+            "child_session_id": child_session_id,
+            "subagent_type": agent,
+            "description": description,
+            "startedAt": started_ms,
+        });
+        if let Some(tool_call_id) = tool_call_id.filter(|id| !id.is_empty()) {
+            update["toolCallId"] = serde_json::Value::String(tool_call_id.to_owned());
+        }
+        self.emit_xai_session_update(session_id, update).await;
     }
 
     #[allow(clippy::too_many_arguments)] // event surface arity is the ACP wire shape
@@ -528,6 +590,7 @@ impl AsterCodeAgent {
         metadata: &serde_json::Value,
         started_ms: u64,
         progress: &ChildProgress,
+        tool_call_id: Option<&str>,
     ) {
         let tokens_used = progress_tokens_used(metadata);
         let (context_window_tokens, context_usage_pct) = context_usage(window_tokens, tokens_used);
@@ -545,6 +608,9 @@ impl AsterCodeAgent {
             "tools_used": progress.tools_used,
             "error_count": progress.error_count,
         });
+        if let Some(tool_call_id) = tool_call_id.filter(|id| !id.is_empty()) {
+            update["toolCallId"] = serde_json::Value::String(tool_call_id.to_owned());
+        }
         for key in ["command", "disposition", "exitCode"] {
             if let Some(value) = metadata.get(key) {
                 update[key] = value.clone();
@@ -625,9 +691,13 @@ fn project_subagent_end(
         }
     }
     let progress = if task.is_some_and(|task| !task.progress.is_empty()) {
-        &progress
+        progress
     } else {
-        state.child_progress.get(task_id).unwrap_or(&progress)
+        state
+            .child_progress
+            .get(task_id)
+            .cloned()
+            .unwrap_or(progress)
     };
     let mut update = subagent_finished_update(
         task_id,
@@ -638,6 +708,11 @@ fn project_subagent_end(
         progress,
     );
     update["completedAt"] = serde_json::json!(finished_ms);
+    if let Some(tool_call_id) = state.subagent_parent_tool.get(task_id) {
+        if !tool_call_id.is_empty() {
+            update["toolCallId"] = serde_json::Value::String(tool_call_id.clone());
+        }
+    }
     if task.is_some_and(|task| {
         task.status == aster_core::subagent_task_tracker::SubagentStatus::Cancelled
     }) {
@@ -657,10 +732,14 @@ pub(super) fn note_child_progress(
         progress.tokens_used = tokens;
     }
     if let Some(command) = metadata.get("command").and_then(|value| value.as_str()) {
-        progress.command = Some(command.to_string());
+        if progress.command.as_deref() != Some(command) {
+            progress.command = Some(command.to_string());
+        }
     }
     if let Some(disposition) = metadata.get("disposition").and_then(|value| value.as_str()) {
-        progress.disposition = Some(disposition.to_string());
+        if progress.disposition.as_deref() != Some(disposition) {
+            progress.disposition = Some(disposition.to_string());
+        }
     }
     if let Some(exit_code) = metadata.get("exitCode").and_then(|value| value.as_i64()) {
         progress.exit_code = Some(exit_code);
@@ -692,7 +771,7 @@ pub(super) fn subagent_finished_update(
     success: bool,
     output: &str,
     duration_ms: u64,
-    progress: &ChildProgress,
+    progress: ChildProgress,
 ) -> serde_json::Value {
     let status = match progress.disposition.as_deref() {
         Some("cancelled") => "stopped",
@@ -718,11 +797,12 @@ pub(super) fn subagent_finished_update(
         "tokens_used": progress.tokens_used,
         "will_wake": false,
     });
-    if let Some(command) = &progress.command {
-        update["command"] = serde_json::Value::String(command.clone());
+    // Move owned command/disposition into the wire object — no second String clone.
+    if let Some(command) = progress.command {
+        update["command"] = serde_json::Value::String(command);
     }
-    if let Some(disposition) = &progress.disposition {
-        update["disposition"] = serde_json::Value::String(disposition.clone());
+    if let Some(disposition) = progress.disposition {
+        update["disposition"] = serde_json::Value::String(disposition);
     }
     if let Some(exit_code) = progress.exit_code {
         update["exitCode"] = serde_json::json!(exit_code);
@@ -764,6 +844,18 @@ pub(super) fn context_usage(window_tokens: u64, tokens_used: u64) -> (u64, u8) {
     }
     let pct = tokens_used.saturating_mul(100) / window_tokens;
     (window_tokens, pct.min(100) as u8)
+}
+
+/// A10: upper bound for post-turn subagent drain polling.
+pub(super) fn subagent_post_turn_drain_ttl() -> std::time::Duration {
+    std::time::Duration::from_secs(30)
+}
+
+pub(super) fn subagent_post_turn_drain_timed_out(
+    deadline: tokio::time::Instant,
+    now: tokio::time::Instant,
+) -> bool {
+    now >= deadline
 }
 
 #[cfg(test)]

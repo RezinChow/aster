@@ -1,6 +1,7 @@
 //! Repeated host refusals under the same original execution authority.
 
 use super::*;
+use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(in crate::fact_control) enum ExecutionCycle {
@@ -67,10 +68,7 @@ fn fold_execution_cycle(
     for result in facts[start..]
         .iter()
         .filter(|fact| fact.kind == "tool.result")
-        .filter_map(|fact| {
-            serde_json::from_value::<ToolExecutionResultV1>(fact.payload.get("receipt")?.clone())
-                .ok()
-        })
+        .filter_map(|fact| ToolExecutionResultV1::deserialize(fact.payload.get("receipt")?).ok())
         .filter(|result| current(result) == Some(true))
     {
         denied += u32::from(result.outcome == ToolExecutionOutcome::Denied);
@@ -173,7 +171,7 @@ fn prepared_actions(facts: &[aster_effect::Fact]) -> BTreeMap<String, (String, S
         .filter(|fact| fact.kind == "tool.prepared")
         .filter_map(|fact| {
             let prepared: ToolPreparedV1 =
-                serde_json::from_value(fact.payload.get("prepared")?.clone()).ok()?;
+                ToolPreparedV1::deserialize(fact.payload.get("prepared")?).ok()?;
             Some((
                 prepared.identity.key().ok()?,
                 (prepared.tool_name, prepared.effective_args_digest),

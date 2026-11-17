@@ -149,13 +149,17 @@ async fn native_failed_shell_keeps_both_output_streams_in_the_model_request() {
     let (name, script, command) = if cfg!(windows) {
         (
             "probe-script.ps1",
-            format!("[Console]::Out.WriteLine('{stdout}')\n[Console]::Error.WriteLine('{stderr}')\n[Console]::Out.WriteLine('CWD=' + (Get-Location).Path)\nexit 7\n"),
+            format!(
+                "[Console]::Out.WriteLine('{stdout}')\n[Console]::Error.WriteLine('{stderr}')\n[Console]::Out.WriteLine('CWD=' + (Get-Location).Path)\nexit 7\n"
+            ),
             "& './probe-script.ps1'",
         )
     } else {
         (
             "probe-script.sh",
-            format!("printf '%s\\n' '{stdout}'\nprintf '%s\\n' '{stderr}' >&2\nprintf 'CWD=%s\\n' \"$PWD\"\nexit 7\n"),
+            format!(
+                "printf '%s\\n' '{stdout}'\nprintf '%s\\n' '{stderr}' >&2\nprintf 'CWD=%s\\n' \"$PWD\"\nexit 7\n"
+            ),
             "/bin/sh './probe-script.sh'",
         )
     };

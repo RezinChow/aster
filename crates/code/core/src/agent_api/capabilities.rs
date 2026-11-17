@@ -163,8 +163,11 @@ fn assemble_session_capabilities(
         .iter()
         .map(|source| Arc::clone(&source.manager))
         .collect();
-    let skill_registry =
-        build_effective_skill_registry(input.base_config.skill_registry.as_deref(), input.opts);
+    let skill_registry = build_effective_skill_registry(
+        input.base_config.skill_registry.as_deref(),
+        input.opts,
+        input.workspace,
+    );
     let agent_registry = register_task_capability(
         &input,
         &tool_executor,
@@ -423,6 +426,7 @@ pub(super) fn register_skill_capability(
 pub(super) fn build_effective_skill_registry(
     agent_registry: Option<&SkillRegistry>,
     opts: &SessionOptions,
+    workspace: &Path,
 ) -> Arc<SkillRegistry> {
     if opts.isolated_context {
         return Arc::new(SkillRegistry::new());
@@ -438,6 +442,26 @@ pub(super) fn build_effective_skill_registry(
     }
 
     base_registry.exclude_discovered_files(&opts.projected_skill_files);
+
+    match crate::kstudio::arm_kburn_runtime(workspace, &base_registry) {
+        Ok(report) if report.skipped_absent => {}
+        Ok(report) => {
+            tracing::info!(
+                target: "aster_core::kstudio",
+                materialized = report.materialized.len(),
+                skills_loaded = report.skills_loaded,
+                skill_errors = report.skill_errors,
+                "armed kburn runtime for workspace engineering root (.aster or .kstudio)"
+            );
+        }
+        Err(error) => {
+            tracing::warn!(
+                target: "aster_core::kstudio",
+                error = %error,
+                "kburn auto-arm failed; continuing without factory materialize"
+            );
+        }
+    }
 
     for dir in &opts.skill_dirs {
         if let Err(e) = base_registry.load_from_dir(dir) {

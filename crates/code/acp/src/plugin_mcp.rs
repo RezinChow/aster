@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use aster_core::mcp::{McpServerConfig, McpTransportConfig};
 use aster_use_reconcile::PublishedSurface;
+use serde::Deserialize;
 use serde_json::Value;
 
 pub(crate) enum McpAdmission {
@@ -53,13 +54,13 @@ pub(crate) fn admit(surface: &PublishedSurface) -> Result<McpAdmission> {
         name: surface.id.clone(),
         transport,
         enabled: match server.get("enabled") {
-            Some(value) => serde_json::from_value(value.clone())?,
+            Some(value) => bool::deserialize(value)?,
             None => true,
         },
         env: optional(server, "env")?,
         oauth: optional(server, "oauth")?,
         tool_timeout_secs: match server.get("tool_timeout_secs") {
-            Some(value) => serde_json::from_value(value.clone())?,
+            Some(value) => u64::deserialize(value)?,
             None => 60,
         },
     };
@@ -70,10 +71,12 @@ pub(crate) fn admit(surface: &PublishedSurface) -> Result<McpAdmission> {
     Ok(McpAdmission::Ready(Box::new(config)))
 }
 
-fn optional<T: serde::de::DeserializeOwned + Default>(server: &Value, field: &str) -> Result<T> {
+fn optional<'de, T: serde::Deserialize<'de> + Default>(
+    server: &'de Value,
+    field: &str,
+) -> Result<T> {
     match server.get(field) {
-        Some(value) => serde_json::from_value(value.clone())
-            .with_context(|| format!("invalid native MCP {field}")),
+        Some(value) => T::deserialize(value).with_context(|| format!("invalid native MCP {field}")),
         None => Ok(T::default()),
     }
 }

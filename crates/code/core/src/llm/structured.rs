@@ -893,8 +893,8 @@ fn structured_schema_depth(value: &Value) -> usize {
 }
 
 fn refuse_oversized_structured_schema(schema: &Value) -> Option<String> {
-    let bytes = match serde_json::to_vec(schema) {
-        Ok(bytes) => bytes.len(),
+    let bytes = match crate::byte_budget::json_serialized_len(schema) {
+        Ok(bytes) => bytes,
         Err(_) => return Some("structured schema is not serializable".into()),
     };
     if bytes > MAX_STRUCTURED_SCHEMA_BYTES {

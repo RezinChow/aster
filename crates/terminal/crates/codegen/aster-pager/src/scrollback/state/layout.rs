@@ -403,7 +403,7 @@ impl ScrollbackState {
         let (_, entry) = self.entries.get_index(entry_idx)?;
         let theme = Theme::current();
         let renderer = EntryRenderer::new(entry, &theme)
-            .with_appearance_ref(&self.appearance)
+            .with_appearance_arc(std::sync::Arc::clone(&self.appearance))
             .with_cwd(self.cwd());
         let rows = u16::try_from(rows_into_entry).unwrap_or(u16::MAX);
         let logical_line = renderer.logical_line_of_rendered_row(area_width, rows);
@@ -437,7 +437,7 @@ impl ScrollbackState {
             };
             let theme = Theme::current();
             let renderer = EntryRenderer::new(entry, &theme)
-                .with_appearance_ref(&self.appearance)
+                .with_appearance_arc(std::sync::Arc::clone(&self.appearance))
                 .with_cwd(self.cwd());
             let (starts, last_content_row) = renderer.logical_line_start_rows(area_width);
             let new_line_start = starts
@@ -705,7 +705,7 @@ impl ScrollbackState {
                 continue;
             };
             let renderer = EntryRenderer::new(entry, &theme)
-                .with_appearance_ref(&self.appearance)
+                .with_appearance_arc(std::sync::Arc::clone(&self.appearance))
                 .with_cwd(cwd);
             let member_height = renderer.desired_height(entry_area_width);
             let exact_height = info.with_verb_header_row(member_height);
@@ -970,6 +970,13 @@ impl ScrollbackState {
     pub(super) fn update_dirty_entry_heights(&mut self, width: u16) -> Vec<(usize, i32)> {
         let entry_area_width = self.entry_area_width(width);
         let cwd = self.cwd.as_deref();
+        // Overlap before mut cache: entry_overlaps_viewport also reads layout_cache.
+        let dirty_entries: Vec<(usize, bool)> = self
+            .dirty_heights
+            .iter()
+            .filter_map(|id| self.entries.get_index_of(id))
+            .map(|idx| (idx, self.entry_overlaps_viewport(idx)))
+            .collect();
         let Some(cache) = self.layout_cache.as_mut() else {
             return Vec::new();
         };
@@ -978,14 +985,7 @@ impl ScrollbackState {
 
         let mut changes = Vec::new();
 
-        // Collect indices first: the height update mutably borrows the cache while `dirty_heights` is still live
-        let dirty_entries: Vec<usize> = self
-            .dirty_heights
-            .iter()
-            .filter_map(|id| self.entries.get_index_of(id))
-            .collect();
-
-        for idx in dirty_entries {
+        for (idx, overlaps_viewport) in dirty_entries {
             if idx >= cache.entries.len() {
                 continue; // Entry added after cache was built
             }
@@ -997,23 +997,27 @@ impl ScrollbackState {
                 continue;
             };
             let renderer = EntryRenderer::new(entry, &theme)
-                .with_appearance_ref(&self.appearance)
+                .with_appearance_arc(std::sync::Arc::clone(&self.appearance))
                 .with_cwd(cwd);
-            let member_height = renderer.desired_height(entry_area_width);
+            // Off-viewport streaming: estimate only — avoid full markdown ensure_cached.
+            // Leave measured=false so settle_visible_measurements exacts on reveal.
+            let member_height = if overlaps_viewport {
+                renderer.desired_height(entry_area_width)
+            } else {
+                renderer.estimate_height(entry_area_width)
+            };
             let new_height = info.with_verb_header_row(member_height);
             let old_height = info.height;
-            // This entry now has an exact (re)measured height, so it no longer needs the lazy viewport measurement pass
-            if let Some(slot) = cache.measured.get_mut(idx) {
-                *slot = true;
-            }
-
-            // A measured prompt's exact truncated height feeds sticky min_height. Refresh it unconditionally, matching the
-            // sibling measure paths. The height can be unchanged while the seed is still the conservative MAX. Cheap: prompts
-            // are rarely re-dirtied.
-            if entry.block.is_user_prompt()
-                && let Some(slot) = cache.entry_truncated_heights.get_mut(idx)
-            {
-                *slot = renderer.compute_truncated_height(entry_area_width);
+            if overlaps_viewport {
+                if let Some(slot) = cache.measured.get_mut(idx) {
+                    *slot = true;
+                }
+                // Sticky prompt min_height only needs exact truncated height when visible.
+                if entry.block.is_user_prompt()
+                    && let Some(slot) = cache.entry_truncated_heights.get_mut(idx)
+                {
+                    *slot = renderer.compute_truncated_height(entry_area_width);
+                }
             }
 
             if new_height != old_height {
@@ -1202,7 +1206,7 @@ impl ScrollbackState {
         };
 
         let renderer = EntryRenderer::new(new_entry, &theme)
-            .with_appearance_ref(&self.appearance)
+            .with_appearance_arc(std::sync::Arc::clone(&self.appearance))
             .with_cwd(cwd);
         let height = renderer.desired_height(entry_area_width);
         let is_prompt = new_entry.block.is_user_prompt();
@@ -1282,7 +1286,7 @@ impl ScrollbackState {
         // bulk-load rebuild O(history) in cheap arithmetic instead of O(history) markdown renders.
         for entry in self.entries.values() {
             let renderer = EntryRenderer::new(entry, &theme)
-                .with_appearance_ref(&self.appearance)
+                .with_appearance_arc(std::sync::Arc::clone(&self.appearance))
                 .with_cwd(self.cwd());
             let height = renderer.estimate_height(entry_area_width);
             cache.entries.push(EntryLayoutInfo {

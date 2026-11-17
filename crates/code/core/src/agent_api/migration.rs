@@ -6,6 +6,7 @@ use crate::store::{
     TranscriptEntryPayload, TranscriptLegacyHistoryDisplay, LEGACY_STUDIO_MIGRATION_SCHEMA_V1,
 };
 use aster_effect::{Fact, LogStore, NewFact};
+use serde::Deserialize;
 use std::collections::HashSet;
 
 pub(crate) const LEGACY_STUDIO_ENTRY_FACT_KIND: &str = "legacy.studio.entry";
@@ -169,7 +170,7 @@ fn receipt_for(request: &LegacyStudioMigrationRequest) -> Result<LegacyStudioMig
 }
 
 fn decode_entry_fact(fact: &Fact) -> Result<LegacyStudioEntryFact> {
-    serde_json::from_value(fact.payload.clone()).map_err(|error| {
+    LegacyStudioEntryFact::deserialize(&fact.payload).map_err(|error| {
         migration_error(format!(
             "corrupt legacy entry fact {} at seq {}: {error}",
             fact.key, fact.seq
@@ -222,7 +223,7 @@ fn verify_readback(
     }
     let marker = &facts[marker_index];
     let stored_receipt: LegacyStudioMigrationReceipt =
-        serde_json::from_value(marker.payload.clone())
+        LegacyStudioMigrationReceipt::deserialize(&marker.payload)
             .map_err(|error| migration_error(format!("corrupt completion receipt: {error}")))?;
     if &stored_receipt != receipt {
         return Err(migration_error("completion receipt differs from read-back"));
@@ -520,8 +521,9 @@ impl AgentSession {
         if markers.next().is_some() {
             return Err(migration_error("multiple migration receipts"));
         }
-        let receipt: LegacyStudioMigrationReceipt = serde_json::from_value(marker.payload.clone())
-            .map_err(|error| migration_error(format!("corrupt completion receipt: {error}")))?;
+        let receipt: LegacyStudioMigrationReceipt =
+            LegacyStudioMigrationReceipt::deserialize(&marker.payload)
+                .map_err(|error| migration_error(format!("corrupt completion receipt: {error}")))?;
         if receipt.target_session_id != self.session_id {
             return Err(migration_error("receipt/target session mismatch"));
         }

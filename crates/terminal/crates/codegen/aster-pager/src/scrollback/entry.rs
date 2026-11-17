@@ -1,5 +1,6 @@
 use std::cell::{Ref, RefCell};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use chrono::{DateTime, Local};
 
@@ -281,21 +282,41 @@ impl ScrollbackEntry {
     }
 
     /// Cheap wrapped-line estimate for the block's source text at `content_width`.
-    /// An APPROXIMATION: it ignores word boundaries, and for a markdown block it reflects the last rendered view.
+    /// An APPROXIMATION: it ignores word boundaries. Streaming agent/thinking
+    /// estimates use raw markdown source (not rendered plain text) so each
+    /// chunk can extend [`Self::cached_line_widths`] without an O(n) re-clone.
     /// On-screen entries are always measured exactly, so nothing depends on it being right.
     pub fn estimate_source_lines(&self, content_width: u16) -> u16 {
         let mut slot = self.cached_line_widths.borrow_mut();
-        let widths = slot.get_or_insert_with(|| {
-            let Some(text) = self.block.searchable_text() else {
-                return Vec::new();
-            };
-            // Renderers drop a single trailing newline.
-            let text = text.strip_suffix('\n').unwrap_or(&text);
-            text.split('\n')
-                .map(|line| unicode_width::UnicodeWidthStr::width(line) as u32)
-                .collect()
-        });
+        let widths = slot.get_or_insert_with(|| self.block.estimate_line_widths());
         wrapped_lines_from_widths(widths, content_width)
+    }
+
+    /// Extend the memoized line-width profile after a streaming append.
+    /// No-op when the profile is cold (next [`Self::estimate_source_lines`] builds it).
+    pub(crate) fn append_line_widths_from_chunk(&self, chunk: &str) {
+        let mut slot = self.cached_line_widths.borrow_mut();
+        let Some(widths) = slot.as_mut() else {
+            return;
+        };
+        if widths.is_empty() {
+            widths.push(0);
+        }
+        for ch in chunk.chars() {
+            if ch == '\n' {
+                widths.push(0);
+            } else {
+                let w = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0) as u32;
+                *widths.last_mut().expect("widths non-empty") += w;
+            }
+        }
+    }
+
+    /// Streaming content change: drop width-keyed render caches but keep and
+    /// extend the line-width profile so off-screen height estimates stay O(chunk).
+    pub(crate) fn invalidate_after_stream_chunk(&mut self, chunk: &str) {
+        self.invalidate_width_caches();
+        self.append_line_widths_from_chunk(chunk);
     }
 
     #[cfg(test)]
@@ -317,6 +338,17 @@ impl ScrollbackEntry {
         &self,
         width: u16,
         appearance: &AppearanceConfig,
+        is_selected: bool,
+        cwd: Option<&Path>,
+    ) {
+        self.ensure_cached_arc(width, Arc::new(appearance.clone()), is_selected, cwd);
+    }
+
+    /// Hot path: share an existing `Arc` instead of deep-cloning `AppearanceConfig`.
+    pub fn ensure_cached_arc(
+        &self,
+        width: u16,
+        appearance: Arc<AppearanceConfig>,
         is_selected: bool,
         cwd: Option<&Path>,
     ) {
@@ -351,7 +383,7 @@ impl ScrollbackEntry {
             width,
             raw: self.raw,
             max_lines: None,
-            appearance: appearance.clone(),
+            appearance,
             is_selected: effective_selected,
             cwd: cwd_key.clone(),
         };
@@ -467,13 +499,22 @@ impl ScrollbackEntry {
         appearance: &AppearanceConfig,
         cwd: Option<&Path>,
     ) -> BlockContext {
+        self.context_arc(width, Arc::new(appearance.clone()), cwd)
+    }
+
+    pub fn context_arc(
+        &self,
+        width: u16,
+        appearance: Arc<AppearanceConfig>,
+        cwd: Option<&Path>,
+    ) -> BlockContext {
         BlockContext {
             mode: self.display_mode,
             is_running: self.is_running,
             width,
             raw: self.raw,
             max_lines: None,
-            appearance: appearance.clone(),
+            appearance,
             is_selected: false,
             cwd: cwd.map(|p| p.to_path_buf()),
         }
@@ -500,13 +541,23 @@ impl ScrollbackEntry {
         appearance: &AppearanceConfig,
         cwd: Option<&Path>,
     ) -> BlockContext {
+        self.context_with_budget_arc(width, max_lines, Arc::new(appearance.clone()), cwd)
+    }
+
+    pub fn context_with_budget_arc(
+        &self,
+        width: u16,
+        max_lines: u16,
+        appearance: Arc<AppearanceConfig>,
+        cwd: Option<&Path>,
+    ) -> BlockContext {
         BlockContext {
             mode: self.display_mode,
             is_running: self.is_running,
             width,
             raw: self.raw,
             max_lines: Some(max_lines),
-            appearance: appearance.clone(),
+            appearance,
             is_selected: false,
             cwd: cwd.map(|p| p.to_path_buf()),
         }
@@ -520,13 +571,23 @@ impl ScrollbackEntry {
         appearance: &AppearanceConfig,
         cwd: Option<&Path>,
     ) -> BlockContext {
+        self.context_with_mode_arc(width, mode, Arc::new(appearance.clone()), cwd)
+    }
+
+    pub fn context_with_mode_arc(
+        &self,
+        width: u16,
+        mode: DisplayMode,
+        appearance: Arc<AppearanceConfig>,
+        cwd: Option<&Path>,
+    ) -> BlockContext {
         BlockContext {
             mode,
             is_running: self.is_running,
             width,
             raw: self.raw,
             max_lines: None,
-            appearance: appearance.clone(),
+            appearance,
             is_selected: false,
             cwd: cwd.map(|p| p.to_path_buf()),
         }
@@ -543,13 +604,32 @@ impl ScrollbackEntry {
         is_selected: bool,
         cwd: Option<&Path>,
     ) -> BlockContext {
+        self.context_with_mode_and_budget_arc(
+            width,
+            mode,
+            max_lines,
+            Arc::new(appearance.clone()),
+            is_selected,
+            cwd,
+        )
+    }
+
+    pub fn context_with_mode_and_budget_arc(
+        &self,
+        width: u16,
+        mode: DisplayMode,
+        max_lines: u16,
+        appearance: Arc<AppearanceConfig>,
+        is_selected: bool,
+        cwd: Option<&Path>,
+    ) -> BlockContext {
         BlockContext {
             mode,
             is_running: self.is_running,
             width,
             raw: self.raw,
             max_lines: Some(max_lines),
-            appearance: appearance.clone(),
+            appearance,
             is_selected,
             cwd: cwd.map(|p| p.to_path_buf()),
         }
@@ -568,6 +648,18 @@ mod tests {
         assert!(!entry.is_running);
         assert!(matches!(entry.display_mode, DisplayMode::Expanded));
         assert!(!entry.display_mode_pinned);
+    }
+
+    #[test]
+    fn context_with_mode_arc_shares_appearance_pointer() {
+        let entry = ScrollbackEntry::new(RenderBlock::stub("test", Color::Blue));
+        let appearance = Arc::new(AppearanceConfig::default());
+        let ctx =
+            entry.context_with_mode_arc(80, DisplayMode::Expanded, Arc::clone(&appearance), None);
+        assert!(
+            Arc::ptr_eq(&ctx.appearance, &appearance),
+            "hot-path BlockContext must share AppearanceConfig via Arc, not deep-clone"
+        );
     }
 
     #[test]
@@ -603,10 +695,128 @@ mod tests {
     }
 
     #[test]
+    fn streaming_chunks_extend_line_widths_without_dropping_the_profile() {
+        let mut entry = ScrollbackEntry::running(RenderBlock::agent_message("seed"));
+        let first = entry.estimate_source_lines(40);
+        assert!(entry.has_cached_line_widths());
+        if let RenderBlock::AgentMessage(ref mut msg) = entry.block {
+            msg.push_chunk(" more");
+        }
+        entry.invalidate_after_stream_chunk(" more");
+        assert!(
+            entry.has_cached_line_widths(),
+            "stream chunk must keep the line-width profile"
+        );
+        let grown = entry.estimate_source_lines(40);
+        assert!(grown >= first);
+        assert_eq!(entry.block.estimate_line_widths().len(), 1);
+    }
+
+    #[test]
+    fn streaming_execute_chunks_extend_line_widths_without_dropping_the_profile() {
+        use crate::scrollback::blocks::ToolCallBlock;
+        let mut entry = ScrollbackEntry::running(RenderBlock::execute("echo hi"));
+        if let RenderBlock::ToolCall(ToolCallBlock::Execute(ref mut block)) = entry.block {
+            block.push_output("seed");
+        }
+        entry.invalidate_after_stream_chunk("seed");
+        let first = entry.estimate_source_lines(40);
+        assert!(entry.has_cached_line_widths());
+        if let RenderBlock::ToolCall(ToolCallBlock::Execute(ref mut block)) = entry.block {
+            block.push_output(" more");
+        }
+        entry.invalidate_after_stream_chunk(" more");
+        assert!(
+            entry.has_cached_line_widths(),
+            "execute stream chunk must keep the line-width profile"
+        );
+        assert!(entry.estimate_source_lines(40) >= first);
+    }
+
+    #[test]
     fn estimate_source_lines_without_searchable_text_is_one_line() {
         let entry = ScrollbackEntry::new(RenderBlock::user_prompt(""));
         assert!(entry.block.searchable_text().is_none());
         assert_eq!(entry.estimate_source_lines(80), 1);
+    }
+
+    #[test]
+    fn estimate_line_widths_borrows_single_field_blocks() {
+        let prompt = ScrollbackEntry::new(RenderBlock::user_prompt("a\nbc"));
+        assert_eq!(prompt.block.estimate_line_widths(), vec![1, 2]);
+        let system = ScrollbackEntry::new(RenderBlock::system("ok\n"));
+        assert_eq!(system.block.estimate_line_widths(), vec![2]);
+    }
+
+    #[test]
+    fn estimate_line_widths_borrows_tool_body_fields() {
+        use crate::scrollback::blocks::{ReadToolCallBlock, ToolCallBlock};
+        let read = ScrollbackEntry::new(RenderBlock::ToolCall(ToolCallBlock::Read(
+            ReadToolCallBlock::new("p.rs").with_content("x\nyy".into(), 2),
+        )));
+        assert_eq!(read.block.estimate_line_widths(), vec![1, 2]);
+    }
+
+    #[test]
+    fn estimate_line_widths_borrows_subagent_btw_session() {
+        use crate::scrollback::blocks::{BtwBlock, SessionEvent, SubagentBlock};
+        let sub = ScrollbackEntry::new(RenderBlock::Subagent(SubagentBlock::started(
+            "do\nit", "child-1", "explore", None, None, None, false,
+        )));
+        assert_eq!(sub.block.estimate_line_widths(), vec![2, 2]);
+        let btw = ScrollbackEntry::new(RenderBlock::Btw(BtwBlock::new("q\nr", "body")));
+        assert_eq!(btw.block.estimate_line_widths(), vec![1, 1]);
+        let outcome = ScrollbackEntry::new(RenderBlock::session_event(SessionEvent::TurnOutcome {
+            line: "ok\nxy".into(),
+        }));
+        assert_eq!(outcome.block.estimate_line_widths(), vec![2, 2]);
+        let blocked = ScrollbackEntry::new(RenderBlock::session_event(
+            SessionEvent::TurnBlockedByHook { elapsed: None },
+        ));
+        assert_eq!(
+            blocked.block.estimate_line_widths(),
+            vec![unicode_width::UnicodeWidthStr::width("Turn blocked by a hook.") as u32]
+        );
+        let cancelled = ScrollbackEntry::new(RenderBlock::session_event(
+            SessionEvent::CompactionCancelled,
+        ));
+        assert_eq!(
+            cancelled.block.estimate_line_widths(),
+            vec![unicode_width::UnicodeWidthStr::width("Compaction cancelled.") as u32]
+        );
+        use crate::scrollback::blocks::tool::{SentMessageInput, SentMessageTarget};
+        use crate::scrollback::blocks::{
+            SentMessagePresentation, SentMessageToolCallBlock, ToolCallBlock,
+        };
+        let sent = ScrollbackEntry::new(RenderBlock::ToolCall(ToolCallBlock::SentMessage(
+            SentMessageToolCallBlock::new(
+                SentMessagePresentation::Sent,
+                Some(SentMessageInput {
+                    target: SentMessageTarget::Parent,
+                    delivery: None,
+                    text: "hi\nthere".into(),
+                }),
+            ),
+        )));
+        assert_eq!(sent.block.estimate_line_widths(), vec![2, 5]);
+    }
+
+    /// HG2 latency surface: frozen input → exact width digest + generous wall bound.
+    #[test]
+    fn hg2_estimate_line_widths_latency_freeze() {
+        let text = "abcdefghij\n".repeat(200);
+        let entry = ScrollbackEntry::new(RenderBlock::user_prompt(text));
+        let start = std::time::Instant::now();
+        let mut last = Vec::new();
+        for _ in 0..100 {
+            last = entry.block.estimate_line_widths();
+        }
+        assert_eq!(last, vec![10_u32; 200]);
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "hg2 estimate latency freeze exceeded 2s: {:?}",
+            start.elapsed()
+        );
     }
 
     #[test]

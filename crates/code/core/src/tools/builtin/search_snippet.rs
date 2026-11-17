@@ -16,6 +16,8 @@ pub(super) struct SourceSnippet {
     pub start_line: usize,
     pub end_line: usize,
     pub truncated: bool,
+    /// Source bytes not retained in the rendered window (E4).
+    pub discarded_chars: usize,
 }
 
 pub(super) fn source_snippet(chunk: &WorkspaceChunk, query: &str) -> SourceSnippet {
@@ -81,11 +83,13 @@ pub(super) fn source_snippet(chunk: &WorkspaceChunk, query: &str) -> SourceSnipp
     if end < lines.len() {
         text.push_str("\n       | ...");
     }
+    let discarded_chars = crate::byte_budget::discarded_bytes(chunk.text.len(), text.len());
     SourceSnippet {
         text,
         start_line: chunk.start_line.saturating_add(start),
         end_line: chunk.start_line.saturating_add(end.saturating_sub(1)),
         truncated,
+        discarded_chars,
     }
 }
 
@@ -102,10 +106,11 @@ fn literal_pattern(pattern: &str) -> Option<Regex> {
 pub(super) fn bounded_results(
     title: &str,
     results: impl IntoIterator<Item = String>,
-) -> (String, usize, bool) {
+) -> (String, usize, bool, usize) {
     let mut content = format!("{title}\n\n");
     let mut count = 0;
-    for result in results {
+    let mut results = results.into_iter();
+    while let Some(result) = results.next() {
         // Reserve bounded space for the count and channel-fallback footer.
         if content
             .len()
@@ -116,7 +121,8 @@ pub(super) fn bounded_results(
             content.push_str(
                 "\nOutput budget reached; narrow the query or path for remaining results.\n",
             );
-            return (content, count, true);
+            let discarded = 1usize.saturating_add(results.count());
+            return (content, count, true, discarded);
         }
         if count > 0 {
             content.push_str("\n\n");
@@ -124,7 +130,7 @@ pub(super) fn bounded_results(
         content.push_str(&result);
         count += 1;
     }
-    (content, count, false)
+    (content, count, false, 0)
 }
 
 #[cfg(test)]

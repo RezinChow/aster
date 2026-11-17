@@ -154,8 +154,15 @@ async fn offline_vectors_index_a_large_fixture_before_search_with_bounded_state(
                 .any(|hit| hit.chunk.path.as_ref() == "billing.md"));
             searches.push(query_started.elapsed().as_micros());
         }
-        eprintln!("ORACLE large-vector-files={} open-ms={} ready-ms={} vector-records={} vector-bytes={} search-max-us={}",
-        files, opened.as_millis(), ready.as_millis(), status.vector_records, status.vector_bytes, searches.iter().max().unwrap());
+        eprintln!(
+            "ORACLE large-vector-files={} open-ms={} ready-ms={} vector-records={} vector-bytes={} search-max-us={}",
+            files,
+            opened.as_millis(),
+            ready.as_millis(),
+            status.vector_records,
+            status.vector_bytes,
+            searches.iter().max().unwrap()
+        );
         session.close().await;
         assert_eq!(session.workspace_retrieval_status().vector_records, 0);
     }

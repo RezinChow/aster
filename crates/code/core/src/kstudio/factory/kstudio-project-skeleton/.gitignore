@@ -1,0 +1,5 @@
+/local/
+/project.local.acl
+/wiki/site/
+__pycache__/
+*.py[cod]

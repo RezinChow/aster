@@ -1142,10 +1142,58 @@ fn stale_kill_result_does_not_finish_replacement_attempt() {
 }
 
 #[test]
-fn cancel_complete_does_nothing() {
+fn cancel_complete_does_nothing_without_running_bg() {
     let mut app = test_app_with_agent();
     let effects = dispatch(Action::TaskComplete(TaskResult::CancelComplete), &mut app);
     assert!(effects.is_empty());
+    assert!(
+        expect_agent(&app, AgentId(0)).toast.is_none(),
+        "no bg honesty toast when nothing is running"
+    );
+}
+
+#[test]
+fn cancel_complete_toasts_when_background_tasks_still_run() {
+    let mut app = test_app_with_agent();
+    app.agents
+        .get_mut(&AgentId(0))
+        .unwrap()
+        .session
+        .bg_tasks
+        .insert(
+            "bg-1".into(),
+            crate::app::agent::BgTaskState {
+                task_id: "bg-1".into(),
+                tool_call_id: "call-bg-1".into(),
+                command: "sleep 5".into(),
+                description: None,
+                cwd: "/tmp".into(),
+                output_file: "/tmp/out".into(),
+                status: crate::app::agent::BgTaskStatus::Running,
+                start_time: std::time::SystemTime::now(),
+                end_time: None,
+                exit_code: None,
+                signal: None,
+                stdout: String::new(),
+                stdout_line_count: 0,
+                truncated: false,
+                pending_kill: false,
+                kill_requested_at: None,
+                scrollback_entry_id: None,
+                is_monitor: false,
+                restored_from_replay: false,
+            },
+        );
+    let effects = dispatch(Action::TaskComplete(TaskResult::CancelComplete), &mut app);
+    assert!(effects.is_empty());
+    let toast = expect_agent(&app, AgentId(0))
+        .toast
+        .as_ref()
+        .map(|(msg, _)| msg.as_str());
+    assert_eq!(
+        toast,
+        Some("Turn cancelled; background tasks are still running.")
+    );
 }
 
 #[test]

@@ -596,9 +596,13 @@ fn digest_bytes(domain: &str, bytes: &[u8]) -> String {
 }
 
 fn digest_json<T: Serialize>(domain: &str, value: &T) -> Result<String, CoreIdentityError> {
-    let bytes = serde_json::to_vec(value)
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(domain.as_bytes());
+    hasher.update([0]);
+    crate::byte_budget::json_update_sha256(&mut hasher, value)
         .map_err(|error| CoreIdentityError::Serialization(error.to_string()))?;
-    Ok(digest_bytes(domain, &bytes))
+    Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
 #[cfg(test)]

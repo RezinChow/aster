@@ -469,6 +469,13 @@ async fn test_registry_truncates_large_tool_output() {
         metadata["artifact"]["shown_bytes"],
         serde_json::json!(policy.head_bytes + policy.tail_bytes)
     );
+    assert_eq!(
+        metadata["artifact"]["discarded_bytes"],
+        serde_json::json!(crate::byte_budget::discarded_bytes(
+            super::super::MAX_OUTPUT_SIZE + 1,
+            policy.head_bytes + policy.tail_bytes,
+        ))
+    );
     assert!(metadata["artifact"]["artifact_id"]
         .as_str()
         .unwrap()

@@ -1,6 +1,7 @@
 //! Tool results as facts, tool admission, and the model decision for one response.
 
 use super::*;
+use serde::Deserialize;
 
 pub(super) const FACT_TOOL_RESULT_KIND: &str = "aster.fact_tool_result";
 
@@ -177,7 +178,7 @@ pub(super) fn decode_fact_tool_result(body: &str) -> Option<FactToolResultEnvelo
     if value.get("kind").and_then(|kind| kind.as_str()) != Some(FACT_TOOL_RESULT_KIND) {
         return None;
     }
-    serde_json::from_value(value).ok()
+    FactToolResultEnvelope::deserialize(&value).ok()
 }
 
 pub(super) fn message_from_folded_tool(

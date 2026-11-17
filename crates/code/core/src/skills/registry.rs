@@ -50,11 +50,21 @@ pub struct SkillLoadError {
     pub message: String,
 }
 
+/// One same-name override observed while loading a skill directory (A4).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SkillLoadOverride {
+    pub name: String,
+    /// Path of the skill definition that won (later load).
+    pub path: PathBuf,
+}
+
 /// Outcome of loading one skill directory with partial-success semantics.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SkillLoadReport {
     pub loaded: usize,
     pub errors: Vec<SkillLoadError>,
+    /// Same-name later loads that replaced an earlier definition (A4 honesty).
+    pub overrides: Vec<SkillLoadOverride>,
 }
 
 /// Skill registry for managing available skills
@@ -403,10 +413,7 @@ impl SkillRegistry {
                 path = %dir.display(),
                 "skill directory does not exist; no skills were loaded from it"
             );
-            return Ok(SkillLoadReport {
-                loaded: 0,
-                errors: Vec::new(),
-            });
+            return Ok(SkillLoadReport::default());
         }
 
         if !dir.is_dir() {
@@ -415,6 +422,7 @@ impl SkillRegistry {
 
         self.note_watched(dir);
         let mut loaded = 0;
+        let mut overrides = Vec::new();
         let mut errors = Vec::new();
         for candidate in Self::collect_skill_candidates(dir)? {
             let canonical = std::fs::canonicalize(&candidate)?;
@@ -439,7 +447,8 @@ impl SkillRegistry {
                         );
                     }
                     let skill = Arc::new(skill);
-                    if self.get(&name).is_some() {
+                    let replacing = self.get(&name).is_some();
+                    if replacing {
                         tracing::warn!(
                             skill = %name,
                             path = %candidate.display(),
@@ -449,6 +458,12 @@ impl SkillRegistry {
                     lock_write(&self.origins).insert(name.clone(), dir.to_path_buf());
                     match self.register(Arc::clone(&skill)) {
                         Ok(()) => {
+                            if replacing {
+                                overrides.push(SkillLoadOverride {
+                                    name: name.clone(),
+                                    path: candidate.clone(),
+                                });
+                            }
                             lock_write(&self.discovered_files).insert(name, (canonical, skill));
                             loaded += 1;
                         }
@@ -481,7 +496,11 @@ impl SkillRegistry {
             }
         }
 
-        Ok(SkillLoadReport { loaded, errors })
+        Ok(SkillLoadReport {
+            loaded,
+            errors,
+            overrides,
+        })
     }
 
     /// Watch a skill directory for changes without loading it now. A
@@ -633,6 +652,16 @@ impl SkillRegistry {
                     // Directory already marked seen; walk children only.
                     visit_children(&path, root, out, seen, depth + 1)?;
                 } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
+                    // Root-level docs next to packages (README/LICENSE/…) are
+                    // not skill candidates. Package-local docs are already
+                    // skipped by visit_children (SKILL.md only).
+                    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                    if matches!(
+                        stem.to_ascii_lowercase().as_str(),
+                        "readme" | "license" | "notice" | "changelog" | "contributing"
+                    ) {
+                        continue;
+                    }
                     out.push(path);
                 }
             }

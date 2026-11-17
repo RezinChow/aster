@@ -151,7 +151,7 @@ impl WorkspaceSourceSnapshotV1 {
             index_generation: u64,
             observed_at_ms: u64,
         }
-        let bytes = serde_json::to_vec(&Identity {
+        let identity = Identity {
             schema: &self.schema,
             root: &self.root,
             manifest_version: self.manifest_version,
@@ -162,12 +162,11 @@ impl WorkspaceSourceSnapshotV1 {
             catalog_revision: self.catalog_revision,
             index_generation: self.index_generation,
             observed_at_ms: self.observed_at_ms,
-        })
-        .map_err(|error| WorkspaceSourceSnapshotError::Serialization(error.to_string()))?;
-        Ok(digest_bytes(
-            WORKSPACE_SOURCE_SNAPSHOT_DIGEST_DOMAIN_V1,
-            &bytes,
-        ))
+        };
+        Ok(
+            digest_json(WORKSPACE_SOURCE_SNAPSHOT_DIGEST_DOMAIN_V1, &identity)
+                .map_err(|error| WorkspaceSourceSnapshotError::Serialization(error.to_string()))?,
+        )
     }
 
     fn validate_without_digest(&self) -> Result<(), WorkspaceSourceSnapshotError> {
@@ -310,6 +309,18 @@ fn digest_bytes(domain: &str, bytes: &[u8]) -> String {
     hasher.update([0]);
     hasher.update(bytes);
     format!("sha256:{:x}", hasher.finalize())
+}
+
+fn digest_json(
+    domain: &str,
+    value: &(impl serde::Serialize + ?Sized),
+) -> serde_json::Result<String> {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(domain.as_bytes());
+    hasher.update([0]);
+    crate::byte_budget::json_update_sha256(&mut hasher, value)?;
+    Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
 #[cfg(test)]

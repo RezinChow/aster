@@ -84,17 +84,36 @@ async fn prompt_boundary_real_model_preserves_source_and_uses_review_worker() {
 
     const SOURCE: &str = "pub const MAX_LINES: usize = 3;\npub fn first_lines(lines: &[&str]) -> Vec<String> {\n    (0..=MAX_LINES).map(|i| lines[i].to_string()).collect()\n}\n";
     for (case, prompt, terminal, delegated) in [
-        ("direct", "Reply with exactly READY and no other text. Do not call tools.", true, false),
-        ("explain", "Read src/limit.rs and explain what first_lines actually returns and what happens for short inputs. Do not change files. Answer in English.", true, false),
-        ("review", "Review src/limit.rs for correctness. Do not change files. Give concrete findings with file and line evidence. Answer in English.", false, true),
+        (
+            "direct",
+            "Reply with exactly READY and no other text. Do not call tools.",
+            true,
+            false,
+        ),
+        (
+            "explain",
+            "Read src/limit.rs and explain what first_lines actually returns and what happens for short inputs. Do not change files. Answer in English.",
+            true,
+            false,
+        ),
+        (
+            "review",
+            "Review src/limit.rs for correctness. Do not change files. Give concrete findings with file and line evidence. Answer in English.",
+            false,
+            true,
+        ),
     ] {
-        let root = tempfile::Builder::new().prefix("prompt bounds Δ ").tempdir().unwrap();
+        let root = tempfile::Builder::new()
+            .prefix("prompt bounds Δ ")
+            .tempdir()
+            .unwrap();
         let storage = tempfile::tempdir().unwrap();
         std::fs::create_dir(root.path().join("src")).unwrap();
         let source = root.path().join("src/limit.rs");
         std::fs::write(&source, SOURCE).unwrap();
         let config = std::env::var_os("ASTER_CONFIG_FILE").expect("explicit live ACL");
-        let mut launch = crate::config::load_launch_config(root.path().into(), Some(config.into())).unwrap();
+        let mut launch =
+            crate::config::load_launch_config(root.path().into(), Some(config.into())).unwrap();
         launch.model_id = "glm-02/glm-5.3".into();
         launch.config.default_model = Some(launch.model_id.clone());
         launch.config.sessions_dir = Some(storage.path().to_owned());
@@ -104,48 +123,104 @@ async fn prompt_boundary_real_model_preserves_source_and_uses_review_worker() {
         }
         if delegated {
             // The headless fixture has no ACP client to answer confirmation requests.
-            host.initialize(acp::InitializeRequest::new(acp::ProtocolVersion::V1).meta(
-                serde_json::json!({"permissionRules":{
-                    "allow":["task"], "deny":["write","edit","patch","bash"]
-                }}).as_object().cloned()
-            )).await.unwrap();
+            host.initialize(
+                acp::InitializeRequest::new(acp::ProtocolVersion::V1).meta(
+                    serde_json::json!({"permissionRules":{
+                        "allow":["task"], "deny":["write","edit","patch","bash"]
+                    }})
+                    .as_object()
+                    .cloned(),
+                ),
+            )
+            .await
+            .unwrap();
         }
-        let id = host.new_session(acp::NewSessionRequest::new(root.path())).await.unwrap().session_id;
+        let id = host
+            .new_session(acp::NewSessionRequest::new(root.path()))
+            .await
+            .unwrap()
+            .session_id;
         if delegated {
             let sessions = host.sessions.lock().await;
-            let policy = sessions.get(id.0.as_ref()).unwrap().permissions.lock().unwrap().policy();
+            let policy = sessions
+                .get(id.0.as_ref())
+                .unwrap()
+                .permissions
+                .lock()
+                .unwrap()
+                .policy();
             assert!(policy.is_allowed("task", &serde_json::json!({})));
             for tool in ["write", "edit", "patch", "bash"] {
-                assert!(policy.is_denied(tool, &serde_json::json!({})), "{tool} must remain denied");
+                assert!(
+                    policy.is_denied(tool, &serde_json::json!({})),
+                    "{tool} must remain denied"
+                );
             }
         }
         let started = std::time::Instant::now();
         eprintln!("PROMPT_CASE_BEGIN {case} model=glm-02/glm-5.3 prompt={prompt:?}");
-        let session = host.sessions.lock().await.get(id.0.as_ref()).unwrap().session.clone();
+        let session = host
+            .sessions
+            .lock()
+            .await
+            .get(id.0.as_ref())
+            .unwrap()
+            .session
+            .clone();
         let observed = session.clone();
         let health = tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-                eprintln!("PROMPT_CASE_HEALTH pool={:?} scheduler={:?}", observed.model_generation_pool_health().await, observed.task_scheduler_health().await);
+                eprintln!(
+                    "PROMPT_CASE_HEALTH pool={:?} scheduler={:?}",
+                    observed.model_generation_pool_health().await,
+                    observed.task_scheduler_health().await
+                );
             }
         });
         let bounded = tokio::time::timeout(
             std::time::Duration::from_secs(300),
-            host.prompt(acp::PromptRequest::new(id.clone(), vec![acp::ContentBlock::Text(acp::TextContent::new(prompt))])),
-        ).await;
+            host.prompt(acp::PromptRequest::new(
+                id.clone(),
+                vec![acp::ContentBlock::Text(acp::TextContent::new(prompt))],
+            )),
+        )
+        .await;
         health.abort();
-        let answer = session.durable_transcript().iter().rev().find(|message| message.role == "assistant").map(|message| message.text()).unwrap_or_default();
+        let answer = session
+            .durable_transcript()
+            .iter()
+            .rev()
+            .find(|message| message.role == "assistant")
+            .map(|message| message.text())
+            .unwrap_or_default();
         let mut tools = Vec::new();
         for child in session.subagent_tracker().list().await {
-            eprintln!("PROMPT_CASE_CHILD {case} agent={} status={:?} success={:?} anchors={:?}", child.agent, child.status, child.success, child.source_anchors);
+            eprintln!(
+                "PROMPT_CASE_CHILD {case} agent={} status={:?} success={:?} anchors={:?}",
+                child.agent, child.status, child.success, child.source_anchors
+            );
             for progress in child.progress {
-                eprintln!("PROMPT_CASE_CHILD_PROGRESS {case} status={:?} tool={:?}", progress.status, progress.metadata.get("tool"));
+                eprintln!(
+                    "PROMPT_CASE_CHILD_PROGRESS {case} status={:?} tool={:?}",
+                    progress.status,
+                    progress.metadata.get("tool")
+                );
             }
         }
         for run in session.runs().await {
-            eprintln!("PROMPT_CASE_RUN {case} status={:?} error={:?} result={:?}", run.status, run.error, run.result_text);
+            eprintln!(
+                "PROMPT_CASE_RUN {case} status={:?} error={:?} result={:?}",
+                run.status, run.error, run.result_text
+            );
             for record in session.run_events(&run.id).await {
-                if matches!(&record.event, AgentEvent::Error { .. } | AgentEvent::PermissionDenied { .. } | AgentEvent::End { .. } | AgentEvent::ToolEnd { .. }) {
+                if matches!(
+                    &record.event,
+                    AgentEvent::Error { .. }
+                        | AgentEvent::PermissionDenied { .. }
+                        | AgentEvent::End { .. }
+                        | AgentEvent::ToolEnd { .. }
+                ) {
                     eprintln!("PROMPT_CASE_EVENT {case} {:?}", record.event);
                 }
                 if let AgentEvent::ToolExecutionStart { name, .. } = record.event {
@@ -153,20 +228,41 @@ async fn prompt_boundary_real_model_preserves_source_and_uses_review_worker() {
                 }
             }
         }
-        eprintln!("PROMPT_CASE_RESULT {case} elapsed_ms={} usage={:?} tools={tools:?} result={bounded:?} answer={answer:?}", started.elapsed().as_millis(), session.recorded_usage_tokens());
+        eprintln!(
+            "PROMPT_CASE_RESULT {case} elapsed_ms={} usage={:?} tools={tools:?} result={bounded:?} answer={answer:?}",
+            started.elapsed().as_millis(),
+            session.recorded_usage_tokens()
+        );
         let result = bounded.expect("bounded live case");
-        assert_eq!(std::fs::read_to_string(&source).unwrap(), SOURCE, "{case} changed source");
+        assert_eq!(
+            std::fs::read_to_string(&source).unwrap(),
+            SOURCE,
+            "{case} changed source"
+        );
         assert_eq!(result.unwrap().stop_reason, acp::StopReason::EndTurn);
         if case == "direct" {
             assert_eq!(answer.trim(), "READY");
             assert!(tools.is_empty(), "direct answer called tools: {tools:?}");
         } else {
-            assert!(tools.iter().any(|name| name == "read" || name == "search"), "source not inspected: {tools:?}");
-            assert!(answer.contains("MAX_LINES") || answer.contains("first_lines"), "{answer}");
-            assert!(answer.to_ascii_lowercase().contains("panic") || answer.to_ascii_lowercase().contains("out of bounds"), "{answer}");
+            assert!(
+                tools.iter().any(|name| name == "read" || name == "search"),
+                "source not inspected: {tools:?}"
+            );
+            assert!(
+                answer.contains("MAX_LINES") || answer.contains("first_lines"),
+                "{answer}"
+            );
+            assert!(
+                answer.to_ascii_lowercase().contains("panic")
+                    || answer.to_ascii_lowercase().contains("out of bounds"),
+                "{answer}"
+            );
         }
         if delegated {
-            assert!(tools.iter().any(|name| name == "task"), "review not delegated: {tools:?}");
+            assert!(
+                tools.iter().any(|name| name == "task"),
+                "review not delegated: {tools:?}"
+            );
         }
         session.close().await;
     }
@@ -256,7 +352,12 @@ async fn prompt_boundary_real_model_repairs_and_passes_host_checker() {
             }
         }
     }
-    eprintln!("PROMPT_CASE_RESULT repair elapsed_ms={} usage={:?} result={result:?} independent_check={:?}", started.elapsed().as_millis(), session.recorded_usage_tokens(), checked.status);
+    eprintln!(
+        "PROMPT_CASE_RESULT repair elapsed_ms={} usage={:?} result={result:?} independent_check={:?}",
+        started.elapsed().as_millis(),
+        session.recorded_usage_tokens(),
+        checked.status
+    );
     eprintln!(
         "PROMPT_CASE_REPAIR_SOURCE {:?}",
         std::fs::read_to_string(root.path().join("limit.py")).unwrap()

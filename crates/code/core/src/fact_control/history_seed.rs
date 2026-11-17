@@ -1,6 +1,7 @@
 //! Seeding and reading back conversation history from facts.
 
 use super::*;
+use serde::Deserialize;
 
 #[derive(Clone)]
 pub(super) struct RecordedCall {
@@ -600,8 +601,8 @@ pub(super) fn recorded_tool_calls_in(
         if fact.kind == "model.turn"
             && fact.payload.get("kind").and_then(|kind| kind.as_str()) == Some("tool")
         {
-            let ModelDecision::Tool { call, also } =
-                serde_json::from_value::<ModelDecision>(fact.payload).map_err(|error| {
+            let ModelDecision::Tool { call, also } = ModelDecision::deserialize(&fact.payload)
+                .map_err(|error| {
                     ActorError::Schema(format!("invalid original tool-call metadata: {error}"))
                 })?
             else {
@@ -629,10 +630,9 @@ pub(super) fn recorded_tool_calls_in(
                 .payload
                 .get("receipt")
                 .map(|receipt| {
-                    serde_json::from_value::<aster_effect::ToolExecutionResultV1>(receipt.clone())
-                        .map_err(|error| {
-                            ActorError::Schema(format!("invalid original tool receipt: {error}"))
-                        })
+                    aster_effect::ToolExecutionResultV1::deserialize(receipt).map_err(|error| {
+                        ActorError::Schema(format!("invalid original tool receipt: {error}"))
+                    })
                 })
                 .transpose()?;
             if let Some(receipt) = &receipt {
@@ -645,9 +645,10 @@ pub(super) fn recorded_tool_calls_in(
                 ok: bool,
             }
             let output = super::fact_reads::tool_result_fact_output(&fact.payload).to_owned();
-            let payload: ResultPayload = serde_json::from_value(fact.payload).map_err(|error| {
-                ActorError::Schema(format!("invalid original tool-result metadata: {error}"))
-            })?;
+            let payload: ResultPayload =
+                ResultPayload::deserialize(&fact.payload).map_err(|error| {
+                    ActorError::Schema(format!("invalid original tool-result metadata: {error}"))
+                })?;
             let call = pending.pop_front().ok_or_else(|| {
                 ActorError::Schema("tool result has no original pending call".into())
             })?;
@@ -668,8 +669,8 @@ pub(super) fn recorded_tool_calls_in(
                 #[serde(default)]
                 kept: Vec<String>,
             }
-            let payload: CompactionPayload =
-                serde_json::from_value(fact.payload).map_err(|error| {
+            let payload: CompactionPayload = CompactionPayload::deserialize(&fact.payload)
+                .map_err(|error| {
                     ActorError::Schema(format!("invalid retained tool history: {error}"))
                 })?;
             let retained: Vec<_> = payload

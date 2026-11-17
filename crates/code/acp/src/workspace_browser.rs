@@ -226,7 +226,7 @@ async fn open_on_host(
             bail!("workspace browser host returned the wrong response");
         };
         anyhow::ensure!(
-            serde_json::to_vec(&value)?.len() <= 64 * 1024,
+            aster_core::byte_budget::json_serialized_len(&value)? <= 64 * 1024,
             "workspace browser host response exceeds 64 KiB"
         );
         Ok(value)

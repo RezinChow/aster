@@ -32,6 +32,21 @@ use windows::{
     normalize_json_like_literal, parse_simple_windows_http_command, preprocess_windows_command,
 };
 
+/// Attach shared byte-budget discard accounting on every bash capture summary
+/// (E4 vocabulary on the hot path; hosts already read total/captured/truncated).
+fn capture_output_metadata(
+    summary: crate::workspace::CommandOutputSummary,
+    timed_out: bool,
+) -> serde_json::Value {
+    serde_json::json!({
+        "total_bytes": summary.total_bytes,
+        "captured_bytes": summary.captured_bytes,
+        "truncated": summary.truncated,
+        "timed_out": timed_out,
+        "discarded_bytes": summary.discarded_bytes(),
+    })
+}
+
 /// Fallback timeout in milliseconds (10 minutes).
 ///
 /// This is a *fallback*, not a task budget: the model is expected to estimate
@@ -144,24 +159,114 @@ async fn wait_for_progress<F: Future>(
 /// Keeps `workspace::CommandRequest` free of `ToolEventSender`. Constructed in
 /// the bash tool when a session has installed an event channel; backend
 /// implementations only see `&dyn CommandOutputObserver`.
+///
+/// Chatty commands used to emit one ACP ToolCallUpdate per OS read chunk.
+/// Coalesce by byte/time so hosts and the pager spend less on per-chunk JSON.
+const OUTPUT_DELTA_COALESCE_BYTES: usize = 4 * 1024;
+const OUTPUT_DELTA_COALESCE_MS: u128 = 50;
+
+struct DeltaCoalesce {
+    buf: String,
+    last_flush: Instant,
+}
+
+impl Default for DeltaCoalesce {
+    fn default() -> Self {
+        Self {
+            buf: String::new(),
+            last_flush: Instant::now(),
+        }
+    }
+}
+
 struct ToolEventObserver {
     tx: Option<ToolEventSender>,
     summary: Mutex<Option<CommandOutputSummary>>,
     progress: CommandProgress,
+    coalesce: Mutex<DeltaCoalesce>,
+}
+
+impl ToolEventObserver {
+    fn take_flush_chunk(&self, force: bool) -> Option<String> {
+        let mut coalesce = self.coalesce.lock().unwrap();
+        if coalesce.buf.is_empty() {
+            return None;
+        }
+        let aged = coalesce.last_flush.elapsed().as_millis() >= OUTPUT_DELTA_COALESCE_MS;
+        if force || coalesce.buf.len() >= OUTPUT_DELTA_COALESCE_BYTES || aged {
+            coalesce.last_flush = Instant::now();
+            return Some(std::mem::take(&mut coalesce.buf));
+        }
+        None
+    }
+
+    async fn flush_output_delta(&self, force: bool) {
+        let Some(chunk) = self.take_flush_chunk(force) else {
+            return;
+        };
+        if let Some(tx) = &self.tx {
+            tx.send(ToolStreamEvent::OutputDelta(chunk)).await.ok();
+        }
+    }
+}
+
+#[cfg(test)]
+mod coalesce_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn output_deltas_coalesce_until_byte_budget_or_complete() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(8);
+        let observer = ToolEventObserver {
+            tx: Some(tx),
+            summary: Mutex::new(None),
+            progress: CommandProgress::new(),
+            coalesce: Mutex::new(DeltaCoalesce::default()),
+        };
+        observer.on_output_delta("abc").await;
+        assert!(rx.try_recv().is_err(), "tiny delta must wait for coalesce");
+        let big = "x".repeat(OUTPUT_DELTA_COALESCE_BYTES);
+        observer.on_output_delta(&big).await;
+        let first = rx.recv().await.expect("byte-budget flush");
+        match first {
+            ToolStreamEvent::OutputDelta(delta) => {
+                assert!(delta.starts_with("abc"));
+                assert_eq!(delta.len(), 3 + OUTPUT_DELTA_COALESCE_BYTES);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        observer.on_output_delta("tail").await;
+        observer
+            .on_output_complete(&CommandOutputSummary {
+                total_bytes: 4,
+                captured_bytes: 4,
+                truncated: false,
+                timed_out: false,
+            })
+            .await;
+        match rx.recv().await.expect("complete flush") {
+            ToolStreamEvent::OutputDelta(delta) => assert_eq!(delta, "tail"),
+            other => panic!("unexpected {other:?}"),
+        }
+    }
 }
 
 #[async_trait]
 impl CommandOutputObserver for ToolEventObserver {
     async fn on_output_delta(&self, delta: &str) {
         self.progress.note_output();
-        if let Some(tx) = &self.tx {
-            tx.send(ToolStreamEvent::OutputDelta(delta.to_string()))
-                .await
-                .ok();
+        if self.tx.is_none() {
+            return;
         }
+        {
+            let mut coalesce = self.coalesce.lock().unwrap();
+            coalesce.buf.push_str(delta);
+        }
+        self.flush_output_delta(false).await;
     }
 
     async fn on_output_complete(&self, summary: &CommandOutputSummary) {
+        self.flush_output_delta(true).await;
         *self.summary.lock().unwrap() = Some(*summary);
     }
 }
@@ -835,6 +940,7 @@ impl Tool for BashTool {
             tx: ctx.event_tx.clone(),
             summary: Mutex::new(None),
             progress: CommandProgress::new(),
+            coalesce: Mutex::new(DeltaCoalesce::default()),
         });
         let output_observer = Some(Arc::clone(&event_observer) as Arc<dyn CommandOutputObserver>);
 
@@ -975,14 +1081,8 @@ impl Tool for BashTool {
                         .map_err(|e| anyhow::anyhow!("Sandbox bash execution failed: {}", e))?,
                     Err(_) => {
                         let capture_summary = *event_observer.summary.lock().unwrap();
-                        let capture_metadata = capture_summary.map(|summary| {
-                            serde_json::json!({
-                                "total_bytes": summary.total_bytes,
-                                "captured_bytes": summary.captured_bytes,
-                                "truncated": summary.truncated,
-                                "timed_out": true,
-                            })
-                        });
+                        let capture_metadata =
+                            capture_summary.map(|summary| capture_output_metadata(summary, true));
                         let mut timed_out = ToolOutput::error(format!(
                             "[Command timed out after {}ms]\n[Command termination was not observed]\n{}\n[progress {}]",
                             timeout_ms,
@@ -1016,14 +1116,8 @@ impl Tool for BashTool {
                 }
 
                 let capture_summary = *event_observer.summary.lock().unwrap();
-                let capture_metadata = capture_summary.map(|summary| {
-                    serde_json::json!({
-                        "total_bytes": summary.total_bytes,
-                        "captured_bytes": summary.captured_bytes,
-                        "truncated": summary.truncated,
-                        "timed_out": summary.timed_out,
-                    })
-                });
+                let capture_metadata = capture_summary
+                    .map(|summary| capture_output_metadata(summary, summary.timed_out));
                 if termination == crate::tools::OwnedProcessTermination::Cancelled {
                     return Ok(cancelled_command(
                         ctx,
@@ -1125,14 +1219,8 @@ impl Tool for BashTool {
             .await
             .map_err(|e| anyhow::anyhow!("Workspace bash execution failed: {}", e))?;
         let capture_summary = *event_observer.summary.lock().unwrap();
-        let capture_metadata = capture_summary.map(|summary| {
-            serde_json::json!({
-                "total_bytes": summary.total_bytes,
-                "captured_bytes": summary.captured_bytes,
-                "truncated": summary.truncated,
-                "timed_out": summary.timed_out,
-            })
-        });
+        let capture_metadata =
+            capture_summary.map(|summary| capture_output_metadata(summary, summary.timed_out));
         if termination == crate::tools::OwnedProcessTermination::Cancelled {
             return Ok(cancelled_command(
                 ctx,

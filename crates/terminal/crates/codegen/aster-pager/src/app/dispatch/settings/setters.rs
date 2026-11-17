@@ -823,7 +823,7 @@ pub(in crate::app::dispatch) fn set_scroll_lines(app: &mut AppView, raw: i64) ->
 }
 
 pub(super) fn set_respect_manual_folds_inner(app: &mut AppView, new: bool) {
-    let mut config = app.appearance.clone();
+    let mut config = (*app.appearance).clone();
     config.scrollback.scroll.respect_manual_folds = new;
     app.set_appearance(config);
 }
@@ -961,7 +961,7 @@ pub(super) fn set_timestamps_inner(app: &mut AppView, new: bool) {
         crate::appearance::cache::set_timestamps(new);
         return;
     }
-    let mut config = app.appearance.clone();
+    let mut config = (*app.appearance).clone();
     config.show_timestamps = new;
     app.set_appearance(config);
     crate::appearance::cache::set_timestamps(new);
@@ -991,7 +991,7 @@ pub(super) fn set_timeline_inner(app: &mut AppView, new: bool) {
         crate::appearance::cache::set_show_timeline(new);
         return;
     }
-    let mut config = app.appearance.clone();
+    let mut config = (*app.appearance).clone();
     config.show_timeline = new;
     app.set_appearance(config);
     crate::appearance::cache::set_show_timeline(new);

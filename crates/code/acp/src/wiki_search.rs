@@ -241,7 +241,7 @@ impl Tool for SearchWikiTool {
         if wiki_read_denied(&denies) {
             return Ok(ToolOutput::error("denied"));
         }
-        let Ok(input) = serde_json::from_value::<SearchInput>(args.clone()) else {
+        let Ok(input) = SearchInput::deserialize(args) else {
             return Ok(ToolOutput::error("invalid query"));
         };
         let query = input.query.trim();

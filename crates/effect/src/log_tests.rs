@@ -429,3 +429,22 @@ fn rewind_cannot_cut_into_compacted_history() {
     assert!(log.truncate_after("thread-1", 1).is_err());
     assert_eq!(log.truncate_after("thread-1", 2).unwrap(), 1);
 }
+
+#[test]
+fn empty_mid_file_line_refuses_the_whole_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = log_with(&dir, 2);
+    drop(log);
+    let file = dir.path().join("thread-1.jsonl");
+    let mut body = std::fs::read_to_string(&file).unwrap();
+    // Insert a blank separator between the two records (E2).
+    let nl = body.find('\n').expect("first record");
+    body.insert(nl + 1, '\n');
+    std::fs::write(&file, body.as_bytes()).unwrap();
+    let log = FileLog::open(dir.path()).unwrap();
+    let err = log.read("thread-1").expect_err("blank mid-file line");
+    assert!(
+        matches!(err, ActorError::Schema(ref message) if message.contains("empty line")),
+        "unexpected error: {err:?}"
+    );
+}

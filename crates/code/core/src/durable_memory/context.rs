@@ -412,7 +412,7 @@ mod tests {
         );
         assert_eq!(
             identity,
-            "aster-context-v2-92a5ba699eac46c932d2b4bc8e02a15603380336c7f2719ace2204b5e1301f5c"
+            "aster-context-v2-637fed20ac50d084773db84c1ebe6e4fe538c8f6ef10271047c1dd5be15efa1f"
         );
     }
 

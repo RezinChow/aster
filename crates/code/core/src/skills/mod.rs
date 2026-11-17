@@ -29,7 +29,9 @@ pub mod validator;
 
 pub use builtin::builtin_skills;
 pub(crate) use registry::SkillRegistrySnapshotError;
-pub use registry::{SkillLoadError, SkillLoadErrorKind, SkillLoadReport, SkillRegistry};
+pub use registry::{
+    SkillLoadError, SkillLoadErrorKind, SkillLoadOverride, SkillLoadReport, SkillRegistry,
+};
 pub use validator::{
     DefaultSkillValidator, SkillValidationError, SkillValidator, ValidationErrorKind,
 };
@@ -41,13 +43,17 @@ use std::path::{Path, PathBuf};
 /// Skill package roots under a workspace or a home directory.
 /// Both places use the same names. A directory that does not exist yet is
 /// still a root: the loader skips it, and the watch list keeps it.
+///
+/// `.aster/skills` is last so Aster-native engineering packs win same-name
+/// overrides; legacy `.kstudio/skills` remains ahead of it for portable trees.
 pub fn agent_skill_roots(base: &Path) -> Vec<PathBuf> {
     vec![
         base.join("skills"),
-        base.join(".aster").join("skills"),
         base.join(".agents").join("skills"),
         base.join(".claude").join("skills"),
         base.join(".codex").join("skills"),
+        base.join(".kstudio").join("skills"),
+        base.join(".aster").join("skills"),
     ]
 }
 
@@ -315,6 +321,48 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn agent_skill_roots_include_kstudio_skills_last() {
+        let base = Path::new("/tmp/aster-skill-roots");
+        let roots = agent_skill_roots(base);
+        assert_eq!(
+            roots,
+            vec![
+                base.join("skills"),
+                base.join(".agents").join("skills"),
+                base.join(".claude").join("skills"),
+                base.join(".codex").join("skills"),
+                base.join(".kstudio").join("skills"),
+                base.join(".aster").join("skills"),
+            ]
+        );
+        assert_eq!(
+            roots.last().map(PathBuf::as_path),
+            Some(base.join(".aster").join("skills").as_path())
+        );
+    }
+
+    #[test]
+    fn kstudio_skills_load_as_first_class_registry_entries() {
+        let root = tempfile::tempdir().unwrap();
+        let skill_dir = root.path().join(".kstudio").join("skills").join("k-goal");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: k-goal\ndescription: Clarify overall goals\nkind: instruction\n---\n# Goal staff\n",
+        )
+        .unwrap();
+        let registry = SkillRegistry::new();
+        let report = registry
+            .load_from_dir_report(root.path().join(".kstudio").join("skills"))
+            .expect("load .kstudio/skills");
+        assert_eq!(report.loaded, 1);
+        assert!(report.errors.is_empty(), "{report:?}");
+        let skill = registry.get("k-goal").expect("k-goal loaded");
+        assert_eq!(skill.name, "k-goal");
+        assert!(skill.content.contains("Goal staff"));
+    }
 
     #[test]
     fn file_skill_keeps_resource_directory_through_projection_but_inline_skill_has_none() {

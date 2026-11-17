@@ -770,6 +770,10 @@ async fn test_bash_bounds_long_single_line_and_reports_exact_capture_metadata() 
     assert_eq!(output["captured_bytes"], crate::tools::MAX_OUTPUT_SIZE);
     assert_eq!(output["truncated"], true);
     assert_eq!(output["timed_out"], false);
+    assert_eq!(
+        output["discarded_bytes"],
+        crate::byte_budget::discarded_bytes(120_000, crate::tools::MAX_OUTPUT_SIZE)
+    );
 }
 
 #[tokio::test]
@@ -2152,6 +2156,7 @@ async fn sandbox_outer_timeout_includes_capture_summary_metadata() {
     assert_eq!(metadata["output"]["captured_bytes"], 18);
     assert_eq!(metadata["output"]["truncated"], true);
     assert_eq!(metadata["output"]["timed_out"], true);
+    assert_eq!(metadata["output"]["discarded_bytes"], 3);
 }
 
 #[tokio::test]

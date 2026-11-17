@@ -27,6 +27,7 @@ use aster_tools::types::output::{BashOutput, ToolOutput};
 use aster_tools::types::output::{ReadFileOutput, SearchToolOutput, WebFetchOutput};
 use aster_tools::util::strip_redundant_session_cd;
 use chrono::{DateTime, Local, TimeZone};
+use serde::Deserialize;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -962,10 +963,9 @@ impl AcpUpdateTracker {
             self.hooks_running = None;
         }
         if let Some(new_start) = meta.stream_start_ms {
-            if self
-                .last_stream_start_ms
-                .is_some_and(|prev| prev != new_start)
-            {
+            // First stamp of a turn (last is None) and mid-turn stream rollover
+            // both need Thinking chrome; previously only rollover pre-created.
+            if self.last_stream_start_ms != Some(new_start) {
                 let thinking_has_content = self
                     .current_thinking
                     .and_then(|id| scrollback.get_by_id(id))
@@ -1243,7 +1243,7 @@ impl AcpUpdateTracker {
             }
         }
         let tc_id = tc.tool_call_id.0.to_string();
-        if let Some(orphan) = self.orphan_updates.remove(&tc_id) {
+        if let Some(orphan) = self.orphan_updates.remove(tc_id.as_str()) {
             let merged = merge_tool_call_update(tc, orphan);
             let block = tool_call_to_block(
                 &merged,
@@ -1292,11 +1292,11 @@ impl AcpUpdateTracker {
         scrollback: &mut ScrollbackState,
         is_replay: bool,
     ) -> bool {
-        let tc_id_str = tcu.tool_call_id.0.to_string();
-        if self.bg_deferred_tools.contains_key(&tc_id_str) {
+        let tc_id_key = tcu.tool_call_id.0.as_ref();
+        if self.bg_deferred_tools.contains_key(tc_id_key) {
             return false;
         }
-        if self.suppressed_tools.contains_key(&tc_id_str) {
+        if self.suppressed_tools.contains_key(tc_id_key) {
             if let Some(ref raw_input) = tcu.fields.raw_input {
                 let variant = raw_input.get("variant").and_then(|v| v.as_str());
                 if is_task_variant(variant) {
@@ -1312,14 +1312,14 @@ impl AcpUpdateTracker {
                             .insert(task_id.to_string(), run_in_bg);
                     }
                     if run_in_bg {
-                        self.blocking_waits.remove(&tc_id_str);
+                        self.blocking_waits.remove(tc_id_key);
                     }
                 }
                 if let Some(WaitingReason::TaskOutput {
                     task_ids, waits, ..
                 }) = self
                     .blocking_waits
-                    .get_mut(&tc_id_str)
+                    .get_mut(tc_id_key)
                     .map(|w| &mut w.reason)
                 {
                     let extracted = task_ids_from_raw_input(raw_input);
@@ -1334,8 +1334,8 @@ impl AcpUpdateTracker {
             let status = tcu.fields.status.unwrap_or_default();
             match status {
                 acp::ToolCallStatus::Failed => {
-                    self.blocking_waits.remove(&tc_id_str);
-                    if let Some(mut base) = self.suppressed_tools.remove(&tc_id_str)
+                    self.blocking_waits.remove(tc_id_key);
+                    if let Some(mut base) = self.suppressed_tools.remove(tc_id_key)
                         && !is_bg_plumbing_tool(&base)
                     {
                         base.update(tcu.fields);
@@ -1349,11 +1349,11 @@ impl AcpUpdateTracker {
                     }
                 }
                 acp::ToolCallStatus::Completed => {
-                    self.suppressed_tools.remove(&tc_id_str);
-                    self.blocking_waits.remove(&tc_id_str);
+                    self.suppressed_tools.remove(tc_id_key);
+                    self.blocking_waits.remove(tc_id_key);
                 }
                 _ => {
-                    if let Some(base) = self.suppressed_tools.get_mut(&tc_id_str) {
+                    if let Some(base) = self.suppressed_tools.get_mut(tc_id_key) {
                         base.update(tcu.fields);
                     }
                 }
@@ -1365,9 +1365,10 @@ impl AcpUpdateTracker {
             status,
             acp::ToolCallStatus::Completed | acp::ToolCallStatus::Failed
         );
+        // Owned key only when inserting into String-keyed maps below.
         let tc_id = tcu.tool_call_id.0.to_string();
         if !is_completed {
-            let defer_as_bg = if let Some(pending) = self.pending_tools.get_mut(&tc_id) {
+            let defer_as_bg = if let Some(pending) = self.pending_tools.get_mut(tc_id.as_str()) {
                 let bash_output = extract_bash_output_from_value(&tcu.fields.raw_output);
                 pending.base.update(tcu.fields);
                 if pending.entry_id.is_none() && is_bg_tool(&pending.base) {
@@ -1875,10 +1876,7 @@ fn tool_call_to_block(
             if is_memory_v2_activity(tc) {
                 block = block.with_memory_activity();
             }
-            let structured = tc
-                .raw_output
-                .as_ref()
-                .map(|raw| serde_json::from_value::<ToolOutput>(raw.clone()));
+            let structured = tc.raw_output.as_ref().map(ToolOutput::deserialize);
             match structured {
                 Some(Ok(ToolOutput::ReadFile(read_output))) => match read_output {
                     ReadFileOutput::FileContent(fc) => {
@@ -2091,8 +2089,7 @@ fn tool_call_to_block(
                 }
             } else {
                 if let Some(ref raw) = tc.raw_output
-                    && let Ok(ToolOutput::WebSearch(ws)) =
-                        serde_json::from_value::<ToolOutput>(raw.clone())
+                    && let Ok(ToolOutput::WebSearch(ws)) = ToolOutput::deserialize(raw)
                 {
                     if !ws.content.is_empty() {
                         block.content = Some(ws.content);
@@ -2137,7 +2134,7 @@ fn tool_call_to_block(
             let mut block = WebFetchToolCallBlock::new(url);
             if let Some(ref raw) = tc.raw_output
                 && let Ok(ToolOutput::WebFetch(WebFetchOutput::Content(content))) =
-                    serde_json::from_value::<ToolOutput>(raw.clone())
+                    ToolOutput::deserialize(raw)
             {
                 block.status_code = Some(content.status_code);
                 block.content_type = Some(content.content_type);
@@ -2179,7 +2176,7 @@ fn tool_call_to_block(
                 && let Ok(ToolOutput::SearchTool(SearchToolOutput {
                     result_count,
                     content,
-                })) = serde_json::from_value::<ToolOutput>(raw.clone())
+                })) = ToolOutput::deserialize(raw)
             {
                 block.result_count = result_count;
                 block.results = parse_search_tool_results(&content);
@@ -2378,7 +2375,7 @@ fn media_gen_block(tc: &acp::ToolCall, success: bool) -> RenderBlock {
 /// That happens on the free / X Basic Aster Code-upsell short-circuit.
 /// `None` for real media outputs (including ZDR upload-only results) so their typed rendering is untouched.
 fn media_gen_text(tc: &acp::ToolCall) -> Option<String> {
-    match serde_json::from_value::<ToolOutput>(tc.raw_output.clone()?).ok()? {
+    match ToolOutput::deserialize(tc.raw_output.as_ref()?).ok()? {
         ToolOutput::Text(t) => (!t.text.is_empty()).then_some(t.text),
         _ => None,
     }
@@ -2387,12 +2384,11 @@ fn media_gen_text(tc: &acp::ToolCall) -> Option<String> {
 ///
 /// Returns `None` when `raw_output` is missing/unparseable, not a media variant, or has no openable local file (ZDR `uploaded_url` / empty path).
 fn media_gen_ref(tc: &acp::ToolCall) -> Option<(std::path::PathBuf, bool)> {
-    let (media, is_video) =
-        match serde_json::from_value::<ToolOutput>(tc.raw_output.clone()?).ok()? {
-            ToolOutput::ImageGen(m) | ToolOutput::ImageEdit(m) => (m, false),
-            ToolOutput::ImageToVideo(m) | ToolOutput::ReferenceToVideo(m) => (m, true),
-            _ => return None,
-        };
+    let (media, is_video) = match ToolOutput::deserialize(tc.raw_output.as_ref()?).ok()? {
+        ToolOutput::ImageGen(m) | ToolOutput::ImageEdit(m) => (m, false),
+        ToolOutput::ImageToVideo(m) | ToolOutput::ReferenceToVideo(m) => (m, true),
+        _ => return None,
+    };
     if media.uploaded_url.is_some() || media.path.as_os_str().is_empty() {
         return None;
     }
@@ -2636,7 +2632,7 @@ fn extract_raw_field(tc: &acp::ToolCall, field: &str) -> Option<String> {
 fn extract_edit_error(tc: &acp::ToolCall) -> String {
     use aster_tools::types::output::SearchReplaceOutput;
     if let Some(ref raw) = tc.raw_output
-        && let Ok(ToolOutput::SearchReplace(sr)) = serde_json::from_value::<ToolOutput>(raw.clone())
+        && let Ok(ToolOutput::SearchReplace(sr)) = ToolOutput::deserialize(raw)
     {
         return match sr {
             SearchReplaceOutput::InvalidInput(_) => "Invalid input".to_owned(),
@@ -2684,7 +2680,7 @@ fn extract_search_meta(tc: &acp::ToolCall) -> SearchInputMeta {
 /// Extract BashOutput from a serde_json::Value containing ToolOutput::Bash.
 fn extract_bash_output_from_value(raw: &Option<serde_json::Value>) -> Option<BashOutput> {
     let val = raw.as_ref()?;
-    match serde_json::from_value::<ToolOutput>(val.clone()) {
+    match ToolOutput::deserialize(val) {
         Ok(ToolOutput::Bash(bash)) => Some(bash),
         _ => None,
     }
@@ -2700,7 +2696,7 @@ struct GrepResult {
 /// Extract grep search results from raw_output.
 fn extract_grep_output(raw: &Option<serde_json::Value>) -> Option<GrepResult> {
     let val = raw.as_ref()?;
-    match serde_json::from_value::<ToolOutput>(val.clone()) {
+    match ToolOutput::deserialize(val) {
         Ok(ToolOutput::GrepSearch(grep)) => {
             let file_matches: Vec<SearchFileMatch> = grep
                 .file_matches
@@ -2744,7 +2740,7 @@ fn parse_file_paths_from_stdout(stdout: &str) -> Vec<String> {
 /// Extract directory listing content from rawOutput.
 fn extract_listdir_content(raw: &Option<serde_json::Value>) -> Option<String> {
     let val = raw.as_ref()?;
-    match serde_json::from_value::<ToolOutput>(val.clone()) {
+    match ToolOutput::deserialize(val) {
         Ok(ToolOutput::ListDir(aster_tools::types::output::ListDirOutput::Content(c))) => {
             Some(c.content)
         }
@@ -2924,7 +2920,7 @@ fn parse_search_tool_results(content: &str) -> Vec<DiscoveredTool> {
 /// This extracts the text from ToolOutput::MCP, ToolOutput::Text, or ToolOutput::Dynamic variants.
 fn extract_use_tool_output(raw: &Option<serde_json::Value>) -> Option<String> {
     let val = raw.as_ref()?;
-    if let Ok(output) = serde_json::from_value::<ToolOutput>(val.clone()) {
+    if let Ok(output) = ToolOutput::deserialize(val) {
         let text = match output {
             ToolOutput::MCP(mcp) => {
                 use aster_tools::types::output::MCPOutputDetails;

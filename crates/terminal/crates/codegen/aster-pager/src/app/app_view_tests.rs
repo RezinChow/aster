@@ -98,7 +98,7 @@ pub(crate) fn test_app() -> AppView {
         exit_session_pending: None,
         scroll_state: MouseScrollState::default(),
         scroll_config: ScrollConfig::default(),
-        appearance: AppearanceConfig::default(),
+        appearance: std::sync::Arc::new(AppearanceConfig::default()),
         notification_service: NotificationService::new(
             Default::default(),
             crate::render::draw::EscapeWriter::disconnected(),
@@ -1057,7 +1057,19 @@ fn word_select_tip_retires_on_prompt_divergence_and_accepts_before() {
         matches!(out, InputOutcome::Action(Action::AcceptWordSelectTip)),
         "Ctrl+Y with the tip up must route to accept, got {out:?}"
     );
-    let _ = app.handle_input(&key_event(KeyCode::Char('a'), KeyModifiers::NONE));
+    let typed = app.handle_input(&key_event(KeyCode::Char('a'), KeyModifiers::NONE));
+    assert!(
+        matches!(typed, InputOutcome::Changed | InputOutcome::Action(_)),
+        "typing must reach the prompt, got {typed:?}"
+    );
+    {
+        let agent = app.agents.get(&id).unwrap();
+        assert_ne!(
+            agent.word_select_tip_prompt_snapshot.as_deref(),
+            Some(agent.prompt.text()),
+            "typed char must diverge from the word-select tip snapshot"
+        );
+    }
     let out = app.handle_input(&key_event(KeyCode::Char('y'), KeyModifiers::CONTROL));
     assert!(
         !matches!(out, InputOutcome::Action(Action::AcceptWordSelectTip)),
@@ -2154,6 +2166,8 @@ fn apply_aster_slash_gate_hides_unsupported_builtins() {
     assert!(reg.get("effort").is_some());
     assert!(reg.get("compact").is_some());
     assert!(reg.get("yolo").is_some());
+    // `/init` is pager-local InjectSkill (AGENTS.md); keep on ASTER_EFFECTIVE_COMMANDS.
+    assert!(reg.get("init").is_some());
     // Voice gate off → settings / slash voice surface hidden.
     assert!(!app.voice_mode_enabled);
     assert!(reg.get("voice").is_none());

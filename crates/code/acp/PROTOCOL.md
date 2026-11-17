@@ -32,6 +32,21 @@ There are two queues; only the first is visible to hosts.
 - Known seam: `run_observation::METHOD` is already `_aster/execution/observe`, so the wire method is `__aster/execution/observe`. Studio accepts both. Do not change it without a coordinated host change.
 - A shape change to a `…/v1` method is a new `…/v2` method, not an edit.
 
+## Initialize feature-switch admission (P7)
+
+`initialize` response `_meta` projects mechanism governance (not a remote rollout %):
+
+| Key | Shape | Meaning |
+| --- | --- | --- |
+| `featureSwitchRegistryDigest` | `sha256:…` | Digest of the Core feature-switch registry rows |
+| `featureSwitches` | `{ id: bool }` | Admission map: `Removed` → `false`; other known stages → `true`; unknown names are absent |
+| `featureSwitchStages` | `{ id: string }` | Stage string per id (`stable` / `experimental` / `removed` / …). Hosts that need Stable-vs-Experimental must read this map — do not treat `featureSwitches[id]=true` as Stable |
+
+`tools.parallel_task` is `Removed` (`enabled=false`, stage `removed`).
+`tools.patch_codes` may still appear `enabled=true` while stage is `experimental` —
+production call sites must use Core `feature_switch_call_site_allowed` (Stable/Deprecated only);
+dynamic tool registration refuses Experimental/Removed names.
+
 ## Gate
 
 - `tests/fixtures/acp_wire_surface_v1.json` is the golden surface.

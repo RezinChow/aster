@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use chrono::NaiveDate;
+use serde::Deserialize;
 
 mod catalog;
 pub use catalog::{
@@ -64,6 +65,9 @@ pub(crate) fn ensure_session_dir_on(
 /// A fresh id gets a date folder. An existing folder is reused. A legacy
 /// effect log without a folder is left alone.
 pub fn prepare_session_home(workspace: &Path, session_id: &str) -> Result<Option<PathBuf>> {
+    if crate::state_root::workspace_state_dir(workspace) == workspace.join(".aster") {
+        crate::git::exclude_aster_state(workspace)?;
+    }
     if let Some(existing) = find_session_dir(workspace, session_id)? {
         write_session_json_if_absent(
             &existing,
@@ -96,7 +100,7 @@ pub fn prepare_session_home_with_kind(
         bail!("invalid session marker: {}", marker.display());
     };
     if let Some(existing) = fields.get("sessionKind") {
-        let existing: SessionKind = serde_json::from_value(existing.clone())?;
+        let existing: SessionKind = SessionKind::deserialize(existing)?;
         if existing != kind {
             bail!("session kind conflicts with the existing marker");
         }
@@ -527,6 +531,55 @@ mod tests {
             .is_none());
         assert!(!sessions_root(workspace.path()).exists());
         assert_eq!(effect_log_dir(workspace.path(), id), legacy);
+    }
+
+    #[test]
+    fn git_stash_untracked_preserves_the_active_session_log() {
+        let workspace = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| {
+            let output = std::process::Command::new("git")
+                .args(args)
+                .current_dir(workspace.path())
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "git {args:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        };
+        git(&["init", "--quiet"]);
+        std::fs::write(workspace.path().join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&[
+            "-c",
+            "user.name=Aster Test",
+            "-c",
+            "user.email=aster@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "base",
+        ]);
+
+        let home = prepare_session_home(workspace.path(), ID)
+            .unwrap()
+            .expect("new session folder");
+        let log = aster_effect::FileLog::open(&home).unwrap();
+        let fact = |key: &str| aster_effect::NewFact {
+            kind: "user.message".into(),
+            key: key.into(),
+            payload: serde_json::json!({}),
+        };
+        log.append(ID, &[fact("before-stash")], None).unwrap();
+        std::fs::write(workspace.path().join("notes.txt"), "stash me\n").unwrap();
+
+        git(&["stash", "push", "--include-untracked", "-m", "update"]);
+
+        assert!(!workspace.path().join("notes.txt").exists());
+        assert!(home.join(format!("{ID}.jsonl")).is_file());
+        log.append(ID, &[fact("after-stash")], None).unwrap();
+        assert_eq!(log.read(ID).unwrap().len(), 2);
     }
 
     #[test]

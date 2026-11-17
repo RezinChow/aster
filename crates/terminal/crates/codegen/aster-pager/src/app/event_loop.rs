@@ -1543,7 +1543,7 @@ pub(crate) async fn run(
     let show_timeline = crate::appearance::cache::load_show_timeline();
     app.current_ui.show_timeline = Some(show_timeline);
     if app.appearance.show_timeline != show_timeline {
-        let mut config = app.appearance.clone();
+        let mut config = (*app.appearance).clone();
         config.show_timeline = show_timeline;
         app.set_appearance(config);
     }

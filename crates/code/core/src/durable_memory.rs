@@ -443,12 +443,14 @@ impl DurableTurnEvidence {
             response,
             transcript,
         };
-        let encoded =
-            serde_json::to_vec(&payload).map_err(|error| MemoryRepositoryError::InvalidInput {
+        let mut hasher = Sha256::new();
+        crate::byte_budget::json_update_sha256(&mut hasher, &payload).map_err(|error| {
+            MemoryRepositoryError::InvalidInput {
                 field: "turnEvidence".into(),
                 message: error.to_string(),
-            })?;
-        let digest = format!("sha256:{:x}", Sha256::digest(encoded));
+            }
+        })?;
+        let digest = format!("sha256:{:x}", hasher.finalize());
         let session = utf8_percent_encode(session_id, NON_ALPHANUMERIC);
         let turn = utf8_percent_encode(turn_id, NON_ALPHANUMERIC);
         let reference = EvidenceRef::try_new(
@@ -467,14 +469,14 @@ impl DurableTurnEvidence {
 fn candidate_id(draft: &MemoryNodeDraft) -> Result<String, MemoryRepositoryError> {
     let mut identity = draft.clone();
     identity.id.clear();
-    let encoded =
-        serde_json::to_vec(&identity).map_err(|error| MemoryRepositoryError::InvalidInput {
-            field: "candidate".into(),
-            message: error.to_string(),
-        })?;
     let mut hasher = Sha256::new();
     hasher.update(b"aster.code.memory.candidate.v1\0");
-    hasher.update(encoded);
+    crate::byte_budget::json_update_sha256(&mut hasher, &identity).map_err(|error| {
+        MemoryRepositoryError::InvalidInput {
+            field: "candidate".into(),
+            message: error.to_string(),
+        }
+    })?;
     Ok(format!("aster-candidate-{:x}", hasher.finalize()))
 }
 

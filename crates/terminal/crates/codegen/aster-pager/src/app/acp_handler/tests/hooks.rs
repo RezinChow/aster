@@ -322,7 +322,7 @@
     #[test]
     fn hook_notifications_are_inert_when_plugins_are_disabled() {
         let mut app = make_app_with_agent("sess-hooks");
-        app.appearance.disable_plugins = true;
+        std::sync::Arc::make_mut(&mut app.appearance).disable_plugins = true;
         let len_before = test_agent(&app, AgentId(0)).scrollback.len();
         let _ = handle_ext_notification(&aster_hook_run_started_notif("sess-hooks", "pre_tool_use", 1), &mut app);
         let _ = handle_ext_notification(

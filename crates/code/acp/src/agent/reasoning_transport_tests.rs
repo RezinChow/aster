@@ -466,8 +466,10 @@ async fn switching_preserves_history_and_anthropic_parameters() {
             system.contains(SESSION_OUTCOME_BOUNDARY),
             "core boundary must remain in request {index}"
         );
-        assert!(system.contains(TERMINAL_MARKDOWN_PRESENTATION),
-            "terminal artifact guidance must reach the actual provider request after model switches");
+        assert!(
+            system.contains(TERMINAL_MARKDOWN_PRESENTATION),
+            "terminal artifact guidance must reach the actual provider request after model switches"
+        );
         let messages = request["messages"].to_string();
         if index < phrasings.len() {
             assert!(messages.contains(phrasings[index]));

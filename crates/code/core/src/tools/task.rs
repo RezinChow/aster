@@ -29,8 +29,9 @@ pub(crate) mod background_settlement;
 use async_trait::async_trait;
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::any::Any;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -110,8 +111,54 @@ pub(crate) fn json_value_depth(value: &serde_json::Value) -> usize {
     }
 }
 
+/// Content fingerprint for in-flight `task` admission (A1).
+///
+/// Keys on agent + description + prompt + workspace so identical delegated
+/// work cannot fan out under fresh `task-{uuid}` ids while a sibling is still
+/// running. Completed tasks release the key and may be retried.
+pub(crate) fn task_content_fingerprint(params: &TaskParams, workspace: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(params.agent.as_bytes());
+    hasher.update([0]);
+    hasher.update(params.description.as_bytes());
+    hasher.update([0]);
+    hasher.update(params.prompt.as_bytes());
+    hasher.update([0]);
+    hasher.update(workspace.as_bytes());
+    format!("sha256:{:x}", hasher.finalize())
+}
+
+fn refuse_blank_task_prompt(params: &TaskParams) -> Option<String> {
+    if params.prompt.trim().is_empty() {
+        Some("task prompt must not be empty".to_string())
+    } else {
+        None
+    }
+}
+
+/// Holds one in-flight content reservation until drop (task ends or fails).
+pub(super) struct InFlightTaskContentLease {
+    slots: Arc<Mutex<HashMap<String, String>>>,
+    fingerprint: String,
+    task_id: String,
+}
+
+impl Drop for InFlightTaskContentLease {
+    fn drop(&mut self) {
+        let Ok(mut slots) = self.slots.lock() else {
+            return;
+        };
+        if slots
+            .get(&self.fingerprint)
+            .is_some_and(|id| id == &self.task_id)
+        {
+            slots.remove(&self.fingerprint);
+        }
+    }
+}
+
 pub(crate) fn refuse_oversized_output_schema(schema: &serde_json::Value) -> Option<String> {
-    let bytes = serde_json::to_vec(schema).ok()?.len();
+    let bytes = crate::byte_budget::json_serialized_len(schema).ok()?;
     if bytes > MAX_TASK_OUTPUT_SCHEMA_BYTES {
         return Some(format!(
             "output_schema exceeds the {MAX_TASK_OUTPUT_SCHEMA_BYTES} byte limit"
@@ -167,6 +214,8 @@ struct ScopedTaskExecution<'a> {
     emit_start: bool,
     parent_cancellation: Option<&'a CancellationToken>,
     admitted_capability_subtask: Option<crate::capability::AgentCapabilitySubtask>,
+    /// Pre-reserved A1 content lease (background path admits before Start).
+    content_lease: Option<InFlightTaskContentLease>,
     parallel_lifecycle: Option<Arc<ParallelTaskLifecycle>>,
     terminal_persistence: Option<&'a crate::agent_api::SessionPersistenceContext>,
 }
@@ -300,6 +349,10 @@ pub struct TaskExecutor {
     /// Optional shared tracker — when present each task registers a
     /// `CancellationToken` so callers can cancel by `task_id`.
     subagent_tracker: Option<Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>>,
+    /// In-flight content fingerprints → task_id (A1). Shared across
+    /// `scoped_for_invocation` clones so concurrent identical `task` calls
+    /// fail closed instead of minting parallel uuid children.
+    in_flight_task_content: Arc<Mutex<HashMap<String, String>>>,
     /// Agent-wide scheduler for independent delegated work.
     task_scheduler: Option<Arc<crate::task_scheduler::TaskScheduler>>,
     /// Host-started workflow executors have no parent lease, so their
@@ -349,6 +402,7 @@ impl TaskExecutor {
                 crate::agent::DEFAULT_MAX_PARALLEL_TASKS,
             )),
             subagent_tracker: None,
+            in_flight_task_content: Arc::new(Mutex::new(HashMap::new())),
             task_scheduler: None,
             schedule_foreground: false,
             admission_scope: None,
@@ -397,6 +451,7 @@ impl TaskExecutor {
                 crate::agent::DEFAULT_MAX_PARALLEL_TASKS,
             )),
             subagent_tracker: None,
+            in_flight_task_content: Arc::new(Mutex::new(HashMap::new())),
             task_scheduler: None,
             schedule_foreground: false,
             admission_scope: None,
@@ -520,6 +575,44 @@ impl TaskExecutor {
         self
     }
 
+    /// Reserve `(agent, description, prompt, workspace)` for an in-flight task.
+    /// Identical content while the first child is still running fails closed.
+    pub(super) fn admit_in_flight_task_content(
+        &self,
+        task_id: &str,
+        params: &TaskParams,
+    ) -> Result<InFlightTaskContentLease, String> {
+        let fingerprint = task_content_fingerprint(params, &self.workspace);
+        let mut slots = self
+            .in_flight_task_content
+            .lock()
+            .expect("in-flight task content map");
+        if let Some(existing) = slots.get(&fingerprint) {
+            return Err(format!(
+                "Duplicate in-flight task content matches running task {existing}; wait for it to finish or change agent/description/prompt"
+            ));
+        }
+        slots.insert(fingerprint.clone(), task_id.to_string());
+        Ok(InFlightTaskContentLease {
+            slots: Arc::clone(&self.in_flight_task_content),
+            fingerprint,
+            task_id: task_id.to_string(),
+        })
+    }
+
+    fn duplicate_in_flight_task_message(&self, params: &TaskParams) -> Option<String> {
+        let fingerprint = task_content_fingerprint(params, &self.workspace);
+        let slots = self
+            .in_flight_task_content
+            .lock()
+            .expect("in-flight task content map");
+        slots.get(&fingerprint).map(|existing| {
+            format!(
+                "Duplicate in-flight task content matches running task {existing}; wait for it to finish or change agent/description/prompt"
+            )
+        })
+    }
+
     /// Admit independent delegated work through the owning agent's scheduler.
     pub fn with_task_scheduler(
         mut self,
@@ -624,6 +717,7 @@ impl TaskExecutor {
                 emit_start: true,
                 parent_cancellation,
                 admitted_capability_subtask: None,
+                content_lease: None,
                 parallel_lifecycle: None,
                 terminal_persistence: None,
             },
@@ -652,6 +746,7 @@ impl TaskExecutor {
                 emit_start,
                 parent_cancellation: self.parent_cancellation.as_ref(),
                 admitted_capability_subtask: None,
+                content_lease: None,
                 parallel_lifecycle: None,
                 terminal_persistence: None,
             },
@@ -671,6 +766,7 @@ impl TaskExecutor {
             emit_start,
             parent_cancellation,
             admitted_capability_subtask,
+            content_lease,
             parallel_lifecycle,
             terminal_persistence,
         } = execution;
@@ -683,6 +779,17 @@ impl TaskExecutor {
                 anyhow::bail!("{message}");
             }
         }
+        if let Some(message) = refuse_blank_task_prompt(&params) {
+            anyhow::bail!("{message}");
+        }
+        // Hold for the whole scoped run so identical content cannot spawn a
+        // second child under a fresh uuid while this one is still live (A1).
+        let _content_lease = match content_lease {
+            Some(lease) => lease,
+            None => self
+                .admit_in_flight_task_content(&task_id, &params)
+                .map_err(anyhow::Error::msg)?,
+        };
 
         let capability_subtask = match admitted_capability_subtask {
             Some(subtask) => Some(subtask),
@@ -1039,7 +1146,14 @@ impl TaskExecutor {
         // These exact Arc values belong only to this TaskExecutor. Install them
         // after all inherited sources so no scoped tool can shadow a built-in,
         // compatibility MCP tool, or Run-frozen projected binding.
+        // A5: hard-deny projecting a nested `task` tool (soft omit of the
+        // built-in is not enough — scoped/dynamic install was a bypass).
         for tool in &self.scoped_tools {
+            if tool.name() == "task" {
+                anyhow::bail!(
+                    "Workflow-scoped tool 'task' is refused: nested task delegation is not allowed"
+                );
+            }
             if !child_executor.register_dynamic_tool_if_absent(Arc::clone(tool)) {
                 anyhow::bail!(
                     "Workflow-scoped tool '{}' conflicts with another child capability",
@@ -1433,6 +1547,38 @@ impl TaskExecutor {
         } else {
             task_id
         };
+        // A9: raw `execute_background*` must own a workspace_child slot when the
+        // tool path did not already reserve one. Failure exits settle that slot
+        // so completion cannot Allow while an unsettleable writer is "live".
+        let owned_workspace_child = !crate::porcelain::workspace_child_pending(&task_id);
+        if owned_workspace_child {
+            crate::porcelain::reserve_workspace_child(&task_id);
+        }
+        let settle_owned_workspace_child = |task_id: &str| {
+            if owned_workspace_child {
+                crate::porcelain::settle_workspace_child_paths(task_id, Vec::new());
+                let _ = crate::porcelain::take_settled_workspace_child(task_id);
+            }
+        };
+        if let Some(message) = refuse_blank_task_prompt(&params) {
+            tracing::error!(task_id = %task_id, "{message}");
+            settle_owned_workspace_child(&task_id);
+            return BackgroundLaunch {
+                task_id,
+                running: false,
+            };
+        }
+        let content_lease = match self.admit_in_flight_task_content(&task_id, &params) {
+            Ok(lease) => lease,
+            Err(message) => {
+                tracing::warn!(task_id = %task_id, "{message}");
+                settle_owned_workspace_child(&task_id);
+                return BackgroundLaunch {
+                    task_id,
+                    running: false,
+                };
+            }
+        };
         let session_id = format!("task-run-{}", task_id);
         let failure_session_id = session_id.clone();
         let failure_agent = params.agent.clone();
@@ -1496,6 +1642,8 @@ impl TaskExecutor {
                     let _ = tx.send(end_event);
                 }
                 tracing::error!(task_id = %task_id, "{message}");
+                // content_lease drops here and frees the A1 fingerprint slot.
+                settle_owned_workspace_child(&task_id);
                 return BackgroundLaunch {
                     task_id,
                     running: false,
@@ -1516,6 +1664,7 @@ impl TaskExecutor {
         let workspace_root = PathBuf::from(&self.workspace);
         let observed_task_id = task_id_for_spawn.clone();
         let background = async move {
+            let _content_lease = content_lease;
             let mut workspace_child = crate::porcelain::WorkspaceChildGuard::new(&observed_task_id);
             if let Some(ref tracker) = self.subagent_tracker {
                 tracker.record_event(&start_event).await;
@@ -1533,6 +1682,7 @@ impl TaskExecutor {
                         emit_start: false,
                         parent_cancellation: parent_cancellation.as_ref(),
                         admitted_capability_subtask,
+                        content_lease: Some(_content_lease),
                         parallel_lifecycle: None,
                         terminal_persistence: None,
                     },
@@ -1633,6 +1783,9 @@ impl TaskExecutor {
             });
         }
 
+        if !running {
+            settle_owned_workspace_child(&task_id);
+        }
         BackgroundLaunch { task_id, running }
     }
 }
@@ -1882,8 +2035,14 @@ impl TaskTool {
                 return Ok(invalid_delegation_argument(message));
             }
         }
+        if let Some(message) = refuse_blank_task_prompt(&params) {
+            return Ok(invalid_delegation_argument(message));
+        }
         let parent_cancellation = ctx.cancellation_token();
         let executor = self.executor.scoped_for_invocation(ctx);
+        if let Some(message) = executor.duplicate_in_flight_task_message(&params) {
+            return Ok(invalid_delegation_argument(message));
+        }
 
         if params.background {
             let task_id = format!("task-{}", uuid::Uuid::new_v4());
@@ -1940,14 +2099,26 @@ impl TaskTool {
         }
 
         let watch = crate::porcelain::Watch::start(&ctx.workspace).await;
-        let result = executor
+        let result = match executor
             .execute_with_parent_cancellation(
                 params,
                 ctx.agent_event_tx.clone(),
                 ctx.session_id.as_deref(),
                 Some(&parent_cancellation),
             )
-            .await?;
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                let message = format!("{error:#}");
+                if message.contains("Duplicate in-flight task content")
+                    || message.contains("task prompt must not be empty")
+                {
+                    return Ok(invalid_delegation_argument(message));
+                }
+                return Err(error);
+            }
+        };
         let changed = watch.finish(&ctx.workspace).await;
         adopt_dirtied_paths(
             ctx.session_id.as_deref(),
@@ -1955,7 +2126,7 @@ impl TaskTool {
             &ctx.workspace,
             &changed,
         );
-        let (content, truncated) = format_task_result_for_context(&result);
+        let (content, truncated, discarded) = format_task_result_for_context(&result);
         let mut metadata = Some(serde_json::json!({
             "task_id": result.task_id,
             "session_id": result.session_id,
@@ -1963,6 +2134,7 @@ impl TaskTool {
             "success": result.success,
             "output_bytes": result.output.len(),
             "truncated_for_context": truncated,
+            "discarded_bytes": discarded,
             "artifact_id": task_artifact_id(&result),
             "artifact_uri": task_artifact_uri(&result),
             "structured": result.structured,
@@ -2010,7 +2182,7 @@ impl Tool for TaskTool {
 
     async fn execute(&self, args: &serde_json::Value, ctx: &ToolContext) -> Result<ToolOutput> {
         if args.get("tasks").is_some() {
-            let mut params: ParallelTaskParams = match serde_json::from_value(args.clone()) {
+            let mut params: ParallelTaskParams = match ParallelTaskParams::deserialize(args) {
                 Ok(params) => params,
                 Err(error) => {
                     return Ok(invalid_delegation_argument(format!(
@@ -2036,7 +2208,7 @@ impl Tool for TaskTool {
                 .await;
         }
 
-        let params: TaskParams = match serde_json::from_value(args.clone()) {
+        let params: TaskParams = match TaskParams::deserialize(args) {
             Ok(params) => params,
             Err(error) => {
                 return Ok(invalid_delegation_argument(format!(

@@ -872,14 +872,16 @@ fn bounded_diff_output(args: &serde_json::Value, diff: String) -> Result<ToolOut
         ));
     }
 
+    let returned_bytes = end - byte_offset;
     Ok(
         ToolOutput::success(output).with_metadata(serde_json::json!({
             "range": {
                 "byte_offset": byte_offset,
                 "requested_max_bytes": requested_max_bytes,
                 "applied_max_bytes": max_bytes,
-                "returned_bytes": end - byte_offset,
+                "returned_bytes": returned_bytes,
                 "total_bytes": diff.len(),
+                "discarded_bytes": crate::byte_budget::discarded_bytes(diff.len(), returned_bytes),
                 "next_byte_offset": next_offset,
                 "eof": next_offset.is_none(),
                 "limit_clamped": requested_max_bytes != max_bytes,
@@ -1078,7 +1080,14 @@ mod tests {
             .unwrap();
         assert!(first.success, "{}", first.content);
         let metadata = first.metadata.as_ref().unwrap();
-        assert!(metadata["range"]["returned_bytes"].as_u64().unwrap() <= 256);
+        let returned = metadata["range"]["returned_bytes"].as_u64().unwrap();
+        let total = metadata["range"]["total_bytes"].as_u64().unwrap();
+        assert!(returned <= 256);
+        assert_eq!(
+            metadata["range"]["discarded_bytes"].as_u64().unwrap(),
+            total.saturating_sub(returned)
+        );
+        assert!(metadata["range"]["discarded_bytes"].as_u64().unwrap() > 0);
         let next = metadata["range"]["next_byte_offset"].as_u64().unwrap();
         assert!(first.content.contains("more diff available"));
 

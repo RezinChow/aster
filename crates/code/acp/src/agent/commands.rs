@@ -34,6 +34,13 @@ pub(super) fn acp_commands() -> Vec<acp::AvailableCommand> {
                 "[stop <task-id>]",
             )),
         ),
+        acp::AvailableCommand::new(
+            "kburn",
+            "Report kburn / .kstudio skill coverage; optionally materialize factory seeds",
+        )
+        .input(acp::AvailableCommandInput::Unstructured(
+            acp::UnstructuredCommandInput::new("[status | materialize]"),
+        )),
     ]
 }
 
@@ -88,7 +95,7 @@ impl AsterCodeAgent {
             return;
         };
         let notification = acp::SessionNotification::new(
-            acp::SessionId::new(session_id.to_string()),
+            acp::SessionId::new(session_id),
             acp::SessionUpdate::AvailableCommandsUpdate(acp::AvailableCommandsUpdate::new(
                 available_commands,
             )),

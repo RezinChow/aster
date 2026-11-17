@@ -51,8 +51,8 @@ pub use descriptor::{CapabilityContribution, CapabilityDescriptor, MAX_CAPABILIT
 pub use effect::{CapabilityEffect, CapabilityEffectError};
 pub use error::CapabilitySetError;
 pub use feature_stage::{
-    feature_switch_registry_digest, resolve_feature_switch, FeatureStage, FeatureSwitchSpec,
-    FEATURE_SWITCHES,
+    feature_switch_call_site_allowed, feature_switch_enabled, feature_switch_registry_digest,
+    resolve_feature_switch, FeatureStage, FeatureSwitchSpec, FEATURE_SWITCHES,
 };
 pub use id::{
     CapabilityId, CapabilityKind, CapabilitySourceId, CodeCatalogGeneration,

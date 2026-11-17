@@ -369,7 +369,7 @@ impl Assembly {
                 }
                 self.parts_bytes = self
                     .parts_bytes
-                    .saturating_add(serde_json::to_vec(parts)?.len());
+                    .saturating_add(crate::byte_budget::json_serialized_len(parts)?);
                 if self.parts_bytes > MAX_BODY_BYTES {
                     return Err(GeminiError::Invalid(
                         "Gemini accumulated parts exceed byte limit",

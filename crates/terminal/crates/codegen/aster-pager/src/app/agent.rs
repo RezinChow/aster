@@ -873,6 +873,10 @@ impl AgentSession {
         self.compact_held_prompt = None;
         self.tracker.set_session_cwd(&self.cwd);
         self.tracker.expect_user_echo();
+        // Show Thinking… immediately on send — Code ACP may not emit a chunk
+        // until LLM headers arrive (default wait up to 120s), which felt like
+        // a multi-minute blank turn on simple prompts.
+        self.tracker.pre_create_thinking(scrollback);
         self.state = AgentState::TurnRunning;
         self.in_flight_prompt = None;
     }

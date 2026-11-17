@@ -150,16 +150,15 @@ impl DurableMemorySemanticBindingV1 {
     }
 
     pub(crate) fn serving_generation_digest(&self) -> Result<String, DurableMemorySemanticError> {
-        let encoded = serde_json::to_vec(self).map_err(|error| {
+        let mut hasher = Sha256::new();
+        hasher.update(SERVING_GENERATION_DIGEST_DOMAIN.as_bytes());
+        hasher.update([0]);
+        crate::byte_budget::json_update_sha256(&mut hasher, self).map_err(|error| {
             invalid(
                 "binding.servingGenerationDigest",
                 format!("could not encode semantic binding: {error}"),
             )
         })?;
-        let mut hasher = Sha256::new();
-        hasher.update(SERVING_GENERATION_DIGEST_DOMAIN.as_bytes());
-        hasher.update([0]);
-        hasher.update(encoded);
         Ok(format!("sha256:{:x}", hasher.finalize()))
     }
 
@@ -317,16 +316,15 @@ fn execution_policy_digest(
         request_timeout_secs: config.request_timeout.as_secs(),
         request_timeout_nanos: config.request_timeout.subsec_nanos(),
     };
-    let encoded = serde_json::to_vec(&input).map_err(|error| {
+    let mut hasher = Sha256::new();
+    hasher.update(EXECUTION_POLICY_DIGEST_DOMAIN.as_bytes());
+    hasher.update([0]);
+    crate::byte_budget::json_update_sha256(&mut hasher, &input).map_err(|error| {
         invalid(
             "binding.embeddingExecutionDigest",
             format!("could not encode execution policy: {error}"),
         )
     })?;
-    let mut hasher = Sha256::new();
-    hasher.update(EXECUTION_POLICY_DIGEST_DOMAIN.as_bytes());
-    hasher.update([0]);
-    hasher.update(encoded);
     Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 

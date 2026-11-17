@@ -256,7 +256,7 @@ impl GeminiClient {
                     json!({"functionCallingConfig":{"mode":"ANY","allowedFunctionNames":[name]}});
             }
         }
-        if serde_json::to_vec(&request)?.len() > MAX_BODY_BYTES {
+        if crate::byte_budget::json_serialized_len(&request)? > MAX_BODY_BYTES {
             return Err(GeminiError::Invalid("Gemini request exceeds byte limit"));
         }
         Ok(request)

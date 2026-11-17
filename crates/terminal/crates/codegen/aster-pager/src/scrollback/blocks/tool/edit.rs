@@ -1474,7 +1474,7 @@ mod tests {
             width: 80,
             raw: false,
             max_lines: None,
-            appearance: AppearanceConfig::default(),
+            appearance: std::sync::Arc::new(AppearanceConfig::default()),
             is_selected: false,
             cwd: None,
         }

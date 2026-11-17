@@ -1133,6 +1133,26 @@ fn json_search_result_bounds_provider_title_and_summary_fields() {
 
     assert!(json["title"].as_str().unwrap().len() <= MAX_JSON_TITLE_BYTES);
     assert!(json["content"].as_str().unwrap().len() <= MAX_JSON_CONTENT_BYTES);
+    assert_eq!(
+        json["discarded_chars"].as_u64().unwrap(),
+        (MAX_JSON_TITLE_BYTES + MAX_JSON_CONTENT_BYTES) as u64,
+        "title+content truncation must expose discarded_chars: {json}"
+    );
+}
+
+/// HG2 discard freeze: fixed oversized title/content → exact discarded_chars.
+#[test]
+fn hg2_web_search_discarded_chars_freeze() {
+    let result = SearchResult::new(
+        "https://example.com/source",
+        "t".repeat(MAX_JSON_TITLE_BYTES * 2),
+        "c".repeat(MAX_JSON_CONTENT_BYTES * 2),
+    );
+    let json = search_result_json(&result, None);
+    assert_eq!(
+        json["discarded_chars"].as_u64().unwrap(),
+        (MAX_JSON_TITLE_BYTES + MAX_JSON_CONTENT_BYTES) as u64
+    );
 }
 
 #[test]

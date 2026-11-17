@@ -17,7 +17,7 @@ impl ClientPermissionRules {
         if !value.is_object() {
             return Err(acp::Error::invalid_params().data("permissionRules must be an object"));
         }
-        let mut rules: Self = serde_json::from_value(value.clone()).map_err(|error| {
+        let mut rules: Self = serde::Deserialize::deserialize(value).map_err(|error| {
             acp::Error::invalid_params().data(format!("permissionRules: {error}"))
         })?;
         for rule in rules.allow.iter_mut().chain(&mut rules.deny) {

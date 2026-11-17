@@ -139,7 +139,10 @@ pub fn studio_host_from_meta(
         source_review,
         knowledge_compile: host
             .get("knowledgeCompile")
-            .map(|value| serde_json::from_value(value.clone()).map_err(|error| error.to_string()))
+            .map(|value| {
+                serde::Deserialize::deserialize(value)
+                    .map_err(|error: serde_json::Error| error.to_string())
+            })
             .transpose()?,
         office_tools,
         user_browser_pane,

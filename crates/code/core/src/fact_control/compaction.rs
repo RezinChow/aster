@@ -160,13 +160,29 @@ impl Compactor for SessionCompact {
             let mut summary =
                 compact_handoff(client.as_ref(), &messages, budget, source.as_ref()).await;
             if let Some(original) = original {
-                original
-                    .attach(&mut summary)
-                    .await
-                    .map_err(|error| ActorError::Handler {
+                if let Err(error) = original.attach(&mut summary).await {
+                    // E8: never leave the ledger stuck in Started after a
+                    // mid-flight attach failure.
+                    ledger.mark_failed();
+                    if let Some(events) = &events {
+                        if let Some((phase, tokens_used, context_window, tokens_after)) =
+                            ledger.auto_compact_fields()
+                        {
+                            let _ = events
+                                .send(crate::agent::AgentEvent::AutoCompact {
+                                    phase: phase.into(),
+                                    tokens_used,
+                                    context_window,
+                                    tokens_after,
+                                })
+                                .await;
+                        }
+                    }
+                    return Err(ActorError::Handler {
                         key: "compaction-source".into(),
                         message: format!("{error:#}"),
-                    })?;
+                    });
+                }
             }
             let summary_tokens = crate::llm::estimate_message_tokens(&[Message::user_wire(
                 &format!("{}{}", crate::prompts::CONTEXT_SUMMARY_PREFIX, summary),

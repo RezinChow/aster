@@ -1,4 +1,5 @@
 use super::*;
+use acp::Agent as _;
 use aster_core::llm::{LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -103,4 +104,67 @@ async fn session_usage_notifications_follow_core_calls_outside_an_acp_prompt_wit
             let _ = transport.await;
         })
         .await;
+}
+
+#[tokio::test]
+async fn notification_meta_stamps_turn_and_stream_start_ms() {
+    let root = tempfile::tempdir().unwrap();
+    let mut launch = crate::agent::tests::test_launch(Some(root.path().join("store")));
+    launch.workspace = root.path().to_owned();
+    let agent = AsterCodeAgent::new(launch);
+    let id = agent
+        .new_session(acp::NewSessionRequest::new(root.path()))
+        .await
+        .unwrap()
+        .session_id;
+    {
+        let sessions = agent.sessions.lock().await;
+        let live = sessions.get(id.0.as_ref()).unwrap();
+        *live.turn_started_ms.lock().unwrap() = Some(1_700_000_000_000);
+    }
+    let meta = agent.notification_meta(&id);
+    assert_eq!(
+        meta.get("turnStartMs").and_then(|v| v.as_i64()),
+        Some(1_700_000_000_000)
+    );
+    assert_eq!(
+        meta.get("streamStartMs").and_then(|v| v.as_i64()),
+        Some(1_700_000_000_000)
+    );
+    assert!(meta
+        .get("agentTimestampMs")
+        .and_then(|v| v.as_i64())
+        .is_some());
+    assert_eq!(
+        meta.get("streamHeadersTimeoutMs").and_then(|v| v.as_u64()),
+        Some(aster_core::llm::http::stream_headers_timeout_ms())
+    );
+}
+
+#[test]
+fn a10_subagent_post_turn_drain_ttl_is_finite_and_enforced() {
+    assert_eq!(
+        subagent_post_turn_drain_ttl(),
+        std::time::Duration::from_secs(30)
+    );
+    let start = tokio::time::Instant::now();
+    let deadline = start + subagent_post_turn_drain_ttl();
+    assert!(!subagent_post_turn_drain_timed_out(deadline, start));
+    assert!(subagent_post_turn_drain_timed_out(deadline, deadline));
+    assert!(subagent_post_turn_drain_timed_out(
+        deadline,
+        deadline + std::time::Duration::from_millis(1)
+    ));
+}
+
+#[test]
+fn subagent_finished_wire_copies_parent_tool_call_id() {
+    let mut state = super::super::TurnState::default();
+    state.subagent_started_ms.insert("task-1".into(), 10);
+    state
+        .subagent_parent_tool
+        .insert("task-1".into(), "call-parent".into());
+    let update = project_subagent_end(&state, None, "task-1", "child-1", true, "ok", 40);
+    assert_eq!(update["toolCallId"], "call-parent");
+    assert_eq!(update["sessionUpdate"], "subagent_finished");
 }

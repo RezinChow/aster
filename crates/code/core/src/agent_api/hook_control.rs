@@ -42,13 +42,17 @@ impl<'a> HookControl<'a> {
         &self,
         hook: crate::hooks::Hook,
         handler: Option<Arc<dyn crate::hooks::HookHandler>>,
-    ) -> (
+    ) -> Option<(
         Option<Arc<crate::hooks::Hook>>,
         Option<Arc<dyn crate::hooks::HookHandler>>,
-    ) {
-        self.session
-            .hook_engine
-            .register_registration(hook, handler)
+    )> {
+        // Session/SDK bridges are managed hosts; User-sourced registration must
+        // go through `HookEngine::register_registration` with an explicit source.
+        self.session.hook_engine.register_registration(
+            hook,
+            handler,
+            crate::hooks::HookSource::Managed,
+        )
     }
 
     pub(super) fn unregister_hook_registration(

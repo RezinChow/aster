@@ -108,15 +108,22 @@ impl ExecutorTools {
         // A resumed surface starts fresh; without this the resumed run's
         // completion gate is blind to the mutations the interrupted run
         // already landed.
+        // E6: never drop poisoned ledger/report state to empty defaults — that
+        // would checkpoint a blind completion gate. Recover the poisoned lock.
         let mutations = self
             .ledger
             .as_ref()
-            .and_then(|ledger| ledger.lock().ok().map(|guard| guard.clone()))
+            .map(|ledger| ledger.lock().unwrap_or_else(|err| err.into_inner()).clone())
             .unwrap_or_default();
         let reports = self
             .reports
             .as_ref()
-            .and_then(|reports| reports.lock().ok().map(|guard| guard.clone()))
+            .map(|reports| {
+                reports
+                    .lock()
+                    .unwrap_or_else(|err| err.into_inner())
+                    .clone()
+            })
             .unwrap_or_default();
         checkpoint
             .sink
@@ -776,5 +783,26 @@ impl Compactor for NoopCompact {
     ) -> aster_effect::coding::BoxFuture<Result<String, ActorError>> {
         let summary = bounded_summary(messages);
         Box::pin(async move { Ok(summary) })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn poisoned_ledger_mutex_recovers_instead_of_empty_default() {
+        let ledger = Arc::new(Mutex::new(vec!["landed".to_string()]));
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = ledger.lock().unwrap();
+            panic!("poison the ledger lock");
+        }));
+        assert!(ledger.lock().is_err(), "mutex must be poisoned");
+        let recovered = ledger.lock().unwrap_or_else(|err| err.into_inner()).clone();
+        assert_eq!(
+            recovered,
+            vec!["landed".to_string()],
+            "E6: poison must not collapse to empty checkpoint state"
+        );
     }
 }

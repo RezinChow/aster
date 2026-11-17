@@ -161,6 +161,7 @@ impl AsterCodeAgent {
                 let child_state = TurnState {
                     subagent_started_ms: std::mem::take(&mut state.subagent_started_ms),
                     child_progress: std::mem::take(&mut state.child_progress),
+                    subagent_parent_tool: std::mem::take(&mut state.subagent_parent_tool),
                     ..TurnState::default()
                 };
                 self.continue_subagent_events(session_id.clone(), session, child_state, rx);

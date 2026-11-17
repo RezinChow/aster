@@ -117,13 +117,17 @@ fn search_result_json(result: &SearchResult, full_text_bytes: Option<usize>) -> 
     let engines = sorted_search_engines(result);
     let safe_url = safe_search_result_url(result);
     let safe_title = sanitize_http_urls(&result.title);
-    let safe_title = crate::text::truncate_utf8(&safe_title, MAX_JSON_TITLE_BYTES);
+    let title = crate::text::truncate_utf8(&safe_title, MAX_JSON_TITLE_BYTES);
     let safe_content = sanitize_http_urls(&result.content);
-    let safe_content = crate::text::truncate_utf8(&safe_content, MAX_JSON_CONTENT_BYTES);
+    let content = crate::text::truncate_utf8(&safe_content, MAX_JSON_CONTENT_BYTES);
+    let mut discarded_chars =
+        crate::byte_budget::discarded_bytes(safe_title.len(), title.len()).saturating_add(
+            crate::byte_budget::discarded_bytes(safe_content.len(), content.len()),
+        );
     let mut value = serde_json::json!({
-        "title": safe_title,
+        "title": title,
         "url": safe_url,
-        "content": safe_content,
+        "content": content,
         "engines": engines,
         "score": result.score,
         "published_date": result.published_date,
@@ -131,10 +135,15 @@ fn search_result_json(result: &SearchResult, full_text_bytes: Option<usize>) -> 
     if let (Some(maximum), Some(full_text)) = (full_text_bytes, result.full_text.as_deref()) {
         let sanitized = sanitize_http_urls(full_text);
         let bounded = crate::text::truncate_utf8(&sanitized, maximum);
+        discarded_chars = discarded_chars.saturating_add(crate::byte_budget::discarded_bytes(
+            sanitized.len(),
+            bounded.len(),
+        ));
         if !bounded.trim().is_empty() {
             value["full_text"] = serde_json::Value::String(bounded.to_string());
         }
     }
+    value["discarded_chars"] = serde_json::json!(discarded_chars);
     value
 }
 
@@ -145,7 +154,8 @@ fn bounded_json_search_results(
     let mut bounded = Vec::with_capacity(results.len());
     for result in results {
         bounded.push(search_result_json(result, full_text_bytes));
-        if serde_json::to_vec(&bounded).is_ok_and(|encoded| encoded.len() <= MAX_JSON_OUTPUT_BYTES)
+        if crate::byte_budget::json_serialized_len(&bounded)
+            .is_ok_and(|encoded| encoded <= MAX_JSON_OUTPUT_BYTES)
         {
             continue;
         }
@@ -937,6 +947,7 @@ impl Tool for WebSearchTool {
                 "engine_failures": engine_failures,
                 "available_result_count": results.len(),
                 "returned_result_count": returned_result_count,
+                "discarded_items": results.len().saturating_sub(returned_result_count),
                 "output_limited": returned_result_count < results.len(),
             })),
         )

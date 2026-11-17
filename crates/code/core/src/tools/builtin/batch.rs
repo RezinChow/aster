@@ -591,32 +591,32 @@ fn resolve_batch_reference(reference: &str, bindings: &BTreeMap<String, Value>) 
         .next()
         .filter(|name| !name.is_empty())
         .ok_or_else(|| anyhow::anyhow!("batch $ref must name a previous invocation"))?;
+    // Borrow-walk the path; clone only the final leaf (not every intermediate).
     let mut current = bindings
         .get(name)
-        .cloned()
         .ok_or_else(|| anyhow::anyhow!("batch $ref '{reference}' is unavailable"))?;
     for segment in segments {
         if segment.is_empty() {
             anyhow::bail!("batch $ref '{reference}' contains an empty path segment");
         }
-        current = match &current {
-            Value::Object(object) => object.get(segment).cloned(),
+        current = match current {
+            Value::Object(object) => object.get(segment),
             Value::Array(items) => segment
                 .parse::<usize>()
                 .ok()
-                .and_then(|index| items.get(index).cloned()),
+                .and_then(|index| items.get(index)),
             _ => None,
         }
         .ok_or_else(|| anyhow::anyhow!("batch $ref '{reference}' has no field '{segment}'"))?;
     }
-    let encoded = serde_json::to_vec(&current)?;
-    if encoded.len() > MAX_BATCH_BINDING_BYTES {
+    let encoded_len = crate::byte_budget::json_serialized_len(current)?;
+    if encoded_len > MAX_BATCH_BINDING_BYTES {
         anyhow::bail!(
             "batch $ref '{reference}' exceeds the {} byte binding limit",
             MAX_BATCH_BINDING_BYTES
         );
     }
-    Ok(current)
+    Ok(current.clone())
 }
 
 fn binding_projection(result: &ToolResult) -> Result<Value> {
@@ -637,8 +637,8 @@ fn binding_projection(result: &ToolResult) -> Result<Value> {
         ("exit_code".to_string(), Value::from(result.exit_code)),
         ("tool".to_string(), Value::String(result.name.clone())),
     ]));
-    let encoded = serde_json::to_vec(&projection)?;
-    if encoded.len() > MAX_BATCH_BINDING_BYTES {
+    let encoded_len = crate::byte_budget::json_serialized_len(&projection)?;
+    if encoded_len > MAX_BATCH_BINDING_BYTES {
         anyhow::bail!(
             "batch result exceeds the {} byte binding limit",
             MAX_BATCH_BINDING_BYTES
@@ -650,8 +650,8 @@ fn binding_projection(result: &ToolResult) -> Result<Value> {
 fn compact_child_metadata(metadata: Option<serde_json::Value>) -> Option<serde_json::Value> {
     const MAX_CHILD_METADATA_BYTES: usize = 4 * 1024;
     let metadata = metadata?;
-    let encoded = serde_json::to_vec(&metadata).ok()?;
-    if encoded.len() <= MAX_CHILD_METADATA_BYTES {
+    let original_bytes = crate::byte_budget::json_serialized_len(&metadata).ok()?;
+    if original_bytes <= MAX_CHILD_METADATA_BYTES {
         return Some(metadata);
     }
 
@@ -659,7 +659,7 @@ fn compact_child_metadata(metadata: Option<serde_json::Value>) -> Option<serde_j
         ("truncated".to_string(), serde_json::Value::Bool(true)),
         (
             "original_bytes".to_string(),
-            serde_json::Value::from(encoded.len()),
+            serde_json::Value::from(original_bytes),
         ),
     ]);
     // Lifecycle evidence is never shortened to make room for display fields.
@@ -682,11 +682,25 @@ fn compact_child_metadata(metadata: Option<serde_json::Value>) -> Option<serde_j
             compacted.insert(key.into(), value.clone());
         }
     }
-    if !serde_json::to_vec(&compacted).is_ok_and(|value| value.len() <= MAX_CHILD_METADATA_BYTES) {
-        return Some(serde_json::json!({
-            "truncated": true, "original_bytes": encoded.len(),
+    if !crate::byte_budget::json_serialized_len(&compacted)
+        .is_ok_and(|value| value <= MAX_CHILD_METADATA_BYTES)
+    {
+        let slim = serde_json::json!({
+            "truncated": true, "original_bytes": original_bytes,
             "evidence_incomplete": true, "observation_incomplete": true,
             "evidence_error": { "kind": "batch_lifecycle_metadata_budget", "limit": MAX_CHILD_METADATA_BYTES }
+        });
+        let retained = crate::byte_budget::json_serialized_len(&slim).unwrap_or(0);
+        return Some(serde_json::json!({
+            "truncated": true,
+            "original_bytes": original_bytes,
+            "discarded_bytes": crate::byte_budget::discarded_bytes(original_bytes, retained),
+            "evidence_incomplete": true,
+            "observation_incomplete": true,
+            "evidence_error": {
+                "kind": "batch_lifecycle_metadata_budget",
+                "limit": MAX_CHILD_METADATA_BYTES
+            }
         }));
     }
     for key in [
@@ -708,13 +722,21 @@ fn compact_child_metadata(metadata: Option<serde_json::Value>) -> Option<serde_j
                 _ => value.clone(),
             };
             compacted.insert(key.to_string(), value);
-            if serde_json::to_vec(&compacted)
-                .is_ok_and(|encoded| encoded.len() > MAX_CHILD_METADATA_BYTES)
+            if crate::byte_budget::json_serialized_len(&compacted)
+                .is_ok_and(|encoded| encoded > MAX_CHILD_METADATA_BYTES)
             {
                 compacted.remove(key);
             }
         }
     }
+    let retained = crate::byte_budget::json_serialized_len(&compacted).unwrap_or(0);
+    compacted.insert(
+        "discarded_bytes".into(),
+        serde_json::Value::from(crate::byte_budget::discarded_bytes(
+            original_bytes,
+            retained,
+        )),
+    );
     Some(serde_json::Value::Object(compacted))
 }
 
@@ -1124,6 +1146,7 @@ mod tests {
             "provider_quota"
         );
         assert!(compacted.get("search_metrics").is_none());
+        assert!(compacted["discarded_bytes"].as_u64().unwrap() > 0);
         assert!(serde_json::to_vec(&compacted).unwrap().len() <= 4 * 1024);
     }
 

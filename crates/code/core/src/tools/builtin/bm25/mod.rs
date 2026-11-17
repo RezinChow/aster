@@ -21,6 +21,8 @@ const MAX_LIMIT: usize = 25;
 const DEFAULT_CONTEXT_LINES: usize = 2;
 const MAX_CONTEXT_LINES: usize = 8;
 const MAX_QUERY_BYTES: usize = 2_048;
+/// Display/content budget for the echoed query string (E4 honesty).
+const MAX_QUERY_DISPLAY_BYTES: usize = 256;
 const MAX_QUERY_TERMS: usize = 32;
 const MAX_CANDIDATE_FILES: usize = 256;
 const MAX_FILE_BYTES: usize = 512 * 1_024;
@@ -290,7 +292,7 @@ impl Tool for Bm25Tool {
             return Ok(no_matches_output(query, &terms, &candidates, &scan));
         }
 
-        let safe_query = escape_control_chars_for_display(truncate_utf8(query, 256));
+        let (safe_query, query_discarded_chars) = bounded_query_display(query);
         let mut content = format!("BM25 results for: {safe_query}\n\n");
         content.push_str(
             &rendered
@@ -323,6 +325,8 @@ impl Tool for Bm25Tool {
         metadata["source_anchors"] = serde_json::json!(source_anchors);
         metadata["results"] = serde_json::json!(results);
         metadata["returned_results"] = serde_json::json!(results.len());
+        metadata["query_discarded_chars"] = serde_json::json!(query_discarded_chars);
+        metadata["query_display_budget"] = serde_json::json!(MAX_QUERY_DISPLAY_BYTES);
 
         Ok(ToolOutput::success(content).with_metadata(metadata))
     }
@@ -540,14 +544,16 @@ fn render_incremental_result(
             context_lines,
         ));
     }
-    let metadata = incremental_search_metadata(&result, &rendered);
     if rendered.is_empty() {
-        let safe_query = escape_control_chars_for_display(truncate_utf8(query, 256));
+        let (safe_query, query_discarded_chars) = bounded_query_display(query);
+        let mut metadata = incremental_search_metadata(&result, rendered);
+        metadata["query_discarded_chars"] = serde_json::json!(query_discarded_chars);
+        metadata["query_display_budget"] = serde_json::json!(MAX_QUERY_DISPLAY_BYTES);
         return ToolOutput::success(format!("No BM25 matches found for query: {safe_query}"))
             .with_metadata(metadata);
     }
 
-    let safe_query = escape_control_chars_for_display(truncate_utf8(query, 256));
+    let (safe_query, query_discarded_chars) = bounded_query_display(query);
     let mut content = format!("BM25 results for: {safe_query}\n\n");
     content.push_str(
         &rendered
@@ -564,23 +570,25 @@ fn render_incremental_result(
     if candidate_truncated {
         content.push_str("\nWarning: search limits truncated the candidate corpus.");
     }
+    let mut metadata = incremental_search_metadata(&result, rendered);
+    metadata["query_discarded_chars"] = serde_json::json!(query_discarded_chars);
+    metadata["query_display_budget"] = serde_json::json!(MAX_QUERY_DISPLAY_BYTES);
     ToolOutput::success(content).with_metadata(metadata)
 }
 
 fn incremental_search_metadata(
     result: &LexicalSearchResult,
-    rendered: &[RenderedResult],
+    rendered: Vec<RenderedResult>,
 ) -> serde_json::Value {
     let mut seen_anchors = HashSet::new();
-    let source_anchors = rendered
-        .iter()
-        .filter(|result| seen_anchors.insert(result.source_anchor.clone()))
-        .map(|result| result.source_anchor.clone())
-        .collect::<Vec<_>>();
-    let results = rendered
-        .iter()
-        .map(|result| result.metadata.clone())
-        .collect::<Vec<_>>();
+    let mut source_anchors = Vec::new();
+    let mut results = Vec::with_capacity(rendered.len());
+    for item in rendered {
+        if seen_anchors.insert(item.source_anchor.clone()) {
+            source_anchors.push(item.source_anchor);
+        }
+        results.push(item.metadata);
+    }
     serde_json::json!({
         "algorithm": "bm25",
         "mode": "incremental_catalog",
@@ -600,6 +608,9 @@ fn incremental_search_metadata(
             "backend_truncated": false,
             "candidate_truncated": result.candidate_truncated,
             "used_glob_fallback": false,
+            "discarded_items": result
+                .matching_files
+                .saturating_sub(result.selected_files),
         },
         "scan": {
             "read_files": 0,
@@ -609,6 +620,9 @@ fn incremental_search_metadata(
             "scored_chunks": result.scored_chunks,
             "truncated": result.candidate_truncated,
         },
+        "discarded_items": result
+            .matching_files
+            .saturating_sub(result.selected_files),
         "source_anchors": source_anchors,
         "results": results,
         "returned_results": results.len(),
@@ -826,15 +840,24 @@ fn line_match_count(line: &str, query_terms: &HashSet<&str>) -> usize {
         .count()
 }
 
+fn bounded_query_display(query: &str) -> (String, usize) {
+    let truncated = truncate_utf8(query, MAX_QUERY_DISPLAY_BYTES);
+    let discarded = crate::byte_budget::discarded_bytes(query.len(), truncated.len());
+    (escape_control_chars_for_display(&truncated), discarded)
+}
+
 fn no_matches_output(
     query: &str,
     terms: &[String],
     candidates: &CandidateSelection,
     scan: &ScanOutcome,
 ) -> ToolOutput {
-    let safe_query = escape_control_chars_for_display(truncate_utf8(query, 256));
+    let (safe_query, query_discarded_chars) = bounded_query_display(query);
+    let mut metadata = search_metadata(terms, candidates, scan);
+    metadata["query_discarded_chars"] = serde_json::json!(query_discarded_chars);
+    metadata["query_display_budget"] = serde_json::json!(MAX_QUERY_DISPLAY_BYTES);
     ToolOutput::success(format!("No BM25 matches found for query: {safe_query}"))
-        .with_metadata(search_metadata(terms, candidates, scan))
+        .with_metadata(metadata)
 }
 
 fn search_metadata(
@@ -842,6 +865,9 @@ fn search_metadata(
     candidates: &CandidateSelection,
     scan: &ScanOutcome,
 ) -> serde_json::Value {
+    let discarded_items = candidates
+        .matching_files
+        .saturating_sub(candidates.paths.len());
     serde_json::json!({
         "algorithm": "bm25",
         "parameters": {
@@ -856,6 +882,7 @@ fn search_metadata(
             "backend_truncated": candidates.backend_truncated,
             "candidate_truncated": candidates.candidate_truncated,
             "used_glob_fallback": candidates.used_glob_fallback,
+            "discarded_items": discarded_items,
         },
         "scan": {
             "read_files": scan.read_files,
@@ -865,5 +892,6 @@ fn search_metadata(
             "scored_chunks": scan.sources.len(),
             "truncated": scan.truncated,
         },
+        "discarded_items": discarded_items,
     })
 }

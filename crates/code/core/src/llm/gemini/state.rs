@@ -84,7 +84,7 @@ impl GeminiState {
         }) {
             return Err(GeminiError::Invalid("invalid Gemini state origin"));
         }
-        let wire_chars = serde_json::to_vec(&parts)?.len();
+        let wire_chars = crate::byte_budget::json_serialized_len(&parts)?;
         if wire_chars > MAX_BODY_BYTES || parts.is_empty() {
             return Err(GeminiError::Invalid("invalid Gemini parts size"));
         }

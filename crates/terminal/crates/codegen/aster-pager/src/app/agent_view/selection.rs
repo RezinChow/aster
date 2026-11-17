@@ -1048,7 +1048,7 @@ impl AgentView {
                 width: content_width,
                 raw: entry.raw,
                 max_lines: None,
-                appearance: appearance.clone(),
+                appearance: std::sync::Arc::new(appearance.clone()),
                 is_selected: self.scrollback.selected() == Some(idx),
                 cwd: Some(self.session.cwd.clone()),
             };

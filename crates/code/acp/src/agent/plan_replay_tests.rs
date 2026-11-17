@@ -353,14 +353,17 @@ async fn load_replay_publishes_the_resumed_typed_plan() {
                     .unwrap_or_else(|| entry["status"].as_str().unwrap());
                 assert_eq!(actual, status);
             }
+            // Terminal children plus a checkpoint-running child that resume
+            // fail-closes to stopped (no live canceller restored).
             for (task, status) in [
                 ("replay-completed", "completed"),
                 ("replay-cancelled", "stopped"),
+                ("replay-running", "stopped"),
             ] {
                 for kind in ["subagent_spawned", "subagent_progress", "subagent_finished"] {
                     let packet = timeout(Duration::from_secs(1), packets.recv())
                         .await
-                        .expect("saved terminal child lifecycle is replayed")
+                        .expect("saved child lifecycle is replayed")
                         .unwrap();
                     assert_eq!(packet["update"]["sessionUpdate"], kind);
                     assert_eq!(packet["update"]["subagent_id"], task);

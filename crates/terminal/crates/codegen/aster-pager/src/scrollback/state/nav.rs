@@ -1677,7 +1677,10 @@ mod tests {
     #[test]
     fn reveal_expands_collapsed_entry() {
         let mut state = ScrollbackState::new();
-        state.appearance.scrollback.scroll.respect_manual_folds = true;
+        std::sync::Arc::make_mut(&mut state.appearance)
+            .scrollback
+            .scroll
+            .respect_manual_folds = true;
         let id = state.push_block(RenderBlock::execute_with_output(
             "cargo test",
             "line0\nline1\nline2",
@@ -2373,7 +2376,10 @@ mod tests {
 
         // Disable sticky headers, mirroring the renderer's `use_sticky` gate.
         // No header is drawn now, so none must be subtracted from the page.
-        h.state.appearance.scrollback.display.sticky_headers = false;
+        std::sync::Arc::make_mut(&mut h.state.appearance)
+            .scrollback
+            .display
+            .sticky_headers = false;
         h.frame();
 
         assert_eq!(

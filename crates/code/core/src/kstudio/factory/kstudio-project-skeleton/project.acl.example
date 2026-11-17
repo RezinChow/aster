@@ -1,0 +1,6 @@
+# No agent, model, machine or credential is preselected. Bind actual resources later.
+schema = "kstudio.project-config.v1"
+fleet {}
+agents {}
+models {}
+prefs {}

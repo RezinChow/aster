@@ -1,10 +1,12 @@
 //! Compatibility stub for the retired in-tree Aster OS sandbox.
 //!
 //! **This crate is not an execution authority.** It never confines, mediates,
-//! allows or denies a command; every enforcement entry point is a no-op, every
-//! `verify_*` reports success without checking anything, and profiles resolve to
-//! [`ProfileName::Off`]. It exists only so the TUI/shell keep compiling against
-//! the historical API. Do not read it for policy and do not revive it.
+//! allows or denies a command; every enforcement entry point is a no-op,
+//! `requires_*` is always false, and every `verify_*` **fails closed** with a
+//! stable stub message so callers cannot treat a green check as enforcement.
+//! Profiles resolve to [`ProfileName::Off`]. It exists only so the TUI/shell
+//! keep compiling against the historical API. Do not read it for policy and do
+//! not revive it.
 //!
 //! Command isolation is owned by `aster-core`'s `sandbox` module, whose native
 //! adapter wraps **ksandbox**. Permission profile intersection and the stable
@@ -145,19 +147,27 @@ pub fn bwrap_reexec_for_profile(
     None
 }
 
+/// Stable refusal text when a caller asks the stub to prove OS deny mounts.
+pub const STUB_NOT_ENFORCEMENT: &str = "aster-confine is a compatibility stub; not an enforcement authority (use aster-core sandbox/ksandbox)";
+
+/// Hosts that need a boolean gate: this crate never enforces.
+pub fn is_enforcement_authority() -> bool {
+    false
+}
+
 pub fn verify_hook_write_deny_enforced() -> Result<(), String> {
-    Ok(())
+    Err(STUB_NOT_ENFORCEMENT.to_string())
 }
 
 pub fn verify_read_deny_enforced(_profile: &ProfileName, _workspace: &Path) -> Result<(), String> {
-    Ok(())
+    Err(STUB_NOT_ENFORCEMENT.to_string())
 }
 
 pub fn verify_data_write_deny_enforced(
     _profile: &ProfileName,
     _workspace: &Path,
 ) -> Result<(), String> {
-    Ok(())
+    Err(STUB_NOT_ENFORCEMENT.to_string())
 }
 
 /// No-op manager retained for shell startup compatibility.
@@ -194,5 +204,38 @@ impl SandboxManager {
 
     pub fn install(&mut self) {
         // No kernel confinement to install.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn stub_is_not_an_enforcement_authority() {
+        assert!(!is_enforcement_authority());
+        assert!(!requires_hook_write_deny(
+            &ProfileName::Strict,
+            Path::new(".")
+        ));
+        assert!(!requires_read_deny(&ProfileName::Strict, Path::new(".")));
+        assert!(!requires_data_write_deny(
+            &ProfileName::Strict,
+            Path::new(".")
+        ));
+    }
+
+    #[test]
+    fn verify_entry_points_fail_closed_with_stable_stub_message() {
+        let workspace = PathBuf::from(".");
+        let err = verify_hook_write_deny_enforced().expect_err("stub must refuse");
+        assert_eq!(err, STUB_NOT_ENFORCEMENT);
+        let err = verify_read_deny_enforced(&ProfileName::Workspace, &workspace)
+            .expect_err("stub must refuse");
+        assert_eq!(err, STUB_NOT_ENFORCEMENT);
+        let err = verify_data_write_deny_enforced(&ProfileName::Devbox, &workspace)
+            .expect_err("stub must refuse");
+        assert_eq!(err, STUB_NOT_ENFORCEMENT);
     }
 }

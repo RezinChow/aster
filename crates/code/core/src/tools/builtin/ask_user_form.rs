@@ -89,6 +89,11 @@ impl Tool for AskUserFormTool {
                 return Ok(ToolOutput::error("ask_user question cap exceeded"));
             }
             Err(AskUserError::Invalid(message)) => return Ok(ToolOutput::error(message)),
+            Err(AskUserError::ElicitationBusy) => {
+                return Ok(ToolOutput::error(
+                    "a pending form elicitation already owns this id",
+                ));
+            }
         };
         if let Some(tx) = &ctx.agent_event_tx {
             let _ = tx.send(AgentEvent::UserQuestion {

@@ -627,18 +627,27 @@ fn private_fixture_facts(root: &Path) -> Vec<serde_json::Value> {
     let mut pending = vec![root.to_path_buf()];
     let mut facts = Vec::new();
     while let Some(path) = pending.pop() {
-        for entry in std::fs::read_dir(path).unwrap().flatten() {
-            let kind = entry.file_type().unwrap();
+        // Temp trees can vanish between turns (drop/cleanup races); skip gone dirs.
+        let Ok(entries) = std::fs::read_dir(&path) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
             if kind.is_dir() {
                 pending.push(entry.path());
             } else if kind.is_file() && entry.path().extension().is_some_and(|ext| ext == "jsonl") {
-                let bytes = std::fs::read(entry.path()).unwrap();
+                let Ok(bytes) = std::fs::read(entry.path()) else {
+                    continue;
+                };
                 assert!(bytes.len() < 4 * 1024 * 1024, "bounded synthetic fact log");
+                let Ok(text) = String::from_utf8(bytes) else {
+                    continue;
+                };
                 facts.extend(
-                    String::from_utf8(bytes)
-                        .unwrap()
-                        .lines()
-                        .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap()),
+                    text.lines()
+                        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok()),
                 );
             }
         }

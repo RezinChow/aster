@@ -201,13 +201,12 @@ impl ToolResultTransformBindingV1 {
 }
 
 fn canonical_digest(domain: &str, value: &impl Serialize) -> Result<String> {
-    let encoded = serde_json::to_vec(value).map_err(|error| {
-        anyhow::anyhow!("could not encode Tool result transform identity: {error}")
-    })?;
     let mut hasher = Sha256::new();
     hasher.update(domain.as_bytes());
     hasher.update([0]);
-    hasher.update(encoded);
+    crate::byte_budget::json_update_sha256(&mut hasher, value).map_err(|error| {
+        anyhow::anyhow!("could not encode Tool result transform identity: {error}")
+    })?;
     Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
@@ -472,11 +471,11 @@ mod tests {
         );
         assert_eq!(
             binding.policy_digest,
-            "sha256:645f65e5d39e3f7aa77fade21ae2daa1e8ccbbc7a0775c94a7f2c38ec5f5b32d"
+            "sha256:6c3d1e02d6dfa5ccc03fd13478aaa576a3aa0efb6ab406fcc5cc819f2e974717"
         );
         assert_eq!(
             binding.binding_digest,
-            "sha256:906e9931692fa7860b7acb5fc0bb5c329f19aeb04976c913750893ad99cd5a27"
+            "sha256:a888dea40b71c891298d8fd27174f67935b48b823d82992ca7a11ad7afecf395"
         );
         binding.validate_for_policy(&policy).unwrap();
 

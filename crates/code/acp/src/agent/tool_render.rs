@@ -64,6 +64,21 @@ pub(super) fn prepared_raw_input(
     if args.is_null() {
         return None;
     }
+    // Identity tools: one clone, no object mutate.
+    let needs_remap = matches!(
+        name,
+        "ls" | "write"
+            | "update_plan"
+            | "web_search"
+            | "task"
+            | "search"
+            | "semantic"
+            | "hybrid"
+            | "bm25"
+    );
+    if !needs_remap {
+        return Some(args.clone());
+    }
     let mut input = args.clone();
     let Some(obj) = input.as_object_mut() else {
         return Some(input);
@@ -112,10 +127,28 @@ pub(super) fn tool_call_content(
     if output.is_empty() {
         return Vec::new();
     }
-    let preview: String = output.chars().take(4_000).collect();
     vec![acp::ToolCallContent::from(acp::ContentBlock::Text(
-        acp::TextContent::new(preview),
+        acp::TextContent::new(preview_text(output, 4_000)),
     ))]
+}
+
+/// Cap preview text to `max_chars` scalars. ASCII/short payloads skip the
+/// char-walk when `s.len() ≤ max_chars` (byte len bounds char count).
+pub(super) fn preview_text(s: &str, max_chars: usize) -> String {
+    if s.len() <= max_chars {
+        s.to_owned()
+    } else {
+        s.chars().take(max_chars).collect()
+    }
+}
+
+/// Move short owned payloads; only truncate when over the char budget.
+pub(super) fn preview_text_owned(s: String, max_chars: usize) -> String {
+    if s.len() <= max_chars {
+        s
+    } else {
+        s.chars().take(max_chars).collect()
+    }
 }
 
 pub(super) fn edit_diff(name: &str, args: Option<&serde_json::Value>) -> Option<acp::Diff> {
@@ -162,21 +195,10 @@ pub(super) fn edit_diff(name: &str, args: Option<&serde_json::Value>) -> Option<
 
 /// Bash cards only show stdout when `raw_output` deserializes as `ToolOutput::Bash`.
 /// Output fields are strings: a byte array costs a JSON number per byte.
-/// Incremental stdout. `output` stays empty so the pager appends `output_delta`
-/// instead of replacing the card with this slice.
+/// Incremental stdout: pager appends `output_delta` (BashOutput defaults fill the rest).
 pub(super) fn streaming_bash_delta(delta: &str) -> serde_json::Value {
     serde_json::json!({
         "type": "Bash",
-        "output": "",
-        "output_for_prompt": "",
-        "exit_code": 0,
-        "command": "",
-        "truncated": false,
-        "signal": null,
-        "timed_out": false,
-        "description": null,
-        "current_dir": "",
-        "output_file": "",
         "total_bytes": delta.len(),
         "output_delta": delta,
     })
@@ -228,6 +250,10 @@ pub(super) fn tool_raw_output(
     exit_code: i32,
     metadata: Option<&serde_json::Value>,
 ) -> Option<serde_json::Value> {
+    // P8: permission denials carry a stable code (not reason text alone).
+    if let Some(coded) = permission_denial_raw(output, exit_code, metadata) {
+        return Some(coded);
+    }
     // Search cards use rawOutput for their expandable details. Keep the bounded
     // ACP content preview for other clients, but do not discard the actual result.
     if exit_code == 0
@@ -266,19 +292,44 @@ pub(super) fn tool_raw_output(
         .and_then(|args| args.get("command"))
         .and_then(|v| v.as_str())
         .unwrap_or("");
+    // E9: surface Core capture truncation / timeout into ACP rawOutput so hosts
+    // do not read a hard-coded `truncated: false` as "complete output".
+    let output_meta = metadata.and_then(|meta| meta.get("output"));
+    let truncated = output_meta
+        .and_then(|meta| meta.get("truncated"))
+        .or_else(|| metadata.and_then(|meta| meta.get("truncated")))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let timed_out = output_meta
+        .and_then(|meta| meta.get("timed_out"))
+        .or_else(|| metadata.and_then(|meta| meta.get("timed_out")))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let total_bytes = output_meta
+        .and_then(|meta| meta.get("total_bytes"))
+        .and_then(|value| value.as_u64())
+        .unwrap_or(output.len() as u64);
+    let discarded_bytes = output_meta
+        .and_then(|meta| meta.get("discarded_bytes"))
+        .and_then(|value| value.as_u64())
+        .unwrap_or_else(|| total_bytes.saturating_sub(output.len() as u64));
+    // One owned output string, then clone the Value — avoids serde_json::json!
+    // allocating the same stdout twice for output + output_for_prompt.
+    let output_value = serde_json::Value::String(output.to_owned());
     let mut raw = serde_json::json!({
         "type": "Bash",
-        "output": output,
-        "output_for_prompt": output,
+        "output": output_value.clone(),
+        "output_for_prompt": output_value,
         "exit_code": exit_code,
         "command": command,
-        "truncated": false,
+        "truncated": truncated,
         "signal": null,
-        "timed_out": false,
+        "timed_out": timed_out,
         "description": null,
         "current_dir": "",
         "output_file": "",
-        "total_bytes": output.len(),
+        "total_bytes": total_bytes,
+        "discarded_bytes": discarded_bytes,
     });
     // P0-3: stable sandbox.violation.* codes ride tool metadata into ACP rawOutput
     // so hosts observe the same code Core recorded without parsing message text.
@@ -290,6 +341,26 @@ pub(super) fn tool_raw_output(
         raw["sandbox_violation"] = serde_json::json!({ "code": code.clone() });
     }
     Some(raw)
+}
+
+/// Structured permission denial for hosts (stable `permission.denied`, not reason text).
+fn permission_denial_raw(
+    output: &str,
+    exit_code: i32,
+    metadata: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    if exit_code == 0 {
+        return None;
+    }
+    let code = metadata?.get("permission_denial")?.get("code")?.as_str()?;
+    if code.is_empty() {
+        return None;
+    }
+    Some(serde_json::json!({
+        "type": "PermissionDenial",
+        "output": output,
+        "permission_denial": { "code": code },
+    }))
 }
 
 /// Structured edit/patch failure for hosts (stable `*.code`, not message text).
@@ -317,6 +388,29 @@ fn edit_or_patch_failure_raw(
     raw.insert("output".into(), serde_json::Value::String(output.into()));
     raw.insert(key.into(), serde_json::json!({ "code": code }));
     Some(serde_json::Value::Object(raw))
+}
+
+#[cfg(test)]
+mod permission_denial_tests {
+    use super::*;
+
+    #[test]
+    fn permission_denial_raw_output_carries_stable_code() {
+        let meta = serde_json::json!({
+            "permission_denial": { "code": "permission.denied" }
+        });
+        let raw = tool_raw_output(
+            "write",
+            Some(&serde_json::json!({"file_path": "x"})),
+            "rejected via ACP request_permission",
+            1,
+            Some(&meta),
+        )
+        .expect("raw output");
+        assert_eq!(raw["type"], "PermissionDenial");
+        assert_eq!(raw["permission_denial"]["code"], "permission.denied");
+        assert!(raw["output"].as_str().unwrap().contains("rejected"));
+    }
 }
 
 #[cfg(test)]

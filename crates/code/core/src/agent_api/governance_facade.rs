@@ -439,9 +439,19 @@ impl AgentSession {
                     },
                 )
             })?;
-            Ok::<_, crate::error::CodeError>(
-                HookControl::from_session(self).register_hook_registration(hook, handler),
-            )
+            let hook_id = hook.id.clone();
+            let retired = HookControl::from_session(self)
+                .register_hook_registration(hook, handler)
+                .ok_or_else(|| {
+                    crate::error::CodeError::Capability(
+                        crate::capability::CapabilityRuntimeError::RuntimeValueInvalid {
+                            kind: crate::capability::CapabilityKind::Hook,
+                            public_name: hook_id,
+                            message: "hook registration rejected by admission policy".to_owned(),
+                        },
+                    )
+                })?;
+            Ok::<_, crate::error::CodeError>(retired)
         })??;
         drop(retired);
         Ok(())

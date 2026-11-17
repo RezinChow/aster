@@ -583,6 +583,8 @@ pub(crate) const ASTER_EFFECTIVE_COMMANDS: &[&str] = &[
     "effort",
     "goal",
     "compact",
+    // Pager-local InjectSkill: writes AGENTS.md via the active agent (no shell marketplace).
+    "init",
     "memory",
     "flush",
     "dream",
@@ -726,8 +728,8 @@ pub struct AppView {
     /// Scroll config derived from terminal detection.
     pub scroll_config: ScrollConfig,
     /// Current appearance config (hot-reloadable from ~/.aster/pager.toml).
-    /// Stored here so new agents inherit the current config.
-    pub appearance: AppearanceConfig,
+    /// Stored here so new agents inherit the current config via `Arc::clone`.
+    pub appearance: Arc<AppearanceConfig>,
     /// Notification service (terminal bell, OSC sequences, title updates).
     pub notification_service: NotificationService,
     /// The status row follows whichever agent is on screen, so the app owns it.
@@ -1550,7 +1552,7 @@ impl AppView {
             exit_session_pending: None,
             scroll_state: MouseScrollState::default(),
             scroll_config: ScrollConfig::from_settings(),
-            appearance: AppearanceConfig::default(),
+            appearance: Arc::new(AppearanceConfig::default()),
             notification_service: NotificationService::new(
                 Default::default(),
                 escape_writer.clone(),
@@ -2374,21 +2376,22 @@ impl AppView {
     /// Apply a (possibly hot-reloaded) appearance config to all agents.
     pub fn set_appearance(&mut self, config: AppearanceConfig) {
         crate::render::bidi::set_enabled(config.scrollback.display.rtl_bidi);
+        let appearance = Arc::new(config);
         for agent in self.agents.values_mut() {
-            agent.scrollback.set_appearance(config.clone());
+            agent.scrollback.set_appearance_arc(Arc::clone(&appearance));
             for child in agent.subagent_views.values_mut() {
-                child.scrollback.set_appearance(config.clone());
+                child.scrollback.set_appearance_arc(Arc::clone(&appearance));
                 child.prompt.sync_tab_width_from_appearance();
             }
             agent
                 .prompt
                 .slash_controller
                 .registry_mut()
-                .set_plugins_visible(!config.disable_plugins);
+                .set_plugins_visible(!appearance.disable_plugins);
             agent.prompt.sync_tab_width_from_appearance();
         }
         self.welcome_prompt.sync_tab_width_from_appearance();
-        self.appearance = config;
+        self.appearance = appearance;
     }
     /// Recompute the render-value compact flag from the user setting and terminal height (`views::agent::effective_compact`).
     /// Propagate it to the appearance fan-out and every agent's prompt widget when it changed.
@@ -2401,7 +2404,7 @@ impl AppView {
         if self.appearance.prompt.compact == derived {
             return;
         }
-        let mut config = self.appearance.clone();
+        let mut config = (*self.appearance).clone();
         config.prompt.compact = derived;
         self.set_appearance(config);
         for agent in self.agents.values_mut() {

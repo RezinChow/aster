@@ -1181,7 +1181,7 @@ fn slash_model_no_args_produces_scrollback_error() {
 #[test]
 fn slash_hooks_opens_modal() {
     let mut app = test_app_with_agent();
-    app.appearance.disable_plugins = false;
+    std::sync::Arc::make_mut(&mut app.appearance).disable_plugins = false;
     let id = AgentId(0);
     let effects = dispatch(Action::SendPrompt("/hooks".into()), &mut app);
     assert!(agent_ref(&app, id).extensions_modal.is_some());

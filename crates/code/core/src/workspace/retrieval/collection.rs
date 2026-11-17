@@ -463,8 +463,7 @@ impl WorkspaceCollectionQuery {
 }
 
 fn json_size(value: &(impl Serialize + ?Sized)) -> Result<usize, WorkspaceCollectionError> {
-    serde_json::to_vec(value)
-        .map(|bytes| bytes.len())
+    crate::byte_budget::json_serialized_len(value)
         .map_err(|_| WorkspaceCollectionError::Unavailable)
 }
 

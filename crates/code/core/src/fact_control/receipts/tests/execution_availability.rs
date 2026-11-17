@@ -377,6 +377,38 @@ async fn permission_denial_keeps_a_pre_spawn_refusal() {
 }
 
 #[tokio::test]
+async fn ask_without_confirmation_provider_refuses_as_confirmation_required() {
+    let root = tempfile::tempdir().unwrap();
+    let (base, executions) = executor_tools(root.path());
+    base.executor
+        .register_dynamic_tool(Arc::new(AvailabilityProbe(Arc::clone(&executions))));
+    let mut tools = base.as_ref().clone();
+    tools.permission = PermissionPolicy::new();
+    tools.agent = Some(crate::agent::AgentLoop::new(
+        Arc::new(crate::agent::tests::MockLlmClient::new(Vec::new())),
+        Arc::clone(&tools.executor),
+        tools.context.clone(),
+        crate::agent::AgentConfig::default(),
+    ));
+    let tools = Arc::new(tools);
+    let prepared = prepare_tools(
+        Arc::clone(&tools),
+        request("no-hitl", json!({})),
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let result = execute_prepared(tools, prepared).await;
+    let output = result.output.as_str().unwrap();
+    assert_eq!(result.outcome, ToolExecutionOutcome::Denied);
+    assert!(
+        output.contains("confirmation_required"),
+        "Ask without HITL manager must fail closed: {output}"
+    );
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn unconfirmed_ask_keeps_a_pre_spawn_refusal() {
     let root = tempfile::tempdir().unwrap();
     let (base, executions) = executor_tools(root.path());

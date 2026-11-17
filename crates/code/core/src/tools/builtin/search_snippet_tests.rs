@@ -34,6 +34,7 @@ fn late_match_is_visible_with_exact_display_anchors() {
     assert_eq!((snippet.start_line, snippet.end_line), (61, 76));
     assert!(!snippet.text.contains("     1 |"));
     assert!(snippet.truncated);
+    assert!(snippet.discarded_chars > 0);
     assert_eq!((source.start_line, source.end_line), (1, 79));
 }
 
@@ -53,6 +54,7 @@ fn long_utf8_line_retains_the_case_insensitive_literal_and_escapes_controls() {
     assert!(!snippet.text.contains('\x1b'));
     assert!(snippet.text.len() < MAX_LINE_BYTES + 64);
     assert!(snippet.truncated);
+    assert!(snippet.discarded_chars > 0);
     assert_eq!((snippet.start_line, snippet.end_line), (1, 1));
 }
 
@@ -66,9 +68,10 @@ fn no_lexical_overlap_preserves_the_semantic_chunk_prefix() {
 #[test]
 fn total_response_budget_preserves_complete_results_and_names_truncation() {
     let results = (0..25).map(|index| format!("result-{index}\n{}", "界".repeat(2000)));
-    let (text, count, truncated) = bounded_results("Hybrid results", results);
+    let (text, count, truncated, discarded) = bounded_results("Hybrid results", results);
     assert!(truncated);
     assert_eq!(count, 4);
+    assert_eq!(discarded, 21);
     assert!(text.len() <= MAX_OUTPUT_BYTES);
     assert!(text.contains("Output budget reached"));
     assert!(!text.contains("result-4"));

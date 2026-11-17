@@ -285,9 +285,14 @@ fn test_load_from_dir() -> anyhow::Result<()> {
     std::fs::write(&txt_path, "Some notes")?;
 
     let registry = SkillRegistry::new();
-    let loaded = registry.load_from_dir(temp_dir.path())?;
+    let report = registry.load_from_dir_report(temp_dir.path())?;
 
-    assert_eq!(loaded, 1);
+    assert_eq!(report.loaded, 1);
+    assert!(
+        report.errors.is_empty(),
+        "README.md must not be a skill candidate: {:?}",
+        report.errors
+    );
     assert_eq!(registry.len(), 1);
     assert!(registry.get("test-skill").is_some());
 
@@ -626,13 +631,19 @@ fn test_load_from_dir_duplicate_name_overrides_previous_definition() -> anyhow::
     )?;
 
     let registry = SkillRegistry::new();
-    let loaded = registry.load_from_dir(temp_dir.path())?;
+    let report = registry.load_from_dir_report(temp_dir.path())?;
 
-    assert_eq!(loaded, 2);
+    assert_eq!(report.loaded, 2);
     assert_eq!(registry.len(), 1);
     assert_eq!(
         registry.get("duplicate-skill").unwrap().description,
         "Second copy"
+    );
+    assert_eq!(report.overrides.len(), 1);
+    assert_eq!(report.overrides[0].name, "duplicate-skill");
+    assert_eq!(
+        report.overrides[0].path, second,
+        "override path must be the winning later definition"
     );
     Ok(())
 }

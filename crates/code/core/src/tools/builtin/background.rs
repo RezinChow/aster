@@ -1117,6 +1117,7 @@ async fn execute_background(
             "total_bytes": summary.total_bytes,
             "captured_bytes": summary.captured_bytes,
             "truncated": summary.truncated,
+            "discarded_bytes": summary.discarded_bytes(),
             "timed_out": summary.timed_out,
         })
     });

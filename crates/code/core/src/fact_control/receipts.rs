@@ -16,6 +16,7 @@ use aster_effect::{
     ToolPreparationRequest, ToolPreparedV1, ToolRecoveryPolicy, TOOL_PREPARED_SCHEMA,
     TOOL_RESULT_SCHEMA,
 };
+use serde::Deserialize;
 
 pub(super) fn runner_result_value(
     output: &str,
@@ -281,7 +282,9 @@ pub(super) async fn prepare_tools_with_refusal(
                     _ = cancel.cancelled() => false,
                     required = manager.requires_confirmation_for(&request.call.name, &request.call.args) => required,
                 },
-                None => false,
+                // P6: align with tool-invoker — Ask without a HITL manager is
+                // not an implicit Allow; refuse as confirmation_required.
+                None => true,
             },
             None => true,
         }
@@ -1134,8 +1137,7 @@ fn fold_receipts(facts: &[aster_effect::Fact], include_covered: bool) -> Receipt
                 let parsed = fact
                     .payload
                     .get("prepared")
-                    .cloned()
-                    .and_then(|value| serde_json::from_value::<ToolPreparedV1>(value).ok());
+                    .and_then(|value| ToolPreparedV1::deserialize(value).ok());
                 match parsed.and_then(|value| value.validate().ok().map(|_| value)) {
                     Some(value) => match value.identity.key() {
                         Ok(key) => {
@@ -1157,9 +1159,7 @@ fn fold_receipts(facts: &[aster_effect::Fact], include_covered: bool) -> Receipt
                 }
             }
             "tool.result" if fact.payload.get("receipt").is_some() => {
-                let parsed = serde_json::from_value::<ToolExecutionResultV1>(
-                    fact.payload["receipt"].clone(),
-                );
+                let parsed = ToolExecutionResultV1::deserialize(&fact.payload["receipt"]);
                 match parsed {
                     Ok(result) => {
                         let key = result.identity.key();
@@ -1389,10 +1389,7 @@ fn fold_receipts(facts: &[aster_effect::Fact], include_covered: bool) -> Receipt
                     let observation = fact
                         .payload
                         .get("effects")
-                        .cloned()
-                        .and_then(|value| {
-                            serde_json::from_value::<ToolEffectObservationV1>(value).ok()
-                        })
+                        .and_then(|value| ToolEffectObservationV1::deserialize(value).ok())
                         .filter(|effects| effects.validate().is_ok());
                     let path_set = paths
                         .iter()
@@ -1413,7 +1410,9 @@ fn fold_receipts(facts: &[aster_effect::Fact], include_covered: bool) -> Receipt
                         && paths_match
                         && fact.payload.get("task_id").and_then(|value| value.as_str()) == Some(id)
                         && if kind == "subagent.settled" {
-                            fact.payload.get("background_subagent").and_then(|value| serde_json::from_value::<crate::tools::task::background_settlement::BackgroundChildBinding>(value.clone()).ok()).is_some()
+                            fact.payload.get("background_subagent").and_then(|value| {
+                                crate::tools::task::background_settlement::BackgroundChildBinding::deserialize(value).ok()
+                            }).is_some()
                                 && fact.payload.get("child_log_cut").is_some_and(|cut| {
                                     cut.get("seq").and_then(serde_json::Value::as_u64).is_some_and(|seq| seq > 0)
                                         && cut.get("digest").and_then(serde_json::Value::as_str).is_some_and(|digest| digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit()))
@@ -1737,7 +1736,12 @@ fn workspace_child_bindings(
         let binding = value
             .get("background_subagent")
             .filter(|value| !value.is_null())
-            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .and_then(|value| {
+                crate::tools::task::background_settlement::BackgroundChildBinding::deserialize(
+                    value,
+                )
+                .ok()
+            })
             .map(WorkspaceChildBinding::Subagent)
             .or_else(|| {
                 value

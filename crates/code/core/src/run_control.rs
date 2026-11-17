@@ -1064,10 +1064,11 @@ fn trim_terminal_receipts(state: &mut InboxState) {
 }
 
 fn request_fingerprint(request: &RunControlRequest) -> Result<String, RunControlError> {
-    let encoded = serde_json::to_vec(request).map_err(|error| {
+    let mut hasher = Sha256::new();
+    crate::byte_budget::json_update_sha256(&mut hasher, request).map_err(|error| {
         RunControlError::InvalidRequest(format!("could not encode request: {error}"))
     })?;
-    Ok(format!("sha256:{:x}", Sha256::digest(encoded)))
+    Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
 fn hook_outcome_error(outcome: HookOutcome) -> RunControlError {

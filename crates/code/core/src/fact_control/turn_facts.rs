@@ -40,7 +40,8 @@ pub(crate) fn append_turn_complete_fact(
     forced_stop: Option<crate::harness_loop::ForcedStop>,
 ) -> Result<(), ActorError> {
     let log = surface_fact_log(surface)?;
-    let facts = log.read(&thread_for_session(&surface.session_id))?;
+    let thread = thread_for_session(&surface.session_id);
+    let (facts, freeze) = log.read_freeze(&thread)?;
     let debt = receipts::fold_debt(&facts);
     if !debt.unresolved.is_empty() {
         return Err(ActorError::Schema(
@@ -64,7 +65,6 @@ pub(crate) fn append_turn_complete_fact(
         // closed with every step bound, so the bookkeeping is settled.
         crate::harness_loop::CompletionTerminal::Distinct => ("distinct", None),
     };
-    let cut = aster_effect::cut_log(&facts);
     let payload = serde_json::json!({
         "terminal": label,
         "effect_digest": digest,
@@ -72,13 +72,15 @@ pub(crate) fn append_turn_complete_fact(
         "receipt_keys": receipt_keys,
         "background_receipt_keys": facts.iter().filter(|fact| (fact.kind == "background.output" && fact.payload["event"] == "exited") || fact.kind == "subagent.settled")
             .map(|fact| fact.key.clone()).collect::<Vec<_>>(),
-        "log_cut": { "seq": cut.seq, "digest": cut.digest },
+        // log_cut keeps TranscriptSourceCut shape; byte_len is the freeze oracle.
+        "log_cut": { "seq": freeze.cut.seq, "digest": freeze.cut.digest },
+        "log_byte_len": freeze.byte_len,
     });
     log.append(
-        &thread_for_session(&surface.session_id),
+        &thread,
         &[NewFact {
             kind: TURN_COMPLETE_FACT_KIND.into(),
-            key: format!("turn-complete:{}:{}", cut.seq, cut.digest),
+            key: format!("turn-complete:{}:{}", freeze.cut.seq, freeze.cut.digest),
             payload,
         }],
         None,
@@ -93,8 +95,9 @@ pub(crate) fn append_turn_yielded_fact(
     deferred: &std::collections::BTreeSet<String>,
 ) -> Result<(), ActorError> {
     let log = surface_fact_log(surface)?;
+    let thread = thread_for_session(&surface.session_id);
     let _writer = log.try_writer_fence()?;
-    let facts = log.read(&thread_for_session(&surface.session_id))?;
+    let (facts, freeze) = log.read_freeze(&thread)?;
     let debt = receipts::fold_debt(&facts);
     if debt.unresolved.iter().any(|key| {
         !deferred
@@ -106,11 +109,16 @@ pub(crate) fn append_turn_yielded_fact(
         ));
     }
     log.append(
-        &thread_for_session(&surface.session_id),
+        &thread,
         &[NewFact {
             kind: "turn.yielded".into(),
-            key: format!("turn-yielded:{}", facts.last().map_or(0, |fact| fact.seq)),
-            payload: serde_json::json!({"pending_children":deferred,"run_id":surface.run_id}),
+            key: format!("turn-yielded:{}", freeze.cut.seq),
+            payload: serde_json::json!({
+                "pending_children": deferred,
+                "run_id": surface.run_id,
+                "log_cut": { "seq": freeze.cut.seq, "digest": freeze.cut.digest },
+                "log_byte_len": freeze.byte_len,
+            }),
         }],
         None,
     )?;

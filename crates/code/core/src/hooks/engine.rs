@@ -144,11 +144,24 @@ impl HookEngine {
     }
 
     /// Atomically replace one complete compatibility Hook registration.
+    ///
+    /// Honors the same admission gate as [`Self::register_with_source`] (P3):
+    /// rejected sources leave both maps untouched and return `None`.
     pub(crate) fn register_registration(
         &self,
         hook: Hook,
         handler: Option<Arc<dyn HookHandler>>,
-    ) -> (Option<Arc<Hook>>, Option<Arc<dyn HookHandler>>) {
+        source: HookSource,
+    ) -> Option<(Option<Arc<Hook>>, Option<Arc<dyn HookHandler>>)> {
+        if !self.admission.admits(source) {
+            tracing::warn!(
+                hook = %hook.id,
+                ?source,
+                managed_only = self.admission.managed_only,
+                "hook registration ignored by admission policy"
+            );
+            return None;
+        }
         let hook_id = hook.id.clone();
         let mut hooks = write_or_recover(&self.hooks);
         let mut handlers = write_or_recover(&self.handlers);
@@ -157,7 +170,7 @@ impl HookEngine {
             Some(handler) => handlers.insert(hook_id, handler),
             None => handlers.remove(&hook_id),
         };
-        (retired_hook, retired_handler)
+        Some((retired_hook, retired_handler))
     }
 
     /// Atomically remove one complete compatibility Hook registration.

@@ -625,21 +625,19 @@ async fn prefix_fork_rejects_the_closed_refusal_set_without_source_changes() {
     fixture
         .session
         .subagent_tasks
-        .replace_snapshots(vec![crate::subagent_task_tracker::SubagentTaskSnapshot {
+        .record_event(&crate::agent::AgentEvent::SubagentStart {
             task_id: "active-child".into(),
             parent_session_id: fixture.session.id().into(),
-            child_session_id: "child".into(),
+            session_id: "child".into(),
             agent: "worker".into(),
             description: "active".into(),
-            status: crate::subagent_task_tracker::SubagentStatus::Running,
             started_ms: 1,
-            updated_ms: 1,
-            finished_ms: None,
-            output: None,
-            success: None,
-            source_anchors: vec![],
-            progress: vec![],
-        }])
+        })
+        .await;
+    fixture
+        .session
+        .subagent_tasks
+        .register_canceller("active-child", tokio_util::sync::CancellationToken::new())
         .await;
     assert!(
         attempt(fork_request(&fixture, boundary.clone(), "fork-target"))

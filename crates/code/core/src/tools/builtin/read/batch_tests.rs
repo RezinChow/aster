@@ -305,8 +305,57 @@ async fn budget_truncation_reports_partial_not_zero_processed() {
     assert_eq!(metadata["batch"]["partial_files"], 1);
     let continuation = metadata["batch"]["continuation"].as_array().unwrap();
     assert_eq!(continuation.len(), 2);
+    assert_eq!(metadata["batch"]["discarded_items"], 2);
+    assert!(
+        metadata["batch"]["discarded_bytes"].as_u64().unwrap() > 0,
+        "truncated batch must expose discarded_bytes: {metadata}"
+    );
     assert!(continuation[0]["offset"].as_u64().unwrap() > 0);
     assert_eq!(continuation[1]["path"], "big2.txt");
     // offset 0 is omitted from JSON (skip_serializing_if); treat missing as start.
     assert_eq!(continuation[1]["offset"].as_u64().unwrap_or(0), 0);
+}
+
+/// HG2 length-oracle: budget probe length equals rendered string length.
+#[test]
+fn batch_response_len_matches_rendered_string() {
+    let entries = vec![
+        BatchReadEntry {
+            path: "a.txt".into(),
+            offset: 0,
+            byte_offset: 0,
+            limit: None,
+        },
+        BatchReadEntry {
+            path: "b.txt".into(),
+            offset: 0,
+            byte_offset: 0,
+            limit: None,
+        },
+    ];
+    let progress = vec![
+        None,
+        Some(BatchReadEntry {
+            path: "b.txt".into(),
+            offset: 0,
+            byte_offset: 0,
+            limit: None,
+        }),
+    ];
+    let segments = vec!["=== a.txt ===\n1\talpha".to_string()];
+    let rendered = render_batch_response(&segments, &progress, &entries);
+    assert_eq!(
+        batch_response_len(&segments, None, &progress, &entries),
+        rendered.len()
+    );
+    let extra = "=== b.txt ===\n1\tbravo";
+    let with_extra = {
+        let mut proposed = segments.clone();
+        proposed.push(extra.to_string());
+        render_batch_response(&proposed, &progress, &entries)
+    };
+    assert_eq!(
+        batch_response_len(&segments, Some(extra), &progress, &entries),
+        with_extra.len()
+    );
 }

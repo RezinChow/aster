@@ -62,9 +62,9 @@ pub(super) async fn forward_task_events(
     source_anchors
 }
 
-pub(super) fn compact_task_output(output: &str) -> (String, bool) {
+pub(super) fn compact_task_output(output: &str) -> (String, bool, usize) {
     if output.len() <= TASK_OUTPUT_CONTEXT_LIMIT {
-        return (output.to_string(), false);
+        return (output.to_string(), false, 0);
     }
 
     let head = crate::text::truncate_utf8(output, TASK_OUTPUT_CONTEXT_HEAD);
@@ -79,15 +79,15 @@ pub(super) fn compact_task_output(output: &str) -> (String, bool) {
         })
         .unwrap_or(output.len());
     let tail = &output[tail_start..];
+    let discarded = crate::byte_budget::discarded_bytes(output.len(), head.len() + tail.len());
 
     (
         format!(
-            "{}\n\n[{} bytes omitted from delegated task output]\n\n{}",
+            "{}\n\n[{discarded} bytes omitted from delegated task output]\n\n{tail}",
             head,
-            output.len().saturating_sub(head.len() + tail.len()),
-            tail
         ),
         true,
+        discarded,
     )
 }
 
@@ -367,8 +367,8 @@ pub(super) fn epoch_ms() -> u64 {
         .unwrap_or(0)
 }
 
-pub(super) fn format_task_result_for_context(result: &TaskResult) -> (String, bool) {
-    let (output, truncated) = compact_task_output(&result.output);
+pub(super) fn format_task_result_for_context(result: &TaskResult) -> (String, bool, usize) {
+    let (output, truncated, discarded) = compact_task_output(&result.output);
     let status = if result.success {
         "completed"
     } else {
@@ -388,5 +388,5 @@ pub(super) fn format_task_result_for_context(result: &TaskResult) -> (String, bo
         formatted.push_str("Output:\n");
     }
     formatted.push_str(&output);
-    (formatted, truncated)
+    (formatted, truncated, discarded)
 }

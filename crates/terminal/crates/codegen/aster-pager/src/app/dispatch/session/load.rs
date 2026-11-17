@@ -170,7 +170,7 @@ fn dispatch_load_session_ungated(
     let agent_id = AgentId(app.next_agent_id);
     app.next_agent_id += 1;
     let mut scrollback = ScrollbackState::new();
-    scrollback.set_appearance(app.appearance.clone());
+    scrollback.set_appearance_arc(std::sync::Arc::clone(&app.appearance));
     let loading_msg = if matches!(app.restore_code, Some(true)) {
         format!("Restoring code for session {}...", &session_id)
     } else {
@@ -1102,7 +1102,7 @@ pub(in crate::app::dispatch) fn dispatch_load_session_with_restore(
     let agent_id = AgentId(app.next_agent_id);
     app.next_agent_id += 1;
     let mut scrollback = ScrollbackState::new();
-    scrollback.set_appearance(app.appearance.clone());
+    scrollback.set_appearance_arc(std::sync::Arc::clone(&app.appearance));
     scrollback.push_block(RenderBlock::system(format!(
         "Restoring session {session_id} from remote..."
     )));

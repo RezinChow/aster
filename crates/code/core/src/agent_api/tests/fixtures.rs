@@ -920,7 +920,23 @@ pub(crate) fn build_effective_registry_for_test(
     agent_registry: Option<Arc<crate::skills::SkillRegistry>>,
     opts: &SessionOptions,
 ) -> Arc<crate::skills::SkillRegistry> {
-    super::super::capabilities::build_effective_skill_registry(agent_registry.as_deref(), opts)
+    build_effective_registry_for_test_in(
+        agent_registry,
+        opts,
+        std::path::Path::new("/tmp/aster-no-kstudio"),
+    )
+}
+
+pub(crate) fn build_effective_registry_for_test_in(
+    agent_registry: Option<Arc<crate::skills::SkillRegistry>>,
+    opts: &SessionOptions,
+    workspace: &std::path::Path,
+) -> Arc<crate::skills::SkillRegistry> {
+    super::super::capabilities::build_effective_skill_registry(
+        agent_registry.as_deref(),
+        opts,
+        workspace,
+    )
 }
 
 /// Custom BudgetGuard that denies the first LLM call — used to verify

@@ -826,7 +826,9 @@ fn non_git_delta_sees_preserved_mtime_writes_and_keeps_all_forty_paths() {
             .len(),
         32
     );
-    assert_eq!(shown.unwrap()["changed_paths_truncated"], true);
+    let shown = shown.unwrap();
+    assert_eq!(shown["changed_paths_truncated"], true);
+    assert_eq!(shown["changed_paths_discarded"], 8);
 }
 
 #[test]

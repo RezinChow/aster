@@ -94,7 +94,7 @@ pub fn workspace_mcp_server_id(
     hasher.update(b"aster.code.workspace-mcp-trust.v1\0");
     hasher.update(repository_root.to_string_lossy().as_bytes());
     hasher.update(b"\0");
-    hasher.update(serde_json::to_vec(&canonical_declaration(server)?)?);
+    crate::byte_budget::json_update_sha256(&mut hasher, &canonical_declaration(server)?)?;
     Ok(hex(&hasher.finalize()))
 }
 
@@ -367,7 +367,10 @@ fn inside_root(root: &Path, entry: &Path) -> bool {
     }
     match candidate.canonicalize() {
         Ok(resolved) => resolved.starts_with(root),
-        Err(_) => candidate.starts_with(root),
+        // Fail closed (P5): an unresolved symlink / missing path must not be
+        // admitted on a lexical `starts_with` — the entry can later be swapped
+        // to escape the root after skill/agent dir admission.
+        Err(_) => false,
     }
 }
 

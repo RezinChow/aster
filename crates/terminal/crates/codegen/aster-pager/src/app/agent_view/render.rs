@@ -3825,7 +3825,7 @@ impl AgentView {
                 width: content_w,
                 raw: entry.raw,
                 max_lines: None,
-                appearance: appearance.clone(),
+                appearance: std::sync::Arc::new(appearance.clone()),
                 is_selected: false,
                 cwd: Some(self.session.cwd.clone()),
             };

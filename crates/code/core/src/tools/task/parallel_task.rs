@@ -1,5 +1,7 @@
 use super::*;
 
+use serde::Deserialize;
+
 const PARALLEL_TASK_TOOL_DESCRIPTION: &str = "REMOVED from the model-visible registry (`HARNESS-CONV4`). Prefer `task` with multiple `tasks[]` items. Crate-internal only for unit tests that exercise the historical fan-out executor.";
 
 /// Historical fan-out executor used by focused unit tests.
@@ -56,6 +58,24 @@ impl ParallelTaskTool {
                 "{tool_name} timeout_ms must be at least 1"
             )));
         }
+        {
+            let mut seen = HashSet::new();
+            for (index, task) in params.tasks.iter().enumerate() {
+                if let Some(message) = refuse_blank_task_prompt(task) {
+                    return Ok(invalid_delegation_argument(format!(
+                        "{tool_name} task {}: {message}",
+                        index + 1
+                    )));
+                }
+                let fingerprint = task_content_fingerprint(task, &ctx.workspace.to_string_lossy());
+                if !seen.insert(fingerprint) {
+                    return Ok(invalid_delegation_argument(format!(
+                        "{tool_name} task {} duplicates earlier in-call content (same agent/description/prompt/workspace); submit distinct work or a single task",
+                        index + 1
+                    )));
+                }
+            }
+        }
         if let Some(min_success_count) = params.min_success_count {
             if !params.allow_partial_failure {
                 return Ok(invalid_delegation_argument(format!(
@@ -91,8 +111,8 @@ impl ParallelTaskTool {
         let source_anchor_counts = parallel_source_anchor_counts(&results);
         for (i, result) in results.iter().enumerate() {
             let status = if result.success { "[OK]" } else { "[ERR]" };
-            let (formatted, truncated) = format_task_result_for_context(result);
-            let (output_excerpt, _) = compact_task_output(&result.output);
+            let (formatted, truncated, discarded) = format_task_result_for_context(result);
+            let (output_excerpt, _, _) = compact_task_output(&result.output);
             let source_anchors = &result.source_anchors[..source_anchor_counts[i]];
             metadata_results.push(serde_json::json!({
                 "task_id": result.task_id,
@@ -107,6 +127,7 @@ impl ParallelTaskTool {
                 "source_anchors": source_anchors,
                 "output_bytes": result.output.len(),
                 "truncated_for_context": truncated,
+                "discarded_bytes": discarded,
                 "artifact_id": task_artifact_id(result),
                 "artifact_uri": task_artifact_uri(result),
             }));
@@ -221,7 +242,7 @@ impl Tool for ParallelTaskTool {
     }
 
     async fn execute(&self, args: &serde_json::Value, ctx: &ToolContext) -> Result<ToolOutput> {
-        let params: ParallelTaskParams = match serde_json::from_value(args.clone()) {
+        let params: ParallelTaskParams = match ParallelTaskParams::deserialize(args) {
             Ok(params) => params,
             Err(error) => {
                 return Ok(invalid_delegation_argument(format!(

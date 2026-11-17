@@ -533,6 +533,37 @@ fn describe_hook_event(event: &HookEvent, workspace: &Path) -> (&'static str, St
     (name, target, payload)
 }
 
+fn command_event_is_gating(event_name: &str) -> bool {
+    // Keep aligned with `HookEngine::is_gating_event` wire names from
+    // `describe_hook_event` (PascalCase ACP-style names).
+    matches!(
+        event_name,
+        "PreToolUse"
+            | "PermissionRequest"
+            | "PreCompact"
+            | "PrePrompt"
+            | "PrePlanning"
+            | "PreRunControl"
+    )
+}
+
+fn command_hook_infra_failure(hook: &LoadedHook, event_name: &str, failure: String) -> HookOutcome {
+    tracing::warn!(
+        hook_id = %hook.id,
+        event_name,
+        failure = %failure,
+        gating = command_event_is_gating(event_name),
+        "Trusted command hook infrastructure failed"
+    );
+    if command_event_is_gating(event_name) {
+        HookOutcome::Block {
+            reason: format!("Required hook '{}' failed: {failure}", hook.id),
+        }
+    } else {
+        HookOutcome::Continue(None)
+    }
+}
+
 async fn execute_command_hook(
     hook: &LoadedHook,
     workspace: &Path,
@@ -556,8 +587,11 @@ async fn execute_command_hook(
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
-            tracing::warn!(hook_id = %hook.id, %error, "Could not start trusted command hook");
-            return HookOutcome::Continue(None);
+            return command_hook_infra_failure(
+                hook,
+                event_name,
+                format!("could not start: {error}"),
+            );
         }
     };
     let input = bounded_event_input(payload);
@@ -579,14 +613,26 @@ async fn execute_command_hook(
     let status = match tokio::time::timeout(Duration::from_secs(timeout), child.wait()).await {
         Ok(Ok(status)) => Some(status),
         Ok(Err(error)) => {
-            tracing::warn!(hook_id = %hook.id, %error, "Trusted command hook wait failed");
-            None
+            if let Some(task) = stdin_task {
+                let _ = task.await;
+            }
+            let _ = join_output_task(stdout_task).await;
+            let _ = join_output_task(stderr_task).await;
+            return command_hook_infra_failure(hook, event_name, format!("wait failed: {error}"));
         }
         Err(_) => {
             let _ = child.start_kill();
             let _ = child.wait().await;
-            tracing::warn!(hook_id = %hook.id, timeout, "Trusted command hook timed out");
-            None
+            if let Some(task) = stdin_task {
+                let _ = task.await;
+            }
+            let _ = join_output_task(stdout_task).await;
+            let _ = join_output_task(stderr_task).await;
+            return command_hook_infra_failure(
+                hook,
+                event_name,
+                format!("timed out after {timeout}s"),
+            );
         }
     };
     if let Some(task) = stdin_task {
@@ -595,7 +641,7 @@ async fn execute_command_hook(
     let stdout = join_output_task(stdout_task).await;
     let stderr = join_output_task(stderr_task).await;
     let Some(status) = status else {
-        return HookOutcome::Continue(None);
+        return command_hook_infra_failure(hook, event_name, "missing exit status".into());
     };
     if status.code() == Some(2) {
         let reason = nonempty_lossy(&stderr)
@@ -603,13 +649,13 @@ async fn execute_command_hook(
         return HookOutcome::Block { reason };
     }
     if !status.success() {
-        tracing::warn!(
-            hook_id = %hook.id,
-            exit_code = ?status.code(),
-            stderr = %String::from_utf8_lossy(&stderr),
-            "Trusted command hook failed without a blocking exit code"
+        let detail =
+            nonempty_lossy(&stderr).unwrap_or_else(|| format!("exit code {:?}", status.code()));
+        return command_hook_infra_failure(
+            hook,
+            event_name,
+            format!("failed without blocking exit code 2: {detail}"),
         );
-        return HookOutcome::Continue(None);
     }
     cap_additional_context(
         parse_hook_output(&stdout, event_name, &hook.id),
@@ -800,13 +846,17 @@ fn load_hook_file(
                         MAX_COMMAND_OUTPUT_BYTES
                     );
                 }
-                let digest_input = serde_json::to_vec(&json!({
-                    "event": event,
-                    "matcher": group.matcher,
-                    "definition": definition,
-                    "source": source,
-                }))?;
-                let id = sha256_hex(&digest_input);
+                let mut hasher = Sha256::new();
+                crate::byte_budget::json_update_sha256(
+                    &mut hasher,
+                    &json!({
+                        "event": event,
+                        "matcher": group.matcher,
+                        "definition": definition,
+                        "source": source,
+                    }),
+                )?;
+                let id = format!("{:x}", hasher.finalize());
                 hooks.push(LoadedHook {
                     id,
                     event: event.to_string(),
@@ -954,13 +1004,6 @@ fn short_id(id: &str) -> &str {
     id.get(..12).unwrap_or(id)
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
 fn platform_shell_command(script: &str) -> tokio::process::Command {
     #[cfg(windows)]
     {
@@ -1005,16 +1048,22 @@ fn configure_hook_environment(
 }
 
 fn bounded_event_input(payload: &Value) -> Vec<u8> {
-    let mut bytes = serde_json::to_vec(payload).unwrap_or_default();
-    if bytes.len() > MAX_EVENT_INPUT_BYTES {
-        bytes = serde_json::to_vec(&json!({
+    // Prefer a length probe so oversized payloads never allocate their full Vec
+    // before the truncated stub replaces them.
+    let oversized = crate::byte_budget::json_serialized_len(payload)
+        .map(|len| len > MAX_EVENT_INPUT_BYTES)
+        .unwrap_or(true);
+    let mut bytes = if oversized {
+        serde_json::to_vec(&json!({
             "hook_event_name": payload.get("hook_event_name"),
             "session_id": payload.get("session_id"),
             "truncated": true,
             "reason": "event exceeded the command-hook input limit",
         }))
-        .unwrap_or_default();
-    }
+        .unwrap_or_default()
+    } else {
+        serde_json::to_vec(payload).unwrap_or_default()
+    };
     bytes.push(b'\n');
     bytes
 }
@@ -1176,6 +1225,34 @@ mod tests {
 
         let persisted = load_trust_store(&trust_path).unwrap();
         assert_eq!(persisted.trusted, ids.into_iter().collect());
+    }
+
+    #[tokio::test]
+    async fn gating_command_hook_spawn_failure_blocks_instead_of_continuing() {
+        let workspace = tempfile::tempdir().unwrap();
+        std::fs::create_dir(workspace.path().join(".git")).unwrap();
+        // Path that cannot be executed → spawn Err → fail closed on PreToolUse.
+        write_config(
+            workspace.path(),
+            "/definitely/missing/aster-hook-binary-p2-test",
+        );
+        let trust = workspace.path().join("state/hooks-trust.json");
+        let executor = CommandHookExecutor::discover(workspace.path(), None, trust).unwrap();
+        let id = read_lock(&executor.hooks)[0].id.clone();
+        executor.change_trust("trust", short_id(&id)).unwrap();
+        let outcome = executor
+            .fire_outcome(&HookEvent::PreToolUse(crate::hooks::PreToolUseEvent {
+                session_id: "session".to_string(),
+                tool: "bash".to_string(),
+                args: json!({"command": "ls"}),
+                working_directory: workspace.path().to_string_lossy().into_owned(),
+                recent_tools: Vec::new(),
+            }))
+            .await;
+        assert!(
+            matches!(outcome, HookOutcome::Block { ref reason } if reason.contains("Required hook")),
+            "gating spawn failure must Block, got {outcome:?}"
+        );
     }
 
     #[tokio::test]

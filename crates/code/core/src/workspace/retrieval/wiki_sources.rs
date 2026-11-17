@@ -312,7 +312,7 @@ pub fn capture_workspace_wiki_sources(
     }
     coverage.included_files = files.len();
     check_cancelled(cancellation)?;
-    let identity = serde_json::to_vec(&(
+    let identity = (
         "workspace-wiki-sources-v2",
         root_name,
         scope_revision,
@@ -321,10 +321,11 @@ pub fn capture_workspace_wiki_sources(
             .iter()
             .map(|f| (&f.path, &f.generation, f.format))
             .collect::<Vec<_>>(),
-    ))
-    .map_err(io::Error::other)?;
+    );
+    let mut hasher = Sha256::new();
+    crate::byte_budget::json_update_sha256(&mut hasher, &identity).map_err(io::Error::other)?;
     Ok(WorkspaceWikiSources {
-        generation: digest(&identity),
+        generation: format!("sha256:{:x}", hasher.finalize()),
         root,
         manifest_version: manifest.version,
         files,

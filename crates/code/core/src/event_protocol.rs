@@ -376,9 +376,12 @@ impl From<EventEnvelopeV1> for AgentEventProjectionV1 {
                     .and_then(|usage| Self::usize(usage, "total_tokens"));
                 if let Some(summary) = projection.payload.get("verification_summary") {
                     projection.verification_summary_json = Some(summary.to_string());
-                    projection.verification_summary_text = serde_json::from_value(summary.clone())
-                        .ok()
-                        .map(|summary| crate::verification::format_verification_summary(&summary));
+                    projection.verification_summary_text =
+                        crate::verification::VerificationSummary::deserialize(summary)
+                            .ok()
+                            .map(|summary| {
+                                crate::verification::format_verification_summary(&summary)
+                            });
                 }
             }
             AgentEventTypeV1::ERROR => {

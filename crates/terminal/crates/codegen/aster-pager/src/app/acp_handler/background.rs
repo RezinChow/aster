@@ -9,9 +9,10 @@ pub(super) fn route_bg_task_stdout(
     tcu: &acp::ToolCallUpdate,
     session: &mut super::super::agent::AgentSession,
 ) -> bool {
-    let tc_id = tcu.tool_call_id.0.to_string();
-
-    let task_id = match session.bg_tool_call_to_task.get(&tc_id) {
+    let task_id = match session
+        .bg_tool_call_to_task
+        .get(tcu.tool_call_id.0.as_ref())
+    {
         Some(tid) => tid.clone(),
         None => return false,
     };

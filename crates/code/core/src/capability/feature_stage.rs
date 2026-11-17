@@ -48,8 +48,9 @@ pub static FEATURE_SWITCHES: &[FeatureSwitchSpec] = &[
         legacy_aliases: &["rollout_byte_cap"],
     },
     FeatureSwitchSpec {
+        // Shipped P0-3 / production bash violation path — stage matches reality (P7 deepen).
         id: "sandbox.permission_profile",
-        stage: FeatureStage::Experimental,
+        stage: FeatureStage::Stable,
         legacy_aliases: &[],
     },
     FeatureSwitchSpec {
@@ -58,14 +59,21 @@ pub static FEATURE_SWITCHES: &[FeatureSwitchSpec] = &[
         legacy_aliases: &["acp_schema_gate"],
     },
     FeatureSwitchSpec {
+        // Shipped P1-5 ledger + E8 Failed phase — stage matches reality (P7 deepen).
         id: "compaction.ledger",
-        stage: FeatureStage::Experimental,
+        stage: FeatureStage::Stable,
         legacy_aliases: &["compact_budget_ledger"],
     },
     FeatureSwitchSpec {
         id: "tools.patch_codes",
         stage: FeatureStage::Experimental,
         legacy_aliases: &["verified_patch"],
+    },
+    // F1 / HARNESS-CONV4: model-visible `parallel_task` removed; fan-out via `task`.
+    FeatureSwitchSpec {
+        id: "tools.parallel_task",
+        stage: FeatureStage::Removed,
+        legacy_aliases: &["parallel_task"],
     },
 ];
 
@@ -74,6 +82,28 @@ pub fn resolve_feature_switch(name: &str) -> Option<&'static FeatureSwitchSpec> 
     FEATURE_SWITCHES
         .iter()
         .find(|spec| spec.id == name || spec.legacy_aliases.iter().any(|alias| *alias == name))
+}
+
+/// Runtime admission for a governed switch (P7).
+///
+/// - Known + `Removed` → `false` (fail-closed)
+/// - Known otherwise → `true` (includes Experimental; hosts must not treat this as Stable)
+/// - Unknown name → `None` (caller chooses fail-open/closed; this registry does not invent)
+///
+/// Production **call sites** must use [`feature_switch_call_site_allowed`] instead of
+/// treating `enabled=true` as Stable.
+pub fn feature_switch_enabled(name: &str) -> Option<bool> {
+    resolve_feature_switch(name).map(|spec| !matches!(spec.stage, FeatureStage::Removed))
+}
+
+/// Hard call-site gate (P7 deepen): only Stable/Deprecated may run without an opt-in path.
+///
+/// - Known + `Stable` | `Deprecated` → `Some(true)`
+/// - Known + `Experimental` | `Development` | `Removed` → `Some(false)` (fail-closed)
+/// - Unknown → `None`
+pub fn feature_switch_call_site_allowed(name: &str) -> Option<bool> {
+    resolve_feature_switch(name)
+        .map(|spec| matches!(spec.stage, FeatureStage::Stable | FeatureStage::Deprecated))
 }
 
 /// Stable digest of the feature-switch registry (sorted canonical rows).
@@ -118,6 +148,43 @@ mod tests {
             }
         }
         assert!(resolve_feature_switch("unknown.flag").is_none());
+        assert_eq!(feature_switch_enabled("unknown.flag"), None);
+        assert_eq!(feature_switch_enabled("tools.parallel_task"), Some(false));
+        assert_eq!(feature_switch_enabled("parallel_task"), Some(false));
+        assert_eq!(feature_switch_enabled("acp.wire_surface_v1"), Some(true));
+        assert_eq!(
+            resolve_feature_switch("sandbox.permission_profile")
+                .expect("row")
+                .stage,
+            FeatureStage::Stable
+        );
+        assert_eq!(
+            resolve_feature_switch("compaction.ledger")
+                .expect("row")
+                .stage,
+            FeatureStage::Stable
+        );
+        assert_eq!(
+            resolve_feature_switch("tools.patch_codes")
+                .expect("row")
+                .stage,
+            FeatureStage::Experimental
+        );
+        // Surface map may still show Experimental as enabled; call sites refuse.
+        assert_eq!(feature_switch_enabled("tools.patch_codes"), Some(true));
+        assert_eq!(
+            feature_switch_call_site_allowed("tools.patch_codes"),
+            Some(false)
+        );
+        assert_eq!(
+            feature_switch_call_site_allowed("verified_patch"),
+            Some(false)
+        );
+        assert_eq!(
+            feature_switch_call_site_allowed("acp.wire_surface_v1"),
+            Some(true)
+        );
+        assert_eq!(feature_switch_call_site_allowed("unknown.flag"), None);
     }
 
     #[test]

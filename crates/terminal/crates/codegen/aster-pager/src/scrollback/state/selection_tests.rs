@@ -400,7 +400,10 @@ fn collapsed_turn_marker_breaks_dense_run_walks() {
 fn test_grow_fold_during_page_flip_drops_follow_and_preserve() {
     crate::appearance::cache::set_show_thinking_blocks(true);
     let mut h = ScrollTestHarness::new(80, 50);
-    h.state.appearance.scrollback.scroll.respect_manual_folds = true;
+    std::sync::Arc::make_mut(&mut h.state.appearance)
+        .scrollback
+        .scroll
+        .respect_manual_folds = true;
     h.push_prompt("old");
     h.push_agent("old response");
     h.send_prompt("new question");
@@ -425,7 +428,10 @@ fn test_grow_fold_during_page_flip_drops_follow_and_preserve() {
 fn test_grow_fold_during_page_flip_overflow_stays_anchored() {
     crate::appearance::cache::set_show_thinking_blocks(true);
     let mut h = ScrollTestHarness::new(80, 50);
-    h.state.appearance.scrollback.scroll.respect_manual_folds = true;
+    std::sync::Arc::make_mut(&mut h.state.appearance)
+        .scrollback
+        .scroll
+        .respect_manual_folds = true;
     h.push_prompt("old");
     h.push_agent("old response");
     h.send_prompt("new question");
@@ -471,7 +477,10 @@ fn test_fold_without_follow_keeps_follow_off() {
 fn test_shrink_fold_while_following_restores_follow() {
     crate::appearance::cache::set_show_thinking_blocks(true);
     let mut h = ScrollTestHarness::new(80, 40);
-    h.state.appearance.scrollback.scroll.respect_manual_folds = true;
+    std::sync::Arc::make_mut(&mut h.state.appearance)
+        .scrollback
+        .scroll
+        .respect_manual_folds = true;
     h.push_prompt("Q1");
     let think_id = h.push_thinking("thinking...");
     assert!(h.is_follow(), "following before fold");
@@ -503,7 +512,10 @@ fn test_shrink_fold_while_following_restores_follow() {
 fn test_grow_fold_on_finished_entry_drops_follow() {
     crate::appearance::cache::set_show_thinking_blocks(true);
     let mut h = ScrollTestHarness::new(80, 40);
-    h.state.appearance.scrollback.scroll.respect_manual_folds = true;
+    std::sync::Arc::make_mut(&mut h.state.appearance)
+        .scrollback
+        .scroll
+        .respect_manual_folds = true;
     h.push_prompt("Q1");
     let think_id = h
         .state
@@ -590,7 +602,10 @@ fn test_respect_manual_folds_off_keeps_old_fold_follow_contract() {
 fn test_expand_while_streaming_keeps_viewport_until_follow_resumed() {
     crate::appearance::cache::set_show_thinking_blocks(true);
     let mut h = ScrollTestHarness::new(80, 20);
-    h.state.appearance.scrollback.scroll.respect_manual_folds = true;
+    std::sync::Arc::make_mut(&mut h.state.appearance)
+        .scrollback
+        .scroll
+        .respect_manual_folds = true;
     h.push_prompt("Q1");
     let think_id = h.push_thinking("line1");
     for i in 0..50 {
@@ -626,7 +641,10 @@ fn test_expand_while_streaming_keeps_viewport_until_follow_resumed() {
 #[test]
 fn test_global_fold_ops_clear_pins_scoped() {
     let mut h = ScrollTestHarness::new(80, 40);
-    h.state.appearance.scrollback.scroll.respect_manual_folds = true;
+    std::sync::Arc::make_mut(&mut h.state.appearance)
+        .scrollback
+        .scroll
+        .respect_manual_folds = true;
     h.push_prompt("Q1");
     let think_id = h
         .state
@@ -2125,7 +2143,10 @@ fn reapply_thinking_fold_policy_honors_sticky_expand_all() {
 #[test]
 fn reapply_thinking_fold_policy_skips_pinned_and_running_thoughts() {
     let mut state = ScrollbackState::new();
-    state.appearance.scrollback.scroll.respect_manual_folds = true;
+    std::sync::Arc::make_mut(&mut state.appearance)
+        .scrollback
+        .scroll
+        .respect_manual_folds = true;
     let pinned = push_thought(&mut state, "user expanded this one");
     {
         let entry = state.get_by_id_mut(pinned).unwrap();

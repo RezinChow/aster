@@ -227,9 +227,11 @@ impl DocumentBridge {
                                     .meta
                                     .and_then(|mut meta| meta.remove("asterDocument"));
                                 if let Some(document) = &document {
-                                    let size = serde_json::to_vec(document)
-                                        .map_err(|error| invalid_observation(error.to_string()))?
-                                        .len();
+                                    let size =
+                                        aster_core::byte_budget::json_serialized_len(document)
+                                            .map_err(|error| {
+                                                invalid_observation(error.to_string())
+                                            })?;
                                     if size > TEXT_LIMIT * 8 + 32768 {
                                         return Err(invalid_observation(
                                             "document host response exceeds limit",
@@ -424,7 +426,7 @@ impl DocumentBridge {
                 "document processing source mismatch"
             );
             anyhow::ensure!(
-                serde_json::to_vec(&value)?.len() <= TEXT_LIMIT,
+                aster_core::byte_budget::json_serialized_len(&value)? <= TEXT_LIMIT,
                 "document processing result exceeds 64 KiB"
             );
             Ok(value)
@@ -504,7 +506,7 @@ impl DocumentBridge {
                 anyhow::bail!("invalid workspace search response")
             };
             access.check()?;
-            let bytes = serde_json::to_vec(&value)?.len();
+            let bytes = aster_core::byte_budget::json_serialized_len(&value)?;
             response_bytes = Some(bytes);
             anyhow::ensure!(
                 bytes <= TEXT_LIMIT,
@@ -601,7 +603,7 @@ impl Tool for DocumentReadTool {
         let result: Result<ToolOutput> = async {
             self.workspace.validate(&ctx.workspace)?;
             let access = ctx.workspace_operation(WorkspaceOperation::Read)?;
-            let input: Input = serde_json::from_value(args.clone())?;
+            let input: Input = Input::deserialize(args)?;
             anyhow::ensure!(!input.file_path.is_empty() && input.file_path.len() <= 4096 && !input.file_path.contains('\0'), "invalid document path");
             let retain_for_run = input.retain_for_run;
             let input = PathBuf::from(input.file_path);

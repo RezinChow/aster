@@ -116,7 +116,7 @@ pub(super) fn tool_permission_ask(
     ));
     acp::RequestPermissionRequest::new(
         session_id.clone(),
-        acp::ToolCallUpdate::new(acp::ToolCallId::new(tool_id.to_string()), fields),
+        acp::ToolCallUpdate::new(acp::ToolCallId::new(tool_id), fields),
         options,
     )
 }
@@ -289,11 +289,22 @@ impl AsterCodeAgent {
             return false;
         };
         // P2-10 Permission channel: ledger spans the host HITL, not the hook gate.
+        // Duplicate pending ids fail closed here — never open a second host ask
+        // that the ledger cannot uniquely own (defect P1).
         let elicitation_id = aster_core::elicitation::permission_id(session_id.0.as_ref(), tool_id);
-        let _ = aster_core::elicitation::begin(
+        if let Err(error) = aster_core::elicitation::begin(
             &elicitation_id,
             aster_core::elicitation::ElicitationChannel::Permission,
-        );
+        ) {
+            tracing::warn!(
+                session = %session_id.0,
+                tool = tool_name,
+                elicitation_id = %elicitation_id,
+                ?error,
+                "permission elicitation begin refused; denying without a second host ask"
+            );
+            return false;
+        }
         let ask = client.request_permission(request);
         let response = match tokio::time::timeout(ask_deadline(), ask).await {
             Ok(result) => result,
@@ -481,7 +492,7 @@ pub(super) fn question_permission_request(
         acp::RequestPermissionRequest::new(
             session_id.clone(),
             acp::ToolCallUpdate::new(
-                acp::ToolCallId::new(question_id.to_string()),
+                acp::ToolCallId::new(question_id),
                 acp::ToolCallUpdateFields::new()
                     .title(question.to_string())
                     .kind(acp::ToolKind::Other)

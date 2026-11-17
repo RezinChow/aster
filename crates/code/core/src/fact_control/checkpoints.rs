@@ -1,13 +1,15 @@
 //! Portable caches are exported only from the original committed tool log.
 
 use super::*;
+use serde::Deserialize;
 
 pub(super) async fn save_committed(
     surface: &SessionSurface,
     checkpoint: &CheckpointState,
     attempted_seq: &AtomicU64,
 ) -> Result<(), ActorError> {
-    let facts = surface_fact_log(surface)?.read(&thread_for_session(&surface.session_id))?;
+    let thread = thread_for_session(&surface.session_id);
+    let (facts, _freeze) = surface_fact_log(surface)?.read_freeze(&thread)?;
     replay_unsettled_mutations_from_facts(surface, &facts);
     let debt = receipts::fold_debt(&facts);
     let expected_binding = checkpoint
@@ -18,7 +20,6 @@ pub(super) async fn save_committed(
                 .map_err(|error| ActorError::Schema(error.to_string()))
         })
         .transpose()?;
-    let thread = thread_for_session(&surface.session_id);
     // A recovery may read receipts from its source Run. Export only when
     // this exact admitted Run has added a terminal; the original checkpoint
     // and log remain the authority for its older work.
@@ -29,9 +30,7 @@ pub(super) async fn save_committed(
         let Some(value) = fact.payload.get("receipt") else {
             return false;
         };
-        let Ok(result) =
-            serde_json::from_value::<aster_effect::ToolExecutionResultV1>(value.clone())
-        else {
+        let Ok(result) = aster_effect::ToolExecutionResultV1::deserialize(value) else {
             return false;
         };
         result.identity.admission.as_ref().is_some_and(|admission| {
@@ -159,7 +158,7 @@ fn transcript_messages_from(
             }),
             "model.turn" => {
                 let Ok(ModelDecision::Tool { call, also }) =
-                    serde_json::from_value::<ModelDecision>(fact.payload.clone())
+                    ModelDecision::deserialize(&fact.payload)
                 else {
                     if let Some(message) = message_from_fact(fact) {
                         messages.push(message);

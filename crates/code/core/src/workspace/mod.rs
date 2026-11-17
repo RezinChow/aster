@@ -427,6 +427,13 @@ pub struct CommandOutputSummary {
     pub timed_out: bool,
 }
 
+impl CommandOutputSummary {
+    /// Bytes observed but not retained (shared E4 / byte_budget vocabulary).
+    pub fn discarded_bytes(&self) -> usize {
+        crate::byte_budget::discarded_bytes(self.total_bytes, self.captured_bytes)
+    }
+}
+
 /// Command execution request.
 #[derive(Clone)]
 pub struct CommandRequest {

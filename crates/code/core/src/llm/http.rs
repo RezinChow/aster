@@ -366,12 +366,16 @@ pub(crate) fn stream_idle_timeout() -> Duration {
 /// only arrive after the full generation, which may legitimately take
 /// minutes. `ASTER_LLM_STREAM_HEADERS_TIMEOUT_MS` overrides the default;
 /// `0` disables the bound entirely.
-pub(crate) fn stream_headers_timeout() -> Duration {
+pub fn stream_headers_timeout_ms() -> u64 {
     const DEFAULT_HEADERS_TIMEOUT_MS: u64 = 120_000;
     let configured = env::var("ASTER_LLM_STREAM_HEADERS_TIMEOUT_MS")
         .ok()
         .and_then(|value| value.trim().parse::<u64>().ok());
-    let milliseconds = configured.unwrap_or(DEFAULT_HEADERS_TIMEOUT_MS);
+    configured.unwrap_or(DEFAULT_HEADERS_TIMEOUT_MS)
+}
+
+pub(crate) fn stream_headers_timeout() -> Duration {
+    let milliseconds = stream_headers_timeout_ms();
     Duration::from_millis(if milliseconds == 0 {
         u64::MAX
     } else {

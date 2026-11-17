@@ -18,7 +18,7 @@ use crate::llm::ToolDefinition;
 use crate::trace::{InMemoryTraceSink, TraceEvent, TraceSink};
 use anyhow::Result;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
@@ -375,9 +375,29 @@ impl ToolRegistry {
             return Ok(());
         };
         let schema = tool.parameters();
-        let schema_bytes = serde_json::to_vec(&schema)
+        // One serialize pass: count bytes + fingerprint without retaining a Vec.
+        struct SchemaFingerprintWriter {
+            hasher: std::collections::hash_map::DefaultHasher,
+            len: usize,
+        }
+        impl std::io::Write for SchemaFingerprintWriter {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                use std::hash::Hasher;
+                self.hasher.write(buf);
+                self.len = self.len.saturating_add(buf.len());
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut writer = SchemaFingerprintWriter {
+            hasher: std::collections::hash_map::DefaultHasher::new(),
+            len: 0,
+        };
+        serde_json::to_writer(&mut writer, &schema)
             .map_err(|error| format!("tool parameter schema is not serializable: {error}"))?;
-        if schema_bytes.len() > MAX_TOOL_SCHEMA_BYTES {
+        if writer.len > MAX_TOOL_SCHEMA_BYTES {
             return Err(format!(
                 "tool parameter schema exceeds the {} byte safety limit",
                 MAX_TOOL_SCHEMA_BYTES
@@ -388,9 +408,10 @@ impl ToolRegistry {
                 "tool parameter schema exceeds the maximum nesting depth of {MAX_TOOL_SCHEMA_DEPTH}"
             ));
         }
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        schema_bytes.hash(&mut hasher);
-        let schema_fingerprint = hasher.finish();
+        let schema_fingerprint = {
+            use std::hash::Hasher;
+            writer.hasher.finish()
+        };
         let cached = self
             .argument_validators
             .read()

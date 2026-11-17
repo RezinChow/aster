@@ -102,8 +102,9 @@ pub struct BlockContext {
     pub raw: bool,
     /// Optional row budget. When Some(n), the block must fit within n lines.
     pub max_lines: Option<u16>,
-    /// Appearance config (from ~/.aster/pager.toml).
-    pub appearance: AppearanceConfig,
+    /// Appearance config (from ~/.aster/pager.toml), shared via Arc so
+    /// hot-path `BlockContext` builds do not deep-clone the nested tree (HG2).
+    pub appearance: Arc<AppearanceConfig>,
     /// Whether this entry is currently selected in the scrollback.
     pub is_selected: bool,
     /// Session/worktree cwd (`AgentSession.cwd`); with `None`, paths are never made relative.

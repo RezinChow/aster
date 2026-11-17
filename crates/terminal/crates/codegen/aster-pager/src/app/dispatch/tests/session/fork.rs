@@ -974,10 +974,10 @@ fn dispatch_fork_stashes_directive_in_pending_first_prompt() {
 fn dispatch_fork_inherits_appearance_sharing_and_plugin_visibility() {
     let mut app = fork_test_app();
     // Tweak app-level state so we can verify the sweep applied it.
-    app.appearance.prompt.compact = true;
+    std::sync::Arc::make_mut(&mut app.appearance).prompt.compact = true;
     app.sharing_enabled = false;
     app.usage_visible = false;
-    app.appearance.disable_plugins = true;
+    std::sync::Arc::make_mut(&mut app.appearance).disable_plugins = true;
     // Cached billing state must be inherited so the credits warning is correct from the first frame (not just after a billing fetch)
     app.credit_balance = Some(crate::views::credit_bar::CreditBalance {
         prepaid_balance_cents: Some(1500),

@@ -36,6 +36,8 @@ fn counts() -> &'static Mutex<HashMap<String, u32>> {
 pub enum AskUserError {
     CapExceeded,
     Invalid(&'static str),
+    /// A pending elicitation with this id already owns the host channel.
+    ElicitationBusy,
 }
 
 /// Admit one question for `run_id` before a question fact is appended.
@@ -75,14 +77,14 @@ pub fn begin_on_channel(
     if options.len() > MAX_OPTIONS {
         return Err(AskUserError::Invalid("too many options"));
     }
-    let mut counts = counts().lock().expect("ask-user counts");
-    let count = counts.entry(run_id.to_string()).or_insert(0);
+    let mut slots = counts().lock().expect("ask-user counts");
+    let count = slots.entry(run_id.to_string()).or_insert(0);
     if *count >= MAX_QUESTIONS_PER_RUN {
         return Err(AskUserError::CapExceeded);
     }
     *count += 1;
     let sequence = *count;
-    drop(counts);
+    drop(slots);
     let question = UserQuestionV1 {
         schema: USER_QUESTION_SCHEMA.to_string(),
         question_id: format!("{question_id}-{sequence}"),
@@ -90,7 +92,25 @@ pub fn begin_on_channel(
         options: options.to_vec(),
         allow_free_text,
     };
-    let _ = crate::elicitation::begin(&question.question_id, channel);
+    if let Err(error) = crate::elicitation::begin(&question.question_id, channel) {
+        let mut slots = counts().lock().expect("ask-user counts");
+        if let Some(count) = slots.get_mut(run_id) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                slots.remove(run_id);
+            }
+        }
+        drop(slots);
+        match error {
+            crate::elicitation::ElicitationError::DuplicateId => {
+                return Err(AskUserError::ElicitationBusy);
+            }
+            crate::elicitation::ElicitationError::NotFound
+            | crate::elicitation::ElicitationError::AlreadyTerminal => {
+                return Err(AskUserError::Invalid("elicitation ledger refused begin"));
+            }
+        }
+    }
     Ok(question)
 }
 
@@ -231,6 +251,20 @@ mod tests {
             begin("run-invalid", "q-options", "pick one?", &options, false),
             Err(AskUserError::Invalid(_))
         ));
+    }
+
+    #[test]
+    fn begin_fails_closed_when_elicitation_id_already_pending() {
+        // First ask on this run would mint `q-busy-1`. Occupy that ledger id first.
+        crate::elicitation::begin("q-busy-1", crate::elicitation::ElicitationChannel::AskUser)
+            .expect("seed pending");
+        assert!(matches!(
+            begin("run-busy", "q-busy", "already open?", &[], false),
+            Err(AskUserError::ElicitationBusy)
+        ));
+        // Cap slot must be released so a later ask can proceed after cancel.
+        crate::elicitation::cancel("q-busy-1").expect("clear seed");
+        begin("run-busy", "q-busy", "now free?", &[], false).expect("retry after cancel");
     }
 
     #[tokio::test]

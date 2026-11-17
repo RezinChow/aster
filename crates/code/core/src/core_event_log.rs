@@ -118,14 +118,14 @@ impl CoreLogEntryV1 {
             previous_digest: &'a str,
             artifact_refs: &'a [String],
         }
-        let bytes = serde_json::to_vec(&Identity {
+        let identity = Identity {
             schema: &self.schema,
             event_digest: &self.event.event_digest,
             previous_digest: &self.previous_digest,
             artifact_refs: &self.artifact_refs,
-        })
-        .map_err(|error| CoreEventLogError::Serialization(error.to_string()))?;
-        Ok(digest_bytes(CORE_LOG_ENTRY_DIGEST_DOMAIN_V1, &bytes))
+        };
+        Ok(digest_json(CORE_LOG_ENTRY_DIGEST_DOMAIN_V1, &identity)
+            .map_err(|error| CoreEventLogError::Serialization(error.to_string()))?)
     }
 
     fn validate_without_digest(&self) -> Result<(), CoreEventLogError> {
@@ -562,9 +562,7 @@ fn trim(buffer: &mut LogBuffer, max_entries: Option<usize>, max_bytes: Option<us
 }
 
 fn serialized_entry_len(entry: &CoreLogEntryV1) -> usize {
-    serde_json::to_vec(entry)
-        .map(|bytes| bytes.len())
-        .unwrap_or(usize::MAX)
+    crate::byte_budget::json_serialized_len(entry).unwrap_or(usize::MAX)
 }
 
 fn collect_artifact_refs(value: &serde_json::Value) -> Vec<String> {
@@ -611,13 +609,16 @@ fn validate_digest(field: &'static str, value: &str) -> Result<(), CoreEventLogE
     Ok(())
 }
 
-fn digest_bytes(domain: &str, bytes: &[u8]) -> String {
+fn digest_json(
+    domain: &str,
+    value: &(impl serde::Serialize + ?Sized),
+) -> serde_json::Result<String> {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(domain.as_bytes());
     hasher.update([0]);
-    hasher.update(bytes);
-    format!("sha256:{:x}", hasher.finalize())
+    crate::byte_budget::json_update_sha256(&mut hasher, value)?;
+    Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
 #[cfg(test)]

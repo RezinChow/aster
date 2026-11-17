@@ -1,6 +1,7 @@
 //! Information credits derived from original preparations and visible results.
 
 use super::*;
+use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(in crate::fact_control) fn novel_information(
@@ -17,7 +18,7 @@ pub(in crate::fact_control) fn novel_information(
         .filter(|fact| fact.kind == "tool.prepared")
         .filter_map(|fact| {
             let prepared: ToolPreparedV1 =
-                serde_json::from_value(fact.payload.get("prepared")?.clone()).ok()?;
+                ToolPreparedV1::deserialize(fact.payload.get("prepared")?).ok()?;
             Some((
                 prepared.identity.key().ok()?,
                 prepared.effective_args_digest,

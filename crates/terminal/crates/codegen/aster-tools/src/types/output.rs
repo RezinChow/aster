@@ -409,25 +409,35 @@ fn optional_bytes_or_text<'de, D: serde::Deserializer<'de>>(
 
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct BashOutput {
-    #[serde(deserialize_with = "bytes_or_text")]
+    /// Defaults empty so streaming `output_delta` frames can omit a full buffer.
+    #[serde(default, deserialize_with = "bytes_or_text")]
     pub output: Vec<u8>,
     /// ANSI-stripped and soft-wrapped output for model prompt.
     /// Pre-baked at construction time so `to_prompt_format` is a simple read.
     #[serde(default)]
     pub output_for_prompt: String,
+    #[serde(default)]
     pub exit_code: i32,
+    #[serde(default)]
     pub command: String,
+    #[serde(default)]
     pub truncated: bool,
+    #[serde(default)]
     pub signal: Option<String>,
+    #[serde(default)]
     pub timed_out: bool,
     /// describes the intent of this bash command
+    #[serde(default)]
     pub description: Option<String>,
     /// the current working directory after the command completes
+    #[serde(default)]
     pub current_dir: String,
     /// Path to the output file where full output is stored.
     /// Use read_file tool to retrieve full output when truncated.
+    #[serde(default)]
     pub output_file: String,
     /// Total bytes of output (before truncation).
+    #[serde(default)]
     pub total_bytes: usize,
     /// Incremental output delta (new bytes since last notification). When present, consumers should append to their
     /// accumulated buffer instead of replacing with `output`. When `Some(vec![])`, consumers should clear their accumulated
@@ -1329,6 +1339,28 @@ mod tests {
         assert_eq!(text.output_delta.as_deref(), Some(&b"more"[..]));
         assert_eq!(bytes.output_delta, None);
     }
+
+    #[test]
+    fn slim_streaming_bash_delta_deserializes_with_field_defaults() {
+        let wire = json!({
+            "type": "Bash",
+            "total_bytes": 5,
+            "output_delta": "chunk",
+        });
+        let ToolOutput::Bash(bash) = serde_json::from_value(wire).expect("slim Bash delta") else {
+            panic!("expected ToolOutput::Bash");
+        };
+        assert!(bash.output.is_empty());
+        assert_eq!(bash.exit_code, 0);
+        assert!(bash.command.is_empty());
+        assert!(!bash.truncated);
+        assert!(!bash.timed_out);
+        assert!(bash.current_dir.is_empty());
+        assert!(bash.output_file.is_empty());
+        assert_eq!(bash.total_bytes, 5);
+        assert_eq!(bash.output_delta.as_deref(), Some(&b"chunk"[..]));
+    }
+
     #[test]
     fn send_subagent_message_error_classification_is_closed() {
         use crate::implementations::grok_build::send_subagent_message::SendSubagentMessageOutput::*;

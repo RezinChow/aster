@@ -2126,6 +2126,26 @@ fn same_stream_start_appends_normally() {
     tracker.handle_update(agent_chunk("world!"), &stream, &mut sb);
     assert_eq!(sb.len(), 1, "Same stream should append to one entry");
 }
+/// First `streamStartMs` of a turn (last is None) must pre-create Thinking chrome.
+/// Use a non-content update: an AgentMessageChunk would finish_thinking and drop the empty block.
+#[test]
+fn first_stream_start_pre_creates_thinking() {
+    crate::appearance::cache::set_show_thinking_blocks(true);
+    let mut sb = ScrollbackState::new();
+    let mut tracker = AcpUpdateTracker::new();
+    assert!(tracker.current_thinking.is_none());
+    tracker.handle_update(
+        acp::SessionUpdate::CurrentModeUpdate(acp::CurrentModeUpdate::new("default")),
+        &meta_stream(1_000),
+        &mut sb,
+    );
+    assert!(
+        tracker.current_thinking.is_some(),
+        "first streamStartMs must unlock Thinking… before more model text"
+    );
+    assert_eq!(tracker.last_stream_start_ms, Some(1_000));
+}
+
 /// stream_start_ms change breaks thinking entries too.
 #[test]
 fn stream_start_breaks_thinking_across_streams() {

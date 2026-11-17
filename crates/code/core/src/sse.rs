@@ -63,8 +63,8 @@ pub(crate) struct SseEventScan {
 /// spec-shaped frame `data: ...\r\n\r\n` is one event. Searching for the two
 /// bytes `\n\n` misses that frame: the newlines are separated by `\r`.
 ///
-/// A trailing CR on a nonempty line waits for a possible LF. A blank CR line
-/// already ends the event; a later LF is an empty line. `eof` flushes a final CR.
+/// A trailing CR waits for a possible LF — including a blank CR that may still
+/// grow into a CRLF terminator. `eof` flushes a final CR (blank or not).
 pub(crate) fn take_sse_events(buffer: &mut String, eof: bool) -> Vec<String> {
     take_sse_events_scanned(buffer, &mut SseEventScan::default(), eof)
 }
@@ -88,7 +88,9 @@ pub(crate) fn take_sse_events_scanned(
         let blank = scan.index == scan.line_start;
         let ending_len = if bytes[scan.index] == b'\r' {
             if scan.index + 1 == bytes.len() {
-                if !eof && !blank {
+                // Hold every trailing CR until the next byte or eof so a split
+                // `\r\n` blank terminator cannot emit a partial event.
+                if !eof {
                     break;
                 }
                 1

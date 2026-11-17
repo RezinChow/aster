@@ -15,6 +15,8 @@ pub(crate) enum CompactionLedgerPhase {
     Started,
     /// Compact finished; `tokens_after` and carry counts are set.
     Completed,
+    /// Mid-flight failure after Started (E8); `tokens_after` stays unknown.
+    Failed,
 }
 
 /// Assertable pre/post budget fields for one compact attempt.
@@ -76,6 +78,12 @@ impl CompactionLedger {
         self.carried_standing_lines = carried_standing_lines;
     }
 
+    /// Record a mid-flight compact failure so the ledger never sticks in Started (E8).
+    pub(crate) fn mark_failed(&mut self) {
+        self.phase = CompactionLedgerPhase::Failed;
+        self.tokens_after = None;
+    }
+
     pub(crate) fn phase(&self) -> CompactionLedgerPhase {
         self.phase
     }
@@ -115,6 +123,9 @@ impl CompactionLedger {
                 self.context_window,
                 self.tokens_after.unwrap_or(0),
             )),
+            CompactionLedgerPhase::Failed => {
+                Some(("failed", self.tokens_used, self.context_window, 0))
+            }
         }
     }
 }
@@ -162,6 +173,20 @@ mod tests {
         assert_eq!(
             ledger.auto_compact_fields(),
             Some(("completed", 3_600, 4_096, 2_100))
+        );
+    }
+
+    #[test]
+    fn mid_flight_failure_leaves_failed_not_started() {
+        let mut ledger = CompactionLedger::open(4_096, 3_600, 3_000, 0.8);
+        ledger.mark_started();
+        assert_eq!(ledger.phase(), CompactionLedgerPhase::Started);
+        ledger.mark_failed();
+        assert_eq!(ledger.phase(), CompactionLedgerPhase::Failed);
+        assert!(ledger.tokens_after().is_none());
+        assert_eq!(
+            ledger.auto_compact_fields(),
+            Some(("failed", 3_600, 4_096, 0))
         );
     }
 

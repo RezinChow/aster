@@ -87,8 +87,9 @@ impl crate::agent::TurnEngine {
             &mut state.verification_reports,
         );
 
-        let output = normalized.output.clone();
-        let mut model_output = output.clone();
+        // Take the tool body once; clone only when the host event channel needs
+        // a parallel owned copy (model_output may still grow with gate notes).
+        let mut model_output = std::mem::take(&mut normalized.output);
 
         state.remember_tool_signature(&tool_call.name, &tool_call.args, normalized.is_error);
 
@@ -97,7 +98,7 @@ impl crate::agent::TurnEngine {
             state.current_turn(),
             &tool_call.id,
             &tool_call.name,
-            &output,
+            &model_output,
             normalized.exit_code,
             tool_duration.as_millis() as u64,
             &normalized.metadata,
@@ -112,10 +113,10 @@ impl crate::agent::TurnEngine {
                 id: tool_call.id.clone(),
                 name: tool_call.name.clone(),
                 args: Some(tool_call.args.clone()),
-                output: output.clone(),
+                output: model_output.clone(),
                 exit_code: normalized.exit_code,
-                metadata: normalized.metadata.clone(),
-                error_kind: normalized.error_kind.clone(),
+                metadata: normalized.metadata.take(),
+                error_kind: normalized.error_kind.take(),
             })
             .await
             .ok();
@@ -123,7 +124,7 @@ impl crate::agent::TurnEngine {
 
         if normalized.exit_code == 0 {
             if let Some(decision) = crate::surface_decision::decide_tool_surface(
-                &output,
+                &model_output,
                 self.llm_client.gateway_decision_auth(),
             )
             .await

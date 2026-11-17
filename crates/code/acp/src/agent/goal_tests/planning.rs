@@ -66,7 +66,10 @@ async fn launch_replies(
             socket.read_exact(&mut bytes).await.unwrap();
             let request = serde_json::from_slice(&bytes).unwrap();
             let body = serde_json::json!({"content":[{"type":"text","text":reply}],"stop_reason":"end_turn","usage":{"input_tokens":11,"output_tokens":7}}).to_string();
-            let response = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+            let response = format!(
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
             socket
                 .get_mut()
                 .write_all(response.as_bytes())

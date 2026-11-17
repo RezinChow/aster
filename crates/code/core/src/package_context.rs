@@ -706,7 +706,7 @@ fn canonical_digest<T: Serialize + ?Sized>(
     domain: &str,
     value: &T,
 ) -> PackageContextResult<String> {
-    let encoded = serde_json::to_vec(value).map_err(|error| {
+    let encoded_len = crate::byte_budget::json_serialized_len(value).map_err(|error| {
         PackageContextError::InvalidBinding(format!(
             "canonical identity could not be serialized: {error}"
         ))
@@ -715,8 +715,12 @@ fn canonical_digest<T: Serialize + ?Sized>(
     hasher.update(CANONICAL_DIGEST_PREFIX);
     hasher.update((domain.len() as u64).to_be_bytes());
     hasher.update(domain.as_bytes());
-    hasher.update((encoded.len() as u64).to_be_bytes());
-    hasher.update(encoded);
+    hasher.update((encoded_len as u64).to_be_bytes());
+    crate::byte_budget::json_update_sha256(&mut hasher, value).map_err(|error| {
+        PackageContextError::InvalidBinding(format!(
+            "canonical identity could not be serialized: {error}"
+        ))
+    })?;
     Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 

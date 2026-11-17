@@ -2659,7 +2659,7 @@ fn tool_header_link_target_overlay_covers_path_after_bullet() {
         width: 80,
         raw: false,
         max_lines: None,
-        appearance: appearance.clone(),
+        appearance: std::sync::Arc::new(appearance.clone()),
         is_selected: false,
         cwd: Some(cwd.clone()),
     };

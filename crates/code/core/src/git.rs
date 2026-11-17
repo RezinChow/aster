@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::ffi::OsString;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -1141,6 +1141,62 @@ pub(crate) fn untracked_paths(repo_path: &Path) -> Result<Vec<PathBuf>> {
         .map(OsString::from)
         .collect::<Vec<_>>();
     nul_delimited_paths(repo_path, &args)
+}
+
+/// Keep live Aster state out of `git stash -u` without changing the project's `.gitignore`.
+pub(crate) fn exclude_aster_state(repo_path: &Path) -> Result<()> {
+    let args = [
+        OsString::from("rev-parse"),
+        OsString::from("--git-path"),
+        OsString::from("info/exclude"),
+    ];
+    let Ok((true, stdout, _)) = run_git_os(repo_path, &args) else {
+        // A non-Git workspace has no stash operation that can remove `.aster`.
+        return Ok(());
+    };
+    let output = stdout.strip_suffix(b"\n").unwrap_or(&stdout);
+    let output = output.strip_suffix(b"\r").unwrap_or(output);
+    if output.is_empty() {
+        return Err(anyhow!("Git returned an empty info/exclude path"));
+    }
+    let path = git_output_path(output)?;
+    let path = if path.is_absolute() {
+        path
+    } else {
+        repo_path.join(path)
+    };
+    if let Ok(metadata) = std::fs::symlink_metadata(&path) {
+        if !metadata.file_type().is_file() {
+            return Err(anyhow!(
+                "Git info/exclude is not a regular file: {}",
+                path.display()
+            ));
+        }
+    }
+    let existing = match std::fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error.into()),
+    };
+    if existing.split(|byte| *byte == b'\n').any(|line| {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        line == b"/.aster/" || line == b".aster/"
+    }) {
+        return Ok(());
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| anyhow!("Git info/exclude path has no parent"))?;
+    std::fs::create_dir_all(parent)?;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)?;
+    if !existing.is_empty() && !existing.ends_with(b"\n") {
+        file.write_all(b"\n")?;
+    }
+    file.write_all(b"/.aster/\n")?;
+    Ok(())
 }
 
 /// Return changed paths using Git's NUL-delimited, non-quoted format.

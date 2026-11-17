@@ -170,10 +170,10 @@ async fn read_source(
         "office_read cancelled"
     );
     ensure!(
-        serde_json::to_vec(args)?.len() <= 16 * 1024,
+        aster_core::byte_budget::json_serialized_len(args)? <= 16 * 1024,
         "office_read arguments exceed 16 KiB"
     );
-    let input: Input = serde_json::from_value(args.clone())?;
+    let input: Input = serde::Deserialize::deserialize(args)?;
     ensure!(
         (1..=1000).contains(&input.limit),
         "office_read limit must be 1..1000"
@@ -306,7 +306,9 @@ async fn read_source(
             }
             entries.push(value);
             let candidate = office_list_result(&entries, view.total, true, outline.as_ref(), None);
-            if serde_json::to_vec(&candidate)?.len() > OUTPUT_LIMIT - ENVELOPE_RESERVE {
+            if aster_core::byte_budget::json_serialized_len(&candidate)?
+                > OUTPUT_LIMIT - ENVELOPE_RESERVE
+            {
                 entries.pop();
                 next_node_path = Some(entry.path);
                 break;
@@ -332,7 +334,7 @@ async fn read_source(
         .context("Office source response must be an object")?
         .sort_keys();
     ensure!(
-        serde_json::to_vec(&result)?.len() <= OUTPUT_LIMIT,
+        aster_core::byte_budget::json_serialized_len(&result)? <= OUTPUT_LIMIT,
         "office_read output exceeds 64 KiB; lower limit or select a narrower node_path"
     );
     validate()?;

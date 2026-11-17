@@ -187,7 +187,7 @@ impl RecoveryUnprovedV1 {
                 "host recovery input cannot have a transition cause".into(),
             ));
         }
-        let value: Self = serde_json::from_value(fact.payload.clone()).map_err(invalid)?;
+        let value: Self = Self::deserialize(&fact.payload).map_err(invalid)?;
         let expected_key = value.key()?;
         if fact.key != expected_key {
             return Err(RecoveryUnprovedError::Invalid(
