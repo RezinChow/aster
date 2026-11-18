@@ -1030,6 +1030,7 @@ struct TurnState {
     /// updates that row instead of opening another Run card.
     painted_tools: HashSet<String>,
     pending_tools: HashSet<String>,
+    denied_tools: Vec<String>,
     /// Last model invocation's usage, paired with End's response metadata for measured TPS.
     last_turn_usage: Option<aster_core::llm::TokenUsage>,
     end_usage: Option<aster_core::llm::TokenUsage>,

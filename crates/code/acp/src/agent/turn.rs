@@ -354,6 +354,7 @@ impl AsterCodeAgent {
                 reason,
             } => {
                 state.pending_tools.remove(&tool_id);
+                state.denied_tools.push(tool_name.clone());
                 if state.painted_tools.insert(tool_id.clone()) {
                     self.emit_tool_call(session_id, &tool_id, &tool_name, Some(&tool_args))
                         .await;
@@ -470,11 +471,19 @@ impl AsterCodeAgent {
                 .ok_or_else(|| acp::Error::invalid_params().data("unknown session id"))?
                 .set_posture(posture, Vec::new())?;
         }
+        let prompt = output_schema.map_or_else(
+            || prompt.to_string(),
+            |schema| {
+                format!(
+                    "{prompt}\n\nWhen you are ready to return the final answer, respond with only one JSON object satisfying this JSON Schema; do not add prose or Markdown fences:\n{schema}"
+                )
+            },
+        );
         let admitted = if attachments.is_empty() {
-            session.stream_with_run(prompt, None).await
+            session.stream_with_run(&prompt, None).await
         } else {
             session
-                .stream_with_attachments_and_run(prompt, attachments, None)
+                .stream_with_attachments_and_run(&prompt, attachments, None)
                 .await
         };
         drop(sessions);
@@ -501,7 +510,7 @@ impl AsterCodeAgent {
             generation,
             turn_permit,
             observation,
-            prompt,
+            &prompt,
             output_schema,
         )
         .await
@@ -628,7 +637,21 @@ impl AsterCodeAgent {
         }
         if let Some(schema) = output_schema {
             let mut meta = response.meta.take().unwrap_or_default();
-            if response.stop_reason == acp::StopReason::EndTurn {
+            if response.stop_reason != acp::StopReason::EndTurn {
+                meta.insert(
+                    "structuredOutputError".into(),
+                    "structured output requires a completed model turn".into(),
+                );
+            } else if !state.denied_tools.is_empty() {
+                meta.insert(
+                    "structuredOutputError".into(),
+                    format!(
+                        "structured output requires a turn without denied tool calls; denied: {}",
+                        state.denied_tools.join(", ")
+                    )
+                    .into(),
+                );
+            } else {
                 let text = state.end_text.as_deref().unwrap_or(&state.delta_text);
                 match session
                     .structured_output_from_response(prompt, text, schema.clone())
@@ -641,11 +664,6 @@ impl AsterCodeAgent {
                         meta.insert("structuredOutputError".into(), error.to_string().into());
                     }
                 }
-            } else {
-                meta.insert(
-                    "structuredOutputError".into(),
-                    "structured output requires a completed model turn".into(),
-                );
             }
             response.meta = Some(meta);
         }
