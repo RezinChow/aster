@@ -18,7 +18,7 @@ CI = WORKFLOWS / "ci.yml"
 class CodeReleaseWorkflowTest(unittest.TestCase):
     def test_core_acp_release_does_not_build_test_or_package_product_apps(self):
         text = WORKFLOW.read_text()
-        self.assertIn("cargo build --locked --release -p aster-acp --bin aster-acp", text)
+        self.assertIn('cargo build --locked --release --target "${{ matrix.target }}" -p aster-acp --bin aster-acp', text)
         self.assertNotIn("cargo test", text)
         self.assertNotIn("cargo fmt", text)
         # Require a package-name boundary: a bare `-p aster` substring also
@@ -37,11 +37,15 @@ class CodeReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("actions/workflows/qualify-code.yml/runs?head_sha=${RELEASE_SHA}&event=push&status=completed", text)
         self.assertIn(".head_branch !=", text)
         self.assertIn("if: github.ref_type == 'tag'", text)
-        for platform in ["macos", "linux", "windows"]:
+        for platform in ["macos", "linux", "linux-musl", "linux-musl-arm64", "windows"]:
             self.assertIn(f"platform: {platform}", text)
+        self.assertIn("os: ubuntu-24.04-arm", text)
+        self.assertIn("Install pinned Zig musl toolchain", text)
+        self.assertIn("Verify static musl ACP and native startup", text)
+        self.assertIn('python3 tests/acp_musl.py --machine "${{ matrix.machine }}"', text)
         self.assertIn("shared-key: code-release-${{ matrix.platform }}", text)
         self.assertEqual(text.count("uses: Swatinem/rust-cache@"), 1)
-        self.assertIn("expected 3 ACP release archives", text)
+        self.assertIn("expected 5 ACP release archives", text)
         self.assertIn("--verify-tag", text)
         self.assertIn('--notes-file "$notes"', text)
         self.assertIn('notes="crates/code/manual/RELEASE_${version}.md"', text)
@@ -59,6 +63,17 @@ class CodeReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("Core/ACP portable tests (windows-latest)", text)
         self.assertIn("agent::tests::unsupported_prompt_content_fails_closed_before_a_turn", text)
         self.assertEqual(text.count("uses: Swatinem/rust-cache@"), 2)
+
+    def test_static_acp_is_built_and_exercised_before_release(self):
+        for workflow in [WORKFLOW, CI]:
+            text = workflow.read_text()
+            self.assertIn("link-self-contained=no", text)
+            self.assertIn("tests/acp_musl.py", text)
+            self.assertIn("zig c++ -target", text)
+        text = CI.read_text()
+        self.assertIn("name: Static ACP (x86_64 musl)", text)
+        self.assertIn("name: Test musl ACP wire conformance", text)
+        self.assertIn("cargo test --locked --release --target x86_64-unknown-linux-musl -p aster-acp --test acp_conformance_stdio", text)
 
 
 class QualificationGate(unittest.TestCase):
@@ -130,7 +145,13 @@ class CodePublication(unittest.TestCase):
             note.parent.mkdir()
             if notes:
                 note.write_text("Qualified source notes.\n")
-            for platform, suffix in [("macos", "tar.gz"), ("linux", "tar.gz"), ("windows", "zip")]:
+            for platform, suffix in [
+                ("macos", "tar.gz"),
+                ("linux", "tar.gz"),
+                ("linux-musl", "tar.gz"),
+                ("linux-musl-arm64", "tar.gz"),
+                ("windows", "zip"),
+            ]:
                 name = f"aster-acp-v9.1.6-{platform}.{suffix}"
                 if wrong_asset and platform == "windows":
                     name = "retired-product.zip"

@@ -41,6 +41,7 @@ GitHub Latest 上的 `latest.json` 是旧版 CLI 安装器和更新器的兼容�
 - `kylin-x86_64` 是银河麒麟桌面 V10 SP1 x86_64 的具名分发通道，不是第二种二进制：由 `release-aster-cli.yml` 从同一 `linux` 归档字节级复制产生，`publish-aster-cli.sh` 校验两者 SHA-256 相同，禁止在该名称下发布不同 ABI 或不同构建身份的产物。`scripts/install.sh` 在麒麟 x86_64 上优先选择该键，清单不含该键时回退 `linux`，以便继续安装旧版 Release。
 - 桌面版通过 `release-aster-desktop.yml` 构建并更新 `desktop-stable`；安装包版本与 Core／ACP 版本相互独立。
 - Core／ACP 通过 `release-code.yml` 构建。只有 `aster-acp-vX.Y.Z` tag 可以触发该流程，tag 版本必须与两个 Cargo 包版本一致，并存在对应的 `crates/code/manual/RELEASE_X.Y.Z.md`。归档文件名使用同一前缀（`aster-acp-vX.Y.Z-<platform>.*`）。
+- Core／ACP 的 `linux` 归档保留 x86_64 glibc 构建作为兼容回退；`linux-musl` 与 `linux-musl-arm64` 分别是 x86_64、aarch64 的静态 musl 产物，不依赖宿主机 glibc。发布前必须验证产物没有 `PT_INTERP`、动态依赖表或 `GLIBC_*` 版本引用，保留 RELRO 和不可执行栈，并在对应架构的 Linux 上真实运行 `--version` 与 `--help`。
 - 不得从有未提交修改或未完成指定平台验证的工作树发布。发布记录必须能定位到准确源码提交。
 
 ## 发布顺序

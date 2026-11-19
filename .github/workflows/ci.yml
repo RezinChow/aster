@@ -147,6 +147,58 @@ jobs:
         if: runner.os == 'macOS'
         run: cargo test --locked -p aster-core --lib sandbox::native::lifetime_tests
 
+  acp-musl:
+    name: Static ACP (x86_64 musl)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Check out pinned workspace sources
+        uses: ./.github/actions/checkout-studio
+        with:
+          token: ${{ secrets.STUDIO_READ_TOKEN }}
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler cmake pkg-config libssl-dev curl xz-utils binutils bubblewrap
+      - name: Install pinned toolchain
+        run: |
+          rustup show active-toolchain
+          rustup target add x86_64-unknown-linux-musl
+      - name: Cache musl dependencies
+        uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a
+        with:
+          shared-key: code-acp-musl
+          save-if: "true"
+      - name: Install pinned Zig musl toolchain
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz -o "$RUNNER_TEMP/zig.tar.xz"
+          echo "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
+          zig_home="$RUNNER_TEMP/zig"
+          mkdir -p "$zig_home"
+          tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$zig_home" --strip-components=1
+          cat > "$RUNNER_TEMP/zig-link" <<EOF
+          #!/bin/sh
+          exec "$zig_home/zig" cc -target x86_64-linux-musl "\$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/zig-link"
+          {
+            echo "CRATE_CC_NO_DEFAULTS=1"
+            echo "CC_x86_64_unknown_linux_musl=$zig_home/zig cc -target x86_64-linux-musl"
+            echo "CXX_x86_64_unknown_linux_musl=$zig_home/zig c++ -target x86_64-linux-musl"
+            echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=$RUNNER_TEMP/zig-link"
+            echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS=-C force-unwind-tables=yes -C relro-level=full -C link-self-contained=no"
+          } >> "$GITHUB_ENV"
+      - name: Build and verify static ACP
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --target x86_64-unknown-linux-musl -p aster-acp --bin aster-acp
+          python3 tests/acp_musl.py --machine x86_64 target/x86_64-unknown-linux-musl/release/aster-acp
+      - name: Test musl ACP wire conformance
+        run: cargo test --locked --release --target x86_64-unknown-linux-musl -p aster-acp --test acp_conformance_stdio -- --test-threads=1
+
   desktop-frontend:
     strategy:
       fail-fast: false

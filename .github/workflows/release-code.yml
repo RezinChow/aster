@@ -47,10 +47,21 @@ jobs:
         include:
           - os: macos-latest
             platform: macos
+            target: aarch64-apple-darwin
           - os: ubuntu-latest
             platform: linux
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            platform: linux-musl
+            target: x86_64-unknown-linux-musl
+            machine: x86_64
+          - os: ubuntu-24.04-arm
+            platform: linux-musl-arm64
+            target: aarch64-unknown-linux-musl
+            machine: aarch64
           - os: windows-latest
             platform: windows
+            target: x86_64-pc-windows-msvc
     env:
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "2"
@@ -65,7 +76,7 @@ jobs:
         run: brew install protobuf just
       - name: Install Linux build tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler cmake pkg-config libssl-dev
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler cmake pkg-config libssl-dev curl xz-utils binutils
       - name: Install Windows protoc
         if: runner.os == 'Windows'
         shell: pwsh
@@ -78,7 +89,9 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $dest "bin")
       - name: Install pinned toolchain
         shell: bash
-        run: rustup show active-toolchain
+        run: |
+          rustup show active-toolchain
+          rustup target add "${{ matrix.target }}"
       - name: Shorten Windows Cargo home
         if: runner.os == 'Windows'
         shell: bash
@@ -88,23 +101,73 @@ jobs:
         with:
           shared-key: code-release-${{ matrix.platform }}
           save-if: "true"
+      - name: Install pinned Zig musl toolchain
+        if: startsWith(matrix.platform, 'linux-musl')
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64)
+              zig_archive=x86_64-linux
+              zig_sha=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+              ;;
+            aarch64)
+              zig_archive=aarch64-linux
+              zig_sha=ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
+              ;;
+            *) echo "unsupported Zig host: $(uname -m)" >&2; exit 1 ;;
+          esac
+          case "${{ matrix.target }}" in
+            x86_64-unknown-linux-musl)
+              zig_target=x86_64-linux-musl
+              rust_env=x86_64_unknown_linux_musl
+              linker_var=CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER
+              ;;
+            aarch64-unknown-linux-musl)
+              zig_target=aarch64-linux-musl
+              rust_env=aarch64_unknown_linux_musl
+              linker_var=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER
+              ;;
+            *) echo "unsupported musl target: ${{ matrix.target }}" >&2; exit 1 ;;
+          esac
+          curl -fsSL "https://ziglang.org/download/0.16.0/zig-${zig_archive}-0.16.0.tar.xz" -o "$RUNNER_TEMP/zig.tar.xz"
+          echo "$zig_sha  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
+          zig_home="$RUNNER_TEMP/zig"
+          mkdir -p "$zig_home"
+          tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$zig_home" --strip-components=1
+          cat > "$RUNNER_TEMP/zig-link" <<EOF
+          #!/bin/sh
+          exec "$zig_home/zig" cc -target "$zig_target" "\$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/zig-link"
+          {
+            echo "CRATE_CC_NO_DEFAULTS=1"
+            echo "CC_${rust_env}=$zig_home/zig cc -target $zig_target"
+            echo "CXX_${rust_env}=$zig_home/zig c++ -target $zig_target"
+            echo "${linker_var}=$RUNNER_TEMP/zig-link"
+            echo "${linker_var%LINKER}RUSTFLAGS=-C force-unwind-tables=yes -C relro-level=full -C link-self-contained=no"
+          } >> "$GITHUB_ENV"
       - name: Build locked ACP release
         shell: bash
-        run: cargo build --locked --release -p aster-acp --bin aster-acp
+        run: cargo build --locked --release --target "${{ matrix.target }}" -p aster-acp --bin aster-acp
+      - name: Verify static musl ACP and native startup
+        if: startsWith(matrix.platform, 'linux-musl')
+        shell: bash
+        run: python3 tests/acp_musl.py --machine "${{ matrix.machine }}" "target/${{ matrix.target }}/release/aster-acp"
       - name: Package ACP binary
         if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           version="$(python3 -c 'import tomllib; print(tomllib.load(open("crates/code/acp/Cargo.toml", "rb"))["package"]["version"])')"
-          tar -czf "aster-acp-v${version}-${{ matrix.platform }}.tar.gz" -C target/release aster-acp
+          tar -czf "aster-acp-v${version}-${{ matrix.platform }}.tar.gz" -C "target/${{ matrix.target }}/release" aster-acp
       - name: Package ACP binary for Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $manifest = Get-Content "crates/code/acp/Cargo.toml" -Raw
           if ($manifest -notmatch '(?m)^version = "([^"]+)"') { throw "ACP version missing" }
-          Compress-Archive -Path "target/release/aster-acp.exe" -DestinationPath "aster-acp-v$($Matches[1])-windows.zip"
+          Compress-Archive -Path "target/${{ matrix.target }}/release/aster-acp.exe" -DestinationPath "aster-acp-v$($Matches[1])-windows.zip"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: aster-acp-${{ matrix.platform }}
@@ -149,11 +212,11 @@ jobs:
           fi
           shopt -s nullglob
           files=(dist/*)
-          if [[ ${#files[@]} -ne 3 ]]; then
-            echo "expected 3 ACP release archives, found ${#files[@]}" >&2
+          if [[ ${#files[@]} -ne 5 ]]; then
+            echo "expected 5 ACP release archives, found ${#files[@]}" >&2
             exit 1
           fi
-          for asset in "aster-acp-v${version}-macos.tar.gz" "aster-acp-v${version}-linux.tar.gz" "aster-acp-v${version}-windows.zip"; do
+          for asset in "aster-acp-v${version}-macos.tar.gz" "aster-acp-v${version}-linux.tar.gz" "aster-acp-v${version}-linux-musl.tar.gz" "aster-acp-v${version}-linux-musl-arm64.tar.gz" "aster-acp-v${version}-windows.zip"; do
             if [[ ! -f "dist/$asset" ]]; then
               echo "missing ACP release archive: $asset" >&2
               exit 1
