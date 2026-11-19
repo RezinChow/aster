@@ -9,7 +9,7 @@ use std::sync::Arc;
 use agent_client_protocol as acp;
 use agent_client_protocol::Client;
 use aster_core::{Agent, AgentEvent, AgentSession, SessionOptions};
-use tokio::sync::{watch, Mutex, OwnedMutexGuard};
+use tokio::sync::{Mutex, OwnedMutexGuard, watch};
 use tokio::task::JoinHandle;
 
 use crate::config::LaunchConfig;
@@ -51,8 +51,8 @@ use emit::{progress_duration_ms, progress_tokens_used, subagent_finished_update}
 use extensions::answer_wiki_search;
 #[cfg(test)]
 use extensions::{parse_interject_params, recorded_session_homes, remove_recorded_session_under};
-use host_methods::{session_tooling_projection, HostMethod};
-use models::{effort_guideline, effort_limits, EffortLimits};
+use host_methods::{HostMethod, session_tooling_projection};
+use models::{EffortLimits, effort_guideline, effort_limits};
 #[cfg(test)]
 use models::{effort_limits_from_meta, reasoning_effort_token};
 #[cfg(test)]
@@ -424,6 +424,55 @@ fn process_skill_home() -> Option<PathBuf> {
 /// refresh or Skill lookup then loads the package.
 fn watched_skill_dirs(workspace: &std::path::Path) -> Vec<PathBuf> {
     watched_skill_dirs_under(workspace, process_skill_home().as_deref())
+}
+
+fn kburn_mode(config: &aster_core::CodeConfig) -> aster_core::kstudio::KburnMode {
+    config.kburn.into()
+}
+
+fn session_skill_dirs(
+    workspace: &std::path::Path,
+    configured: &[PathBuf],
+    mode: aster_core::kstudio::KburnMode,
+) -> Vec<PathBuf> {
+    let explicit: Vec<PathBuf> = configured
+        .iter()
+        .map(|dir| {
+            if dir.is_absolute() {
+                dir.clone()
+            } else {
+                workspace.join(dir)
+            }
+        })
+        .collect();
+    let legacy = workspace.join(".kstudio").join("skills");
+    let aster = workspace.join(".aster").join("skills");
+    interactive_skill_dirs(workspace, configured)
+        .into_iter()
+        .filter(|dir| {
+            if explicit.contains(dir) {
+                return true;
+            }
+            if dir == &legacy {
+                return false;
+            }
+            mode != aster_core::kstudio::KburnMode::Disabled || dir != &aster
+        })
+        .collect()
+}
+
+fn session_watched_skill_dirs(
+    workspace: &std::path::Path,
+    mode: aster_core::kstudio::KburnMode,
+) -> Vec<PathBuf> {
+    let legacy = workspace.join(".kstudio").join("skills");
+    let aster = workspace.join(".aster").join("skills");
+    watched_skill_dirs(workspace)
+        .into_iter()
+        .filter(|dir| {
+            dir != &legacy && (mode != aster_core::kstudio::KburnMode::Disabled || dir != &aster)
+        })
+        .collect()
 }
 
 fn watched_skill_dirs_under(
@@ -910,6 +959,7 @@ impl AsterCodeAgent {
             .with_workspace(&setup.workspace);
         let mut options = options
             .with_max_tool_rounds(max_tool_rounds)
+            .with_read_only_synthesis_rounds(2)
             .with_prompt_slots(slots.clone())
             .with_verification_contracts(contracts)
             .with_permission_checker(Arc::new(guardrail))
@@ -928,11 +978,13 @@ impl AsterCodeAgent {
         if let Some(profile) = &config.tool_presentation_profile {
             options = options.with_tool_presentation_profile(profile.clone());
         }
-        let skill_dirs = interactive_skill_dirs(&setup.workspace, &config.skill_dirs);
+        let mode = kburn_mode(config);
+        options = options.with_kburn_mode(mode);
+        let skill_dirs = session_skill_dirs(&setup.workspace, &config.skill_dirs, mode);
         if !skill_dirs.is_empty() {
             options = options.with_skill_dirs(skill_dirs);
         }
-        options = options.with_watch_skill_dirs(watched_skill_dirs(&setup.workspace));
+        options = options.with_watch_skill_dirs(session_watched_skill_dirs(&setup.workspace, mode));
         if let Some(executor) = hook_executor {
             options = options.with_hook_executor(executor);
         }
@@ -1041,6 +1093,7 @@ struct TurnState {
     /// updates that row instead of opening another Run card.
     painted_tools: HashSet<String>,
     pending_tools: HashSet<String>,
+    denied_tools: Vec<String>,
     /// In-flight `task` / `background` toolCallId — Studio binds board rows via toolUseId.
     open_spawn_tool_id: Option<String>,
     /// `subagent_id` → parent toolCallId for progress/finish wire fields.

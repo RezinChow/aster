@@ -3,8 +3,8 @@
 use super::{AsterCodeAgent, SessionSetup};
 use agent_client_protocol::{self as acp, Agent as _};
 use aster_core::{
-    llm::{LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition},
     WorkPolicyV1,
+    llm::{LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition},
 };
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
@@ -97,8 +97,14 @@ impl LlmClient for CapturingClient {
             .lock()
             .unwrap()
             .push(system.unwrap_or_default().into());
+        let pre_analysis =
+            system.is_some_and(|value| value.contains("You are a pre-analysis assistant."));
         Ok(LlmResponse {
-            message: Message::assistant("ready"),
+            message: Message::assistant(if pre_analysis {
+                r#"{"intent":"GeneralPurpose","requires_planning":false,"goal":{"description":"Reply ready","success_criteria":[]},"execution_plan":{"complexity":"Simple","steps":[],"required_tools":[]},"optimized_input":"Reply ready without tools."}"#
+            } else {
+                "ready"
+            }),
             usage: TokenUsage::default(),
             stop_reason: Some("end_turn".into()),
             token_logprobs: vec![],
@@ -152,14 +158,16 @@ async fn engineering_unknown_meta_refuses_new_and_load_before_activation() {
         .as_object()
         .unwrap()
         .clone();
-    assert!(host
-        .new_session(acp::NewSessionRequest::new(root.path()).meta(meta.clone()))
-        .await
-        .is_err());
-    assert!(host
-        .load_session(acp::LoadSessionRequest::new("missing", root.path()).meta(meta))
-        .await
-        .is_err());
+    assert!(
+        host.new_session(acp::NewSessionRequest::new(root.path()).meta(meta.clone()))
+            .await
+            .is_err()
+    );
+    assert!(
+        host.load_session(acp::LoadSessionRequest::new("missing", root.path()).meta(meta))
+            .await
+            .is_err()
+    );
     assert!(host.core_agent.lock().await.is_none());
     assert!(host.sessions.lock().await.is_empty());
     assert!(!root.path().join(".aster").exists());
@@ -245,8 +253,19 @@ async fn engineering_shared_host_options_preserve_policy_and_contracts_after_fil
         session.close().await;
     }
     let inputs = client.inputs.lock().unwrap();
-    assert_eq!(inputs.len(), 2);
-    for system in inputs.iter() {
+    assert_eq!(
+        inputs
+            .iter()
+            .filter(|system| system.contains("You are a pre-analysis assistant."))
+            .count(),
+        2
+    );
+    let primary: Vec<_> = inputs
+        .iter()
+        .filter(|system| !system.contains("You are a pre-analysis assistant."))
+        .collect();
+    assert_eq!(primary.len(), 2, "unexpected model inputs: {inputs:#?}");
+    for system in primary {
         assert_eq!(system.matches(policy.instructions()).count(), 1);
         for text in [
             "ENGINEERING-HOST-ROLE",
@@ -258,12 +277,14 @@ async fn engineering_shared_host_options_preserve_policy_and_contracts_after_fil
         ] {
             assert!(system.contains(text), "missing {text}");
         }
-        assert!(budget
-            .estimates
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|estimate| *estimate > 0));
+        assert!(
+            budget
+                .estimates
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|estimate| *estimate > 0)
+        );
     }
     let facts =
         aster_core::fact_control::read_workspace_facts(root.path(), "engineering-file").unwrap();
@@ -354,12 +375,14 @@ async fn engineering_original_budget_and_legacy_rebind_refuse_before_provider() 
             .to_string();
         assert!(error.contains("original whole-request budget"), "{error}");
         assert!(client.inputs.lock().unwrap().is_empty());
-        assert!(budget
-            .estimates
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|estimate| *estimate > 0));
+        assert!(
+            budget
+                .estimates
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|estimate| *estimate > 0)
+        );
         session.close().await;
     }
 }

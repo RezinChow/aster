@@ -25,7 +25,7 @@ pub(super) fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     std::fs::write(root.path().join("source.rs"), source).unwrap();
     let input = aster_okf::WorkspaceKnowledgeInput::new(
         root.path(),
-        "workspace-tool-scope",
+        &format!("workspace-tool-scope-{}", uuid::Uuid::new_v4()),
         &format!("sha256:{}", "a".repeat(64)),
         vec![aster_okf::WorkspaceKnowledgeSource::text("source.rs", source).unwrap()],
     )
@@ -84,10 +84,12 @@ async fn workspace_search_wiki_uses_only_the_current_owned_publication() {
             .unwrap()
             .source_revision
     );
-    assert!(shared
-        .hits
-        .iter()
-        .any(|hit| hit.path == "concepts/overview.md"));
+    assert!(
+        shared
+            .hits
+            .iter()
+            .any(|hit| hit.path == "concepts/overview.md")
+    );
     let foreign = tempfile::tempdir().unwrap();
     assert!(
         !tool

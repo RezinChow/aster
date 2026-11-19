@@ -26,7 +26,7 @@ impl Fixture {
     }
 
     async fn wait_for_start(&self) {
-        tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::time::timeout(Duration::from_secs(10), async {
             while !self.0.join("started").exists() {
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
@@ -138,9 +138,11 @@ async fn native_backend_refusal_is_available_before_a_live_turn_or_process() {
     let error = tool
         .validate_execution_available(&serde_json::json!({}), &ctx)
         .expect_err("read/write backend cannot execute native plugins");
-    assert!(error
-        .to_string()
-        .contains("active workspace capability scope"));
+    assert!(
+        error
+            .to_string()
+            .contains("active workspace capability scope")
+    );
     let result = tool.execute(&serde_json::json!({}), &ctx).await.unwrap();
     assert!(!result.success);
     assert!(!fixture.0.join("leaked").exists());

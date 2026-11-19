@@ -898,3 +898,81 @@ async fn handler_answers_ext_method_instead_of_dropping() {
         serde_json::from_str(resp.0.get()).expect("typed wire reply");
     assert!(matches!(parsed, AskUserQuestionExtResponse::Cancelled));
 }
+
+#[test]
+fn terminal_contract_is_consistent_and_failures_are_unsuccessful() {
+    for (stop, outcome, reason) in [
+        ("end_turn", "completed", "completed"),
+        ("cancelled", "cancelled", "cancelled"),
+        ("max_turns_reached", "failed", "max_turns_reached"),
+        ("max_tokens", "failed", "max_tokens"),
+        ("refusal", "failed", "model_refusal"),
+    ] {
+        let emitter = super::HeadlessEmitter::new(super::OutputFormat::Json, false);
+        let json = emitter.build_json_result(stop, "session", "request");
+        assert_eq!(json["outcome"], outcome);
+        assert_eq!(json["terminalReason"], reason);
+        for kind in ["end", "result"] {
+            let mut line = serde_json::json!({"type": kind});
+            super::attach_terminal_fields(&mut line, outcome, reason, None);
+            assert_eq!(line["outcome"], json["outcome"]);
+            assert_eq!(line["terminalReason"], json["terminalReason"]);
+        }
+        assert_eq!(
+            super::prompt_failure(stop, stop == "max_turns_reached", &None).is_some(),
+            outcome != "completed"
+        );
+    }
+}
+
+#[test]
+fn structured_output_failure_is_terminal_and_nonzero() {
+    let mut emitter = super::HeadlessEmitter::new(super::OutputFormat::Json, true);
+    emitter.set_structured_output_from_meta(
+        serde_json::json!({"structuredOutputError":"schema mismatch"}).as_object(),
+    );
+    let result = emitter.build_json_result("end_turn", "session", "request");
+    assert_eq!(result["outcome"], "failed");
+    assert_eq!(result["terminalReason"], "structured_output_failed");
+    assert!(
+        super::prompt_failure("end_turn", false, &emitter.resolved_structured_output()).is_some()
+    );
+
+    emitter.set_structured_output_from_meta(
+        serde_json::json!({"structuredOutput":{"name":"Ada"}}).as_object(),
+    );
+    assert!(
+        super::prompt_failure("end_turn", false, &emitter.resolved_structured_output()).is_none()
+    );
+}
+
+#[test]
+fn provider_error_contract_preserves_typed_classification() {
+    let classification = serde_json::json!({
+        "providerCode":"insufficient_balance_error",
+        "httpStatus":402,
+        "retryable":false
+    });
+    for kind in ["error", "result"] {
+        let mut line = serde_json::json!({"type":kind});
+        super::attach_terminal_fields(
+            &mut line,
+            "failed",
+            "provider_rejected",
+            Some(&classification),
+        );
+        assert_eq!(line["outcome"], "failed");
+        assert_eq!(line["terminalReason"], "provider_rejected");
+        assert_eq!(line["error"]["providerCode"], "insufficient_balance_error");
+        assert_eq!(line["error"]["httpStatus"], 402);
+        assert_eq!(line["error"]["retryable"], false);
+    }
+}
+
+#[test]
+fn terminal_fields_do_not_pollute_assistant_frames() {
+    let mut assistant = serde_json::json!({"type":"assistant","message":{"role":"assistant"}});
+    super::attach_terminal_fields(&mut assistant, "failed", "provider_rejected", None);
+    assert!(assistant.get("outcome").is_none());
+    assert!(assistant.get("terminalReason").is_none());
+}

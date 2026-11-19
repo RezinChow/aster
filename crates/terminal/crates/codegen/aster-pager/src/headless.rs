@@ -302,6 +302,9 @@ impl HeadlessEmitter {
             attach_result_usage(&mut result, usage);
         }
         self.attach_structured_output(&mut result);
+        let (outcome, reason) =
+            terminal_classification(stop_reason, &self.resolved_structured_output());
+        attach_terminal_fields(&mut result, outcome, reason, None);
         result
     }
     fn on_end(&mut self, stop_reason: &str, session_id: &str, request_id: &str) {
@@ -327,13 +330,18 @@ impl HeadlessEmitter {
                         session_id,
                         request_id,
                         usage: usage.as_ref(),
-                        structured_output,
+                        structured_output: structured_output.clone(),
                         result_text: result_text.as_str(),
                         duration_ms,
                     };
                     reducer.finish(&end)
                 });
-                if let Some(lines) = lines {
+                if let Some(mut lines) = lines {
+                    let (outcome, reason) =
+                        terminal_classification(stop_reason, &structured_output);
+                    for line in &mut lines {
+                        attach_terminal_fields(line, outcome, reason, None);
+                    }
                     self.emit_lines(lines);
                 }
             }
@@ -354,6 +362,20 @@ impl HeadlessEmitter {
     }
     /// Emit the terminal error; `stop_reason_override` stamps a Messages stop reason (e.g. `max_tokens`).
     fn on_error(&mut self, message: &str, stop_reason_override: Option<&str>) {
+        self.on_classified_error(message, stop_reason_override, None);
+    }
+
+    fn on_classified_error(
+        &mut self,
+        message: &str,
+        stop_reason_override: Option<&str>,
+        classification: Option<serde_json::Value>,
+    ) {
+        let reason = classification
+            .as_ref()
+            .and_then(|error| error.get("httpStatus"))
+            .and_then(serde_json::Value::as_u64)
+            .map_or("execution_failed", |_| "provider_rejected");
         match self.format {
             OutputFormat::Plain => eprint_line(message),
             OutputFormat::Json => {
@@ -361,6 +383,7 @@ impl HeadlessEmitter {
                 if let Some(usage) = &self.usage {
                     attach_result_usage(&mut err, usage);
                 }
+                attach_terminal_fields(&mut err, "failed", reason, classification.as_ref());
                 self.emit_line(&err);
             }
             OutputFormat::StreamingJson | OutputFormat::StreamingMessagesJson => {
@@ -369,7 +392,10 @@ impl HeadlessEmitter {
                 let lines = self.reducer.as_mut().map(|reducer| {
                     reducer.error(message, usage.as_ref(), duration_ms, stop_reason_override)
                 });
-                if let Some(lines) = lines {
+                if let Some(mut lines) = lines {
+                    for line in &mut lines {
+                        attach_terminal_fields(line, "failed", reason, classification.as_ref());
+                    }
                     self.emit_lines(lines);
                 }
             }
@@ -379,6 +405,64 @@ impl HeadlessEmitter {
 pub(crate) fn attach_result_usage(result: &mut serde_json::Value, usage: &serde_json::Value) {
     aster_shell::extensions::notification::attach_result_usage_fail_closed(result, usage);
 }
+
+fn terminal_classification(
+    stop_reason: &str,
+    structured_output: &Option<Result<serde_json::Value, String>>,
+) -> (&'static str, &'static str) {
+    match stop_reason {
+        "cancelled" => ("cancelled", "cancelled"),
+        "max_turns_reached" => ("failed", "max_turns_reached"),
+        "max_tokens" | "max_turn_requests" => ("failed", "max_tokens"),
+        "refusal" => ("failed", "model_refusal"),
+        _ if matches!(structured_output, Some(Err(_))) => ("failed", "structured_output_failed"),
+        _ => ("completed", "completed"),
+    }
+}
+
+fn attach_terminal_fields(
+    line: &mut serde_json::Value,
+    outcome: &str,
+    reason: &str,
+    classification: Option<&serde_json::Value>,
+) {
+    let Some(object) = line.as_object_mut() else {
+        return;
+    };
+    if object
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|kind| !matches!(kind, "end" | "result" | "error"))
+    {
+        return;
+    }
+    object.insert("outcome".into(), outcome.into());
+    object.insert("terminalReason".into(), reason.into());
+    if let Some(classification) = classification {
+        object.insert("error".into(), classification.clone());
+    }
+}
+
+fn prompt_failure(
+    stop_reason: &str,
+    max_turns: bool,
+    structured_output: &Option<Result<serde_json::Value, String>>,
+) -> Option<&'static str> {
+    if max_turns {
+        Some("max turns reached")
+    } else if matches!(structured_output, Some(Err(_))) {
+        Some("structured output validation failed")
+    } else {
+        match stop_reason {
+            "end_turn" => None,
+            "cancelled" => Some("cancelled"),
+            "refusal" => Some("model refused to continue"),
+            "max_tokens" | "max_turn_requests" => Some("maximum token limit reached"),
+            _ => Some("model turn did not complete successfully"),
+        }
+    }
+}
+
 /// Snake_case wire token for an ACP stop reason.
 fn stop_reason_wire(reason: acp::StopReason) -> String {
     match reason {
@@ -1506,10 +1590,20 @@ pub async fn run_single_turn(
                 == Some(aster_shell::session::commands::MAX_TURNS_REACHED_CATEGORY);
             if is_max_turns {
                 emitter.on_max_turns();
-                emitter.on_end(&stop_reason, sid, rid);
-                Err(anyhow::anyhow!("max turns reached"))
+            }
+            let terminal_stop = if is_max_turns {
+                "max_turns_reached"
             } else {
-                emitter.on_end(&stop_reason, sid, rid);
+                stop_reason.as_str()
+            };
+            emitter.on_end(terminal_stop, sid, rid);
+            if let Some(error) = prompt_failure(
+                terminal_stop,
+                is_max_turns,
+                &emitter.resolved_structured_output(),
+            ) {
+                Err(anyhow::anyhow!(error))
+            } else {
                 Ok(())
             }
         }
@@ -1537,7 +1631,27 @@ pub async fn run_single_turn(
             let stop_reason_override =
                 (aster_shell::sampling::error::stop_reason_for_turn_error(&err) == "MaxTokens")
                     .then_some("max_tokens");
-            emitter.on_error(&msg, stop_reason_override);
+            let status = aster_shell::sampling::error::http_status_from_error(&err);
+            let provider_code = err.data.as_ref().and_then(|data| {
+                data.get("providerCode")
+                    .or_else(|| data.get("code"))
+                    .and_then(serde_json::Value::as_str)
+            });
+            let retryable = i32::from(err.code) == RATE_LIMITED_ERROR_CODE
+                || status.is_some_and(|status| status == 429 || status >= 500);
+            let mut classification = serde_json::Map::new();
+            classification.insert("retryable".into(), retryable.into());
+            if let Some(status) = status {
+                classification.insert("httpStatus".into(), status.into());
+            }
+            if let Some(code) = provider_code {
+                classification.insert("providerCode".into(), code.into());
+            }
+            emitter.on_classified_error(
+                &msg,
+                stop_reason_override,
+                Some(serde_json::Value::Object(classification)),
+            );
             Err(anyhow::anyhow!("{msg}"))
         }
         None => Ok(()),

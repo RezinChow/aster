@@ -470,9 +470,11 @@ async fn studio_local_assets_session_opens_only_the_selected_item() {
         .tool("search_wiki", serde_json::json!({ "query": "红烧排骨" }))
         .await
         .expect("wiki search refuses the personal catalog");
-    assert!(refused
-        .output
-        .contains("workspace encyclopedia is not bound"));
+    assert!(
+        refused
+            .output
+            .contains("workspace encyclopedia is not bound")
+    );
     assert!(!refused.output.contains("红烧排骨只写在个人笔记9f3a"));
     drop(agent);
     let _ = std::fs::remove_dir_all(&root);
@@ -1017,12 +1019,16 @@ async fn unanswered_asks_fail_closed_at_the_deadline() {
 fn question_options_are_not_permission_grants() {
     let options = question_permission_options(&[" left ".into(), "  ".into(), "right".into()]);
     assert_eq!(options.len(), 2);
-    assert!(options
-        .iter()
-        .all(|option| option.kind == acp::PermissionOptionKind::RejectOnce));
-    assert!(options
-        .iter()
-        .all(|option| option.kind != acp::PermissionOptionKind::AllowOnce));
+    assert!(
+        options
+            .iter()
+            .all(|option| option.kind == acp::PermissionOptionKind::RejectOnce)
+    );
+    assert!(
+        options
+            .iter()
+            .all(|option| option.kind != acp::PermissionOptionKind::AllowOnce)
+    );
     assert_eq!(options[0].name, "left");
     assert_eq!(options[1].name, "right");
 }
@@ -1969,11 +1975,13 @@ fn tui_mappings_cover_cards_catalog_and_questions() {
     let long = "x".repeat(4_001);
     assert_eq!(tool_call_content("read", None, &long).len(), 1);
     assert!(edit_diff("read", Some(&edit)).is_none());
-    assert!(edit_diff(
-        "write",
-        Some(&serde_json::json!({"path": "a", "content": "z"}))
-    )
-    .is_some());
+    assert!(
+        edit_diff(
+            "write",
+            Some(&serde_json::json!({"path": "a", "content": "z"}))
+        )
+        .is_some()
+    );
     assert!(tool_raw_output("read", None, "out", 0, None).is_none());
     assert!(tool_raw_output("shell", None, "out", 1, None).is_some());
     assert_eq!(
@@ -2051,20 +2059,24 @@ fn tui_mappings_cover_cards_catalog_and_questions() {
         answer_from_permission_outcome(&acp::RequestPermissionOutcome::Cancelled, &options)
             .is_none()
     );
-    assert!(answer_from_permission_outcome(
-        &acp::RequestPermissionOutcome::Selected(acp::SelectedPermissionOutcome::new(
-            acp::PermissionOptionId::new("allow-once")
-        )),
-        &options
-    )
-    .is_none());
-    assert!(answer_from_permission_outcome(
-        &acp::RequestPermissionOutcome::Selected(acp::SelectedPermissionOutcome::new(
-            acp::PermissionOptionId::new("question-0")
-        )),
-        &options
-    )
-    .is_none());
+    assert!(
+        answer_from_permission_outcome(
+            &acp::RequestPermissionOutcome::Selected(acp::SelectedPermissionOutcome::new(
+                acp::PermissionOptionId::new("allow-once")
+            )),
+            &options
+        )
+        .is_none()
+    );
+    assert!(
+        answer_from_permission_outcome(
+            &acp::RequestPermissionOutcome::Selected(acp::SelectedPermissionOutcome::new(
+                acp::PermissionOptionId::new("question-0")
+            )),
+            &options
+        )
+        .is_none()
+    );
     assert_eq!(
         answer_from_permission_outcome(
             &acp::RequestPermissionOutcome::Selected(acp::SelectedPermissionOutcome::new(
@@ -2107,9 +2119,9 @@ fn tui_mappings_cover_cards_catalog_and_questions() {
 
 #[tokio::test]
 async fn tui_turn_renders_every_pager_event() {
+    use aster_core::TokenUsage;
     use aster_core::planning::{Complexity, ExecutionPlan, Task, TaskStatus};
     use aster_core::verification::VerificationSummary;
-    use aster_core::TokenUsage;
 
     let root = std::env::temp_dir().join(format!("aster-acp-events-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&root).expect("workspace");
@@ -2211,6 +2223,7 @@ async fn tui_turn_renders_every_pager_event() {
         prompted_questions: std::collections::HashSet::new(),
         painted_tools: std::collections::HashSet::new(),
         pending_tools: std::collections::HashSet::new(),
+        denied_tools: Vec::new(),
         open_spawn_tool_id: None,
         subagent_parent_tool: HashMap::new(),
         last_turn_usage: None,
@@ -2703,6 +2716,45 @@ fn acp_host_can_compose_kburn_skill_coverage_from_core() {
 }
 
 #[test]
+fn disabled_kburn_omits_only_automatic_engineering_skill_roots() {
+    let root = tempfile::tempdir().unwrap();
+    let custom = root.path().join("custom-skills");
+    for dir in [
+        root.path().join("skills"),
+        root.path().join(".kstudio/skills"),
+        root.path().join(".aster/skills"),
+        custom.clone(),
+    ] {
+        std::fs::create_dir_all(dir).unwrap();
+    }
+    let disabled = session_skill_dirs(
+        root.path(),
+        std::slice::from_ref(&custom),
+        aster_core::kstudio::KburnMode::Disabled,
+    );
+    assert!(disabled.contains(&root.path().join("skills")));
+    assert!(disabled.contains(&custom));
+    assert!(!disabled.contains(&root.path().join(".kstudio/skills")));
+    assert!(!disabled.contains(&root.path().join(".aster/skills")));
+    let watched = session_watched_skill_dirs(root.path(), aster_core::kstudio::KburnMode::Disabled);
+    assert!(!watched.contains(&root.path().join(".kstudio/skills")));
+    assert!(!watched.contains(&root.path().join(".aster/skills")));
+    let automatic = session_skill_dirs(
+        root.path(),
+        std::slice::from_ref(&custom),
+        aster_core::kstudio::KburnMode::Auto,
+    );
+    assert!(!automatic.contains(&root.path().join(".kstudio/skills")));
+    assert!(automatic.contains(&root.path().join(".aster/skills")));
+    let explicit_legacy = session_skill_dirs(
+        root.path(),
+        &[PathBuf::from(".kstudio/skills")],
+        aster_core::kstudio::KburnMode::Auto,
+    );
+    assert!(explicit_legacy.contains(&root.path().join(".kstudio/skills")));
+}
+
+#[test]
 fn project_kstudio_skills_load_after_other_project_roots() {
     let root =
         std::env::temp_dir().join(format!("aster-acp-kstudio-skills-{}", uuid::Uuid::new_v4()));
@@ -2814,9 +2866,11 @@ fn interactive_skill_dirs_load_an_explicit_profile_without_reading_home() {
             personal.display()
         );
     }
-    assert!(watched
-        .iter()
-        .all(|dir| !dir.components().any(|part| part.as_os_str() == ".grok")));
+    assert!(
+        watched
+            .iter()
+            .all(|dir| !dir.components().any(|part| part.as_os_str() == ".grok"))
+    );
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -2857,9 +2911,10 @@ fn watched_skill_dirs_include_home_agent_roots_before_they_exist() {
             personal.display()
         );
     }
-    assert!(dirs
-        .iter()
-        .all(|dir| !dir.components().any(|part| part.as_os_str() == ".grok")));
+    assert!(
+        dirs.iter()
+            .all(|dir| !dir.components().any(|part| part.as_os_str() == ".grok"))
+    );
 }
 
 #[test]
@@ -2999,6 +3054,7 @@ async fn user_question_with_form_round_trips_the_submitted_values() {
                 prompted_questions: std::collections::HashSet::new(),
                 painted_tools: std::collections::HashSet::new(),
                 pending_tools: std::collections::HashSet::new(),
+        denied_tools: Vec::new(),
         open_spawn_tool_id: None,
         subagent_parent_tool: HashMap::new(),
         last_turn_usage: None,
@@ -3126,6 +3182,7 @@ async fn user_question_choices_round_trip_typed_and_selected_answers() {
                 prompted_questions: std::collections::HashSet::new(),
                 painted_tools: std::collections::HashSet::new(),
                 pending_tools: std::collections::HashSet::new(),
+                denied_tools: Vec::new(),
                 open_spawn_tool_id: None,
                 subagent_parent_tool: HashMap::new(),
                 last_turn_usage: None,
@@ -3569,11 +3626,13 @@ fn model_catalog_preserves_configured_limits_and_marks_unknown_context() {
         1_048_576
     );
     assert_eq!(infos[1].meta.as_ref().unwrap()["contextWindowKnown"], false);
-    assert!(!infos[1]
-        .meta
-        .as_ref()
-        .unwrap()
-        .contains_key("totalContextTokens"));
+    assert!(
+        !infos[1]
+            .meta
+            .as_ref()
+            .unwrap()
+            .contains_key("totalContextTokens")
+    );
     kimi.limit.context = 65_536;
     launch.config.providers[0].models[0] = kimi;
     let infos = AsterCodeAgent::new(launch).available_model_infos();

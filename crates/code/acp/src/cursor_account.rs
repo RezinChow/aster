@@ -237,7 +237,46 @@ fn read_cli_token() -> Result<Option<String>> {
         }
         return read_token_file(&PathBuf::from(explicit));
     }
-    Ok(read_keychain_token())
+    #[cfg(target_os = "macos")]
+    {
+        Ok(read_keychain_token())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let Some(path) = xdg_config_home().map(|home| home.join("cursor/auth.json")) else {
+            return Ok(None);
+        };
+        read_cli_auth_token(&path)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    Ok(None)
+}
+
+#[cfg(target_os = "linux")]
+fn xdg_config_home() -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os("XDG_CONFIG_HOME").filter(|value| !value.is_empty()) {
+        let path = PathBuf::from(path);
+        return path.is_absolute().then_some(path);
+    }
+    Some(PathBuf::from(std::env::var_os("HOME")?).join(".config"))
+}
+
+#[cfg(target_os = "linux")]
+fn read_cli_auth_token(path: &Path) -> Result<Option<String>> {
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let Some(raw) = read_bounded(path, MAX_SECRET_BYTES)? else {
+        tracing::warn!("cursor auth file exceeded the read bound; skipping import");
+        return Ok(None);
+    };
+    let auth: Value = serde_json::from_str(&raw).context("Cursor auth.json is not valid JSON")?;
+    Ok(auth
+        .get("accessToken")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(str::to_string))
 }
 
 fn read_token_file(path: &Path) -> Result<Option<String>> {
@@ -255,6 +294,7 @@ fn read_token_file(path: &Path) -> Result<Option<String>> {
     Ok(Some(token.to_string()))
 }
 
+#[cfg(target_os = "macos")]
 fn read_keychain_token() -> Option<String> {
     let output = Command::new("/usr/bin/security")
         .args([
@@ -352,9 +392,13 @@ fn ide_state_db() -> Option<PathBuf> {
     if fixture_mode() {
         return None;
     }
-    let home = std::env::var_os("HOME")?;
-    let path = PathBuf::from(home)
+    #[cfg(target_os = "macos")]
+    let path = PathBuf::from(std::env::var_os("HOME")?)
         .join("Library/Application Support/Cursor/User/globalStorage/state.vscdb");
+    #[cfg(target_os = "linux")]
+    let path = xdg_config_home()?.join("Cursor/User/globalStorage/state.vscdb");
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    return None;
     path.is_file().then_some(path)
 }
 
@@ -1092,6 +1136,44 @@ mod tests {
         });
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_cli_auth_file_imports_without_leaking_credentials() {
+        isolated(|| {
+            let root = tempfile::tempdir().unwrap();
+            let home = root.path().join("cursor-home");
+            std::fs::create_dir_all(&home).unwrap();
+            write_login(&home, EMAIL);
+            let config_home = root.path().join("config");
+            std::fs::create_dir_all(config_home.join("cursor")).unwrap();
+            std::fs::write(
+                config_home.join("cursor/auth.json"),
+                format!(r#"{{"accessToken":"{BEARER}","refreshToken":"must-not-be-used"}}"#),
+            )
+            .unwrap();
+            let models = root.path().join("models.txt");
+            write_models(&models);
+            let _env = EnvGuard::set(&[
+                ("ASTER_CURSOR_HOME", Some(home.to_str().unwrap())),
+                ("ASTER_CURSOR_MODELS_FILE", Some(models.to_str().unwrap())),
+                ("XDG_CONFIG_HOME", Some(config_home.to_str().unwrap())),
+                ("HOME", Some(root.path().to_str().unwrap())),
+            ]);
+
+            let mut config = aster_core::CodeConfig::default();
+            let logs = capture_logs(|| assert!(merge_into_config(&mut config).unwrap()));
+
+            let provider = config
+                .providers
+                .iter()
+                .find(|provider| provider.name == PROVIDER_NAME)
+                .unwrap();
+            assert_eq!(provider.api_key.as_deref(), Some(BEARER));
+            assert!(!logs.contains(BEARER));
+            assert!(!logs.contains("must-not-be-used"));
+        });
+    }
+
     #[test]
     fn auth_info_without_a_token_does_not_import() {
         isolated(|| {
@@ -1280,10 +1362,12 @@ mod tests {
                     model.id
                 );
             }
-            assert!(provider
-                .api_key
-                .as_deref()
-                .is_some_and(|key| !key.is_empty()));
+            assert!(
+                provider
+                    .api_key
+                    .as_deref()
+                    .is_some_and(|key| !key.is_empty())
+            );
         });
     }
 

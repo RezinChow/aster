@@ -25,19 +25,22 @@ async fn switching_revalidates_and_returns_the_effective_selection() {
         .await
         .unwrap();
     assert_eq!(response.meta.unwrap()["reasoningEffort"], "default");
-    assert!(host.sessions.lock().await[&id.0.to_string()]
-        .effort
-        .is_none());
+    assert!(
+        host.sessions.lock().await[&id.0.to_string()]
+            .effort
+            .is_none()
+    );
     let session = host.sessions.lock().await[&id.0.to_string()]
         .session
         .clone();
-    assert!(host
-        .set_session_model(
+    assert!(
+        host.set_session_model(
             acp::SetSessionModelRequest::new(id.clone(), acp::ModelId::new("openai/gpt-4o"))
                 .meta(meta(serde_json::json!("high")))
         )
         .await
-        .is_err());
+        .is_err()
+    );
     assert!(Arc::ptr_eq(
         &session,
         &host.sessions.lock().await[&id.0.to_string()].session
@@ -153,9 +156,11 @@ async fn terminal_initial_effort_reaches_new_session_and_allows_later_selection(
     .await
     .unwrap();
     assert_eq!(host.effort.lock().await.unwrap().thinking_budget, 2048);
-    assert!(AsterCodeAgent::new(tests::test_launch(None))
-        .with_default_reasoning_effort("unknown")
-        .is_err());
+    assert!(
+        AsterCodeAgent::new(tests::test_launch(None))
+            .with_default_reasoning_effort("unknown")
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -171,11 +176,13 @@ async fn explicit_effort_default_clears_override_and_absence_preserves_selection
     for model in created.models.unwrap().available_models {
         let meta = model.meta.unwrap();
         assert_eq!(meta["reasoningEffortReset"], true);
-        assert!(!meta["reasoningEfforts"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|entry| entry["value"] == "default"));
+        assert!(
+            !meta["reasoningEfforts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|entry| entry["value"] == "default")
+        );
     }
     let id = created.session_id;
     assert_eq!(
@@ -269,6 +276,7 @@ async fn switching_preserves_history_and_anthropic_parameters() {
     let (ready, mut turns) = tokio::sync::mpsc::channel::<()>(1);
     let provider = async move {
         let mut requests = Vec::<serde_json::Value>::new();
+        let mut other_requests = Vec::<serde_json::Value>::new();
         let mut awaiting_turn = true;
         for _ in 0..16 {
             if awaiting_turn {
@@ -307,7 +315,7 @@ async fn switching_preserves_history_and_anthropic_parameters() {
             awaiting_turn = streaming;
             let index = requests.len();
             if streaming {
-                requests.push(request);
+                requests.push(request.clone());
             }
             let body = if streaming {
                 [
@@ -319,7 +327,8 @@ async fn switching_preserves_history_and_anthropic_parameters() {
                 serde_json::json!({"type":"message_stop"}),
             ].into_iter().map(|event| format!("data: {event}\n\n")).collect::<String>()
             } else {
-                serde_json::json!({"content":[{"type":"text","text":"[]"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}).to_string()
+                other_requests.push(request);
+                serde_json::json!({"content":[{"type":"text","text":r#"{"intent":"GeneralPurpose","requires_planning":false,"goal":{"description":"Reply","success_criteria":[]},"execution_plan":{"complexity":"Simple","steps":[],"required_tools":[]},"optimized_input":"Reply"}"#}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}).to_string()
             };
             let content_type = if streaming {
                 "text/event-stream"
@@ -340,7 +349,14 @@ async fn switching_preserves_history_and_anthropic_parameters() {
                 break;
             }
         }
-        assert_eq!(requests.len(), 5);
+        assert_eq!(
+            requests.len(),
+            5,
+            "unexpected requests: {requests:#?}; non-streaming count={} last={:?}",
+            other_requests.len(),
+            other_requests.last()
+        );
+        assert_eq!(other_requests.len(), 5, "one pre-analysis per turn");
         requests
     };
     let root = tempfile::tempdir().unwrap();
@@ -446,13 +462,14 @@ async fn switching_preserves_history_and_anthropic_parameters() {
         .session
         .clone();
     ready.send(()).await.unwrap();
-    tokio::time::timeout(
+    let final_result = tokio::time::timeout(
         std::time::Duration::from_secs(5),
         session.send("marker-4", None),
     )
     .await
     .unwrap()
     .unwrap();
+    assert_eq!(final_result.text, "reply-4");
     session.close().await;
     let requests = provider.await.unwrap();
     for (index, request) in requests.iter().enumerate() {
