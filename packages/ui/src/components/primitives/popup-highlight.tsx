@@ -25,21 +25,29 @@ export function PopupHighlight({ activeKey, visible = true }: { activeKey?: numb
     let point: { x: number; y: number } | null = null
     let timer = 0
     let frame = 0
+    const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+      if (current?.isConnected) show(current, false, true)
+    })
     const clear = () => {
+      if (current) sizes?.unobserve(current)
       current = null
       root.removeAttribute('data-popup-highlight')
       setHighlight(null)
     }
-    const show = (item: HTMLElement, glide: boolean) => {
+    const show = (item: HTMLElement, glide: boolean, remeasure = false) => {
       window.clearTimeout(timer)
       if (item.matches(':disabled, [aria-disabled="true"], [data-disabled=""], [data-disabled="true"]')) {
         clear()
         return
       }
-      if (item === current) return
+      if (item === current && !remeasure) return
       const container = ref.current?.offsetParent
       if (!(container instanceof HTMLElement)) return
-      current = item
+      if (item !== current) {
+        if (current) sizes?.unobserve(current)
+        current = item
+        sizes?.observe(item)
+      }
       const rect = item.getBoundingClientRect()
       const parent = container.getBoundingClientRect()
       const scale = parent.width / container.offsetWidth
@@ -85,6 +93,7 @@ export function PopupHighlight({ activeKey, visible = true }: { activeKey?: numb
 
     clear()
     if (!visible) return
+    sizes?.observe(root)
     // Filtering can remove the hovered row without another pointer event.
     const changes = new MutationObserver(clear)
     changes.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] })
@@ -103,6 +112,7 @@ export function PopupHighlight({ activeKey, visible = true }: { activeKey?: numb
     }
     return () => {
       changes.disconnect()
+      sizes?.disconnect()
       window.clearTimeout(timer)
       cancelAnimationFrame(frame)
       root.removeAttribute('data-popup-highlight')
