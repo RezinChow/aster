@@ -692,7 +692,11 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
         let entry = entry?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
-        if src_path.is_dir() {
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_dir() {
             copy_dir_recursive(&src_path, &dst_path)?;
         } else {
             std::fs::copy(&src_path, &dst_path)?;
@@ -706,6 +710,48 @@ mod tests {
     use super::*;
     use std::process::Command;
     use std::sync::{Mutex, OnceLock};
+
+    #[cfg(unix)]
+    #[test]
+    fn local_copy_skips_file_directory_and_dangling_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let src = root.path().join("src");
+        let dst = root.path().join("dst");
+        std::fs::create_dir_all(src.join("nested")).unwrap();
+        std::fs::write(src.join("plugin.txt"), "plugin").unwrap();
+        std::fs::write(src.join("nested/regular.txt"), "nested").unwrap();
+        std::fs::write(root.path().join("outside.txt"), "outside").unwrap();
+        std::fs::create_dir(root.path().join("outside-dir")).unwrap();
+        std::fs::write(root.path().join("outside-dir/secret.txt"), "secret").unwrap();
+        symlink(root.path().join("outside.txt"), src.join("file-link")).unwrap();
+        symlink(root.path().join("outside-dir"), src.join("dir-link")).unwrap();
+        symlink(root.path().join("missing"), src.join("dangling-link")).unwrap();
+        symlink("../outside.txt", src.join("nested/relative-link")).unwrap();
+
+        copy_dir_recursive(&src, &dst).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(dst.join("plugin.txt")).unwrap(),
+            "plugin"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dst.join("nested/regular.txt")).unwrap(),
+            "nested"
+        );
+        for skipped in [
+            "file-link",
+            "dir-link",
+            "dangling-link",
+            "nested/relative-link",
+        ] {
+            assert!(
+                std::fs::symlink_metadata(dst.join(skipped)).is_err(),
+                "copied {skipped}"
+            );
+        }
+    }
 
     static TEST_HOME: OnceLock<tempfile::TempDir> = OnceLock::new();
     static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -986,6 +1032,15 @@ mod tests {
             write_plugin(marketplace.path(), "demo", "1.0.0", "old");
             let repo_key = install_test_plugin(registry, marketplace.path(), "demo");
             write_plugin(marketplace.path(), "demo", "2.0.0", "new");
+            #[cfg(unix)]
+            {
+                std::fs::write(marketplace.path().join("outside.txt"), "outside").unwrap();
+                std::os::unix::fs::symlink(
+                    marketplace.path().join("outside.txt"),
+                    marketplace.path().join("plugins/demo/leak.txt"),
+                )
+                .unwrap();
+            }
             let entry = crate::scan_marketplace(marketplace.path())
                 .entries
                 .into_iter()
@@ -1010,6 +1065,12 @@ mod tests {
                 std::fs::read_to_string(registry.install_dir().join(&repo_key).join("marker.txt"))
                     .unwrap(),
                 "new"
+            );
+            #[cfg(unix)]
+            assert!(
+                std::fs::symlink_metadata(registry.install_dir().join(&repo_key).join("leak.txt"))
+                    .is_err(),
+                "local update copied a file symlink into the managed plugin tree"
             );
         });
     }
