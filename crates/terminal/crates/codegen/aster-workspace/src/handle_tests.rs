@@ -9262,3 +9262,49 @@ async fn mcp_server_outcome_reports_settled_starts_and_never_waits() {
     );
     drop(held);
 }
+
+#[cfg(unix)]
+#[test]
+fn confined_final_io_rejects_file_and_directory_swaps_to_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempfile::tempdir().unwrap();
+    let root = std::fs::canonicalize(temp.path()).unwrap();
+    let outside = temp.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    let secret = outside.join("secret.txt");
+    std::fs::write(&secret, "do not read or overwrite").unwrap();
+    let base = ClientFsBase {
+        base: root.clone(),
+        canonical: root.clone(),
+    };
+
+    let file = root.join("safe.txt");
+    std::fs::write(&file, "safe").unwrap();
+    std::fs::remove_file(&file).unwrap();
+    symlink(&secret, &file).unwrap();
+    let confined = ConfinedPath::new(&file, &base).unwrap();
+    let mut read = cap_std::fs::OpenOptions::new();
+    read.read(true);
+    assert!(confined.open(&read).is_err());
+    let mut write = cap_std::fs::OpenOptions::new();
+    write.write(true).truncate(true);
+    assert!(confined.open(&write).is_err());
+
+    let nested = root.join("nested");
+    std::fs::create_dir(&nested).unwrap();
+    std::fs::rename(&nested, root.join("nested-original")).unwrap();
+    symlink(&outside, &nested).unwrap();
+    let escaped = nested.join("escape.txt");
+    let confined = ConfinedPath::new(&escaped, &base).unwrap();
+    let mut create = cap_std::fs::OpenOptions::new();
+    create.write(true).create(true);
+    assert!(confined.open(&create).is_err());
+    assert!(confined.create_parent_dirs().is_err());
+
+    assert_eq!(
+        std::fs::read_to_string(secret).unwrap(),
+        "do not read or overwrite"
+    );
+    assert!(!outside.join("escape.txt").exists());
+}

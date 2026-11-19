@@ -432,6 +432,59 @@ pub(crate) struct ClientFsBase {
     pub(crate) base: PathBuf,
     pub(crate) canonical: PathBuf,
 }
+
+struct ConfinedPath {
+    directory: cap_std::fs::Dir,
+    relative: PathBuf,
+}
+
+impl ConfinedPath {
+    fn new(resolved: &std::path::Path, base: &ClientFsBase) -> std::io::Result<Self> {
+        let relative = resolved
+            .strip_prefix(&base.base)
+            .or_else(|_| resolved.strip_prefix(&base.canonical))
+            .map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "path leaves workspace root",
+                )
+            })?;
+        if relative.as_os_str().is_empty()
+            || !relative
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "workspace file path is not a relative file",
+            ));
+        }
+        let directory =
+            cap_std::fs::Dir::open_ambient_dir(&base.canonical, cap_std::ambient_authority())?;
+        Ok(Self {
+            directory,
+            relative: relative.to_path_buf(),
+        })
+    }
+
+    fn create_parent_dirs(&self) -> std::io::Result<()> {
+        if let Some(parent) = self
+            .relative
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+        {
+            self.directory.create_dir_all(parent)?;
+        }
+        Ok(())
+    }
+
+    fn open(&self, options: &cap_std::fs::OpenOptions) -> std::io::Result<tokio::fs::File> {
+        self.directory
+            .open_with(&self.relative, options)
+            .map(|file| tokio::fs::File::from_std(file.into_std()))
+    }
+}
+
 impl WorkspaceHandle {
     /// `None` when not connected.
     /// Never hands out an owned `ToolServer`: dropping a clone starts server teardown.
@@ -1920,9 +1973,19 @@ impl WorkspaceHandle {
                     };
                 }
             };
+        let confined = match ConfinedPath::new(&resolved, base) {
+            Ok(path) => path,
+            Err(e) => {
+                return PutFileResult {
+                    path: entry.path.clone(),
+                    ok: false,
+                    error: Some(e.to_string()),
+                    hash: None,
+                };
+            }
+        };
         if entry.create_dirs
-            && let Some(parent) = resolved.parent()
-            && let Err(e) = tokio::fs::create_dir_all(parent).await
+            && let Err(e) = confined.create_parent_dirs()
         {
             return PutFileResult {
                 path: entry.path.clone(),
@@ -1931,20 +1994,23 @@ impl WorkspaceHandle {
                 hash: None,
             };
         }
-        let write_result = if entry.append {
-            use tokio::io::AsyncWriteExt;
-            async {
-                let mut f = tokio::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&resolved)
-                    .await?;
-                f.write_all(entry.content.as_bytes()).await?;
-                f.flush().await
-            }
-            .await
+        let mut options = cap_std::fs::OpenOptions::new();
+        options.write(true).create(true);
+        if entry.append {
+            options.append(true);
         } else {
-            tokio::fs::write(&resolved, entry.content.as_bytes()).await
+            options.truncate(true);
+        }
+        let write_result = match confined.open(&options) {
+            Ok(mut file) => {
+                use tokio::io::AsyncWriteExt;
+                async {
+                    file.write_all(entry.content.as_bytes()).await?;
+                    file.flush().await
+                }
+                .await
+            }
+            Err(e) => Err(e),
         };
         match write_result {
             Ok(()) => {
@@ -1995,9 +2061,24 @@ impl WorkspaceHandle {
                     };
                 }
             };
-        let is_chunked = entry.offset.is_some() || entry.length.is_some();
-        let metadata = match tokio::fs::metadata(&resolved).await {
-            Ok(m) => m,
+        let confined = match ConfinedPath::new(&resolved, base) {
+            Ok(path) => path,
+            Err(e) => {
+                return GetFileResult {
+                    path: entry.path.clone(),
+                    exists: true,
+                    content: None,
+                    hash: None,
+                    matched: false,
+                    size: None,
+                    error: Some(e.to_string()),
+                };
+            }
+        };
+        let mut options = cap_std::fs::OpenOptions::new();
+        options.read(true);
+        let mut file = match confined.open(&options) {
+            Ok(file) => file,
             Err(e)
                 if e.kind() == std::io::ErrorKind::NotFound
                     || e.kind() == std::io::ErrorKind::NotADirectory =>
@@ -2024,11 +2105,26 @@ impl WorkspaceHandle {
                 };
             }
         };
+        let metadata = match file.metadata().await {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                return GetFileResult {
+                    path: entry.path.clone(),
+                    exists: true,
+                    content: None,
+                    hash: None,
+                    matched: false,
+                    size: None,
+                    error: Some(e.to_string()),
+                };
+            }
+        };
+        let is_chunked = entry.offset.is_some() || entry.length.is_some();
         let file_size = metadata.len();
         if is_chunked {
             let req_offset = entry.offset.unwrap_or(0);
             let req_length = entry.length.unwrap_or(file_size.saturating_sub(req_offset));
-            let read_result = stream_hash_and_range(&resolved, req_offset, req_length).await;
+            let read_result = stream_hash_and_range_file(file, req_offset, req_length).await;
             match read_result {
                 Ok((hash, chunk_bytes, _streamed)) => {
                     if let Some(ref etag) = entry.if_none_match
@@ -2076,7 +2172,15 @@ impl WorkspaceHandle {
                 },
             }
         } else {
-            match tokio::fs::read(&resolved).await {
+            let read_result = {
+                use tokio::io::AsyncReadExt;
+                async move {
+                    let mut bytes = Vec::new();
+                    file.read_to_end(&mut bytes).await.map(|_| bytes)
+                }
+                .await
+            };
+            match read_result {
                 Ok(bytes) => {
                     let hash = sha256_hex(&bytes);
                     if let Some(ref etag) = entry.if_none_match
@@ -4270,10 +4374,18 @@ pub(crate) async fn stream_hash_and_range(
     offset: u64,
     length: u64,
 ) -> std::io::Result<(String, Vec<u8>, u64)> {
+    let file = tokio::fs::File::open(path).await?;
+    stream_hash_and_range_file(file, offset, length).await
+}
+
+async fn stream_hash_and_range_file(
+    mut f: tokio::fs::File,
+    offset: u64,
+    length: u64,
+) -> std::io::Result<(String, Vec<u8>, u64)> {
     use sha2::{Digest, Sha256};
     use tokio::io::AsyncReadExt;
     let req_end = offset.saturating_add(length);
-    let mut f = tokio::fs::File::open(path).await?;
     let mut hasher = Sha256::new();
     let mut chunk = Vec::new();
     let mut pos: u64 = 0;
