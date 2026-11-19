@@ -118,3 +118,18 @@ one verbose diagnostic all ended during SSH identification:
 No installer was built or started. The local machine has QEMU but no available
 Windows image, so no substitute Windows runtime was claimed. The parent gitlink
 was not bumped and nothing was pushed.
+
+
+## Mainline integration and closures
+
+The reviewed fixes were pushed to `aster-ai-lab/aster` main through `0beb6f6d8`.
+The Studio tenant fix was pushed to `aster-ai-lab/studio` main as `a970022311`.
+
+Closed with commit and test evidence: issues #300, #301, #302, #304, #309,
+#312, #313 and #315. Closed PRs #310, #298 and #314 as superseded by equivalent
+mainline implementations, not as unreviewed discards.
+
+Issue #311 remains open because no Windows installer was built or launched.
+PRs #233 and #297 remain open because their conflicting drafts still contain
+unreviewed scope beyond the fixes landed here. Final remote inspection confirmed
+these are the only remaining open items.

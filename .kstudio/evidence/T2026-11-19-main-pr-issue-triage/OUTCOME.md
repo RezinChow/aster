@@ -40,3 +40,10 @@ Studio commit: `a970022311` (signed + DCO; only two tenant files).
 DSH pre-staged changes were preserved and are not in the Studio commit.
 
 #311 is blocked: `win-gates` closes SSH during identification on every attempt. No Windows installer was built or started. No local Windows image is available. No push or parent gitlink bump.
+
+
+## Mainline closure
+
+Pushed parent main through `0beb6f6d8` and Studio main `a970022311`.
+Closed issues #300/#301/#302/#304/#309/#312/#313/#315 and superseded PRs #310/#298/#314.
+Issue #311 stays open pending actual Windows installer launch. PRs #233/#297 stay open for their unreviewed remainder.
