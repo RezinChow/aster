@@ -186,14 +186,11 @@ pub fn extract_release_archive(
     }
 }
 
-/// Download a `.tar.gz` asset and extract the binary from it.
-///
-/// Returns `(binary_path, temp_dir)`. The caller must keep `TempDir` alive
-/// until the extracted binary has been consumed (e.g. copied into place).
-/// Dropping `TempDir` automatically cleans up the temporary directory.
-pub async fn download_and_extract(
+/// Download and verify the original archive before extracting the binary.
+pub async fn download_and_extract_with_digest(
     url: &str,
     binary_name: &str,
+    expected_digest: Option<&str>,
 ) -> anyhow::Result<(PathBuf, TempDir)> {
     let client = reqwest::Client::builder()
         .user_agent("aster-updater/0.1")
@@ -219,6 +216,9 @@ pub async fn download_and_extract(
         .bytes()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to read download body: {}", e))?;
+    if let Some(expected) = expected_digest {
+        verify_sha256(&bytes, expected)?;
+    }
 
     // Create a cryptographically unique temp directory (auto-cleaned on drop)
     let temp_dir =
@@ -288,6 +288,41 @@ mod tests {
         verify_sha256(b"aster", &format!("sha256:{digest}")).unwrap();
         assert!(verify_sha256(b"other", &digest).is_err());
         assert!(verify_sha256(b"aster", "not-a-digest").is_err());
+    }
+
+    #[test]
+    fn archive_digest_mismatch_fails_before_extraction() {
+        use std::io::{Read, Write};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let _ = stream.read(&mut request);
+            let body = b"not a tar archive";
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .unwrap();
+            stream.write_all(body).unwrap();
+        });
+
+        let error = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(download_and_extract_with_digest(
+                &format!("http://{address}/aster.tar.gz"),
+                "aster",
+                Some(&sha256_hex(b"different archive")),
+            ))
+            .unwrap_err();
+
+        assert!(error.to_string().contains("checksum mismatch"));
+        server.join().unwrap();
     }
 
     #[test]

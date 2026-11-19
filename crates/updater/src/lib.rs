@@ -73,8 +73,12 @@ pub async fn run_update(config: &UpdateConfig) -> anyhow::Result<()> {
         config.binary_name, latest_version, os, arch
     );
 
-    let (new_binary, _temp_dir) =
-        download::download_and_extract(&asset.browser_download_url, config.binary_name).await?;
+    let (new_binary, _temp_dir) = download::download_and_extract_with_digest(
+        &asset.browser_download_url,
+        config.binary_name,
+        asset.digest.as_deref(),
+    )
+    .await?;
     install::replace_binary(&new_binary)?;
     // _temp_dir is dropped here, automatically cleaning up the temp directory
 

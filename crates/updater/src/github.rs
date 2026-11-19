@@ -58,8 +58,16 @@ fn github_api_base() -> String {
 }
 
 async fn fetch_release_url(url: &str) -> anyhow::Result<Release> {
+    fetch_release_url_with_timeout(url, std::time::Duration::from_secs(300)).await
+}
+
+async fn fetch_release_url_with_timeout(
+    url: &str,
+    timeout: std::time::Duration,
+) -> anyhow::Result<Release> {
     let client = reqwest::Client::builder()
         .user_agent("aster-updater/0.1")
+        .timeout(timeout)
         .build()
         .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {}", e))?;
 
@@ -111,4 +119,38 @@ pub fn find_matching_asset<'a>(
     let version = parse_version(&release.tag_name).ok()?;
     let expected = asset_name(binary_name, &version.to_string(), os, arch);
     release.assets.iter().find(|a| a.name == expected)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Read;
+    use std::net::TcpListener;
+
+    #[test]
+    fn release_metadata_request_times_out_when_server_stalls() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let _ = stream.read(&mut request);
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        });
+
+        let started = std::time::Instant::now();
+        let error = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(fetch_release_url_with_timeout(
+                &format!("http://{address}/releases/latest"),
+                std::time::Duration::from_millis(25),
+            ))
+            .unwrap_err();
+
+        assert!(started.elapsed() < std::time::Duration::from_millis(500));
+        assert!(error.to_string().contains("Failed to fetch release"));
+        server.join().unwrap();
+    }
 }

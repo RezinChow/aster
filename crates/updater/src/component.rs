@@ -340,20 +340,30 @@ impl DirectoryActivation {
         })
     }
 
-    pub fn commit(mut self) -> anyhow::Result<()> {
-        if let Some(backup) = self.backup.clone() {
+    pub fn commit(self) -> anyhow::Result<()> {
+        self.commit_with(|backup| {
             if backup.is_dir() {
-                std::fs::remove_dir_all(&backup).with_context(|| {
+                std::fs::remove_dir_all(backup).with_context(|| {
                     format!("failed to remove activation backup {}", backup.display())
                 })?;
             } else if backup.exists() {
-                std::fs::remove_file(&backup).with_context(|| {
+                std::fs::remove_file(backup).with_context(|| {
                     format!("failed to remove activation backup {}", backup.display())
                 })?;
             }
-            self.backup = None;
-        }
+            Ok(())
+        })
+    }
+
+    fn commit_with(
+        mut self,
+        remove_backup: impl FnOnce(&Path) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
+        // Activation is already durable; backup cleanup failure must not restore old files.
         self.committed = true;
+        if let Some(backup) = self.backup.take() {
+            remove_backup(&backup)?;
+        }
         Ok(())
     }
 }
@@ -575,5 +585,27 @@ mod tests {
             "new"
         );
         assert!(!staged.exists());
+    }
+
+    #[test]
+    fn backup_cleanup_failure_does_not_roll_back_new_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        let active = temp.path().join("active");
+        let staged = temp.path().join("staged");
+        std::fs::create_dir_all(&active).unwrap();
+        std::fs::create_dir_all(&staged).unwrap();
+        std::fs::write(active.join("version"), "old").unwrap();
+        std::fs::write(staged.join("version"), "new").unwrap();
+
+        let error = DirectoryActivation::activate(&staged, &active)
+            .unwrap()
+            .commit_with(|_| anyhow::bail!("simulated partial backup cleanup failure"))
+            .unwrap_err();
+
+        assert!(error.to_string().contains("partial backup cleanup"));
+        assert_eq!(
+            std::fs::read_to_string(active.join("version")).unwrap(),
+            "new"
+        );
     }
 }
