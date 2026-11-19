@@ -31,3 +31,12 @@ Remaining overall goal gap: release qualification and cross-platform/desktop mat
 - Invalid pre-analysis fixtures corrected; fifth resumed streaming request and per-turn call counts verified.
 - Plugin startup timeout hardened to 10s without changing cancellation assertions; wiki fixtures isolated by unique scope.
 - All 14 GitHub items received a factual reply and remain open. Windows installer/GUI remains unverified; #233 and #297 conflicting remainders are not merged.
+
+
+## Split commits and blocked Windows validation
+
+Parent commits: `2eab42419`, `8c97eb802`, `7b9e5185d`, `4ab8a452f`, `3ace87e73`, `43dce4eed`, `82b72c720`.
+Studio commit: `a970022311` (signed + DCO; only two tenant files).
+DSH pre-staged changes were preserved and are not in the Studio commit.
+
+#311 is blocked: `win-gates` closes SSH during identification on every attempt. No Windows installer was built or started. No local Windows image is available. No push or parent gitlink bump.

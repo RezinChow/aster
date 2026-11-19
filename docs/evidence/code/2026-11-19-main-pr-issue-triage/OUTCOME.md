@@ -91,3 +91,30 @@ All 14 items received a factual GitHub reply. The comments report workspace veri
 | Issue #315 | 7011747504 |
 
 Final `gh` inspection confirmed all five PRs and nine issues remain open. No merge, close, commit, or push was performed. Windows installer/GUI verification remains outstanding. PR #233 and the conflicting remainder of #297 still require rebase and split review.
+
+
+## Split commits and Windows #311 validation checkpoint
+
+Split the reviewed fixes into seven parent commits and one signed Studio commit:
+
+- `2eab42419` — updater activation, digest and metadata timeout
+- `8c97eb802` — capability-confined file IO and valid MCP Agent header
+- `7b9e5185d` — local marketplace symlink refusal
+- `4ab8a452f` — ACP structured output, Cursor import and headless terminal contract
+- `3ace87e73` — portable Capture contract
+- `43dce4eed` — popup resize highlight
+- `82b72c720` — evidence and per-item response ledger
+- Studio `a970022311` — selected tenant resources; `gpgsig` and DCO sign-off verified
+
+The first Studio staging attempt included pre-staged DSH deletions. It was
+immediately undone with a mixed reset (working tree preserved) and recommitted
+with only `scripts/studio_product.py` and `scripts/tests/studio_product_test.py`.
+The DSH changes were then restored to their original staged state. No unrelated
+DSH change is included in `a970022311`.
+
+Windows validation is **blocked**, not passed. Two `ssh win-gates` attempts plus
+one verbose diagnostic all ended during SSH identification:
+`kex_exchange_identification: Connection closed by remote host` (198.18.0.96).
+No installer was built or started. The local machine has QEMU but no available
+Windows image, so no substitute Windows runtime was claimed. The parent gitlink
+was not bumped and nothing was pushed.

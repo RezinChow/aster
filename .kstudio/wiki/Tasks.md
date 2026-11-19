@@ -1239,3 +1239,8 @@
 - 修正非法 MCP Header、pre-analysis 测试桩与 wiki 并发夹具冲突；保留取消和恢复传输断言。
 - 已对 5 PR + 9 issues 逐项回复，评论 ID 见主 OUTCOME；全部保持开放，未 commit/push/merge/close。
 - 未验证 Windows 安装包/GUI；#233 和 #297 冲突余量仍需 rebase 后拆分。
+
+
+### T2026-11-19-main-pr-issue-triage 拆分提交与 #311 阻塞
+- 主仓 7 个提交完成；Studio `a970022311` 仅 tenant 两文件，签名与 DCO 通过，DSH 原有暂存保持不变。
+- #311 Windows 验证硬阻塞：`win-gates` SSH 握手即断开；未构建/启动安装包，未推送或提升 gitlink。
