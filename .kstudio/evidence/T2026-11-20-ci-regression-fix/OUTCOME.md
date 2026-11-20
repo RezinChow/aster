@@ -70,7 +70,10 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 ### 9. Desktop identity 构建缺 document 资源（run 44714192342）
 - 症状：Ubuntu `check` 的 "Build and test the desktop product identity" 中 tauri-build 失败：`resource path .../target/debug/studio-resources/document doesn't exist`。
 - 根因：CI 手写复制了 `justfile` 的 Studio 构建流程，但漏掉 `python3 apps/studio/scripts/document_assets.py "$CARGO_TARGET_DIR/debug/studio-resources/document"`；`tauri-config --target-dir` 会声明该映射，非 deferred 构建必须先 stage。
-- 修复：在 CI step 的 `export TAURI_CONFIG STUDIO_COMPANIONS_STAGED=1` 之后补同一行 staging（与 `justfile` 标准构建一致）。本地用 /tmp 目标实测 staging EXIT=0，产出 16 MiB（pdfium + 字体 + manifest）。
+- 修复迭代：
+  1. 先按 `justfile` 补 `document_assets.py` staging；本地 /tmp 实测 EXIT=0（16 MiB）。
+  2. run 44720302123 的 Ubuntu 暴露新依赖：CI checkout 没有 `packages/office/node_modules/@embedpdf/fonts-sc/fonts/NotoSansHans-Regular.otf`（未跟踪），脚本在 `digest(font)` 处 `FileNotFoundError`。该字体只存在于本地 node_modules。
+  3. 最终改为 `mkdir -p "$target_dir/debug/studio-resources/document"`——tauri-build 只校验映射目录存在；真实 PDFIUM/字体资产由 release packaging 的 `document_assets.py` 负责，CI 门禁不装 node_modules。保留完整资源映射，不用 `ASTER_DEFER_RUNTIME_COMPONENTS=1` 缩减覆盖。
 - 注：`crates/oci-runtime` 已不存在，`sandbox_assets_expected()` 为 false，macOS 也不会顺带 stage document，故两侧都需要这一步。
 
 ## 提交
@@ -87,7 +90,8 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | Studio | 1cb9204f13 | 陈旧 fixture / ring dev-dep 修复（5 文件） |
 | 主仓 | 7ffaa2e96 | gitlink→1cb9204f13 + 本证据第 7 项 |
 | 主仓 | 21ba5695c | macOS-only TUI 测试门控 + ci-all feature + 本证据第 8 项 |
-| 主仓 | (本轮) | CI 补 document assets staging + 本证据第 9 项 |
+| 主仓 | e250d1572 | CI 补 document assets staging（首版） |
+| 主仓 | (本轮) | CI 改为 mkdir document 空目录 + 本证据第 9 项定稿 |
 
 ## 验证
 
