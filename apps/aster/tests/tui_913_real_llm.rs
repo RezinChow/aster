@@ -29,6 +29,7 @@ mod python;
 #[path = "tui_913_real_llm/tui_recovery.rs"]
 mod tui_recovery;
 
+#[cfg(target_os = "macos")]
 #[path = "tui_913_real_llm/tui_read.rs"]
 mod tui_read;
 
@@ -529,6 +530,7 @@ fn real_llm_tui_cli_model_outranks_workspace_default_model() {
     );
 }
 
+#[cfg(target_os = "macos")]
 #[test]
 #[ignore = "requires the actual macOS pager/ACP and configured real provider; mandatory Layer C TUI gate"]
 fn real_llm_tui_turn_shows_assistant_text() {

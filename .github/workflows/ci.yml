@@ -105,7 +105,7 @@ jobs:
       - name: Compile workspace and tests
         run: cargo check --locked --workspace --all-targets
       - name: Check optional harness contracts
-        run: cargo check --locked -p aster-core --features advanced-harness,deep-live
+        run: cargo check --locked -p aster-core --features ci-all,deep-live
       - name: Build product and companion
         run: |
           cargo build --locked -p aster -p aster-acp -p aster-office-cli

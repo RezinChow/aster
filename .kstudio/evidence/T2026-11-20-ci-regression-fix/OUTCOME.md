@@ -59,6 +59,14 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
   - `Cargo.toml`：把 `ring` 加进 `[dev-dependencies]`，保留 macOS target 生产依赖。
 - 验证：`cargo fmt --all -- --check` 0 差异、`git diff --check` 0 差异、`cargo check -p aster-studio --all-targets` EXIT=0（18m57s，Cargo.lock 无变化）；两处受影响测试单跑通过（review plugin install 1/1；acp-cloud 双轮 ACP 1/1）。运行时路径基准必须是 `CARGO_MANIFEST_DIR`（= src-tauri）上一层，不是源码 include 的两层——首次写错已修正并复跑通过。
 
+### 8. 陈旧测试目标与 feature（run 44707705516，ubuntu+macos）
+- 症状：Ubuntu `cargo check --workspace --all-targets` 之后，`aster` 的 `tui_913_real_llm` 测试编译失败：`tui_read` 未解析；该文件 `#![cfg(target_os = "macos")]`，Linux 上是空模块，但调用点未门控。macOS "Check optional harness contracts" 失败：`aster-core` 已无 `advanced-harness` feature（仅剩 `deep-live`，并有替代口径 `ci-all = ["full"]`）。
+- 修复：
+  - `apps/aster/tests/tui_913_real_llm.rs`：`mod tui_read` 和唯一使用它的 `real_llm_tui_turn_shows_assistant_text`（ignore 文案本就写明 macOS pager gate）都加 `#[cfg(target_os = "macos")]`；Linux 不再编译 macOS-only 测试，macOS 行为不变。
+  - `.github/workflows/ci.yml`：可选契约检查改为 `--features ci-all,deep-live`（Cargo.toml 注释推荐 `ci-all` 代替 `--all-features` / 过时 feature）。
+- 验证：`cargo fmt --all -- --check` 0 差异、YAML 解析 OK、`cargo check --locked -p aster --test tui_913_real_llm` EXIT=0、`cargo check --locked -p aster-core --features ci-all,deep-live` EXIT=0。
+- 注：改 `apps/aster` 测试文件会改变 CLI pair 的 BUILD_ID（哈希覆盖整个 `apps/aster`），但 CI 的 pair identity 测试用 fixture 源动态算 digest，无 golden 常量；本地未跑 `cargo build`，默认产物未被覆盖。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -71,7 +79,8 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | 073bf3171 | gitlink→b621f191ff + 本证据初稿 |
 | 主仓 | c2ed67976 | macOS check 静态编译步骤 runner 守卫 + 本证据第 6 项 |
 | Studio | 1cb9204f13 | 陈旧 fixture / ring dev-dep 修复（5 文件） |
-| 主仓 | (本轮) | gitlink→1cb9204f13 + 本证据第 7 项 |
+| 主仓 | 7ffaa2e96 | gitlink→1cb9204f13 + 本证据第 7 项 |
+| 主仓 | (本轮) | macOS-only TUI 测试门控 + ci-all feature + 本证据第 8 项 |
 
 ## 验证
 
