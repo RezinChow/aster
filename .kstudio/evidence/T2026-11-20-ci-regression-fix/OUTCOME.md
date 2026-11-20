@@ -131,14 +131,14 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 验证：`cargo fmt --all -- --check`、`git diff --check` 0 差异；本地默认与 `ASTER_SYSTEM_TITLE_BAR=1` 两轮 `cargo test --locked -p aster-studio-desktop-contract --lib -- --test-threads=1` 均 **12 passed / 0 failed**。Linux 分支由下一轮 CI 最终确认；run 44802458866 已越过 native contracts，本项修复生效。
 
 ### 17. ACP integration 的并行写门禁用例时序竞态（run 44802458866）
-- 症状：Linux chrome 修复后，run 44802458866 的 `check (ubuntu-latest)` 推进到 `ACP integration`，`v912_seam.rs` 的 `v912_readonly_git_parallel_commit_opens_the_gate` 返回 `Ok(_)`，断言 "a foreign concurrent write must open the completion gate" 失败；同 run 其它 9 个用例通过。
-- 根因：用例靠 `spawn_blocking` 里固定 `sleep(300ms)` 让外部提交撞进 turn，但生产 gate 按设计忽略「已提交的干净并行修改」（`porcelain.rs::baseline_changes` 丢弃 revision 路径，`execution_state.rs::baseline_ignores_a_parallel_foreign_commit` 明确断言）。在负载高的 runner 上提交在 gate 检查前完成，gate 正确地不开，用例却仍期望开——这是用例自身的时序依赖，不是生产回归。
-- 修复（仅测试）：mock 收到 READONLY-GIT 工具调用时通过 mpsc 通知外部写线程；外部写入保持**未提交**状态（正是 gate 要拦的未发布工作区变更），只读 bash 改成等文件存在而非等 `HEAD:guest.txt`；gate 断言完成后再 `git add/commit` 满足最终 `cat-file` 校验。
-- 验证边界：`cargo fmt --all -- --check`、`git diff --check` 0 差异；本地宿主 `bash` 工具受 WorkBuddy `sandbox-exec: sandbox_apply: Operation not permitted` 限制，无法端到端复跑该用例（非本次改动引入），Linux CI 为最终 gate。相同语义的基线行为由 `execution_state.rs::baseline_sees_an_unpublished_write_and_ignores_harness_metadata` 覆盖。
+- 症状：Linux chrome 修复后，run 44802458866 与 44815861478 的 `check (ubuntu-latest)` 都推进到 `ACP integration`，`v912_seam.rs` 的 `v912_readonly_git_parallel_commit_opens_the_gate` 均返回 `Ok(_)`，断言 "a foreign concurrent write must open the completion gate" 失败；同 run 其它 9 个用例通过。
+- 根因（经 Linux 容器复现与插桩确认）：ACP 的 completion gate 依据 `MutationLedger`，而 ledger 中这条路径来自 bash 工具对 `changed_paths` 的 before/after 快照（`tools/builtin/bash.rs::span.finish`），不是 `RunWatch::baseline_changes`（那是 loop_runtime 路径）。旧用例用固定 `sleep(300ms)` 让外部提交撞进 turn：负载高时写入发生在 bash 工具启动**之前**，工具的 before 快照已包含 guest.txt，于是没有 changed_paths、ledger 为空、gate 正确地 Allow。中途试过「mock 收到请求就通知外部写」，仍早于工具快照；写文件但保持未提交也一样，都不是生产回归。
+- 最终修复（仅测试）：mock 生成的只读 bash 命令第一步写一个工作区外的标记文件；外部写线程轮询到该标记后才落盘 guest.txt，保证写入发生在工具 before 快照之后、结束后才被记为未发布变更。bash 改为等文件存在而非等 `HEAD:guest.txt`；gate 断言完成后再 `git add/commit` 满足最终 `cat-file` 校验。
+- 验证：`cargo fmt --all -- --check`、`git diff --check` 0 差异；用已有 `aster-followup-tests:1.97.1-arm64` 镜像在 Linux 容器复现旧失败（gate 日志 `DECIDE empty=true`）并验证新逻辑：单跑 1/1 PASS，连续 10 次全 PASS，完整 `v912_seam` 10 passed / 1 ignored。macOS 宿主受 WorkBuddy `sandbox-exec` 限制不能端到端跑该用例，Linux 容器与 CI 才是等价环境。
 
 ### 18. Qualify aster 的 macOS reasoning 用例瞬时超时（run 44802458957）
 - 症状：同一提交的 `Qualify aster` 在 run 44791595251 三平台全绿；run 44802458957 的 `Core/ACP tests (macos-latest)` 在 `shipped_tui_e2e.rs::reasoning::delayed_catalog_keeps_draft_and_explicit_effort` 报 `timed out waiting for "slow/gpt (none)"`，其余 25 个用例通过，Ubuntu/Windows job 均成功。
-- 判断：本轮未改 CLI reasoning 路径；本地连续 3 次单跑该用例均 **1 passed / 0 failed**（6.2–6.5 s），上一轮同代码 CI 也全绿。属于 27 个 TUI 用例并行时的偶发等待超时，暂不改代码，以下一轮同提交 CI 复跑确认。
+- 判断与复验：本轮未改 CLI reasoning 路径；本地连续 3 次单跑该用例均 **1 passed / 0 failed**（6.2–6.5 s），上一轮同代码 CI 也全绿。属于 27 个 TUI 用例并行时的偶发等待超时，未改代码；run 44815861584 同提交的 `Core/ACP tests (macos-latest)` 已 success，确认偶发。
 
 ## 提交
 
@@ -171,7 +171,8 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | Studio | a1a8d5d10f | native boot chrome 期望按平台与系统标题栏判定 |
 | 主仓 | 84023b3e6 | gitlink→a1a8d5d10f + 本证据第 16 项 |
 | 主仓 | 3bb9fb7b2 | 证据补记 84023b3e6 SHA |
-| 主仓 | (本笔) | v912 并行写门禁用例去时序依赖 + 本证据第 17/18 项 |
+| 主仓 | 716b4a8e0 | v912 并行写门禁用例第一版去时序依赖 + 本证据第 17/18 项 |
+| 主仓 | (本笔) | v912 改用 bash 内标记同步，Linux 容器 10/10 复验 + 证据定稿 |
 
 ## 验证
 
@@ -183,6 +184,7 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - Studio `app_updater::` 45/45 PASS（delivery_manifest 15/15）；本地 SwiftPM 沙盒限制用既有 no-sandbox wrapper 绕过。
 - CLI `cli_update` 10/10 PASS；`package-aster-cli.sh` `bash -n` 0 差异。
 - `aster-studio-desktop-contract` 12/12 PASS；CI YAML 解析 OK。
+- v912 门禁用例：Linux 容器 `aster-followup-tests:1.97.1-arm64` 单跑 1/1、连续 10 次全 PASS、完整套件 10 passed / 1 ignored。
 - CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→44791594953/44791595251（Qualify aster 三平台与 Cross-platform text 全绿；Rust ubuntu 到 native contracts 剩 Linux chrome 期望失败）→44802434279/44802458866/44802458957（chrome 修复生效，ubuntu 推进到 ACP integration 暴露 v912 时序竞态；macOS Qualify 一例 TUI 等待偶发超时）→下一轮 CI 待结论。
 
 ## 边界
@@ -190,4 +192,4 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 交付闭环（commit/push）≠ 产品 Pass；%≠Pass。
 - musl 编译步骤是 5d2d6ad90 既有缺陷，本轮让 main CI 首次具备全绿条件；release 通道实机证据、headed/daily-use Pass 仍未认领（park）。
 - `fact-log-byte-limit-fix` 等其它未跟踪证据目录非本轮产物，未触碰。
-- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证；Linux chrome 期望已修并经 CI 越过该步骤。v912 用例的本地端到端复跑受 WorkBuddy 宿主 `sandbox-exec` 限制，Linux CI 为最终 gate；macOS reasoning 用例单跑 3/3 通过，按偶发超时处理，仍需下一轮 CI 给最终结论。
+- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证；Linux chrome 期望已修并经 CI 越过该步骤。v912 用例已在 Linux 容器中等价复验（macOS 宿主受 WorkBuddy `sandbox-exec` 限制）；macOS reasoning 用例已由 44815861584 复跑全绿。仍需下一轮 Rust run 给 ACP integration 及后续步骤最终结论。

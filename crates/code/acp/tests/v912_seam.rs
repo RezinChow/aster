@@ -39,7 +39,7 @@ struct MockState {
     gits: u64,
     write_path: String,
     deny_command: String,
-    commit_signal: Option<std::sync::mpsc::Sender<()>>,
+    marker_path: Option<String>,
 }
 
 struct AgentProc {
@@ -102,7 +102,7 @@ fn spawn_mock(write_path: &Path, deny_command: &str) -> (SocketAddr, Arc<Mutex<M
         gits: 0,
         write_path: write_path.display().to_string(),
         deny_command: deny_command.to_string(),
-        commit_signal: None,
+        marker_path: None,
     }));
     let shared = Arc::clone(&state);
     std::thread::spawn(move || {
@@ -318,14 +318,16 @@ fn decide(raw: &str, state: &mut MockState) -> String {
             return reply_text("noted", streaming);
         }
         state.gits += 1;
-        // Trigger the foreign write from the mock when the read-only tool call
-        // arrives. A fixed sleep from test start can land before the run
-        // baseline is bound on a loaded CI runner and silently disarm the gate
-        // this case is meant to exercise.
-        if let Some(signal) = state.commit_signal.take() {
-            let _ = signal.send(());
-        }
-        let command = r#"sleep 0.05
+        // The foreign writer waits for a marker created by the bash command
+        // itself. That guarantees the write lands after the tool's before
+        // snapshot, so the unpublishable path enters the completion ledger.
+        let marker_line = state
+            .marker_path
+            .take()
+            .map(|path| format!("printf 'ready\\n' > '{path}'\n"))
+            .unwrap_or_default();
+        let command = format!(
+            r#"{marker_line}sleep 0.05
 git -c core.quotepath=false status --porcelain >/dev/null
 git ls-files >/dev/null
 i=0
@@ -345,7 +347,8 @@ if [ "$seen" = 1 ]; then
   exit 0
 fi
 exit 1
-"#;
+"#
+        );
         let args = serde_json::json!({ "command": command }).to_string();
         return reply_tool("bash", &args, state.gits, streaming);
     }
@@ -1260,11 +1263,17 @@ async fn v912_readonly_git_parallel_commit_opens_the_gate() {
             let workspace = isolate("readonly-git");
             git_init(&workspace);
             let (agent, session, state) = open_session(&workspace, "true").await;
-            let (commit_tx, commit_rx) = std::sync::mpsc::channel::<()>();
-            state.lock().expect("mock state").commit_signal = Some(commit_tx);
+            let marker = isolate("readonly-marker").join("ready");
+            state.lock().expect("mock state").marker_path = Some(marker.display().to_string());
             let commit_root = workspace.clone();
             let committer = tokio::task::spawn_blocking(move || {
-                commit_rx.recv().expect("readonly tool call signal");
+                for _ in 0..1000 {
+                    if marker.is_file() {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                assert!(marker.is_file(), "read-only tool never signalled readiness");
                 std::fs::write(commit_root.join("guest.txt"), "foreign\n").expect("guest");
             });
             let response = say(&agent, &session, "READONLY-GIT inspect the tree").await;
