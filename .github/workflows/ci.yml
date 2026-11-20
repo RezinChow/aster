@@ -46,15 +46,36 @@ jobs:
         run: rustup target add aarch64-unknown-linux-musl x86_64-unknown-linux-musl
       - name: Static guest linker hardening
         run: python3 tests/musl_linker_flags.py
-      - name: Compile current static guest agents
+      - name: Compile current static ACP binaries
+        shell: bash
         run: |
-          rust_host="$(rustc -vV | sed -n 's/^host: //p')"
-          rust_lld="$(rustc --print sysroot)/lib/rustlib/$rust_host/bin/rust-lld"
-          test -x "$rust_lld"
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) zig_archive=x86_64-linux; zig_sha=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00 ;;
+            aarch64) zig_archive=aarch64-linux; zig_sha=ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17 ;;
+            *) echo "unsupported Zig host: $(uname -m)" >&2; exit 1 ;;
+          esac
+          curl -fsSL "https://ziglang.org/download/0.16.0/zig-${zig_archive}-0.16.0.tar.xz" -o "$RUNNER_TEMP/zig.tar.xz"
+          echo "$zig_sha  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
+          zig_home="$RUNNER_TEMP/zig"
+          mkdir -p "$zig_home"
+          tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$zig_home" --strip-components=1
           for guest_target in aarch64-unknown-linux-musl x86_64-unknown-linux-musl; do
-            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$rust_lld" \
-            CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER="$rust_lld" \
-              cargo build --locked --release --target "$guest_target" -p aster-oci-agent --bin aster-oci-agent
+            case "$guest_target" in
+              x86_64-unknown-linux-musl) zig_target=x86_64-linux-musl; rust_env=x86_64_unknown_linux_musl; linker_var=CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER ;;
+              aarch64-unknown-linux-musl) zig_target=aarch64-linux-musl; rust_env=aarch64_unknown_linux_musl; linker_var=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER ;;
+            esac
+            cat > "$RUNNER_TEMP/zig-link" <<EOF
+          #!/bin/sh
+          exec "$zig_home/zig" cc -target "$zig_target" "\$@"
+          EOF
+            chmod +x "$RUNNER_TEMP/zig-link"
+            CRATE_CC_NO_DEFAULTS=1 \
+            CC_${rust_env}="$zig_home/zig cc -target $zig_target" \
+            CXX_${rust_env}="$zig_home/zig c++ -target $zig_target" \
+            ${linker_var}="$RUNNER_TEMP/zig-link" \
+            ${linker_var%LINKER}RUSTFLAGS="-C force-unwind-tables=yes -C relro-level=full -C link-self-contained=no" \
+              cargo build --locked --release --target "$guest_target" -p aster-acp --bin aster-acp
           done
       - name: Internal dependency boundary
         run: python3 tests/workspace_dependencies.py
