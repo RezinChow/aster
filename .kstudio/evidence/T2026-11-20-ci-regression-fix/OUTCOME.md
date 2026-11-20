@@ -97,6 +97,12 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
   - 测试 fixture：`prepared()`/输入模型改 `gpt-5.4`，断言 wire effort 为 `none`；gateway metadata 用例改用兼容的 OpenaiChat。
 - 验证：本地 `cargo test --locked -p aster-studio --lib --no-default-features --features tenant-aster providers:: -- --test-threads=1` **103 passed / 0 failed / 1 ignored**；fmt 0 差异。中途自引入一处 `calls[0].1["model"]` 断言仍写 gpt-test，已修正并复跑。
 
+### 12. Windows portable tests 的 Cursor 状态库平台分支（run 44750505720）
+- 症状：`Core/ACP portable tests (windows-latest)` 在 `Test loop convergence and replay` 失败；`cargo test --locked -p aster-acp --lib permission_denial_closes_each_tool_row_once` 编译时报 `error[E0423]: expected value, found built-in attribute 'path'`（`crates/code/acp/src/cursor_account.rs:402`）。同 run 的 Ubuntu、macOS Core/ACP 测试和 Cross-platform text 均成功。
+- 根因：提交 `4ab8a452f` 为 Linux 引入 `xdg_config_home()` 时，把 `let path` 分别挂在 `#[cfg(target_os = "macos")]` / `#[cfg(target_os = "linux")]`，但 `#[cfg(not(any(...)))]` 分支只有 `return None;`。公共尾部 `path.is_file().then_some(path)` 在 Windows 仍参与编译，Windows 下没有名为 `path` 的变量，编译器把 `path` 解析成内置 attribute。
+- 修复：把三个平台分支都改成各自包含返回值的 cfg block；macOS/Linux 返回文件存在性判断，其它平台直接 `None`。
+- 验证：`cargo fmt -p aster-acp -- --check` 与 `git diff --check` 均 0 差异；macOS 宿主 `CARGO_TARGET_DIR=/tmp/aster-acp-host-check cargo check --locked -p aster-acp --lib` EXIT=0；Windows GNU 交叉 `CC_x86_64_pc_windows_gnu="zig cc -target x86_64-windows-gnu" ... cargo check --locked -p aster-acp --lib --target x86_64-pc-windows-gnu` EXIT=0。Windows MSVC 目标在本地因 macOS 缺 CRT 头文件（`assert.h`）无法完成，CI Windows job 是最终 gate。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -116,7 +122,8 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | Studio | fcccc33a52 | tenant 测试改 aster 单 tenant 口径 |
 | 主仓 | c09cb5596 | gitlink→fcccc33a52 + 本证据第 10 项 |
 | Studio | d9663cc91c | Codex canonical effort + provider fixture 修正 |
-| 主仓 | (本轮) | gitlink→d9663cc91c + 本证据第 11 项 |
+| 主仓 | 667d1105c | gitlink→d9663cc91c + 本证据第 11 项 |
+| 主仓 | (本轮) | ide_state_db 平台分支修复 + 本证据第 12 项 |
 
 ## 验证
 
@@ -124,6 +131,7 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - studioDev 焦点测试：6/6 PASS。
 - 全部 CI Python 测试本地预跑：11 个 unittest 模块 OK、flatpak 24/24 OK。
 - ci.yml：YAML 解析 OK、抽取 run 块 `bash -n` OK、env 展开本地验证。
+- `aster-acp` 双目标检查：macOS host 与 Windows GNU 交叉 `cargo check --locked -p aster-acp --lib` 均 EXIT=0。
 - CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→最终 run（见下）。
 
 ## 边界
@@ -131,3 +139,4 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 交付闭环（commit/push）≠ 产品 Pass；%≠Pass。
 - musl 编译步骤是 5d2d6ad90 既有缺陷，本轮让 main CI 首次具备全绿条件；release 通道实机证据、headed/daily-use Pass 仍未认领（park）。
 - `fact-log-byte-limit-fix` 等其它未跟踪证据目录非本轮产物，未触碰。
+- Windows portable gate 的修复已本地双目标验证，但仍需下一轮 CI Windows job 给出最终结论；在此之前本层不标全绿。

@@ -393,13 +393,20 @@ fn ide_state_db() -> Option<PathBuf> {
         return None;
     }
     #[cfg(target_os = "macos")]
-    let path = PathBuf::from(std::env::var_os("HOME")?)
-        .join("Library/Application Support/Cursor/User/globalStorage/state.vscdb");
+    {
+        let path = PathBuf::from(std::env::var_os("HOME")?)
+            .join("Library/Application Support/Cursor/User/globalStorage/state.vscdb");
+        path.is_file().then_some(path)
+    }
     #[cfg(target_os = "linux")]
-    let path = xdg_config_home()?.join("Cursor/User/globalStorage/state.vscdb");
+    {
+        let path = xdg_config_home()?.join("Cursor/User/globalStorage/state.vscdb");
+        path.is_file().then_some(path)
+    }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    return None;
-    path.is_file().then_some(path)
+    {
+        None
+    }
 }
 
 fn read_ide_item(path: &Path, key: &str) -> Result<Option<String>> {
