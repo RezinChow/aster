@@ -70,11 +70,11 @@ jobs:
           exec "$zig_home/zig" cc -target "$zig_target" "\$@"
           EOF
             chmod +x "$RUNNER_TEMP/zig-link"
-            CRATE_CC_NO_DEFAULTS=1 \
-            CC_${rust_env}="$zig_home/zig cc -target $zig_target" \
-            CXX_${rust_env}="$zig_home/zig c++ -target $zig_target" \
-            ${linker_var}="$RUNNER_TEMP/zig-link" \
-            ${linker_var%LINKER}RUSTFLAGS="-C force-unwind-tables=yes -C relro-level=full -C link-self-contained=no" \
+            env CRATE_CC_NO_DEFAULTS=1 \
+              "CC_${rust_env}=$zig_home/zig cc -target $zig_target" \
+              "CXX_${rust_env}=$zig_home/zig c++ -target $zig_target" \
+              "${linker_var}=$RUNNER_TEMP/zig-link" \
+              "${linker_var%LINKER}RUSTFLAGS=-C force-unwind-tables=yes -C relro-level=full -C link-self-contained=no" \
               cargo build --locked --release --target "$guest_target" -p aster-acp --bin aster-acp
           done
       - name: Internal dependency boundary
