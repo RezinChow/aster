@@ -85,6 +85,18 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 修复（Studio 子模块）：4 处断言改为 aster 口径——删除 legacy released tenant 行、bundle id 测试只断言 aster、`load_slug` 改 aster；并把 `selected_development_slug(Some("aster"))` 从非法列表移除（现在编译 tenant 就是 aster，它合法）。
 - 验证：本地 `cargo test --locked -p aster-studio --lib --no-default-features --features tenant-aster tenant:: -- --test-threads=1` **16 passed / 0 failed**（首轮暴露第 5 个断言，修正后复跑全绿）；fmt 0 差异。
 
+### 11. Codex effort 能力校验与 provider 测试（run 44735587567）
+- 症状：Ubuntu `providers::` 组 97 passed / 6 failed（5 个 codex accounted text + 1 个 gateway metadata），本地同命令可稳定复现，非网络抖动。
+- 根因链（用临时错误链诊断得到，诊断代码已回滚）：
+  - 真实错误是 `NonRetryableLlmError { message: "reasoning controls are unknown for this model" }`，`probe_error` 找不到 typed status 时统一兜底成 502，掩盖了原因。
+  - `generate_accounted()` 把用户选择的 `none` 改写成 `minimal`，但 source-owned reasoning 目录对 Codex 模型登记的是 `none`（如 gpt-5.4），`minimal` 不在任何 Codex 能力集 → 请求前就被拒绝。
+  - 测试 fixture 用未登记的 `gpt-test`，进一步导致能力为 None。
+  - `api_model_metadata...` 仍把 AnthropicMessages 发给 openai 模型，现在被 `protocol_incompatible` 正确拒绝。
+- 修复（Studio）：
+  - 生产：`generate_accounted()` 直接传递 canonical effort，不再把 `none`→`minimal`。
+  - 测试 fixture：`prepared()`/输入模型改 `gpt-5.4`，断言 wire effort 为 `none`；gateway metadata 用例改用兼容的 OpenaiChat。
+- 验证：本地 `cargo test --locked -p aster-studio --lib --no-default-features --features tenant-aster providers:: -- --test-threads=1` **103 passed / 0 failed / 1 ignored**；fmt 0 差异。中途自引入一处 `calls[0].1["model"]` 断言仍写 gpt-test，已修正并复跑。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -102,7 +114,9 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | e250d1572 | CI 补 document assets staging（首版） |
 | 主仓 | 08d6aebb6 | CI 改为 mkdir document 空目录 + 本证据第 9 项定稿 |
 | Studio | fcccc33a52 | tenant 测试改 aster 单 tenant 口径 |
-| 主仓 | (本轮) | gitlink→fcccc33a52 + 本证据第 10 项 |
+| 主仓 | c09cb5596 | gitlink→fcccc33a52 + 本证据第 10 项 |
+| Studio | d9663cc91c | Codex canonical effort + provider fixture 修正 |
+| 主仓 | (本轮) | gitlink→d9663cc91c + 本证据第 11 项 |
 
 ## 验证
 
