@@ -159,7 +159,7 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | Studio | 08ab1a982f | native boot script product 断言改 Legacy |
 | 主仓 | ec5a1a603 | check job 安装 Studio Node 依赖 + gitlink→08ab1a982f + 本证据第 15 项 |
 | Studio | a1a8d5d10f | native boot chrome 期望按平台与系统标题栏判定 |
-| 主仓 | (本笔) | gitlink→a1a8d5d10f + 本证据第 16 项 |
+| 主仓 | 84023b3e6 | gitlink→a1a8d5d10f + 本证据第 16 项 |
 
 ## 验证
 
