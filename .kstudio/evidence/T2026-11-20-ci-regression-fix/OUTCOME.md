@@ -102,6 +102,13 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 根因：提交 `4ab8a452f` 为 Linux 引入 `xdg_config_home()` 时，把 `let path` 分别挂在 `#[cfg(target_os = "macos")]` / `#[cfg(target_os = "linux")]`，但 `#[cfg(not(any(...)))]` 分支只有 `return None;`。公共尾部 `path.is_file().then_some(path)` 在 Windows 仍参与编译，Windows 下没有名为 `path` 的变量，编译器把 `path` 解析成内置 attribute。
 - 修复：把三个平台分支都改成各自包含返回值的 cfg block；macOS/Linux 返回文件存在性判断，其它平台直接 `None`。
 - 验证：`cargo fmt -p aster-acp -- --check` 与 `git diff --check` 均 0 差异；macOS 宿主 `CARGO_TARGET_DIR=/tmp/aster-acp-host-check cargo check --locked -p aster-acp --lib` EXIT=0；Windows GNU 交叉 `CC_x86_64_pc_windows_gnu="zig cc -target x86_64-windows-gnu" ... cargo check --locked -p aster-acp --lib --target x86_64-pc-windows-gnu` EXIT=0。Windows MSVC 目标在本地因 macOS 缺 CRT 头文件（`assert.h`）无法完成，CI Windows job 是最终 gate。
+- CI 复验：44756558617 的 `Core/ACP portable tests (windows-latest)` 整组 success，关键步骤 `Test loop convergence and replay` 由 ProductMismatch 失败转为 success。
+
+### 13. delivery manifest fixture 的 legacy tenant 遗留（run 44756558173）
+- 症状：Rust `check (ubuntu-latest)` 在 `Build product and companion` 的 `cargo test -p aster-studio --lib ... app_updater::` 失败，5 个 `app_updater::delivery_manifest::tests` 报 `ProductMismatch` / 断言失败；同 run 的 `Qualify aster` 三平台全绿，说明不是通用 ACP tenant 问题。
+- 根因：`apps/studio/src-tauri/src/app_updater/delivery_manifest_tests.rs` 的 fixture 仍写 `tenant: "legacy"`、`tenant/legacy/*` 资源路径与 `product: Legacy`。单 tenant 化后 `HostIdentity::parse("legacy")` 失败，`validate()` 在校验任何内容前就返回 `ProductMismatch`。
+- 修复：fixture 整体改 aster 口径——tenant `aster`、资源路径 `tenant/aster/*`、INFO product `Aster`；原本“合法信息被改写为不匹配”的用例改为 `product: Aster → Legacy`；非法 tenant 用例改 `aster-cua`。
+- 验证：`cargo fmt -p aster-studio -- --check` 0 差异；本地 `app_updater::` **45 passed / 0 failed**（其中 `delivery_manifest::tests` 15/15），`bundled_skills::` 0 tests / 0 failed。首次本地复跑受 macOS SwiftPM `sandbox-exec: sandbox_apply: Operation not permitted` 阻塞，使用既有 `/tmp/aster-swift-nosandbox/swift` 包装器后通过；这是本地环境限制，CI 不受影响。
 
 ## 提交
 
@@ -124,6 +131,9 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | Studio | d9663cc91c | Codex canonical effort + provider fixture 修正 |
 | 主仓 | 667d1105c | gitlink→d9663cc91c + 本证据第 11 项 |
 | 主仓 | 41bdc5d33 | ide_state_db 平台分支修复 + 本证据第 12 项 |
+| 主仓 | 04c6f8c33 | 证据补记第 12 项 commit SHA |
+| Studio | 8360624e45 | delivery manifest fixture 改 aster 单 tenant 口径 |
+| 主仓 | (本轮) | gitlink→8360624e45 + 本证据第 13 项 |
 
 ## 验证
 
@@ -132,6 +142,7 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 全部 CI Python 测试本地预跑：11 个 unittest 模块 OK、flatpak 24/24 OK。
 - ci.yml：YAML 解析 OK、抽取 run 块 `bash -n` OK、env 展开本地验证。
 - `aster-acp` 双目标检查：macOS host 与 Windows GNU 交叉 `cargo check --locked -p aster-acp --lib` 均 EXIT=0。
+- Studio `app_updater::` 45/45 PASS（delivery_manifest 15/15）；本地 SwiftPM 沙盒限制用既有 no-sandbox wrapper 绕过。
 - CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→最终 run（见下）。
 
 ## 边界
@@ -139,4 +150,4 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 交付闭环（commit/push）≠ 产品 Pass；%≠Pass。
 - musl 编译步骤是 5d2d6ad90 既有缺陷，本轮让 main CI 首次具备全绿条件；release 通道实机证据、headed/daily-use Pass 仍未认领（park）。
 - `fact-log-byte-limit-fix` 等其它未跟踪证据目录非本轮产物，未触碰。
-- Windows portable gate 的修复已本地双目标验证，但仍需下一轮 CI Windows job 给出最终结论；在此之前本层不标全绿。
+- Windows portable gate 已由 CI run 44756558617 验证全绿；delivery manifest gate 仍需下一轮 Rust run 给最终结论。
