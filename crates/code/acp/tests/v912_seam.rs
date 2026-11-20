@@ -39,6 +39,7 @@ struct MockState {
     gits: u64,
     write_path: String,
     deny_command: String,
+    commit_signal: Option<std::sync::mpsc::Sender<()>>,
 }
 
 struct AgentProc {
@@ -101,6 +102,7 @@ fn spawn_mock(write_path: &Path, deny_command: &str) -> (SocketAddr, Arc<Mutex<M
         gits: 0,
         write_path: write_path.display().to_string(),
         deny_command: deny_command.to_string(),
+        commit_signal: None,
     }));
     let shared = Arc::clone(&state);
     std::thread::spawn(move || {
@@ -316,13 +318,20 @@ fn decide(raw: &str, state: &mut MockState) -> String {
             return reply_text("noted", streaming);
         }
         state.gits += 1;
+        // Trigger the foreign write from the mock when the read-only tool call
+        // arrives. A fixed sleep from test start can land before the run
+        // baseline is bound on a loaded CI runner and silently disarm the gate
+        // this case is meant to exercise.
+        if let Some(signal) = state.commit_signal.take() {
+            let _ = signal.send(());
+        }
         let command = r#"sleep 0.05
 git -c core.quotepath=false status --porcelain >/dev/null
 git ls-files >/dev/null
 i=0
 seen=0
 while [ "$i" -lt 40 ]; do
-  if git cat-file -e HEAD:guest.txt 2>/dev/null; then
+  if [ -f guest.txt ]; then
     seen=1
     break
   fi
@@ -1239,23 +1248,24 @@ fn collect_changed_paths(value: &serde_json::Value, paths: &mut Vec<String>) {
     }
 }
 
-/// Spec ruling 2026-11-13 (option A): the workspace delta a foreign concurrent
-/// commit produces is indistinguishable from an agent-owned unpublished write,
-/// so the completion gate must fail closed on it. Assert that boundary instead
-/// of expecting the read-only turn to succeed.
+/// Spec ruling 2026-11-13 (option A): an unpublished workspace delta from a
+/// foreign writer is indistinguishable from an agent-owned write, so the
+/// completion gate must fail closed on it. A clean parallel commit is
+/// attributed to that commit by design, so keep the foreign file uncommitted
+/// through the turn and publish it only after the gate decision.
 #[tokio::test(flavor = "current_thread")]
 async fn v912_readonly_git_parallel_commit_opens_the_gate() {
     tokio::task::LocalSet::new()
         .run_until(async {
             let workspace = isolate("readonly-git");
             git_init(&workspace);
-            let (agent, session, _state) = open_session(&workspace, "true").await;
+            let (agent, session, state) = open_session(&workspace, "true").await;
+            let (commit_tx, commit_rx) = std::sync::mpsc::channel::<()>();
+            state.lock().expect("mock state").commit_signal = Some(commit_tx);
             let commit_root = workspace.clone();
             let committer = tokio::task::spawn_blocking(move || {
-                std::thread::sleep(Duration::from_millis(300));
+                commit_rx.recv().expect("readonly tool call signal");
                 std::fs::write(commit_root.join("guest.txt"), "foreign\n").expect("guest");
-                git_at(&commit_root, &["add", "guest.txt"]);
-                git_at(&commit_root, &["commit", "-m", "foreign"]);
             });
             let response = say(&agent, &session, "READONLY-GIT inspect the tree").await;
             committer.await.expect("parallel commit task");
@@ -1284,6 +1294,8 @@ async fn v912_readonly_git_parallel_commit_opens_the_gate() {
                 paths.iter().any(|path| path == "guest.txt"),
                 "the foreign write was not observed as a workspace mutation: {paths:?}"
             );
+            git_at(&workspace, &["add", "guest.txt"]);
+            git_at(&workspace, &["commit", "-m", "foreign"]);
             git_at(&workspace, &["cat-file", "-e", "HEAD:guest.txt"]);
             eprintln!("ORACLE readonly-git gate=open foreign-paths={paths:?} seen=READONLY-SEEN");
         })
