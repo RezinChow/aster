@@ -29,13 +29,11 @@ async fn async_session_builder_initializes_all_async_resources_on_current_thread
     session.save().await.unwrap();
     assert!(memory_dir.is_dir());
     let key = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode("async-current-thread");
-    assert!(
-        sessions_dir
-            .join("v1")
-            .join("sessions")
-            .join(format!("id_{key}.json"))
-            .is_file()
-    );
+    assert!(sessions_dir
+        .join("v1")
+        .join("sessions")
+        .join(format!("id_{key}.json"))
+        .is_file());
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -59,12 +57,10 @@ async fn async_session_builder_returns_typed_memory_initialization_error() {
             ..
         }
     ));
-    assert!(
-        error
-            .to_string()
-            .replace('\\', "/")
-            .contains("not-a-directory/memory")
-    );
+    assert!(error
+        .to_string()
+        .replace('\\', "/")
+        .contains("not-a-directory/memory"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -199,12 +195,10 @@ async fn sync_session_code_intelligence_keeps_host_services() {
         )
         .unwrap();
 
-    assert!(
-        !session
-            .tool_names()
-            .iter()
-            .any(|name| name == "code_symbols")
-    );
+    assert!(!session
+        .tool_names()
+        .iter()
+        .any(|name| name == "code_symbols"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -442,13 +436,11 @@ async fn live_mcp_add_remove_is_session_local_and_restores_inherited_precedence(
         restored_status["shared"].enabled,
         "removing the local shadow must reveal the configured source again"
     );
-    assert!(
-        !session
-            .mcp_manager
-            .get_status()
-            .await
-            .contains_key("shared")
-    );
+    assert!(!session
+        .mcp_manager
+        .get_status()
+        .await
+        .contains_key("shared"));
     assert!(global.get_status().await.contains_key("shared"));
     assert!(configured.get_status().await.contains_key("shared"));
 }
@@ -484,12 +476,10 @@ async fn close_serializes_with_live_mcp_mutation_and_rejects_late_add_remove() {
                 Arc::new(NamedSessionTool(shadowed_tool_name.to_string())),
             ],
         );
-    assert!(
-        session
-            .tool_names()
-            .iter()
-            .any(|name| name == local_tool_name)
-    );
+    assert!(session
+        .tool_names()
+        .iter()
+        .any(|name| name == local_tool_name));
     let mutation = session.close_handle.extension_mutation.lock().await;
 
     let closing_session = Arc::clone(&session);
@@ -600,18 +590,16 @@ async fn live_mcp_remove_cleanup_failure_still_commits_registry_removal() {
     assert!(error.to_string().contains("transport cleanup failed"));
     assert!(!session.mcp_manager.contains_server(server_name).await);
     assert!(session.mcp_manager.get_client(server_name).await.is_none());
-    assert!(
-        !session
-            .tool_names()
-            .iter()
-            .any(|name| name == local_tool_name)
-    );
+    assert!(!session
+        .tool_names()
+        .iter()
+        .any(|name| name == local_tool_name));
     session.remove_mcp_server(server_name).await.unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn sync_global_mcp_servers_hot_applies_without_rebuilding_agent() {
-    use crate::mcp::test_support::{RecordingMcpTransport, mcp_tool};
+    use crate::mcp::test_support::{mcp_tool, RecordingMcpTransport};
     use crate::mcp::{McpClient, McpServerConfig, McpTransportConfig};
 
     let agent = Agent::from_config(test_config()).await.unwrap();
@@ -658,20 +646,16 @@ async fn sync_global_mcp_servers_hot_applies_without_rebuilding_agent() {
     agent.refresh_mcp_tools().await.unwrap();
 
     session.republish_inherited_mcp_tools().await.unwrap();
-    assert!(
-        session
-            .tool_names()
-            .iter()
-            .any(|name| name == "mcp__hot-probe__ping")
-    );
+    assert!(session
+        .tool_names()
+        .iter()
+        .any(|name| name == "mcp__hot-probe__ping"));
 
     agent.sync_global_mcp_servers(Vec::new()).await.unwrap();
     session.republish_inherited_mcp_tools().await.unwrap();
     assert!(!manager.contains_server("hot-probe").await);
-    assert!(
-        !session
-            .tool_names()
-            .iter()
-            .any(|name| name == "mcp__hot-probe__ping")
-    );
+    assert!(!session
+        .tool_names()
+        .iter()
+        .any(|name| name == "mcp__hot-probe__ping"));
 }

@@ -1461,14 +1461,12 @@ fn open_mutation_digest(error: &impl std::fmt::Display) -> String {
 fn host_passed_report(digest: &str) -> crate::verification::VerificationReport {
     crate::verification::VerificationReport::new(
         "host:recorded",
-        vec![
-            crate::verification::VerificationCheck::required(
-                "check:host",
-                "host",
-                "Host bound this effect digest before the next send.",
-            )
-            .with_status(crate::verification::VerificationStatus::Passed),
-        ],
+        vec![crate::verification::VerificationCheck::required(
+            "check:host",
+            "host",
+            "Host bound this effect digest before the next send.",
+        )
+        .with_status(crate::verification::VerificationStatus::Passed)],
     )
     .with_effect_digest(digest.to_string())
 }
@@ -2137,11 +2135,9 @@ async fn manual_compaction_cannot_accept_unverified_original_mutation() {
         .unwrap_err();
     assert!(first.to_string().contains("no bound Passed verification"));
     let before = crate::fact_control::read_workspace_facts(workspace.path(), "lh4-debt").unwrap();
-    assert!(
-        before
-            .iter()
-            .any(|fact| fact.kind == "tool.result" && fact.payload["ok"] == true)
-    );
+    assert!(before
+        .iter()
+        .any(|fact| fact.kind == "tool.result" && fact.payload["ok"] == true));
     session.compact_conversation(None).await.unwrap();
     let compacted =
         crate::fact_control::read_workspace_facts(workspace.path(), "lh4-debt").unwrap();
@@ -2154,11 +2150,9 @@ async fn manual_compaction_cannot_accept_unverified_original_mutation() {
         .unwrap_err();
     assert!(second.to_string().contains("no bound Passed verification"));
     let after = crate::fact_control::read_workspace_facts(workspace.path(), "lh4-debt").unwrap();
-    assert!(
-        !after
-            .iter()
-            .any(|fact| fact.kind == crate::fact_control::TURN_COMPLETE_FACT_KIND)
-    );
+    assert!(!after
+        .iter()
+        .any(|fact| fact.kind == crate::fact_control::TURN_COMPLETE_FACT_KIND));
     session.close().await;
     agent.close().await;
 }

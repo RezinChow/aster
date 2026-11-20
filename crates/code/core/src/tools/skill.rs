@@ -20,7 +20,7 @@ use crate::permissions::{
 };
 use crate::skills::{Skill, SkillRegistry};
 use crate::tools::{Tool, ToolContext, ToolExecutor, ToolOutput};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

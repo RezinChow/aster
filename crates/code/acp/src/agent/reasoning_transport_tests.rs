@@ -25,22 +25,19 @@ async fn switching_revalidates_and_returns_the_effective_selection() {
         .await
         .unwrap();
     assert_eq!(response.meta.unwrap()["reasoningEffort"], "default");
-    assert!(
-        host.sessions.lock().await[&id.0.to_string()]
-            .effort
-            .is_none()
-    );
+    assert!(host.sessions.lock().await[&id.0.to_string()]
+        .effort
+        .is_none());
     let session = host.sessions.lock().await[&id.0.to_string()]
         .session
         .clone();
-    assert!(
-        host.set_session_model(
+    assert!(host
+        .set_session_model(
             acp::SetSessionModelRequest::new(id.clone(), acp::ModelId::new("openai/gpt-4o"))
                 .meta(meta(serde_json::json!("high")))
         )
         .await
-        .is_err()
-    );
+        .is_err());
     assert!(Arc::ptr_eq(
         &session,
         &host.sessions.lock().await[&id.0.to_string()].session
@@ -156,11 +153,9 @@ async fn terminal_initial_effort_reaches_new_session_and_allows_later_selection(
     .await
     .unwrap();
     assert_eq!(host.effort.lock().await.unwrap().thinking_budget, 2048);
-    assert!(
-        AsterCodeAgent::new(tests::test_launch(None))
-            .with_default_reasoning_effort("unknown")
-            .is_err()
-    );
+    assert!(AsterCodeAgent::new(tests::test_launch(None))
+        .with_default_reasoning_effort("unknown")
+        .is_err());
 }
 
 #[tokio::test]
@@ -176,13 +171,11 @@ async fn explicit_effort_default_clears_override_and_absence_preserves_selection
     for model in created.models.unwrap().available_models {
         let meta = model.meta.unwrap();
         assert_eq!(meta["reasoningEffortReset"], true);
-        assert!(
-            !meta["reasoningEfforts"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|entry| entry["value"] == "default")
-        );
+        assert!(!meta["reasoningEfforts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["value"] == "default"));
     }
     let id = created.session_id;
     assert_eq!(

@@ -101,21 +101,18 @@ async fn model_stages_are_accepted_with_dependencies_and_pending_status() {
         .unwrap();
     let requests = provider.await.unwrap();
     let request = &requests[0];
-    assert!(
-        request["messages"]
-            .to_string()
-            .contains("Implement the authorized repair plan")
-    );
+    assert!(request["messages"]
+        .to_string()
+        .contains("Implement the authorized repair plan"));
     let definition = session.goal_definition().unwrap().unwrap();
     assert!(definition.plan_accepted);
     let plan = definition.plan.unwrap();
     assert_eq!(plan.steps.len(), 2);
     assert_eq!(plan.steps[1].dependencies, ["repair"]);
-    assert!(
-        plan.steps
-            .iter()
-            .all(|step| step.status == aster_core::planning::TaskStatus::Pending)
-    );
+    assert!(plan
+        .steps
+        .iter()
+        .all(|step| step.status == aster_core::planning::TaskStatus::Pending));
     let sequence = definition.goal_sequence;
     crate::goal::bind_task_goal(&session, "Implement the authorized repair plan")
         .await
@@ -203,14 +200,12 @@ async fn a_long_scope_is_compacted_without_dropping_its_original_stage_obligatio
         .find(|fact| fact.kind == "compaction.done")
         .unwrap();
     assert_eq!(definition.binding.scope_fact_sequences, [compacted.seq]);
-    assert!(
-        definition
-            .plan
-            .unwrap()
-            .steps
-            .iter()
-            .all(|step| step.status == aster_core::planning::TaskStatus::Pending)
-    );
+    assert!(definition
+        .plan
+        .unwrap()
+        .steps
+        .iter()
+        .all(|step| step.status == aster_core::planning::TaskStatus::Pending));
     session.close().await;
 }
 

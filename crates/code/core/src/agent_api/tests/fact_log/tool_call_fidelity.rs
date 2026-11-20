@@ -52,13 +52,11 @@ async fn diagnostic_calls_keep_literal_arguments_and_runtime_refusals_in_model_h
                 .collect::<Vec<_>>();
             assert_eq!(coding.len(), 2);
             for request in &coding {
-                assert!(
-                    request
-                        .system
-                        .as_deref()
-                        .unwrap()
-                        .contains(crate::prompts::RUNTIME_CONTRACT)
-                );
+                assert!(request
+                    .system
+                    .as_deref()
+                    .unwrap()
+                    .contains(crate::prompts::RUNTIME_CONTRACT));
                 assert_eq!(
                     request
                         .messages

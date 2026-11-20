@@ -138,11 +138,9 @@ async fn native_backend_refusal_is_available_before_a_live_turn_or_process() {
     let error = tool
         .validate_execution_available(&serde_json::json!({}), &ctx)
         .expect_err("read/write backend cannot execute native plugins");
-    assert!(
-        error
-            .to_string()
-            .contains("active workspace capability scope")
-    );
+    assert!(error
+        .to_string()
+        .contains("active workspace capability scope"));
     let result = tool.execute(&serde_json::json!({}), &ctx).await.unwrap();
     assert!(!result.success);
     assert!(!fixture.0.join("leaked").exists());

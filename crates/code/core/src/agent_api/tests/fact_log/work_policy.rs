@@ -199,11 +199,9 @@ async fn prove_policy_admitted_before_first_run(
         )
         .unwrap();
     assert_eq!(plain.work_policy_digest().unwrap(), None);
-    assert!(
-        read_workspace_facts(workspace.path(), "no-policy")
-            .unwrap()
-            .is_empty()
-    );
+    assert!(read_workspace_facts(workspace.path(), "no-policy")
+        .unwrap()
+        .is_empty());
     plain.close().await;
     agent.close().await;
 }

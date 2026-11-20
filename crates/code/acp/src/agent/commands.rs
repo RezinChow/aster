@@ -189,12 +189,10 @@ mod tests {
         for name in ["", "/help", "two words"] {
             let error = merge_commands(vec![(name.into(), "invalid".into(), None)])
                 .expect_err("invalid protocol name");
-            assert!(
-                error
-                    .data
-                    .and_then(|data| data.as_str().map(str::to_owned))
-                    .is_some_and(|data| data.contains("invalid Core command protocol name"))
-            );
+            assert!(error
+                .data
+                .and_then(|data| data.as_str().map(str::to_owned))
+                .is_some_and(|data| data.contains("invalid Core command protocol name")));
         }
     }
 }

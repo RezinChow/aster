@@ -3,8 +3,8 @@
 use super::{AsterCodeAgent, SessionSetup};
 use agent_client_protocol::{self as acp, Agent as _};
 use aster_core::{
-    WorkPolicyV1,
     llm::{LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition},
+    WorkPolicyV1,
 };
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
@@ -158,16 +158,14 @@ async fn engineering_unknown_meta_refuses_new_and_load_before_activation() {
         .as_object()
         .unwrap()
         .clone();
-    assert!(
-        host.new_session(acp::NewSessionRequest::new(root.path()).meta(meta.clone()))
-            .await
-            .is_err()
-    );
-    assert!(
-        host.load_session(acp::LoadSessionRequest::new("missing", root.path()).meta(meta))
-            .await
-            .is_err()
-    );
+    assert!(host
+        .new_session(acp::NewSessionRequest::new(root.path()).meta(meta.clone()))
+        .await
+        .is_err());
+    assert!(host
+        .load_session(acp::LoadSessionRequest::new("missing", root.path()).meta(meta))
+        .await
+        .is_err());
     assert!(host.core_agent.lock().await.is_none());
     assert!(host.sessions.lock().await.is_empty());
     assert!(!root.path().join(".aster").exists());
@@ -277,14 +275,12 @@ async fn engineering_shared_host_options_preserve_policy_and_contracts_after_fil
         ] {
             assert!(system.contains(text), "missing {text}");
         }
-        assert!(
-            budget
-                .estimates
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|estimate| *estimate > 0)
-        );
+        assert!(budget
+            .estimates
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|estimate| *estimate > 0));
     }
     let facts =
         aster_core::fact_control::read_workspace_facts(root.path(), "engineering-file").unwrap();
@@ -375,14 +371,12 @@ async fn engineering_original_budget_and_legacy_rebind_refuse_before_provider() 
             .to_string();
         assert!(error.contains("original whole-request budget"), "{error}");
         assert!(client.inputs.lock().unwrap().is_empty());
-        assert!(
-            budget
-                .estimates
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|estimate| *estimate > 0)
-        );
+        assert!(budget
+            .estimates
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|estimate| *estimate > 0));
         session.close().await;
     }
 }

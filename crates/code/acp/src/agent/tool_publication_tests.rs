@@ -56,10 +56,10 @@ fn workspace_wiki_results_keep_complete_structured_hits_past_the_acp_preview_lim
     })).collect::<Vec<_>>()})
     .to_string();
     let preview = serde_json::to_value(tool_call_content("search_wiki", None, &output)).unwrap();
-    assert!(
-        serde_json::from_str::<serde_json::Value>(preview[0]["content"]["text"].as_str().unwrap())
-            .is_err()
-    );
+    assert!(serde_json::from_str::<serde_json::Value>(
+        preview[0]["content"]["text"].as_str().unwrap()
+    )
+    .is_err());
     for name in ["search_wiki", "search_memory"] {
         let raw = tool_raw_output(name, None, &output, 0, None).unwrap();
         let complete: serde_json::Value = serde_json::from_str(raw.as_str().unwrap()).unwrap();

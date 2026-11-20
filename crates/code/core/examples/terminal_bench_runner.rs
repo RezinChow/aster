@@ -22,7 +22,7 @@ use aster_core::hitl::AutoApproveConfirmation;
 use aster_core::llm::CodexLoginClient;
 use aster_core::skills::SkillRegistry;
 use aster_core::verification::{
-    VERIFICATION_REPORT_SCHEMA, VerificationCheck, VerificationReport, VerificationStatus,
+    VerificationCheck, VerificationReport, VerificationStatus, VERIFICATION_REPORT_SCHEMA,
 };
 use aster_core::{Agent, AgentEvent, AgentStyle, PlanningMode, SessionOptions, SystemPromptSlots};
 use aster_durable_memory::InMemoryStore;
@@ -222,8 +222,8 @@ fn unproven_stop_continuation() -> String {
 }
 
 use result::{
-    DEFAULT_EXECUTION_BUDGET_MS, ExecutionPhase, RunProgress, TerminalReason, classify_failure,
-    count_artifact_evidence, persist_result,
+    classify_failure, count_artifact_evidence, persist_result, ExecutionPhase, RunProgress,
+    TerminalReason, DEFAULT_EXECUTION_BUDGET_MS,
 };
 
 use sandbox::ProcessHostBashSandbox;
@@ -1342,16 +1342,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(long_result.exit_code, 0, "{}", long_result.output);
-        assert!(
-            long_result
-                .output
-                .contains("[line truncated, 500 bytes omitted]")
-        );
-        assert!(
-            long_result
-                .output
-                .contains("continue with byte_offset=2000")
-        );
+        assert!(long_result
+            .output
+            .contains("[line truncated, 500 bytes omitted]"));
+        assert!(long_result
+            .output
+            .contains("continue with byte_offset=2000"));
         assert!(!long_result.output.contains(&"a".repeat(2500)));
         let short_result = executor
             .execute("read", &serde_json::json!({"file_path": "short.txt"}))
@@ -1809,12 +1805,10 @@ mod tests {
         assert_eq!(report.schema, VERIFICATION_REPORT_SCHEMA);
         assert_eq!(report.effect_digest.as_deref(), Some(digest));
         assert_eq!(report.status, VerificationStatus::Passed);
-        assert!(
-            report
-                .checks
-                .iter()
-                .all(|check| { check.required && check.status == VerificationStatus::Passed })
-        );
+        assert!(report
+            .checks
+            .iter()
+            .all(|check| { check.required && check.status == VerificationStatus::Passed }));
     }
 
     #[cfg(unix)]

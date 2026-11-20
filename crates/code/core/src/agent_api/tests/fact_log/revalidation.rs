@@ -3,7 +3,7 @@
 use super::*;
 use crate::tools::{Tool, ToolCapabilities, ToolContext, ToolOutput};
 use aster_effect::{ToolExecutionOutcome, ToolExecutionResultV1, ToolObservationCompleteness};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 struct VerifyBytes(Arc<AtomicUsize>);
 
@@ -113,12 +113,10 @@ async fn original_write_byte_changes_permit_the_fourth_identical_verification() 
         checks, 4,
         "original producer effects must reach the duplicate gate"
     );
-    assert!(
-        receipts
-            .iter()
-            .filter(|receipt| receipt.identity.tool_call_id.starts_with("verify-"))
-            .all(|receipt| receipt.outcome == ToolExecutionOutcome::Succeeded)
-    );
+    assert!(receipts
+        .iter()
+        .filter(|receipt| receipt.identity.tool_call_id.starts_with("verify-"))
+        .all(|receipt| receipt.outcome == ToolExecutionOutcome::Succeeded));
 }
 
 #[tokio::test]

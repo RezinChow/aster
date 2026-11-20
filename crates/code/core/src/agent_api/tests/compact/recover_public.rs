@@ -243,12 +243,10 @@ async fn lossy_manual_compaction_retains_exact_public_source_for_existing_read()
         .await
         .unwrap()
         .unwrap();
-    assert!(
-        snapshot
-            .artifacts
-            .iter()
-            .any(|artifact| artifact.artifact_uri == first.artifact_uri)
-    );
+    assert!(snapshot
+        .artifacts
+        .iter()
+        .any(|artifact| artifact.artifact_uri == first.artifact_uri));
     session.close().await;
     let resumed = agent
         .resume_session_async(

@@ -222,11 +222,9 @@ async fn general_purpose_coding_intent_never_activates_staged_synthesis() {
         let requests = client.requests.lock().unwrap();
         assert_eq!(requests.len(), 4);
         assert!(requests.iter().all(|request| request.tool_count > 0));
-        assert!(
-            requests
-                .iter()
-                .all(|request| !request.text.contains("exploration budget"))
-        );
+        assert!(requests
+            .iter()
+            .all(|request| !request.text.contains("exploration budget")));
         drop(requests);
         session.close().await;
         agent.close().await;

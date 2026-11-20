@@ -84,12 +84,10 @@ async fn workspace_search_wiki_uses_only_the_current_owned_publication() {
             .unwrap()
             .source_revision
     );
-    assert!(
-        shared
-            .hits
-            .iter()
-            .any(|hit| hit.path == "concepts/overview.md")
-    );
+    assert!(shared
+        .hits
+        .iter()
+        .any(|hit| hit.path == "concepts/overview.md"));
     let foreign = tempfile::tempdir().unwrap();
     assert!(
         !tool

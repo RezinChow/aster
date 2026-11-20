@@ -113,12 +113,10 @@ async fn test_live_worker_catalog_is_model_visible_and_tracks_registry_changes()
 
     assert!(examples.contains(&serde_json::json!("use")));
     assert!(!examples.contains(&serde_json::json!("hidden-use-helper")));
-    assert!(
-        agent_schema["description"]
-            .as_str()
-            .unwrap()
-            .contains("use: Operate Browser and Office through Aster Use")
-    );
+    assert!(agent_schema["description"]
+        .as_str()
+        .unwrap()
+        .contains("use: Operate Browser and Office through Aster Use"));
     assert!(!definition.description.contains("hidden-use-helper"));
 
     assert!(session.agent_registry.unregister("use"));
@@ -129,18 +127,14 @@ async fn test_live_worker_catalog_is_model_visible_and_tracks_registry_changes()
     {
         let agent_schema =
             &definition.parameters["properties"]["tasks"]["items"]["properties"]["agent"];
-        assert!(
-            !agent_schema["description"]
-                .as_str()
-                .unwrap()
-                .contains("Operate Browser and Office through Aster Use")
-        );
-        assert!(
-            !agent_schema["examples"]
-                .as_array()
-                .unwrap()
-                .contains(&serde_json::json!("use"))
-        );
+        assert!(!agent_schema["description"]
+            .as_str()
+            .unwrap()
+            .contains("Operate Browser and Office through Aster Use"));
+        assert!(!agent_schema["examples"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("use")));
     }
 }
 
@@ -187,13 +181,11 @@ Review the changed code and return prioritized findings.
         .agent_registry
         .get("code-reviewer")
         .expect("workspace .aster/agents agent should load");
-    assert!(
-        loaded
-            .permissions
-            .allow
-            .iter()
-            .any(|rule| { rule.matches("read", &serde_json::json!({"file_path": "README.md"})) })
-    );
+    assert!(loaded
+        .permissions
+        .allow
+        .iter()
+        .any(|rule| { rule.matches("read", &serde_json::json!({"file_path": "README.md"})) }));
     assert!(loaded.permissions.allow.iter().any(|rule| {
         rule.matches(
             "search",

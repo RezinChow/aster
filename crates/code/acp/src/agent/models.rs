@@ -145,15 +145,13 @@ impl AsterCodeAgent {
                 acp::SessionConfigSelectOption::new(info.model_id.0.to_string(), info.name.clone())
             })
             .collect();
-        vec![
-            acp::SessionConfigOption::select(
-                MODEL_CONFIG_ID,
-                "Model",
-                models.current_model_id.0.to_string(),
-                options,
-            )
-            .category(acp::SessionConfigOptionCategory::Model),
-        ]
+        vec![acp::SessionConfigOption::select(
+            MODEL_CONFIG_ID,
+            "Model",
+            models.current_model_id.0.to_string(),
+            options,
+        )
+        .category(acp::SessionConfigOptionCategory::Model)]
     }
 
     pub(super) fn known_model(&self, model_id: &str) -> bool {

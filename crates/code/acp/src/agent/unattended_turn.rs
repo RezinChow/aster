@@ -3,16 +3,16 @@
 
 use super::*;
 use crate::unattended::result::{
-    ExecutionDeadline, ExecutionPhase, RetryableExternalFailure, RunProgress, TerminalReason,
-    classify_failure, persist_result,
+    classify_failure, persist_result, ExecutionDeadline, ExecutionPhase, RetryableExternalFailure,
+    RunProgress, TerminalReason,
 };
 use crate::unattended::{
-    AttemptFacts, BEFORE_ANY_GATE_CONTINUATION, FRESH_REVIEW_FOCUS, HostAdmissionBudget,
-    HostAdmissionStep, IDLE_AFTER_BIND_CONTINUATION, UNPROVEN_STOP_CONTINUATION, Unattended,
     bind_continuation, first_prompt, host_admission_step, host_verification_report,
-    non_terminal_continuation, note_event,
+    non_terminal_continuation, note_event, AttemptFacts, HostAdmissionBudget, HostAdmissionStep,
+    Unattended, BEFORE_ANY_GATE_CONTINUATION, FRESH_REVIEW_FOCUS, IDLE_AFTER_BIND_CONTINUATION,
+    UNPROVEN_STOP_CONTINUATION,
 };
-use anyhow::{Context, bail};
+use anyhow::{bail, Context};
 use aster_core::execution_identity::ExecutionResultOutcomeV1;
 
 pub(super) enum Attempt {

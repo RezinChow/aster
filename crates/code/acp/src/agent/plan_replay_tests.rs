@@ -5,10 +5,10 @@ use aster_core::llm::{
     ContentBlock, LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition,
 };
 use aster_core::store::{MemorySessionStore, SessionStore};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::mpsc;
-use tokio::time::{Duration, timeout};
+use tokio::time::{timeout, Duration};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 #[derive(Default)]
@@ -333,11 +333,9 @@ async fn load_replay_publishes_the_resumed_typed_plan() {
             assert_eq!(notification["update"]["sessionUpdate"], "plan");
             assert_eq!(notification["_meta"]["isReplay"], true);
             assert_eq!(notification["_meta"]["origin"], "core.plan_projection");
-            assert!(
-                notification["_meta"]["entryId"]
-                    .as_str()
-                    .is_some_and(|id| id.starts_with("plan:"))
-            );
+            assert!(notification["_meta"]["entryId"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("plan:")));
             assert!(notification["_meta"]["digest"].as_str().is_some());
             let entries = notification["update"]["entries"].as_array().unwrap();
             assert_eq!(entries.len(), 6);
@@ -377,11 +375,9 @@ async fn load_replay_publishes_the_resumed_typed_plan() {
                     }
                 }
             }
-            assert!(
-                timeout(Duration::from_millis(50), packets.recv())
-                    .await
-                    .is_err()
-            );
+            assert!(timeout(Duration::from_millis(50), packets.recv())
+                .await
+                .is_err());
 
             resumed.close().await;
             for task in io {

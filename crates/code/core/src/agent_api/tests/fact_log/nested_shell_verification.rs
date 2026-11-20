@@ -313,17 +313,13 @@ async fn direct_and_program_formal_bash_checks_bind_the_actual_parent_effect() {
     let metadata: serde_json::Value =
         serde_json::from_str(parent.output.as_str().unwrap()).unwrap();
     let wire_report = &metadata["metadata"]["verification_report"];
-    assert!(
-        wire_report["effect_digest"]
-            .as_str()
-            .is_some_and(|digest| !digest.is_empty())
-    );
-    assert!(
-        nested
-            .reports
-            .iter()
-            .any(|report| report.to_value() == *wire_report)
-    );
+    assert!(wire_report["effect_digest"]
+        .as_str()
+        .is_some_and(|digest| !digest.is_empty()));
+    assert!(nested
+        .reports
+        .iter()
+        .any(|report| report.to_value() == *wire_report));
 
     // The production failure checked changes made by earlier parent calls.
     // The checker scope itself therefore need not contain a new write.

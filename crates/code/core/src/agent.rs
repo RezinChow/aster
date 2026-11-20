@@ -1068,7 +1068,10 @@ impl AgentEvent {
             .chain()
             .find_map(|cause| cause.downcast_ref::<aster_effect::ActorError>())
         {
-            if matches!(effect_error, aster_effect::ActorError::FactLogByteLimit { .. }) {
+            if matches!(
+                effect_error,
+                aster_effect::ActorError::FactLogByteLimit { .. }
+            ) {
                 return Self::FactLogByteLimit {
                     message: error.to_string(),
                 };

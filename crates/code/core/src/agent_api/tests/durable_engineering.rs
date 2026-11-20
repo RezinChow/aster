@@ -8,7 +8,6 @@
 //! proves the four modes and the combined counterexamples on both session stores.
 
 use super::*;
-use crate::WorkPolicyV1;
 use crate::agent_api::{AgentRunSpawn, GoalTickAdmission};
 use crate::goal_control::{
     GoalCommandKindV1, GoalContinuationPolicyV1, GoalControlCommandV1, GoalDefinitionCommandV1,
@@ -19,8 +18,9 @@ use crate::planning::{Complexity, ExecutionPlan, Task, TaskStatus};
 use crate::store::{FileSessionStore, MemorySessionStore};
 use crate::tools::{Tool, ToolCapabilities, ToolContext, ToolOutput};
 use crate::verification::{VerificationCheck, VerificationReport, VerificationStatus};
-use std::sync::Mutex;
+use crate::WorkPolicyV1;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 const SESSION: &str = "durable-engineering";
 const SOURCE: &str = "combined source bytes";

@@ -81,16 +81,14 @@ async fn live_snapshot_reads_actual_working_and_session_memory_and_refuses_forei
             .content,
         persistent.content
     );
-    assert!(
-        host.handle_memory_snapshot(&request(Path::new("/another-workspace"), "working"))
-            .await
-            .is_err()
-    );
-    assert!(
-        host.handle_memory_snapshot(&request(&workspace, "durable"))
-            .await
-            .is_err()
-    );
+    assert!(host
+        .handle_memory_snapshot(&request(Path::new("/another-workspace"), "working"))
+        .await
+        .is_err());
+    assert!(host
+        .handle_memory_snapshot(&request(&workspace, "durable"))
+        .await
+        .is_err());
     host.sessions.lock().await.remove(&id.0.to_string());
     let response = host
         .handle_memory_snapshot(&request(&workspace, "session"))
@@ -174,19 +172,17 @@ async fn management_works_without_model_or_session_and_refuses_another_workspace
     assert!(host.sessions.lock().await.is_empty());
     assert!(host.core_agent.lock().await.is_none());
     let elsewhere = tempfile::tempdir().unwrap();
-    assert!(
-        host.handle_memory_management(&request(elsewhere.path(), query))
-            .await
-            .is_err()
-    );
-    assert!(
-        host.handle_memory_management(&request(
+    assert!(host
+        .handle_memory_management(&request(elsewhere.path(), query))
+        .await
+        .is_err());
+    assert!(host
+        .handle_memory_management(&request(
             root.path(),
             serde_json::json!({ "operation": "read", "id": "a", "memory_directory": "/other" })
         ))
         .await
-        .is_err()
-    );
+        .is_err());
 }
 
 #[tokio::test]

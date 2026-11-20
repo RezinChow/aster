@@ -61,9 +61,7 @@ fn interactive_count_is_unbounded_without_an_explicit_limit_for_every_effort() {
                 let limits = effort_limits(token).unwrap();
                 assert!(options.reasoning_effort.is_none());
                 assert!(options.thinking_budget.is_none());
-                assert!(
-                    guidelines.contains(&format!("thinking_budget={}", limits.thinking_budget))
-                );
+                assert!(guidelines.contains(&format!("thinking_budget={}", limits.thinking_budget)));
             }
             None => {
                 assert!(options.reasoning_effort.is_none());

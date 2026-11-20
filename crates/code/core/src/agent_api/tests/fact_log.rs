@@ -2,8 +2,8 @@
 
 //! Session send and resume go through the fact log.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -1158,12 +1158,10 @@ async fn fact_log_session_attachments_steer_and_history_stay_on_the_log() {
         steered.state,
         crate::run_control::RunControlReceiptState::Applied
     );
-    assert!(
-        !session
-            .confirm_tool_use("missing", true, None)
-            .await
-            .unwrap()
-    );
+    assert!(!session
+        .confirm_tool_use("missing", true, None)
+        .await
+        .unwrap());
     let facts = read_workspace_facts(workspace.path(), "fact-attach").unwrap();
     let users: Vec<_> = facts
         .iter()
@@ -1171,23 +1169,19 @@ async fn fact_log_session_attachments_steer_and_history_stay_on_the_log() {
         .collect();
     assert_eq!(users.len(), 3);
     assert_eq!(users[0].payload["text"], "earlier");
-    assert!(
-        users[1].payload["text"]
-            .as_str()
-            .unwrap()
-            .contains("see this")
-    );
+    assert!(users[1].payload["text"]
+        .as_str()
+        .unwrap()
+        .contains("see this"));
     assert_eq!(users[2].payload["text"], "turn left");
     let stored = facts
         .iter()
         .find(|fact| fact.cause.as_deref() == Some("infer:1:0"))
         .expect("history model turn");
     assert_eq!(stored.payload["text"], "stored reply");
-    assert!(
-        facts
-            .iter()
-            .all(|fact| fact.kind != "confirmation.answered")
-    );
+    assert!(facts
+        .iter()
+        .all(|fact| fact.kind != "confirmation.answered"));
     // Terminal Steer is retained as the next input, not inferred by a new
     // unowned call after the original Run has completed.
     assert_eq!(calls.load(Ordering::SeqCst), 2);
@@ -1288,11 +1282,9 @@ async fn standing_context_stays_the_admitted_projection() {
         .open()
         .err()
         .expect("changed instructions fail closed");
-    assert!(
-        mismatch
-            .to_string()
-            .contains("standing context digest mismatch")
-    );
+    assert!(mismatch
+        .to_string()
+        .contains("standing context digest mismatch"));
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 
     std::fs::write(

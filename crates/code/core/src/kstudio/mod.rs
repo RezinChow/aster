@@ -832,11 +832,10 @@ mod tests {
         assert!(!report.materialized.is_empty());
         assert!(root.path().join(".aster").join("MANIFEST.json").is_file());
         assert!(root.path().join(".aster").join("workflow").is_dir());
-        assert!(
-            root.path()
-                .join(".aster/workflow/loop-kstudio.py")
-                .is_file()
-        );
+        assert!(root
+            .path()
+            .join(".aster/workflow/loop-kstudio.py")
+            .is_file());
         assert!(root.path().join(".aster/workflow/review.py").is_file());
         assert_eq!(report.skills_loaded, KBURN_SKILL_NAMES.len());
         assert!(registry.get("loop").is_some());
@@ -871,10 +870,8 @@ mod tests {
         let state = root.path().join(".aster/local/loops/demo.json");
         std::fs::create_dir_all(state.parent().unwrap()).unwrap();
         std::fs::write(&state, r#"{"spec":{"task_id":"demo"},"status":"running"}"#).unwrap();
-        assert!(
-            incomplete_loop_message(root.path())
-                .is_some_and(|message| message.contains("KBurn loop demo is running"))
-        );
+        assert!(incomplete_loop_message(root.path())
+            .is_some_and(|message| message.contains("KBurn loop demo is running")));
         std::fs::write(&state, accepted_state()).unwrap();
         assert!(incomplete_loop_message(root.path()).is_none());
         assert!(accepted_loop_exists(root.path()));
@@ -977,12 +974,10 @@ mod tests {
             "materialize must seed project.acl (not .kcl)"
         );
         assert!(!kstudio_root(root.path()).join("config.kcl").exists());
-        assert!(
-            kstudio_root(root.path())
-                .join("workflow")
-                .join("GOALS.md")
-                .is_file()
-        );
+        assert!(kstudio_root(root.path())
+            .join("workflow")
+            .join("GOALS.md")
+            .is_file());
         assert!(kstudio_root(root.path()).join("skills").is_dir());
         for helper in KSTUDIO_WORKFLOW_HELPERS {
             assert!(
@@ -1038,11 +1033,9 @@ mod tests {
             );
         }
         assert!(bundled_kstudio_factory_dir().join("contracts").is_dir());
-        assert!(
-            bundled_kstudio_factory_dir()
-                .join("kstudio-agent-rules")
-                .is_dir()
-        );
+        assert!(bundled_kstudio_factory_dir()
+            .join("kstudio-agent-rules")
+            .is_dir());
     }
 
     #[test]

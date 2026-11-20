@@ -356,12 +356,11 @@ fn byte_limit_without_a_summary_fails_with_a_diagnostic_and_keeps_the_log() {
     let ActorError::FactLogByteLimit { detail } = &error else {
         panic!("expected a typed byte-limit error");
     };
+    assert!(detail.contains("largest kind: tool.result"), "{detail}");
     assert!(
-        detail.contains("largest kind: tool.result"),
-        "{detail}"
-    );
-    assert!(
-        error.to_string().starts_with("fact schema: fact log byte limit exceeded"),
+        error
+            .to_string()
+            .starts_with("fact schema: fact log byte limit exceeded"),
         "{error}"
     );
     assert_eq!(

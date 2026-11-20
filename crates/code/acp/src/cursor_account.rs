@@ -1362,12 +1362,10 @@ mod tests {
                     model.id
                 );
             }
-            assert!(
-                provider
-                    .api_key
-                    .as_deref()
-                    .is_some_and(|key| !key.is_empty())
-            );
+            assert!(provider
+                .api_key
+                .as_deref()
+                .is_some_and(|key| !key.is_empty()));
         });
     }
 

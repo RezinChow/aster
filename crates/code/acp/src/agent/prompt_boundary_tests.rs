@@ -42,11 +42,9 @@ fn prompt_boundary_engineering_distinguishes_dispatcher_from_reviewer() {
     let policy = crate::engineering::named_policy("engineering-v1").unwrap();
     assert!(policy.instructions().contains("primary session"));
     assert!(policy.instructions().contains("delegated reviewer"));
-    assert!(
-        policy
-            .instructions()
-            .contains("inspect the target directly")
-    );
+    assert!(policy
+        .instructions()
+        .contains("inspect the target directly"));
     assert!(policy.instructions().contains("Do not delegate again"));
 }
 

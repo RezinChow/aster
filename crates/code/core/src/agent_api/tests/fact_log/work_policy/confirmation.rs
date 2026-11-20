@@ -60,11 +60,9 @@ async fn missing_or_withdrawn_confirmation_with_bound_policy_is_a_non_execution(
         "original owner must admit the real policy: {sent:?}"
     );
     let before = before.unwrap();
-    assert!(
-        before
-            .iter()
-            .any(|fact| fact.kind == "aster.work-policy.admitted")
-    );
+    assert!(before
+        .iter()
+        .any(|fact| fact.kind == "aster.work-policy.admitted"));
     assert!(
         matches!(live, Ok(true)),
         "the bound session's live receiver still owns approval: {live:?}"
@@ -150,11 +148,9 @@ async fn unbound_legacy_fact_confirmation_survives_a_missing_manager_receiver() 
         assert_eq!(after.len(), before.len() + 1);
         assert_eq!(after.last().unwrap().kind, "confirmation.answered");
         assert_eq!(after.last().unwrap().payload["approved"], false);
-        assert!(
-            after
-                .iter()
-                .all(|fact| fact.kind != "tool.prepared" && fact.kind != "tool.result")
-        );
+        assert!(after
+            .iter()
+            .all(|fact| fact.kind != "tool.prepared" && fact.kind != "tool.result"));
         assert_eq!(
             requests, 1,
             "denying the parked call must not invoke another provider"

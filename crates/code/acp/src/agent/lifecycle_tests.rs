@@ -20,10 +20,9 @@ async fn close_settles_sessions_and_refuses_admission() {
         session.send("must stay closed", None).await,
         Err(aster_core::error::CodeError::SessionClosed { .. })
     ));
-    assert!(
-        host.new_session(acp::NewSessionRequest::new(root.path()))
-            .await
-            .is_err()
-    );
+    assert!(host
+        .new_session(acp::NewSessionRequest::new(root.path()))
+        .await
+        .is_err());
     host.close().await;
 }

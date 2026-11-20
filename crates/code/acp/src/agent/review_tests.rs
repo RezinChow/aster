@@ -2,7 +2,7 @@
 
 use super::AsterCodeAgent;
 use agent_client_protocol::{self as acp, Agent as _};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 async fn ext(host: &AsterCodeAgent, method: &str, params: Value) -> acp::Result<Value> {
     let raw = serde_json::value::to_raw_value(&params).unwrap();
@@ -242,18 +242,14 @@ async fn admitted_findings_are_saved_and_a_new_host_reregisters_explicit_scenari
         .session
         .clone();
     let scenarios = ["engineering.change", "engineering.workspace"];
-    assert!(
-        scenarios
-            .iter()
-            .all(|id| session.review_scenario_ids().contains(&id.to_string()))
-    );
+    assert!(scenarios
+        .iter()
+        .all(|id| session.review_scenario_ids().contains(&id.to_string())));
     let registry = session.review_scenario_registry();
-    assert!(
-        scenarios
-            .iter()
-            .all(|id| registry.get(id).unwrap().triggers()
-                == aster_core::session_review::ReviewTriggerPolicy::ExplicitRequest)
-    );
+    assert!(scenarios
+        .iter()
+        .all(|id| registry.get(id).unwrap().triggers()
+            == aster_core::session_review::ReviewTriggerPolicy::ExplicitRequest));
     let paths = json!(["lib.rs"]);
     let target = ext(
         &host,
@@ -449,15 +445,13 @@ async fn review_admission_binds_session_policy_and_current_target_bytes_without_
             "variant {index}"
         );
     }
-    assert!(
-        ext(
-            &host,
-            "aster/review/admit",
-            json!({"sessionId":"unknown-session"})
-        )
-        .await
-        .is_err()
-    );
+    assert!(ext(
+        &host,
+        "aster/review/admit",
+        json!({"sessionId":"unknown-session"})
+    )
+    .await
+    .is_err());
 
     assert_eq!(
         admit(admission.clone()).await.unwrap(),
@@ -556,11 +550,9 @@ async fn review_admission_binds_session_policy_and_current_target_bytes_without_
         .unwrap(),
         json!({"status":"accepted"})
     );
-    assert!(
-        session.session_review_store().findings[0]
-            .status
-            .is_terminal()
-    );
+    assert!(session.session_review_store().findings[0]
+        .status
+        .is_terminal());
     for id in [&id, &plain, &fresh] {
         host.sessions
             .lock()

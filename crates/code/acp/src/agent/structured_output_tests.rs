@@ -4,7 +4,7 @@ use aster_core::llm::{
     ContentBlock, LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition,
 };
 use aster_core::store::MemorySessionStore;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::mpsc;
 
@@ -238,11 +238,9 @@ async fn denied_tool_prevents_structured_output_even_when_final_text_is_valid() 
     let response = prompt(&fixture, schema()).await.unwrap();
     let meta = response.meta.unwrap();
     assert!(meta.get("structuredOutput").is_none());
-    assert!(
-        meta["structuredOutputError"]
-            .as_str()
-            .is_some_and(|error| error.contains("denied"))
-    );
+    assert!(meta["structuredOutputError"]
+        .as_str()
+        .is_some_and(|error| error.contains("denied")));
     assert_eq!(fixture.model.repair_calls.load(Ordering::SeqCst), 0);
 }
 

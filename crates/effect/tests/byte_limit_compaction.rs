@@ -10,8 +10,7 @@ use aster_effect::{
     CodingPhase, CodingServices, Compactor, Completion, CompletionRequest, Effect, FileLog,
     HarnessConfig, LogStore, MemoryLog, ModelDecision, NewFact, PreparedToolExecution, ToolCall,
     ToolEffectObservationV1, ToolExecutionOutcome, ToolExecutionResultV1, ToolPreparationRequest,
-    ToolPreparedV1, ToolRecoveryPolicy, ToolRunner,
-    TOOL_PREPARED_SCHEMA, TOOL_RESULT_SCHEMA,
+    ToolPreparedV1, ToolRecoveryPolicy, ToolRunner, TOOL_PREPARED_SCHEMA, TOOL_RESULT_SCHEMA,
 };
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
@@ -417,10 +416,6 @@ async fn large_prepared_baselines_force_a_compaction_before_the_byte_limit() {
     assert_eq!(settled.view.assistant.as_deref(), Some("finished"));
     assert!(preparations.load(Ordering::SeqCst) > 60);
     let facts = log.read(THREAD).unwrap();
-    assert!(facts
-        .iter()
-        .any(|fact| fact.kind == "compaction.done"));
-    assert!(facts
-        .iter()
-        .any(|fact| fact.kind == "compaction.pruned"));
+    assert!(facts.iter().any(|fact| fact.kind == "compaction.done"));
+    assert!(facts.iter().any(|fact| fact.kind == "compaction.pruned"));
 }

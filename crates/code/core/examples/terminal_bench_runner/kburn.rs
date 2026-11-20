@@ -169,7 +169,7 @@ pub async fn drive_running_loop(workspace: &Path) -> Result<Option<String>> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::result::{RunProgress, TerminalReason, persist_result};
+    use super::super::result::{persist_result, RunProgress, TerminalReason};
     use super::*;
     use aster_core::execution_identity::ExecutionResultOutcomeV1;
 
@@ -300,10 +300,8 @@ mod tests {
             .expect("valid result JSON");
         assert_eq!(value["reward_valid"], false);
         assert_eq!(value["outcome"], "failed");
-        assert!(
-            value["lastError"]
-                .as_str()
-                .is_some_and(|error| error.contains("reward_valid=false"))
-        );
+        assert!(value["lastError"]
+            .as_str()
+            .is_some_and(|error| error.contains("reward_valid=false")));
     }
 }

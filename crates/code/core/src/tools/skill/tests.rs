@@ -8,10 +8,10 @@ use crate::skills::SkillKind;
 use crate::tools::ToolContext;
 use anyhow::Result;
 use async_trait::async_trait;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::{mpsc, Notify};
 use tokio_util::sync::CancellationToken;
 
 struct MockLlmClient {
@@ -589,11 +589,9 @@ async fn review_skill_invocation_returns_instructions_instead_of_not_found() {
     .unwrap();
 
     assert!(result.success);
-    assert!(
-        result
-            .content
-            .contains("Emit fences for the injected batch only.")
-    );
+    assert!(result
+        .content
+        .contains("Emit fences for the injected batch only."));
     assert!(result.content.contains("审查本批注入正文"));
     assert!(!result.content.contains("not found"));
     assert_eq!(

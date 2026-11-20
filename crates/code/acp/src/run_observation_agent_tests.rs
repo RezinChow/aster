@@ -4,10 +4,10 @@ use super::*;
 use aster_core::llm::{
     ContentBlock, LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::{Semaphore, mpsc};
-use tokio::time::{Duration, timeout};
+use tokio::sync::{mpsc, Semaphore};
+use tokio::time::{timeout, Duration};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 struct Host(mpsc::UnboundedSender<Value>);
@@ -325,11 +325,9 @@ async fn actual_acp_prompt_projects_core_runs_and_keeps_commands_and_legacy_clie
                 )
                 .await
                 .unwrap();
-                assert!(
-                    timeout(Duration::from_millis(50), fixture.packets.recv())
-                        .await
-                        .is_err()
-                );
+                assert!(timeout(Duration::from_millis(50), fixture.packets.recv())
+                    .await
+                    .is_err());
             }
             assert_eq!(
                 fixture.session.runs().await.len(),

@@ -271,12 +271,10 @@ async fn test_active_blocking_send_rejects_send_and_stream_then_releases() {
         session.run_snapshot(&original_id).await.unwrap().status,
         crate::run::RunStatus::Cancelled
     );
-    assert!(
-        session
-            .history()
-            .last()
-            .is_some_and(|message| message.text().contains("interrupted"))
-    );
+    assert!(session
+        .history()
+        .last()
+        .is_some_and(|message| message.text().contains("interrupted")));
 
     // Awaiting the blocking operation releases the lease for the next call.
     assert!(session.send("/help", None).await.is_ok());

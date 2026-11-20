@@ -39,8 +39,8 @@ impl LlmClient for ReportedClient {
 }
 
 #[tokio::test]
-async fn session_usage_notifications_follow_core_calls_outside_an_acp_prompt_without_retaining_client()
- {
+async fn session_usage_notifications_follow_core_calls_outside_an_acp_prompt_without_retaining_client(
+) {
     tokio::task::LocalSet::new()
         .run_until(async {
             let root = tempfile::tempdir().unwrap();
@@ -150,11 +150,10 @@ async fn notification_meta_stamps_turn_and_stream_start_ms() {
         meta.get("streamStartMs").and_then(|v| v.as_i64()),
         Some(1_700_000_000_000)
     );
-    assert!(
-        meta.get("agentTimestampMs")
-            .and_then(|v| v.as_i64())
-            .is_some()
-    );
+    assert!(meta
+        .get("agentTimestampMs")
+        .and_then(|v| v.as_i64())
+        .is_some());
     assert_eq!(
         meta.get("streamHeadersTimeoutMs").and_then(|v| v.as_u64()),
         Some(aster_core::llm::http::stream_headers_timeout_ms())

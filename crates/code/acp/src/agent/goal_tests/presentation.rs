@@ -1,5 +1,5 @@
 use super::*;
-use crate::goal::{GoalLanguage, GoalOp, apply_bound_goal};
+use crate::goal::{apply_bound_goal, GoalLanguage, GoalOp};
 
 #[test]
 fn goal_wait_message_speaks_to_the_user_instead_of_printing_a_decision_code() {

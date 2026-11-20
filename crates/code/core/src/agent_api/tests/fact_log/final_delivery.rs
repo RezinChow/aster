@@ -56,12 +56,10 @@ async fn assistant_delivery_receives_current_disk_attestation_instead_of_an_extr
         session.close().await;
         agent.close().await;
         if open_observation {
-            assert!(
-                result
-                    .unwrap_err()
-                    .to_string()
-                    .contains("external observation")
-            );
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("external observation"));
         } else {
             let result = result.unwrap();
             assert_eq!(result.text, "The requested file is ready.");
@@ -157,20 +155,16 @@ async fn interactive_delivery_calls_the_model_after_verification_without_replayi
         std::fs::read_to_string(workspace.path().join("hello.txt")).unwrap(),
         "hello"
     );
-    assert!(
-        coding_prompts
-            .lock()
-            .unwrap()
-            .last()
-            .unwrap()
-            .contains("hello.txt")
-    );
+    assert!(coding_prompts
+        .lock()
+        .unwrap()
+        .last()
+        .unwrap()
+        .contains("hello.txt"));
     let facts = read_workspace_facts(workspace.path(), "verified-assistant-delivery").unwrap();
-    assert!(
-        facts
-            .iter()
-            .any(|fact| fact.kind == "turn.complete" && fact.payload["terminal"] == "verified")
-    );
+    assert!(facts
+        .iter()
+        .any(|fact| fact.kind == "turn.complete" && fact.payload["terminal"] == "verified"));
 }
 
 #[tokio::test]
@@ -206,9 +200,7 @@ async fn assistant_delivery_cannot_replace_missing_verification() {
         "{error}"
     );
     let facts = read_workspace_facts(workspace.path(), "unverified-assistant-delivery").unwrap();
-    assert!(
-        !facts
-            .iter()
-            .any(|fact| fact.kind == "turn.complete" && fact.payload["terminal"] == "verified")
-    );
+    assert!(!facts
+        .iter()
+        .any(|fact| fact.kind == "turn.complete" && fact.payload["terminal"] == "verified"));
 }

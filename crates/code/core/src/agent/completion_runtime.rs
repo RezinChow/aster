@@ -1,6 +1,6 @@
-use super::AgentEvent;
 use super::execution_state::ExecutionLoopState;
 use super::memory_extraction_runtime::TurnMemoryExtractionSchedule;
+use super::AgentEvent;
 use crate::llm::{LlmResponse, Message};
 use crate::prompts::CONTINUATION;
 

@@ -2,9 +2,9 @@ use super::*;
 use agent_client_protocol::{self as acp, Agent as _};
 use aster_core::llm::{LlmClient, LlmResponse, Message, StreamEvent, TokenUsage, ToolDefinition};
 use aster_core::store::{MemorySessionStore, TranscriptEntryKind};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use tokio::sync::{Notify, broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, Notify};
 
 #[test]
 fn every_host_method_parses_back_from_its_name() {
@@ -373,15 +373,13 @@ async fn workspace_search_uses_current_session_sources_and_governed_permissions_
         "operationId":"workspace-search","cwd":fixture.root.path(),
         "query":"workspace_evidence_marker",
     });
-    assert!(
-        ext(
-            &fixture.host,
-            HostMethod::WorkspaceSearch.as_str(),
-            params.clone()
-        )
-        .await
-        .is_err()
-    );
+    assert!(ext(
+        &fixture.host,
+        HostMethod::WorkspaceSearch.as_str(),
+        params.clone()
+    )
+    .await
+    .is_err());
     fixture
         .source
         .set_permission_policy(aster_core::permissions::PermissionPolicy::new().allow("search"))
@@ -411,13 +409,11 @@ async fn workspace_search_uses_current_session_sources_and_governed_permissions_
     assert_eq!(result["sessionId"], fixture.session_id);
     assert_eq!(result["operationId"], "workspace-search");
     assert_eq!(result["cwd"], fixture.root.path().to_str().unwrap());
-    assert!(
-        result["metadata"]["results"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|hit| hit["digest_verified"] == true)
-    );
+    assert!(result["metadata"]["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|hit| hit["digest_verified"] == true));
     std::fs::write(&source, "pub fn changed_evidence_marker() {}\n").unwrap();
     let changed = ext(
         &fixture.host,
@@ -426,12 +422,10 @@ async fn workspace_search_uses_current_session_sources_and_governed_permissions_
     )
     .await
     .unwrap();
-    assert!(
-        !changed["output"]
-            .as_str()
-            .unwrap()
-            .contains("workspace_evidence_marker")
-    );
+    assert!(!changed["output"]
+        .as_str()
+        .unwrap()
+        .contains("workspace_evidence_marker"));
     let mut secret_params = params.clone();
     secret_params["query"] = json!("secret_qxv_marker");
     let secret = ext(
@@ -440,12 +434,10 @@ async fn workspace_search_uses_current_session_sources_and_governed_permissions_
         secret_params,
     )
     .await;
-    assert!(
-        !secret.unwrap()["output"]
-            .as_str()
-            .unwrap()
-            .contains("secret_qxv_marker")
-    );
+    assert!(!secret.unwrap()["output"]
+        .as_str()
+        .unwrap()
+        .contains("secret_qxv_marker"));
     for (key, value) in [
         ("cwd", json!(foreign.path())),
         ("sessionId", json!("unknown-session")),
@@ -469,15 +461,13 @@ async fn workspace_search_uses_current_session_sources_and_governed_permissions_
         .source
         .set_permission_policy(aster_core::permissions::PermissionPolicy::new().deny("search"))
         .unwrap();
-    assert!(
-        ext(
-            &fixture.host,
-            HostMethod::WorkspaceSearch.as_str(),
-            params.clone()
-        )
-        .await
-        .is_err()
-    );
+    assert!(ext(
+        &fixture.host,
+        HostMethod::WorkspaceSearch.as_str(),
+        params.clone()
+    )
+    .await
+    .is_err());
     assert_eq!(fixture.model.calls.load(Ordering::SeqCst), calls);
     assert_eq!(
         std::fs::read_to_string(&source).unwrap(),
@@ -554,11 +544,9 @@ async fn transcript_page_and_tooling_use_core_identity_and_actual_definitions() 
     );
     assert!(tooling["tools"].as_array().unwrap().len() > 5);
     assert!(tooling["capabilityStamp"]["generation"].is_u64());
-    assert!(
-        tooling["capabilityStamp"]["digest"]
-            .as_str()
-            .is_some_and(|digest| digest.starts_with("sha256:"))
-    );
+    assert!(tooling["capabilityStamp"]["digest"]
+        .as_str()
+        .is_some_and(|digest| digest.starts_with("sha256:")));
     for retired_duplicate in ["models", "modes", "commands"] {
         assert!(tooling.get(retired_duplicate).is_none());
     }
@@ -571,12 +559,10 @@ async fn transcript_page_and_tooling_use_core_identity_and_actual_definitions() 
     )
     .await
     .unwrap_err();
-    assert!(
-        error
-            .data
-            .and_then(|data| data.as_str().map(str::to_string))
-            .is_some_and(|data| data.contains("source changed since cursor"))
-    );
+    assert!(error
+        .data
+        .and_then(|data| data.as_str().map(str::to_string))
+        .is_some_and(|data| data.contains("source changed since cursor")));
 }
 
 #[tokio::test]
@@ -753,20 +739,16 @@ async fn prefix_fork_leaves_active_source_admission_to_core_and_refuses() {
     let error = attempted
         .expect("prefix fork refused the active source before the deadline")
         .unwrap_err();
-    assert!(
-        error
-            .data
-            .and_then(|data| data.as_str().map(str::to_string))
-            .is_some_and(|data| data.contains("source has unfinished execution"))
-    );
-    assert!(
-        !fixture
-            .host
-            .sessions
-            .lock()
-            .await
-            .contains_key("active-child")
-    );
+    assert!(error
+        .data
+        .and_then(|data| data.as_str().map(str::to_string))
+        .is_some_and(|data| data.contains("source has unfinished execution")));
+    assert!(!fixture
+        .host
+        .sessions
+        .lock()
+        .await
+        .contains_key("active-child"));
     while events.recv().await.is_some() {}
     running.await.unwrap();
     assert_eq!(
@@ -882,15 +864,13 @@ async fn background_task_snapshot_and_stop_use_owner_lifecycle() {
     .await
     .unwrap();
     assert_eq!(missing, Value::Bool(false));
-    assert!(
-        ext(
-            &fixture.host,
-            HostMethod::SessionBackgroundTaskStop.as_str(),
-            json!({"schema":BACKGROUND_TASKS_SCHEMA,"sessionId":"other","taskId":"background-1"}),
-        )
-        .await
-        .is_err()
-    );
+    assert!(ext(
+        &fixture.host,
+        HostMethod::SessionBackgroundTaskStop.as_str(),
+        json!({"schema":BACKGROUND_TASKS_SCHEMA,"sessionId":"other","taskId":"background-1"}),
+    )
+    .await
+    .is_err());
 }
 
 #[test]
@@ -1003,15 +983,13 @@ async fn pager_subagent_cancel_is_session_scoped_and_reports_observed_outcomes()
         .register_canceller("child-stop", token.clone())
         .await;
     let method = HostMethod::SubagentCancel.as_str();
-    assert!(
-        ext(
-            &fixture.host,
-            method,
-            json!({"sessionId":"foreign","subagentId":"child-stop"})
-        )
-        .await
-        .is_err()
-    );
+    assert!(ext(
+        &fixture.host,
+        method,
+        json!({"sessionId":"foreign","subagentId":"child-stop"})
+    )
+    .await
+    .is_err());
     assert!(!token.is_cancelled());
     let result = ext(
         &fixture.host,
@@ -1052,15 +1030,13 @@ async fn pager_subagent_cancel_is_session_scoped_and_reports_observed_outcomes()
             started_ms: 2,
         })
         .await;
-    assert!(
-        ext(
-            &fixture.host,
-            method,
-            json!({"sessionId":fixture.session_id,"subagentId":"orphan"})
-        )
-        .await
-        .is_err()
-    );
+    assert!(ext(
+        &fixture.host,
+        method,
+        json!({"sessionId":fixture.session_id,"subagentId":"orphan"})
+    )
+    .await
+    .is_err());
     assert_eq!(fixture.model.calls.load(Ordering::SeqCst), calls_before);
 }
 
@@ -1092,12 +1068,10 @@ async fn text_only_model_refuses_images_before_a_model_or_run_is_admitted() {
         ))
         .await
         .unwrap_err();
-    assert!(
-        error
-            .data
-            .unwrap()
-            .to_string()
-            .contains("does not support image input")
-    );
+    assert!(error
+        .data
+        .unwrap()
+        .to_string()
+        .contains("does not support image input"));
     assert_eq!(fixture.model.calls.load(Ordering::SeqCst), calls_before);
 }

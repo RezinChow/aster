@@ -234,12 +234,11 @@ pub(super) async fn run_plan_heavy_choreography() {
         edit.effects.completeness,
         ToolObservationCompleteness::Complete
     );
-    assert!(
-        edit.effects
-            .changes
-            .iter()
-            .any(|change| change.path == "src/impl.mjs")
-    );
+    assert!(edit
+        .effects
+        .changes
+        .iter()
+        .any(|change| change.path == "src/impl.mjs"));
     let verify = bound_receipt(&facts, "ph-verify");
     assert_eq!(
         verify.outcome,
@@ -261,13 +260,11 @@ pub(super) async fn run_plan_heavy_choreography() {
             result.completion
         );
     };
-    assert!(
-        result
-            .verification_reports
-            .iter()
-            .any(|report| report.subject == "shell:contract:plan-heavy-suite"
-                && report.effect_digest.as_ref() == Some(effect_digest)
-                && report.checks.iter().any(|check| check.required
-                    && check.status == crate::verification::VerificationStatus::Passed))
-    );
+    assert!(result
+        .verification_reports
+        .iter()
+        .any(|report| report.subject == "shell:contract:plan-heavy-suite"
+            && report.effect_digest.as_ref() == Some(effect_digest)
+            && report.checks.iter().any(|check| check.required
+                && check.status == crate::verification::VerificationStatus::Passed)));
 }

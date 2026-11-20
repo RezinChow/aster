@@ -526,14 +526,12 @@ mod tests {
     #[tokio::test]
     async fn baseline_sees_an_unpublished_write_and_ignores_harness_metadata() {
         let workspace = tempfile::tempdir().unwrap();
-        assert!(
-            std::process::Command::new("git")
-                .args(["init"])
-                .current_dir(workspace.path())
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(workspace.path())
+            .status()
+            .unwrap()
+            .success());
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(workspace.path()).await;
         std::fs::write(workspace.path().join("guest.txt"), "hello\n").unwrap();
@@ -570,51 +568,41 @@ mod tests {
             ["config", "user.name", "test"][..].as_ref(),
             ["config", "commit.gpgsign", "false"][..].as_ref(),
         ] {
-            assert!(
-                std::process::Command::new("git")
-                    .args(args)
-                    .current_dir(root)
-                    .status()
-                    .unwrap()
-                    .success()
-            );
+            assert!(std::process::Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success());
         }
         std::fs::write(root.join("README.md"), "base\n").unwrap();
-        assert!(
-            std::process::Command::new("git")
-                .args(["add", "README.md"])
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success()
-        );
-        assert!(
-            std::process::Command::new("git")
-                .args(["commit", "-m", "base"])
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["add", "README.md"])
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success());
+        assert!(std::process::Command::new("git")
+            .args(["commit", "-m", "base"])
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success());
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(root).await;
         std::fs::write(root.join("guest.txt"), "foreign\n").unwrap();
-        assert!(
-            std::process::Command::new("git")
-                .args(["add", "guest.txt"])
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success()
-        );
-        assert!(
-            std::process::Command::new("git")
-                .args(["commit", "-m", "foreign"])
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["add", "guest.txt"])
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success());
+        assert!(std::process::Command::new("git")
+            .args(["commit", "-m", "foreign"])
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success());
         let paths = state.unseen_workspace_paths(root).await.paths;
         assert!(
             !paths.iter().any(|path| path == "guest.txt"),
@@ -625,14 +613,12 @@ mod tests {
     #[tokio::test]
     async fn baseline_keeps_every_unpublished_path() {
         let workspace = tempfile::tempdir().unwrap();
-        assert!(
-            std::process::Command::new("git")
-                .args(["init"])
-                .current_dir(workspace.path())
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(workspace.path())
+            .status()
+            .unwrap()
+            .success());
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(workspace.path()).await;
         for index in 0..33 {
@@ -655,14 +641,12 @@ mod tests {
     async fn a_git_tree_past_the_stamp_cap_stays_a_complete_status_read() {
         let workspace = tempfile::tempdir().unwrap();
         let root = workspace.path();
-        assert!(
-            std::process::Command::new("git")
-                .args(["init"])
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success());
         for index in 0..=crate::porcelain::FILE_WALK_CAP {
             std::fs::write(root.join(format!("f{index:04}.txt")), "x").unwrap();
         }
@@ -682,14 +666,12 @@ mod tests {
                 "baseline",
             ],
         ] {
-            assert!(
-                std::process::Command::new("git")
-                    .args(args)
-                    .current_dir(root)
-                    .status()
-                    .unwrap()
-                    .success()
-            );
+            assert!(std::process::Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success());
         }
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(root).await;
@@ -712,18 +694,16 @@ mod tests {
 
     #[tokio::test]
     async fn a_path_list_over_the_stamp_cap_stays_recorded_and_the_gate_stays_open() {
-        use crate::harness_loop::{CompletionGate, MutationLedger, decide_completion};
+        use crate::harness_loop::{decide_completion, CompletionGate, MutationLedger};
         use crate::porcelain::FILE_WALK_CAP;
         let workspace = tempfile::tempdir().unwrap();
         let root = workspace.path();
-        assert!(
-            std::process::Command::new("git")
-                .args(["init"])
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success());
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(root).await;
         for index in 0..=FILE_WALK_CAP {
@@ -739,12 +719,10 @@ mod tests {
             "{:?}",
             observed.paths
         );
-        assert!(
-            observed
-                .paths
-                .iter()
-                .any(|path| path == &format!("f{FILE_WALK_CAP:04}.txt"))
-        );
+        assert!(observed
+            .paths
+            .iter()
+            .any(|path| path == &format!("f{FILE_WALK_CAP:04}.txt")));
         let mut ledger = MutationLedger::default();
         ledger.set_observation_incomplete(observed.incomplete || observed.budget_exceeded);
         assert!(matches!(
@@ -755,18 +733,16 @@ mod tests {
 
     #[tokio::test]
     async fn a_fresh_status_record_cap_closes_the_gate() {
-        use crate::harness_loop::{CompletionGate, MutationLedger, decide_completion};
+        use crate::harness_loop::{decide_completion, CompletionGate, MutationLedger};
         use crate::porcelain::STATUS_RECORD_CAP;
         let workspace = tempfile::tempdir().unwrap();
         let root = workspace.path();
-        assert!(
-            std::process::Command::new("git")
-                .args(["init"])
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success());
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(root).await;
         for index in 0..=STATUS_RECORD_CAP {
@@ -791,14 +767,12 @@ mod tests {
     #[tokio::test]
     async fn baseline_sees_a_quoted_path() {
         let workspace = tempfile::tempdir().unwrap();
-        assert!(
-            std::process::Command::new("git")
-                .args(["init"])
-                .current_dir(workspace.path())
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(workspace.path())
+            .status()
+            .unwrap()
+            .success());
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(workspace.path()).await;
         std::fs::write(workspace.path().join("my file.txt"), "x\n").unwrap();
@@ -820,14 +794,12 @@ mod tests {
     #[tokio::test]
     async fn baseline_sees_a_rewrite_of_an_already_untracked_file() {
         let workspace = tempfile::tempdir().unwrap();
-        assert!(
-            std::process::Command::new("git")
-                .args(["init"])
-                .current_dir(workspace.path())
-                .status()
-                .unwrap()
-                .success()
-        );
+        assert!(std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(workspace.path())
+            .status()
+            .unwrap()
+            .success());
         std::fs::write(workspace.path().join("guest.txt"), "one\n").unwrap();
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(workspace.path()).await;
@@ -1123,12 +1095,10 @@ mod tests {
 
         let second = state.record_parse_error("bad json", 1);
         assert_eq!(second.count, 2);
-        assert!(
-            second
-                .fatal_message
-                .unwrap()
-                .contains("max_parse_retries=1")
-        );
+        assert!(second
+            .fatal_message
+            .unwrap()
+            .contains("max_parse_retries=1"));
     }
 
     #[test]
@@ -1195,12 +1165,10 @@ mod tests {
         original.remember_tool_signature("read", &args, true);
         assert_eq!(original.record_duplicate_guard("read", &args), 1);
         assert!(original.should_inject_continuation(true, true, 1, 10));
-        assert!(
-            original
-                .record_parse_error("bad json", 1)
-                .fatal_message
-                .is_none()
-        );
+        assert!(original
+            .record_parse_error("bad json", 1)
+            .fatal_message
+            .is_none());
         assert!(!original.repeated_incomplete_response("secret response must-not-persist"));
         let convergence = original.convergence_checkpoint();
         let encoded = serde_json::to_string(&convergence).unwrap();
@@ -1218,12 +1186,10 @@ mod tests {
         assert!(resumed.duplicate_tool_call("read", &args, 2).is_some());
         assert_eq!(resumed.record_duplicate_guard("read", &args), 2);
         assert!(!resumed.should_inject_continuation(true, true, 1, 10));
-        assert!(
-            resumed
-                .record_parse_error("bad json", 1)
-                .fatal_message
-                .is_some()
-        );
+        assert!(resumed
+            .record_parse_error("bad json", 1)
+            .fatal_message
+            .is_some());
     }
 
     #[test]

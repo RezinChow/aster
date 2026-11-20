@@ -1320,20 +1320,16 @@ mod tests {
             ));
 
         let same_session = first.clone();
-        assert!(
-            same_session
-                .search_circuit_breaker()
-                .acquire("quota-api")
-                .is_err()
-        );
+        assert!(same_session
+            .search_circuit_breaker()
+            .acquire("quota-api")
+            .is_err());
 
         let other_session = first.with_session_id("session-b");
-        assert!(
-            other_session
-                .search_circuit_breaker()
-                .acquire("quota-api")
-                .is_ok()
-        );
+        assert!(other_session
+            .search_circuit_breaker()
+            .acquire("quota-api")
+            .is_ok());
     }
 
     struct RecordingInvoker {

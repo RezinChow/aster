@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::hitl::{ConfirmationPolicy, ConfirmationProvider, ConfirmationResponse};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::atomic::AtomicBool;
 use tokio::sync::oneshot;
 
@@ -298,11 +298,9 @@ async fn owned_fact_confirmation_uses_the_original_run_snapshot_after_session_mo
     );
     assert_eq!(requests.load(Ordering::SeqCst), 1);
     assert_eq!(executions.load(Ordering::SeqCst), 1);
-    assert!(
-        facts
-            .iter()
-            .any(|fact| fact.kind == "confirmation.answered" && fact.payload["approved"] == true)
-    );
+    assert!(facts
+        .iter()
+        .any(|fact| fact.kind == "confirmation.answered" && fact.payload["approved"] == true));
     let prepared = facts
         .iter()
         .find(|fact| fact.kind == "tool.prepared")
@@ -373,11 +371,9 @@ async fn a_rejected_fact_confirmation_publishes_a_terminal_without_executing() {
     agent.close().await;
     assert_eq!(requests.load(Ordering::SeqCst), 1);
     assert_eq!(executions.load(Ordering::SeqCst), 0);
-    assert!(
-        !facts
-            .iter()
-            .any(|fact| fact.kind == "tool.prepared" || fact.kind == "tool.result")
-    );
+    assert!(!facts
+        .iter()
+        .any(|fact| fact.kind == "tool.prepared" || fact.kind == "tool.result"));
     let (required, rejected_id) = events
         .iter()
         .enumerate()
@@ -403,12 +399,10 @@ async fn a_rejected_fact_confirmation_publishes_a_terminal_without_executing() {
         "every announced rejected call needs exactly one terminal permission event"
     );
     assert!(required < terminal[0].0);
-    assert!(
-        events
-            .iter()
-            .skip(terminal[0].0 + 1)
-            .any(|event| matches!(event, crate::AgentEvent::End { .. }))
-    );
+    assert!(events
+        .iter()
+        .skip(terminal[0].0 + 1)
+        .any(|event| matches!(event, crate::AgentEvent::End { .. })));
     assert!(!events.iter().any(|event| matches!(event,
         crate::AgentEvent::ToolExecutionStart { id, .. } if id == rejected_id
     )));

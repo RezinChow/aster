@@ -6,8 +6,8 @@ use agent_client_protocol as acp;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::AsterCodeAgent;
 use super::workspace_scope::canonical_workspace;
+use super::AsterCodeAgent;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

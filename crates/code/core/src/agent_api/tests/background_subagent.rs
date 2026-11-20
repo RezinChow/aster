@@ -316,12 +316,10 @@ async fn completed_background_child_settles_before_parent_terminal_and_saves_usa
         completion.payload["child_log_cut"],
         serde_json::json!({"seq":child_cut.seq,"digest":child_cut.digest})
     );
-    assert!(
-        facts[terminal_index].payload["background_receipt_keys"]
-            .as_array()
-            .unwrap()
-            .contains(&serde_json::json!(completion.key))
-    );
+    assert!(facts[terminal_index].payload["background_receipt_keys"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!(completion.key)));
     let missing = prefix
         .iter()
         .filter(|fact| fact.kind != "subagent.settled")
@@ -451,22 +449,18 @@ async fn background_child_survives_parent_answer_and_followup() {
     )
     .unwrap();
     assert!(pending_facts.iter().any(|fact| fact.kind == "turn.yielded"));
-    assert!(
-        !pending_facts
-            .iter()
-            .any(|fact| fact.kind == "turn.complete")
-    );
+    assert!(!pending_facts
+        .iter()
+        .any(|fact| fact.kind == "turn.complete"));
     assert!(crate::fact_control::has_unsettled_effects(&pending_facts));
     let transcript = session
         .transcript_page(Default::default())
         .expect("yielded parent history remains readable");
-    assert!(
-        transcript
-            .entries
-            .iter()
-            .any(|entry| matches!(&entry.payload,
-        crate::store::TranscriptEntryPayload::Assistant { text } if text == "BETA"))
-    );
+    assert!(transcript
+        .entries
+        .iter()
+        .any(|entry| matches!(&entry.payload,
+        crate::store::TranscriptEntryPayload::Assistant { text } if text == "BETA")));
     assert!(!transcript.entries.iter().any(|entry| matches!(
         &entry.payload,
         crate::store::TranscriptEntryPayload::TurnComplete { .. }
@@ -655,11 +649,9 @@ async fn live_background_does_not_forgive_another_prepared_invocation() {
     );
     let facts = log.read(&thread).unwrap();
     assert!(crate::fact_control::has_unsettled_effects(&facts));
-    assert!(
-        !facts
-            .iter()
-            .any(|fact| fact.kind == "turn.complete" || fact.kind == "turn.yielded")
-    );
+    assert!(!facts
+        .iter()
+        .any(|fact| fact.kind == "turn.complete" || fact.kind == "turn.yielded"));
     tokio::time::timeout(std::time::Duration::from_secs(5), async {
         while !session.background_tasks.live().is_empty() {
             tokio::task::yield_now().await;

@@ -228,11 +228,9 @@ async fn concurrent_session_direct_generations_share_provider_admission() {
     );
     let results = [first.unwrap(), second.unwrap()];
 
-    assert!(
-        results
-            .iter()
-            .all(|result| result.exit_code == 0 && result.output.contains(r#""ok":true"#))
-    );
+    assert!(results
+        .iter()
+        .all(|result| result.exit_code == 0 && result.output.contains(r#""ok":true"#)));
     assert_eq!(
         client.max_active.load(std::sync::atomic::Ordering::SeqCst),
         1,

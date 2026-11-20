@@ -315,12 +315,10 @@ async fn test_session_confirmation_api_without_manager_is_noop() {
         .unwrap();
 
     assert!(session.pending_confirmations().await.is_empty());
-    assert!(
-        !session
-            .confirm_tool_use("missing", true, None)
-            .await
-            .unwrap()
-    );
+    assert!(!session
+        .confirm_tool_use("missing", true, None)
+        .await
+        .unwrap());
     assert_eq!(session.cancel_confirmations().await, 0);
 }
 

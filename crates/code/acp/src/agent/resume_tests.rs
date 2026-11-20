@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use super::{AsterCodeAgent, test_launch};
+use super::{test_launch, AsterCodeAgent};
 use agent_client_protocol::{self as acp, Agent as _};
 use serde_json::json;
 
@@ -32,12 +32,10 @@ async fn registered_secondary_workspace_resume_is_bound_to_its_original_core_roo
         secondary.path().canonicalize().unwrap()
     );
     assert!(agent.admit_resume(sid, root.path()).await.is_err());
-    assert!(
-        agent
-            .admit_resume("unregistered", secondary.path())
-            .await
-            .is_err()
-    );
+    assert!(agent
+        .admit_resume("unregistered", secondary.path())
+        .await
+        .is_err());
     #[cfg(unix)]
     {
         let original = secondary.path().with_extension("original");
@@ -163,12 +161,10 @@ async fn a_legacy_record_without_a_snapshot_refuses_instead_of_creating_an_empty
         .expect_err("restore requires an existing snapshot");
     let error = serde_json::to_value(error).expect("error");
     assert_eq!(error["code"], -32603);
-    assert!(
-        error["data"]
-            .as_str()
-            .expect("snapshot recovery reason")
-            .contains("snapshot store is missing")
-    );
+    assert!(error["data"]
+        .as_str()
+        .expect("snapshot recovery reason")
+        .contains("snapshot store is missing"));
     assert_eq!(std::fs::read(path).expect("after"), before);
     assert!(!root.path().join(".aster/sessions").exists());
     assert!(!root.path().join("must-not-create-store").exists());
@@ -435,11 +431,9 @@ async fn snapshot_resume_keeps_usage_and_refuses_foreign_or_corrupt_snapshot() {
         .unwrap_err();
     let error = serde_json::to_value(error).unwrap();
     assert_eq!(error["code"], -32602);
-    assert!(
-        error["data"]
-            .as_str()
-            .is_some_and(|reason| reason.contains("foreign workspace"))
-    );
+    assert!(error["data"]
+        .as_str()
+        .is_some_and(|reason| reason.contains("foreign workspace")));
     assert!(host.sessions.lock().await.is_empty());
     assert!(!foreign.path().join(".aster").exists());
 
@@ -450,11 +444,10 @@ async fn snapshot_resume_keeps_usage_and_refuses_foreign_or_corrupt_snapshot() {
         .unwrap()
         .path();
     std::fs::write(&path, "invalid snapshot").unwrap();
-    assert!(
-        host.load_session(acp::LoadSessionRequest::new(id, root.path()))
-            .await
-            .is_err()
-    );
+    assert!(host
+        .load_session(acp::LoadSessionRequest::new(id, root.path()))
+        .await
+        .is_err());
     assert!(host.sessions.lock().await.is_empty());
     assert_eq!(std::fs::read_to_string(path).unwrap(), "invalid snapshot");
     assert_eq!(std::fs::read(source).unwrap(), source_bytes);

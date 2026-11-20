@@ -2,8 +2,8 @@
 //! completion gate. Recording it only on the session store leaves the fresh
 //! surface with an empty report list, so the same mutation digest stays open.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 
@@ -88,14 +88,12 @@ async fn a_host_recorded_report_closes_the_same_digest_on_the_next_stream() {
 
     let report = crate::verification::VerificationReport::new(
         "host admission",
-        vec![
-            crate::verification::VerificationCheck::required(
-                "check:host",
-                "host",
-                "the host bound this mutation digest",
-            )
-            .with_status(crate::verification::VerificationStatus::Passed),
-        ],
+        vec![crate::verification::VerificationCheck::required(
+            "check:host",
+            "host",
+            "the host bound this mutation digest",
+        )
+        .with_status(crate::verification::VerificationStatus::Passed)],
     )
     .with_effect_digest(digest);
     session.record_verification_reports([report]);
