@@ -110,6 +110,12 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 修复：fixture 整体改 aster 口径——tenant `aster`、资源路径 `tenant/aster/*`、INFO product `Aster`；原本“合法信息被改写为不匹配”的用例改为 `product: Aster → Legacy`；非法 tenant 用例改 `aster-cua`。
 - 验证：`cargo fmt -p aster-studio -- --check` 0 差异；本地 `app_updater::` **45 passed / 0 failed**（其中 `delivery_manifest::tests` 15/15），`bundled_skills::` 0 tests / 0 failed。首次本地复跑受 macOS SwiftPM `sandbox-exec: sandbox_apply: Operation not permitted` 阻塞，使用既有 `/tmp/aster-swift-nosandbox/swift` 包装器后通过；这是本地环境限制，CI 不受影响。
 
+### 14. CLI update 测试用 shell fixture 触发 glibc 基线门禁（run 44768812278）
+- 症状：Rust `check (ubuntu-latest)` 在 `Product and runtime tests` 的 `cargo test -p aster --test cli_update` 失败，6 个 `shipped_update_*` 用例都在 `apps/aster/tests/cli_update.rs:131` 报 `package-aster-cli.sh failed`；其它 workspace 检查与全部 Qualify 任务均通过。
+- 根因：`package()` 用 shell script 夹具模拟 `aster`/`aster-acp` 并调用 release 打包脚本；Linux 分支会执行 `check-glibc-symbols.py --max 2.31`，而 `readelf` 无法读取 shell script（本地用 `--readelf /usr/bin/false` 复现为 exit 2）。此前多轮 CI 都在更早步骤失败，这层直到本轮才暴露。
+- 修复：`package-aster-cli.sh` 新增仅测试可显式设置的 `ASTER_CLI_PACKAGE_SKIP_GLIBC=1`；release 流程不设置，glibc 2.31 基线仍是强制门禁。`cli_update.rs` 的 fixture 打包显式设置该变量，并把 `status()` 改为 `output()`，失败时输出脚本 stdout/stderr，避免再次只看到裸 `failed`。
+- 验证：`bash -n scripts/package-aster-cli.sh`、`cargo fmt --all -- --check`、`git diff --check` 均 0 差异；本地 `cargo test --locked -p aster --test cli_update -- --test-threads=1` **10 passed / 0 failed**。CLI 打包相关 Python 测试 59 项中 54 passed / 5 failed；5 项失败均为 WorkBuddy 本机 FS shim 的 `file rollback is not tracked for these tar options` / `rmdir ... Operation not permitted`，与本次改动无关。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -133,7 +139,9 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | 41bdc5d33 | ide_state_db 平台分支修复 + 本证据第 12 项 |
 | 主仓 | 04c6f8c33 | 证据补记第 12 项 commit SHA |
 | Studio | 8360624e45 | delivery manifest fixture 改 aster 单 tenant 口径 |
-| 主仓 | (本轮) | gitlink→8360624e45 + 本证据第 13 项 |
+| 主仓 | 53044e937 | gitlink→8360624e45 + 本证据第 13 项 |
+| 主仓 | 07defdb8f | CLI fixture 打包跳过 glibc 检查 + 失败诊断输出 |
+| 主仓 | (本轮) | 本证据第 14 项 |
 
 ## 验证
 
@@ -143,6 +151,7 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - ci.yml：YAML 解析 OK、抽取 run 块 `bash -n` OK、env 展开本地验证。
 - `aster-acp` 双目标检查：macOS host 与 Windows GNU 交叉 `cargo check --locked -p aster-acp --lib` 均 EXIT=0。
 - Studio `app_updater::` 45/45 PASS（delivery_manifest 15/15）；本地 SwiftPM 沙盒限制用既有 no-sandbox wrapper 绕过。
+- CLI `cli_update` 10/10 PASS；`package-aster-cli.sh` `bash -n` 0 差异。
 - CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→最终 run（见下）。
 
 ## 边界
@@ -150,4 +159,4 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 交付闭环（commit/push）≠ 产品 Pass；%≠Pass。
 - musl 编译步骤是 5d2d6ad90 既有缺陷，本轮让 main CI 首次具备全绿条件；release 通道实机证据、headed/daily-use Pass 仍未认领（park）。
 - `fact-log-byte-limit-fix` 等其它未跟踪证据目录非本轮产物，未触碰。
-- Windows portable gate 已由 CI run 44756558617 验证全绿；delivery manifest gate 仍需下一轮 Rust run 给最终结论。
+- Windows portable gate 已由 CI run 44756558617 验证全绿；delivery manifest 与 CLI update gate 已本地验证，仍需下一轮 Rust run 给最终结论。
