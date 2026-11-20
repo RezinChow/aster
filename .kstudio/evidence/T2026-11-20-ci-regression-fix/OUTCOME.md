@@ -39,6 +39,11 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
   - `tests/kylin_input_method.py`：只测 `aster`（11 tests OK）。
   - `apps/studio/scripts/kylin-flatpak/test_delivery.py`：用 importlib 从上级目录加载 document_assets；`MODEL`→`PDFIUM[("linux","x64")][2]`；manifest 补 v2 `schema` 字段；删除两个测已移除功能的陈旧测试（legacy tenant 桌面身份、OCR 权重 receipt）。24/24 OK。
 
+### 6. macOS check 平台回归（最终 run 44699158998）
+- 症状：`check (macos-latest)` 在 "Compile current static ACP binaries" 以 exit 1 失败：`unsupported Zig host: arm64`。
+- 根因：本轮第 3/4 项把原本平台无关的 rust-lld 编译步骤替换成 Linux-only 的 zig 0.16.0 下载方案，但 `check` job 是 `ubuntu-latest` + `macos-latest` 矩阵；macOS runner 的 `uname -m` 是 `arm64`，不在 `x86_64|aarch64` 分支内。Linux 专用 `acp-musl` job 已独立覆盖同一编译 + `acp_musl.py` 验证 + wire conformance。
+- 修复：给该 step 加 `if: runner.os == 'Linux'`，macOS 跳过；静态编译仍由 `acp-musl` job 与 Linux 矩阵门禁保证。YAML 解析验证 step `if` 生效；`git diff --check` 0 差异。
+
 ## 提交
 
 | 仓库 | commit | 内容 |

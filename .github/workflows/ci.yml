@@ -47,6 +47,7 @@ jobs:
       - name: Static guest linker hardening
         run: python3 tests/musl_linker_flags.py
       - name: Compile current static ACP binaries
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
