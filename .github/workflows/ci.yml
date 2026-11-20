@@ -60,7 +60,8 @@ jobs:
           zig_home="$RUNNER_TEMP/zig"
           mkdir -p "$zig_home"
           tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$zig_home" --strip-components=1
-          for guest_target in aarch64-unknown-linux-musl x86_64-unknown-linux-musl; do
+          # CI gate builds the x86_64 static ACP; the release matrix covers both arches.
+          for guest_target in x86_64-unknown-linux-musl; do
             case "$guest_target" in
               x86_64-unknown-linux-musl) zig_target=x86_64-linux-musl; rust_env=x86_64_unknown_linux_musl; linker_var=CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER ;;
               aarch64-unknown-linux-musl) zig_target=aarch64-linux-musl; rust_env=aarch64_unknown_linux_musl; linker_var=CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER ;;
@@ -71,8 +72,8 @@ jobs:
           EOF
             chmod +x "$RUNNER_TEMP/zig-link"
             env CRATE_CC_NO_DEFAULTS=1 \
-              "CC_${rust_env}=$zig_home/zig cc -target $zig_target" \
-              "CXX_${rust_env}=$zig_home/zig c++ -target $zig_target" \
+              "CC_${rust_env}=$zig_home/zig cc -target $zig_target -Wno-nullability-completeness" \
+              "CXX_${rust_env}=$zig_home/zig c++ -target $zig_target -Wno-nullability-completeness" \
               "${linker_var}=$RUNNER_TEMP/zig-link" \
               "${linker_var%LINKER}RUSTFLAGS=-C force-unwind-tables=yes -C relro-level=full -C link-self-contained=no" \
               cargo build --locked --release --target "$guest_target" -p aster-acp --bin aster-acp
