@@ -114,7 +114,7 @@ fn copy_tree(source: &Path, destination: &Path) {
 fn package(bin_dir: &Path, assets: &Path, version: &str) -> PathBuf {
     fs::create_dir_all(assets).expect("assets");
     let archive = assets.join(asset_name(version));
-    let status = Command::new("bash")
+    let output = Command::new("bash")
         .arg(repo_root().join("scripts/package-aster-cli.sh"))
         .arg(if cfg!(target_os = "macos") {
             "macos"
@@ -126,9 +126,15 @@ fn package(bin_dir: &Path, assets: &Path, version: &str) -> PathBuf {
         .arg(bin_dir)
         .arg(&archive)
         .env("COPYFILE_DISABLE", "1")
-        .status()
+        .env("ASTER_CLI_PACKAGE_SKIP_GLIBC", "1")
+        .output()
         .expect("package");
-    assert!(status.success(), "package-aster-cli.sh failed");
+    assert!(
+        output.status.success(),
+        "package-aster-cli.sh failed\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
     let len = fs::metadata(&archive).expect("archive").len();
     assert!(
         len > 12_288,

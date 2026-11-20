@@ -65,7 +65,10 @@ embedding_files=(
   "embedding/potion-code-16M-v2.tokenizer.json"
   "embedding/potion-code-16M-v2.config.json"
 )
-if [[ -n "$max_glibc" ]]; then
+# Hermetic CLI tests package shell-script fixtures through this release script.
+# readelf cannot inspect those fixtures, so the tests opt out explicitly; real
+# release packaging never sets this and keeps the glibc baseline mandatory.
+if [[ -n "$max_glibc" && -z "${ASTER_CLI_PACKAGE_SKIP_GLIBC:-}" ]]; then
   if command -v python3 >/dev/null 2>&1; then
     py=(python3)
   elif command -v python >/dev/null 2>&1; then
