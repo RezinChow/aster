@@ -138,6 +138,14 @@ jobs:
         run: cargo test --locked -p aster -p aster-acl -p aster-effect
       - name: Shell bounded continuation contracts
         run: env -u GROK_LENGTH_SALVAGE cargo test --locked -p aster-shell --lib length_salvage -- --test-threads=1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.12.0"
+      - name: Install Studio native contract dependencies
+        working-directory: apps/studio
+        run: |
+          npm install --global pnpm@12.6.0
+          pnpm install --frozen-lockfile
       - name: Studio native contracts
         run: cargo test --locked -p aster-studio-data-sqlite -p aster-studio-desktop-contract
       - name: ACP integration
