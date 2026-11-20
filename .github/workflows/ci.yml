@@ -118,6 +118,9 @@ jobs:
             target_dir="$(cargo metadata --locked --offline --no-deps --format-version 1 | python3 -c 'import sys,json;print(json.load(sys.stdin)["target_directory"])')"
             TAURI_CONFIG="$(python3 apps/studio/scripts/studio_product.py "$tenant" tauri-config --target-dir "$target_dir")"
             export TAURI_CONFIG STUDIO_COMPANIONS_STAGED=1
+            # The pinned tauri config maps studio-resources/document; stage it
+            # exactly as the standard studio build does before compiling Studio.
+            python3 apps/studio/scripts/document_assets.py "$target_dir/debug/studio-resources/document"
             feature="$(python3 apps/studio/scripts/studio_product.py "$tenant" feature)"
             build_args=(build --locked -p aster-studio -p aster-acp -p aster-office-cli --no-default-features --features "aster-studio/$feature,aster-acp/default,aster-acp/headless-search,aster-office-cli/default")
             cargo "${build_args[@]}" --bin aster-acp --bin aster-office
