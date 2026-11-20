@@ -124,6 +124,12 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
   - check job 在 `Studio native contracts` 前加 `actions/setup-node` + `pnpm install --frozen-lockfile`（`working-directory: apps/studio`），与 `desktop-frontend` job 使用同一 Node/pnpm 版本。
 - 验证：CI YAML 解析 OK、`git diff --check` 0；本地 `cargo test --locked -p aster-studio-desktop-contract --lib -- --test-threads=1` **12 passed / 0 failed**。
 
+### 16. Linux 的 chrome 期望硬编码（run 44791594953）
+- 症状：run 44791594953 的 `Qualify aster` 三平台全绿、`Cross-platform text` 全绿、Rust 的 Static ACP / desktop-frontend / check(macos) 也推进正常；`check (ubuntu-latest)` 在补装 Node 依赖后越过 jsdom，`Studio native contracts` 仍剩 1 个失败：`native_boot_scripts_keep_runtime_on_trusted_documents`。日志显示 `http://127.0.0.1:9/` 处 `AssertionError`：actual `overlay` / expected `native`。
+- 根因：`tests/helpers/nativeBootScripts.cjs` 把 `chrome` 期望写成 `platform === 'darwin' ? 'overlay' : 'native'`。生产代码里 Windows 恒为 `native`，macOS 恒为 `overlay`，Linux 则只有 `ASTER_SYSTEM_TITLE_BAR=1` 时才是 `native`，默认是无边框 `overlay`。本地 macOS 用例两个分支都是 `overlay`，所以 12/12 一直通过；Linux CI 首次跑到这一步才暴露。
+- 修复：Rust contract 输入新增 `systemTitleBar: host_family::keeps_system_frame()`，helper 按 `win32 || (linux && systemTitleBar)` 计算期望值；与生成脚本共用同一个 `keeps_system_frame()` 判定源，不是复制环境判断。
+- 验证：`cargo fmt --all -- --check`、`git diff --check` 0 差异；本地默认与 `ASTER_SYSTEM_TITLE_BAR=1` 两轮 `cargo test --locked -p aster-studio-desktop-contract --lib -- --test-threads=1` 均 **12 passed / 0 failed**。Linux 分支由下一轮 CI 最终确认。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -150,8 +156,10 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | 53044e937 | gitlink→8360624e45 + 本证据第 13 项 |
 | 主仓 | 07defdb8f | CLI fixture 打包跳过 glibc 检查 + 失败诊断输出 |
 | 主仓 | df0255218 | 本证据第 14 项 |
-| Studio | (本轮) | native boot script product 断言改 Legacy |
-| 主仓 | (本轮) | check job 安装 Studio Node 依赖 + gitlink + 本证据第 15 项 |
+| Studio | 08ab1a982f | native boot script product 断言改 Legacy |
+| 主仓 | ec5a1a603 | check job 安装 Studio Node 依赖 + gitlink→08ab1a982f + 本证据第 15 项 |
+| Studio | a1a8d5d10f | native boot chrome 期望按平台与系统标题栏判定 |
+| 主仓 | (本笔) | gitlink→a1a8d5d10f + 本证据第 16 项 |
 
 ## 验证
 
@@ -163,11 +171,11 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - Studio `app_updater::` 45/45 PASS（delivery_manifest 15/15）；本地 SwiftPM 沙盒限制用既有 no-sandbox wrapper 绕过。
 - CLI `cli_update` 10/10 PASS；`package-aster-cli.sh` `bash -n` 0 差异。
 - `aster-studio-desktop-contract` 12/12 PASS；CI YAML 解析 OK。
-- CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→最终 run（见下）。
+- CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→44791594953/44791595251（Qualify aster 三平台与 Cross-platform text 全绿；Rust ubuntu 到 native contracts 剩 Linux chrome 期望失败）→下一轮 Rust run 待结论。
 
 ## 边界
 
 - 交付闭环（commit/push）≠ 产品 Pass；%≠Pass。
 - musl 编译步骤是 5d2d6ad90 既有缺陷，本轮让 main CI 首次具备全绿条件；release 通道实机证据、headed/daily-use Pass 仍未认领（park）。
 - `fact-log-byte-limit-fix` 等其它未跟踪证据目录非本轮产物，未触碰。
-- Windows portable gate 已由 CI run 44756558617 验证全绿；delivery manifest、CLI update、desktop contract 均已本地验证，仍需下一轮 Rust run 给最终结论。
+- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证，Rust ubuntu 的 Linux chrome 期望已修，仍需下一轮 Rust run 给最终结论。
