@@ -779,12 +779,13 @@ pub fn builtin_agents() -> Vec<AgentDefinition> {
         // Explore agent: Fast codebase exploration (read-only)
         AgentDefinition::new(
             "explore",
-            "Fast read-only exploration agent. Use for searching files, reading code, \
-             understanding codebase structure, and gathering external web evidence.",
+            "Fast read-only codebase explorer. Delegate one specific, well-scoped question; \
+             use parallel explore tasks for independent questions and reuse prior findings \
+             instead of rescanning files.",
         )
         .native()
         .with_permissions(explore_permissions())
-        .with_max_steps(20)
+        .with_max_steps(8)
         .with_prompt(EXPLORE_PROMPT),
         // General agent: Multi-step task execution
         AgentDefinition::new(

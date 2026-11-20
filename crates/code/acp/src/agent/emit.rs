@@ -55,6 +55,34 @@ impl AsterCodeAgent {
         .await;
     }
 
+    pub(super) fn provider_retry_forwarder(
+        &self,
+        session_id: &acp::SessionId,
+    ) -> (aster_core::llm::RetryObserver, tokio::task::JoinHandle<()>) {
+        let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let observer: aster_core::llm::RetryObserver = std::sync::Arc::new(move |notice| {
+            let _ = sender.send(notice);
+        });
+        let client = self.client.borrow().clone();
+        let session_id = session_id.clone();
+        let meta = self.notification_meta(&session_id);
+        let forwarder = tokio::task::spawn_local(async move {
+            while let Some(notice) = receiver.recv().await {
+                let Some(client) = client.as_ref() else {
+                    return;
+                };
+                send_session_update(
+                    client,
+                    &session_id,
+                    meta.clone(),
+                    provider_retry_update(notice),
+                )
+                .await;
+            }
+        });
+        (observer, forwarder)
+    }
+
     pub(super) async fn emit(&self, notification: acp::SessionNotification) {
         let client = self.client.borrow().clone();
         if let Some(client) = client {
@@ -625,6 +653,16 @@ impl AsterCodeAgent {
             send_session_update(&client, session_id, meta, update).await;
         }
     }
+}
+
+fn provider_retry_update(notice: aster_core::llm::RetryNotice) -> serde_json::Value {
+    serde_json::json!({
+        "sessionUpdate": "retry_state",
+        "type": "retrying",
+        "attempt": notice.attempt,
+        "maxRetries": notice.max_attempts,
+        "reason": notice.reason,
+    })
 }
 
 async fn send_session_update(

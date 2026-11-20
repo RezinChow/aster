@@ -33,9 +33,15 @@ impl ContextProvider for SkillCatalogContextProvider {
         // removals that landed since the last query (a running session sees
         // `aster code skills add` on its next turn).
         self.skill_registry.refresh_watched_dirs();
-        let skill_prompt = self.skill_registry.to_system_prompt();
+        let mut skill_prompt = self.skill_registry.to_system_prompt();
         if skill_prompt.is_empty() {
             return Ok(ContextResult::new(self.name()));
+        }
+        if crate::kstudio::KBURN_SKILL_NAMES
+            .iter()
+            .any(|name| self.skill_registry.get(name).is_some())
+        {
+            skill_prompt = format!("{}\n\n{skill_prompt}", crate::prompts::KBURN_CATALOG_HEADER);
         }
 
         let item = ContextItem::new("skills_catalog", ContextType::Skill, skill_prompt)
@@ -85,5 +91,30 @@ mod tests {
 
         registry.remove("live-report");
         assert!(provider.query(&query).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn kburn_skills_add_a_bounded_priority_hint() {
+        let registry = Arc::new(SkillRegistry::new());
+        registry.register_unchecked(Arc::new(Skill {
+            name: "status".to_string(),
+            description: "Report project status".to_string(),
+            allowed_tools: None,
+            disable_model_invocation: false,
+            kind: SkillKind::Instruction,
+            content: "Read the current evidence".to_string(),
+            tags: vec![],
+            version: None,
+        }));
+        let provider = SkillCatalogContextProvider::new(registry);
+        let result = provider
+            .query(&ContextQuery::new("plan implementation"))
+            .await
+            .unwrap();
+        let prompt = &result.items[0].content;
+        assert!(prompt.contains("KBurn conductor skills are active"));
+        assert!(prompt.contains("before generic planning or orchestration tools"));
+        assert!(prompt.contains("confirm `status` is `running` before any product write"));
+        assert!(prompt.contains("Do not invoke `yolo` unless explicitly requested"));
     }
 }

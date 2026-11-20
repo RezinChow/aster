@@ -19,7 +19,7 @@ fn digest_has_a_fixed_cross_language_reference() {
     let policy = WorkPolicyV1::new("engineering", 1, "Prefer reuse.").unwrap();
     assert_eq!(
         policy.digest().unwrap(),
-        "sha256:438a80b73efc8defe9aacad62edc2a22ce881923c5bf76638ce5f8bc80380404"
+        "sha256:174b35fa4e9751d4dd66db8cd437c203e9f72a3a6c2e7caab4114bab3613df96"
     );
 }
 

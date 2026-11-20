@@ -1,8 +1,8 @@
 #![cfg(test)]
 
-use super::{test_launch, AsterCodeAgent};
+use super::{AsterCodeAgent, test_launch};
 use agent_client_protocol::{self as acp, Agent as _};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn request(value: &Value) -> acp::ExtRequest {
     acp::ExtRequest::new(
@@ -132,10 +132,12 @@ fn dropped_request_keeps_admission_until_its_blocking_worker_exits() {
         ready.await.expect("blocking pool occupied");
         let mut pending = Box::pin(agent.ext_method(request(&json!({}))));
         let waker = Waker::noop();
-        assert!(pending
-            .as_mut()
-            .poll(&mut Context::from_waker(waker))
-            .is_pending());
+        assert!(
+            pending
+                .as_mut()
+                .poll(&mut Context::from_waker(waker))
+                .is_pending()
+        );
         drop(pending);
         // The first filesystem worker is queued but its ACP waiter is gone.
         // A waiter-owned permit would admit this second request incorrectly.

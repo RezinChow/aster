@@ -158,9 +158,14 @@ impl ExecutorTools {
                 total_usage: crate::llm::TokenUsage::default(),
                 tool_calls_count: turn,
                 verification_reports: reports,
-                convergence: crate::loop_checkpoint::LoopConvergenceState {
-                    mutations,
-                    ..Default::default()
+                convergence: {
+                    let mut convergence = self
+                        .agent
+                        .as_ref()
+                        .map(|agent| agent.fact_convergence_snapshot())
+                        .unwrap_or_default();
+                    convergence.mutations = mutations;
+                    convergence
                 },
                 checkpoint_ms,
             })

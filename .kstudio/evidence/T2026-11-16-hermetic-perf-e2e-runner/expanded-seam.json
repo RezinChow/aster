@@ -1,0 +1,65 @@
+{
+  "pack": "hermetic-perf-e2e",
+  "aster_acp_bin": "/Users/roylin/code/aster/target/debug/aster-acp",
+  "aster_tui_bin": "/Users/roylin/code/aster/target/debug/aster",
+  "suites": 4,
+  "passed": 21,
+  "failed": 2,
+  "ignored": 1,
+  "seconds": 47.18,
+  "failed_suites": [
+    "boundary_e2e",
+    "v912_seam"
+  ],
+  "results": [
+    {
+      "suite": "boundary_e2e",
+      "exit": 101,
+      "seconds": 22.98,
+      "passed": 8,
+      "failed": 1,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-seam/boundary_e2e.log",
+      "failed_tests": [
+        "e_bash"
+      ]
+    },
+    {
+      "suite": "consumer_deny",
+      "exit": 0,
+      "seconds": 3.82,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-seam/consumer_deny.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "startup_error",
+      "exit": 0,
+      "seconds": 7.89,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-seam/startup_error.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "v912_seam",
+      "exit": 101,
+      "seconds": 12.49,
+      "passed": 9,
+      "failed": 1,
+      "ignored": 1,
+      "log": "/tmp/aster-hermetic-seam/v912_seam.log",
+      "failed_tests": [
+        "v912_readonly_git_parallel_commit_opens_the_gate"
+      ]
+    }
+  ],
+  "explicitly_not_claimed": [
+    "named YOLO Done",
+    "Meta Harness Pass",
+    "headed Studio / live LLM"
+  ]
+}

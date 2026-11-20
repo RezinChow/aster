@@ -1,4 +1,4 @@
-# Bootstrap · /k-yolo · 2026-11-16（接线后 · HG3 park）
+# Bootstrap · /yolo · 2026-11-16（接线后 · HG3 park）
 
 ## 硬目标（一句）
 

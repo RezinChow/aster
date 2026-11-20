@@ -519,7 +519,7 @@ mod tests {
         );
         assert_eq!(
             document.digest().as_str(),
-            "sha256:4286fdb205409b4cd204cefdd7e1e8fe0d45a4a269193ff656a976a2353a0114"
+            "sha256:5277c38f1e691a8319e65b1773761a80f51cd8b11b75e76346dd477921f1e4df"
         );
         let binding = UiBinding::new(UiBindingSpec {
             public_name: "panel".to_owned(),
@@ -532,7 +532,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             binding.surface_digest().as_str(),
-            "sha256:c78cab3d09b64058f352bb84a10f749707b2cd84d1acfb780e77bee6fe3cae27"
+            "sha256:52b3a74e63946ffae3a270df60a1032b499b2e22d28650e18d286ce744effd48"
         );
     }
 

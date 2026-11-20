@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect /k-review inputs and run declared checks without a shell.
+"""Collect /review inputs and run declared checks without a shell.
 
 Checks prove only their recorded results. They do not decide code quality or
 product acceptance, and hashes detect drift rather than authenticate a runner.
@@ -12,6 +12,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -19,8 +20,9 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-CONFIG = ".kstudio/workflow/review-checks.json"
-EXCLUDED = (".kstudio/evidence/", ".kstudio/wiki/site/")
+ENG_ROOT = Path(__file__).resolve().parents[1].name
+CONFIG = f"{ENG_ROOT}/workflow/review-checks.json"
+EXCLUDED = (f"{ENG_ROOT}/evidence/", f"{ENG_ROOT}/wiki/site/")
 SCHEMA = "kstudio.review-receipt.v1"
 ID = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 
@@ -74,14 +76,126 @@ def load_config(root: Path) -> tuple[list[dict], str | None, list[str]]:
             timeout = row.get("timeout_seconds", 60)
             if type(timeout) not in (int, float) or not 0 < timeout <= 3600:
                 raise ValueError(f"{row['id']}: timeout_seconds must be between 0 and 3600")
+            paths = row.get("paths")
+            if paths is not None:
+                if not isinstance(paths, list) or not paths:
+                    raise ValueError(f"{row['id']}: paths must be a nonempty scope array")
+                for value in paths:
+                    if not isinstance(value, str) or not value or Path(value).is_absolute() or ".." in Path(value).parts or any(c in value for c in "*?[]:\\\0"):
+                        raise ValueError(f"{row['id']}: paths need explicit project-relative scopes")
+                    within(root, value)
         return checks, config_hash, []
     except (OSError, ValueError, TypeError) as error:
         return [], config_hash, [f"{CONFIG}: {error}"]
 
 
+SNAPSHOT_ROOT = f"{ENG_ROOT}/local/review-snapshots"
+MAX_SNAPSHOTS = 4
+MAX_SNAPSHOT_BYTES = 32_000_000
+RUNTIME_EXCLUDED = (
+    ".aster/local/", ".aster/evidence/", ".aster/wiki/site/", ".aster/effect-log/", ".aster/loops/",
+    ".kstudio/local/", ".kstudio/evidence/", ".kstudio/wiki/site/",
+)
+
+
+def _capture(root: Path) -> tuple[str, dict]:
+    files = {}
+    total = 0
+    for path in sorted(root.rglob("*")):
+        name = path.relative_to(root).as_posix()
+        if name == ".git" or name.startswith((".git/", *RUNTIME_EXCLUDED)) or "__pycache__" in path.parts:
+            continue
+        if path.is_symlink():
+            data = os.fsencode(os.readlink(path))
+            kind = "symlink"
+        elif path.is_file():
+            data = path.read_bytes()
+            kind = "file"
+        else:
+            continue
+        total += len(data)
+        if total > MAX_SNAPSHOT_BYTES:
+            raise ValueError("filesystem snapshot exceeds 32 MiB")
+        files[name] = {"kind": kind, "sha256": digest(data), "data": data}
+    identity = {name: {key: value for key, value in record.items() if key != "data"} for name, record in sorted(files.items())}
+    head = digest(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode())
+    return head, files
+
+
+def _store_snapshot(root: Path) -> tuple[str, dict]:
+    head, files = _capture(root)
+    destination = root / SNAPSHOT_ROOT / head
+    if not destination.exists():
+        destination.mkdir(parents=True)
+        for name, record in files.items():
+            target = destination / "files" / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(record["data"])
+        manifest = {name: {key: value for key, value in record.items() if key != "data"} for name, record in sorted(files.items())}
+        (destination / "manifest.json").write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")))
+    snapshots = sorted((root / SNAPSHOT_ROOT).glob("*"), key=lambda path: path.stat().st_mtime)
+    while len(snapshots) > MAX_SNAPSHOTS:
+        shutil.rmtree(snapshots.pop(0))
+    return head, files
+
+
+def _snapshot_manifest(root: Path, head: str) -> dict:
+    path = root / SNAPSHOT_ROOT / head / "manifest.json"
+    if not path.is_file():
+        raise ValueError(f"filesystem snapshot is not retained: {head}")
+    manifest = json.loads(path.read_text())
+    return {name: dict(record, data=(path.parent / "files" / name).read_bytes()) for name, record in manifest.items()}
+
+
+def _history(root: Path, head: str) -> dict:
+    if head == "HEAD":
+        return _store_snapshot(root)[1]
+    return _snapshot_manifest(root, head)
+
+
+def _filesystem_diff(root: Path, before: str, names_only: bool) -> bytes:
+    previous = _history(root, before) if before != "HEAD" else {}
+    current = _store_snapshot(root)[1]
+    rows = []
+    for name in sorted(set(previous) | set(current)):
+        old = previous.get(name)
+        new = current.get(name)
+        if old is not None and new is not None and old["sha256"] == new["sha256"]:
+            continue
+        if names_only:
+            rows.append(name)
+        else:
+            rows.append({"path": name, "before": old and old["sha256"], "after": new and new["sha256"]})
+    if names_only:
+        return b"\0".join(os.fsencode(row) for row in rows) + (b"\0" if rows else b"")
+    return json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _filesystem_git(root: Path, args: tuple[str, ...]) -> bytes:
+    if args == ("rev-parse", "HEAD"):
+        return _store_snapshot(root)[0].encode()
+    if args == ("branch", "--show-current"):
+        return b"workspace"
+    if args[0] == "ls-files":
+        names = sorted(_store_snapshot(root)[1])
+        return b"\0".join(os.fsencode(name) for name in names) + (b"\0" if names else b"")
+    if args[0] == "ls-tree":
+        names = sorted(_history(root, args[4]))
+        return b"\0".join(os.fsencode(name) for name in names) + (b"\0" if names else b"")
+    if args[0] == "show":
+        head, name = args[1].split(":", 1)
+        return _history(root, head)[name]["data"]
+    if args[0] == "diff":
+        return _filesystem_diff(root, "HEAD", "--name-only" in args)
+    raise ValueError(f"unsupported filesystem git command: {args}")
+
+
 def git(root: Path, *args: str) -> bytes:
-    result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=True)
-    return result.stdout
+    try:
+        result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=True)
+        return result.stdout
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return _filesystem_git(root, args)
 
 
 def snapshot(root: Path) -> dict:
@@ -245,10 +359,10 @@ def main() -> int:
             print(f"OK review configuration: {len(checks)} declared check(s)")
             return 0
         before = snapshot(root)
-        out = args.out.resolve() if args.out else root / ".kstudio/evidence/k-review" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8])
+        out = args.out.resolve() if args.out else root / ENG_ROOT / "evidence/review" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid.uuid4().hex[:8])
         # Evidence is excluded from source fingerprints so capture cannot stale itself.
         if out.is_relative_to(root) and not any(out.is_relative_to(root / p) for p in EXCLUDED):
-            raise ValueError("in-repository --out must be under .kstudio/evidence/ or .kstudio/wiki/site/")
+            raise ValueError(f"in-repository --out must be under {ENG_ROOT}/evidence/ or {ENG_ROOT}/wiki/site/")
         out.mkdir(parents=True, exist_ok=False)
         started_at = now()
         results = [execute(root, out, check, args.run) for check in checks]

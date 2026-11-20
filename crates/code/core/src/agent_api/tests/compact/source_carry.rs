@@ -169,12 +169,14 @@ async fn prove_two_compactions(file: bool, policy_enabled: bool, goal_enabled: b
     assert_eq!(resumed.recorded_usage_tokens(), saved_usage);
     if goal_enabled {
         let calls = client.streams.lock().unwrap().len();
-        assert!(resumed
-            .send("No progress is accepted by a summary", None)
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("goal.host_driver_conflict"));
+        assert!(
+            resumed
+                .send("No progress is accepted by a summary", None)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("goal.host_driver_conflict")
+        );
         assert_eq!(client.streams.lock().unwrap().len(), calls);
         assert_eq!(
             crate::fact_control::read_workspace_facts(root.path(), "compact-carry").unwrap(),

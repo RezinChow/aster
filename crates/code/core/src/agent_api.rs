@@ -299,6 +299,9 @@ pub struct SessionOptions {
     pub planning_mode: PlanningMode,
     /// Enable goal tracking
     pub goal_tracking: bool,
+    /// Automatic KBurn factory materialization and conductor-skill loading.
+    /// Explicit skill directories remain independent of this switch.
+    pub kburn_mode: crate::kstudio::KburnMode,
     /// Extra directories to scan for skill files (*.md).
     /// Merged with any global `skill_dirs` from [`CodeConfig`].
     pub skill_dirs: Vec<PathBuf>,
@@ -539,6 +542,9 @@ pub struct SessionOptions {
     /// when creating sessions
     /// via [`Agent::session_for_agent`].
     pub max_tool_rounds: Option<usize>,
+    /// Optional one-shot soft synthesis gate for consecutive read-only tool responses.
+    /// `None` or `Some(0)` disables it; mutating tool responses make the run ineligible.
+    pub read_only_synthesis_rounds: Option<u32>,
     /// Per-session parallel fan-out limit override.
     ///
     /// Applies to delegated `task` fan-out, plan wave execution, and safe

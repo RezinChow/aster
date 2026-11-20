@@ -1,0 +1,38 @@
+{
+  "pack": "hermetic-perf-e2e",
+  "aster_acp_bin": "/Users/roylin/code/aster/target/debug/aster-acp",
+  "aster_tui_bin": "/Users/roylin/code/aster/target/debug/aster",
+  "suites": 2,
+  "passed": 44,
+  "failed": 0,
+  "ignored": 0,
+  "seconds": 99.74,
+  "failed_suites": [],
+  "results": [
+    {
+      "suite": "tui_913_hermetic",
+      "exit": 0,
+      "seconds": 47.83,
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-bg-task/tui_913_hermetic.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "unattended_e2e",
+      "exit": 0,
+      "seconds": 51.91,
+      "passed": 33,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-bg-task/unattended_e2e.log",
+      "failed_tests": []
+    }
+  ],
+  "explicitly_not_claimed": [
+    "named YOLO Done",
+    "Meta Harness Pass",
+    "headed Studio / live LLM"
+  ]
+}

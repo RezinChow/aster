@@ -1,0 +1,14 @@
+{
+  "schema": "kstudio.clean-plan.v1",
+  "root": "/Users/roylin/code/aster",
+  "delete": [],
+  "flag": [
+    ".cursor/skills/speckit-analyze",
+    ".cursor/skills/speckit-clarify",
+    ".cursor/skills/speckit-constitution",
+    ".cursor/skills/speckit-implement",
+    ".cursor/skills/speckit-plan",
+    ".cursor/skills/speckit-specify",
+    ".cursor/skills/speckit-tasks"
+  ]
+}

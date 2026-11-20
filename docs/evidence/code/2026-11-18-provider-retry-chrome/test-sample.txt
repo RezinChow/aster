@@ -1,0 +1,32 @@
+Analysis of sampling aster_core-0291390f77eba3c6 (pid 22883) every 1 millisecond
+Process:         aster_core-0291390f77eba3c6 [22883]
+Path:            /Users/USER/*/aster_core-0291390f77eba3c6
+Load Address:    0x104f48000
+Identifier:      aster_core-0291390f77eba3c6
+Version:         ???
+Code Type:       ARM64
+Parent Process:  cargo [21089]
+Target Type:     live task
+
+Date/Time:       2026-11-18 17:12:12.220 +0800
+Launch Time:     2026-11-18 17:09:36.732 +0800
+OS Version:      macOS 26.6.2 (25G83)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         112K
+Physical footprint (peak):  112K
+Idle exit:                  untracked
+----
+
+Call graph:
+    1781 Thread_163608180: Main Thread   DispatchQueue_<multiple>
+      1781 _dyld_start  (in dyld) + 0  [0x11c25c9c0]
+
+Total number in stack (recursive counted multiple, when >=5):
+
+Sort by top of stack, same collapsed (when >= 5):
+        _dyld_start  (in dyld)        1781
+
+Binary images description not available
+

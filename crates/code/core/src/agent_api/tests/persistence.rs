@@ -106,16 +106,18 @@ async fn test_session_save_persists_runtime_config() {
         Some("gpt-4o")
     );
     assert!(data.config.queue_config.is_some());
-    assert!(data
-        .config
-        .confirmation_policy
-        .as_ref()
-        .is_some_and(|p| p.enabled));
-    assert!(data
-        .config
-        .permission_policy
-        .as_ref()
-        .is_some_and(|p| !p.allow.is_empty()));
+    assert!(
+        data.config
+            .confirmation_policy
+            .as_ref()
+            .is_some_and(|p| p.enabled)
+    );
+    assert!(
+        data.config
+            .permission_policy
+            .as_ref()
+            .is_some_and(|p| !p.allow.is_empty())
+    );
     assert!(data.config.enforce_active_skill_tool_restrictions);
 }
 
@@ -312,7 +314,7 @@ async fn test_session_uses_finite_retention_by_default_and_allows_explicit_unbou
 #[tokio::test(flavor = "multi_thread")]
 async fn test_completed_run_clears_its_loop_checkpoint() {
     use crate::host_env::{HostEnv, SequentialIdGenerator, SystemClock};
-    use crate::loop_checkpoint::{LoopCheckpoint, LOOP_CHECKPOINT_SCHEMA_VERSION};
+    use crate::loop_checkpoint::{LOOP_CHECKPOINT_SCHEMA_VERSION, LoopCheckpoint};
 
     let store = Arc::new(crate::store::MemorySessionStore::new());
     let agent = Agent::from_config(test_config()).await.unwrap();
@@ -395,7 +397,7 @@ async fn test_completed_run_clears_its_loop_checkpoint() {
 /// for unit testing.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_resume_run_picks_up_from_persisted_checkpoint() {
-    use crate::loop_checkpoint::{LoopCheckpoint, LOOP_CHECKPOINT_SCHEMA_VERSION};
+    use crate::loop_checkpoint::{LOOP_CHECKPOINT_SCHEMA_VERSION, LoopCheckpoint};
 
     let store = Arc::new(crate::store::MemorySessionStore::new());
     let agent = Agent::from_config(test_config()).await.unwrap();
@@ -511,7 +513,7 @@ async fn test_resume_run_picks_up_from_persisted_checkpoint() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_resume_run_preserves_exhausted_tool_budget_for_finalization() {
-    use crate::loop_checkpoint::{LoopCheckpoint, LOOP_CHECKPOINT_SCHEMA_VERSION};
+    use crate::loop_checkpoint::{LOOP_CHECKPOINT_SCHEMA_VERSION, LoopCheckpoint};
 
     let store = Arc::new(crate::store::MemorySessionStore::new());
     let checkpoint_run_id = "budget-exhausted-checkpoint";
@@ -572,7 +574,7 @@ async fn test_resume_run_preserves_exhausted_tool_budget_for_finalization() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_resume_run_rejects_checkpoint_owned_by_another_session() {
-    use crate::loop_checkpoint::{LoopCheckpoint, LOOP_CHECKPOINT_SCHEMA_VERSION};
+    use crate::loop_checkpoint::{LOOP_CHECKPOINT_SCHEMA_VERSION, LoopCheckpoint};
 
     let store = Arc::new(crate::store::MemorySessionStore::new());
     let run_id = "foreign-checkpoint-run";
@@ -706,9 +708,11 @@ async fn test_resume_session_preserves_artifacts_beyond_default_store_limits() {
     assert_eq!(restored.len(), artifact_count);
     assert_eq!(restored.total_bytes(), persisted_bytes);
     assert!(restored.get("aster://tool-output/test/0").is_some());
-    assert!(restored
-        .get(&format!("aster://tool-output/test/{}", artifact_count - 1))
-        .is_some());
+    assert!(
+        restored
+            .get(&format!("aster://tool-output/test/{}", artifact_count - 1))
+            .is_some()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -825,9 +829,11 @@ async fn test_resume_session_restores_verification_reports() {
         resumed.verification_summary().status,
         crate::verification::VerificationStatus::Passed
     );
-    assert!(resumed
-        .verification_summary_text()
-        .contains("Verification passed"));
+    assert!(
+        resumed
+            .verification_summary_text()
+            .contains("Verification passed")
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -912,10 +918,12 @@ async fn test_verify_commands_use_host_direct_policy_but_keep_budget_governance(
         report.checks[0].status,
         crate::verification::VerificationStatus::Failed
     );
-    assert!(report.checks[0]
-        .residual_risk
-        .as_deref()
-        .is_some_and(|risk| risk.contains("Budget exhausted")));
+    assert!(
+        report.checks[0]
+            .residual_risk
+            .as_deref()
+            .is_some_and(|risk| risk.contains("Budget exhausted"))
+    );
     assert!(
         !marker.exists(),
         "budget denial must happen before bash runs"
@@ -1049,11 +1057,13 @@ async fn failed_verification_auto_saves_all_reported_model_usage() {
         .unwrap();
     let snapshot = reopened.load_snapshot(session.id()).await.unwrap().unwrap();
     assert_eq!(snapshot.session.total_usage.total_tokens, 4);
-    assert!(!crate::fact_control::read_workspace_facts(
-        workspace.path(),
-        &crate::fact_control::thread_for_session(session.id()),
-    )
-    .unwrap()
-    .iter()
-    .any(|fact| fact.kind == crate::fact_control::TURN_COMPLETE_FACT_KIND));
+    assert!(
+        !crate::fact_control::read_workspace_facts(
+            workspace.path(),
+            &crate::fact_control::thread_for_session(session.id()),
+        )
+        .unwrap()
+        .iter()
+        .any(|fact| fact.kind == crate::fact_control::TURN_COMPLETE_FACT_KIND)
+    );
 }

@@ -444,6 +444,15 @@ async fn active_run_keeps_n_hook_handler_and_use_lease_across_cutover() {
         "{old_error:#}"
     );
     assert_eq!(first_dropped.load(Ordering::SeqCst), 1);
+    // Blocking errors may return before the guardian publishes retirement.
+    // Wait for that actual boundary instead of racing the next admission.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while session.run_admission.current_original().is_some() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("generation-one Run must retire before generation-two starts");
 
     let new_error = session
         .send("execute generation two", None)

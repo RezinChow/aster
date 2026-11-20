@@ -605,10 +605,12 @@ async fn test_cancelled_resume_releases_session_id_reservation() {
     });
     blocking.wait_until_load_is_blocked().await;
     resume.abort();
-    assert!(resume
-        .await
-        .expect_err("task must be cancelled")
-        .is_cancelled());
+    assert!(
+        resume
+            .await
+            .expect_err("task must be cancelled")
+            .is_cancelled()
+    );
 
     let resumed = agent
         .resume_session_async(
@@ -833,9 +835,11 @@ async fn test_send_with_attachments_passes_session_id_to_context_providers() {
 
     let session_ids = provider.session_ids.lock().unwrap();
     assert!(!session_ids.is_empty());
-    assert!(session_ids
-        .iter()
-        .all(|id| id.as_deref() == Some("attachments-context-session")));
+    assert!(
+        session_ids
+            .iter()
+            .all(|id| id.as_deref() == Some("attachments-context-session"))
+    );
 }
 
 #[tokio::test]
@@ -858,12 +862,16 @@ async fn test_send_records_run_snapshot_and_events() {
     assert_eq!(runs[0].result_text.as_deref(), Some("run answer"));
 
     let events = session.run_events(&runs[0].id).await;
-    assert!(events
-        .iter()
-        .any(|record| matches!(record.event, AgentEvent::Start { .. })));
-    assert!(events
-        .iter()
-        .any(|record| matches!(record.event, AgentEvent::End { .. })));
+    assert!(
+        events
+            .iter()
+            .any(|record| matches!(record.event, AgentEvent::Start { .. }))
+    );
+    assert!(
+        events
+            .iter()
+            .any(|record| matches!(record.event, AgentEvent::End { .. }))
+    );
 }
 
 #[tokio::test]
@@ -882,17 +890,23 @@ async fn test_send_publishes_runtime_events_to_hook_executor() {
     session.send("hello", None).await.unwrap();
 
     let events = hook.events.lock().unwrap();
-    assert!(events
-        .iter()
-        .any(|(_, session_id, event)| session_id == session.id()
-            && matches!(event, AgentEvent::Start { .. })));
-    assert!(events
-        .iter()
-        .any(|(_, session_id, event)| session_id == session.id()
-            && matches!(event, AgentEvent::End { .. })));
-    assert!(events
-        .iter()
-        .all(|(run_id, _, _)| run_id.starts_with("run-")));
+    assert!(
+        events
+            .iter()
+            .any(|(_, session_id, event)| session_id == session.id()
+                && matches!(event, AgentEvent::Start { .. }))
+    );
+    assert!(
+        events
+            .iter()
+            .any(|(_, session_id, event)| session_id == session.id()
+                && matches!(event, AgentEvent::End { .. }))
+    );
+    assert!(
+        events
+            .iter()
+            .all(|(run_id, _, _)| run_id.starts_with("run-"))
+    );
 }
 
 #[tokio::test]

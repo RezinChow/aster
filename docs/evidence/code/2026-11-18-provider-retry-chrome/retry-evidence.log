@@ -1,0 +1,12 @@
+2026-11-18T08:34:39.451505Z  INFO perf_probe: prompt_enter
+2026-11-18T08:34:41.094515Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 1/11), retrying in 1.164s
+2026-11-18T08:34:42.480848Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 2/11), retrying in 1.962s
+2026-11-18T08:34:44.598486Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 3/11), retrying in 4.38s
+2026-11-18T08:34:49.119041Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 4/11), retrying in 8.309s
+2026-11-18T08:34:57.553742Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 5/11), retrying in 13.154s
+2026-11-18T08:35:10.868551Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 6/11), retrying in 34.272s
+2026-11-18T08:35:45.260925Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 7/11), retrying in 30.93s
+2026-11-18T08:36:16.291471Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 8/11), retrying in 36.327s
+2026-11-18T08:36:52.756783Z  WARN aster_core::retry: LLM API request failed with 429 Too Many Requests (attempt 9/11), retrying in 34.489s
+2026-11-18T08:37:07.946891Z  INFO perf_probe: turn_cancel_return
+2026-11-18T08:37:07.946964Z  INFO perf_probe: prompt_return

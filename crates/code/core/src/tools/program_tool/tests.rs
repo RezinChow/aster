@@ -1221,3 +1221,128 @@ async fn program_dependent_write_then_read_observes_saved_bytes() {
     );
     assert_eq!(output.metadata.unwrap()["script_result"]["checked"], true);
 }
+
+#[tokio::test]
+async fn program_rejects_commented_dynamic_import_of_native_modules() {
+    let modules = tempfile::tempdir().unwrap();
+    let path = modules.path().join("probe.mjs");
+    std::fs::write(&path, "export const answer = 'module-loaded';\n").unwrap();
+    let tool = ProgramTool::new(Arc::new(ToolRegistry::new(PathBuf::from("/tmp"))));
+    let source = format!(
+        r#"async function run() {{
+            const module = await import/*x*/("{}");
+            return {{ answer: module.answer }};
+        }}"#,
+        path.display()
+    );
+    let output = tool
+        .execute(
+            &serde_json::json!({
+                "type": "script",
+                "source": source,
+            }),
+            &ToolContext::new(PathBuf::from("/tmp")),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !output.success,
+        "native module import bypassed the source gate: {output:?}"
+    );
+}
+
+#[tokio::test]
+async fn program_rejects_commented_eval() {
+    let tool = ProgramTool::new(Arc::new(ToolRegistry::new(PathBuf::from("/tmp"))));
+    let output = tool
+        .execute(
+            &serde_json::json!({
+                "type": "script",
+                "source": r#"
+                    async function run() {
+                        return eval/*x*/("({ nativeEval: true })");
+                    }
+                "#,
+            }),
+            &ToolContext::new(PathBuf::from("/tmp")),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !output.success,
+        "commented eval bypassed the source gate: {output:?}"
+    );
+}
+
+#[tokio::test]
+async fn program_rejects_commented_function_constructor() {
+    let tool = ProgramTool::new(Arc::new(ToolRegistry::new(PathBuf::from("/tmp"))));
+    let output = tool
+        .execute(
+            &serde_json::json!({
+                "type": "script",
+                "source": r#"
+                    async function run() {
+                        return Function/*x*/("return { nativeFunction: true }")();
+                    }
+                "#,
+            }),
+            &ToolContext::new(PathBuf::from("/tmp")),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !output.success,
+        "commented Function constructor bypassed the VM gate: {output:?}"
+    );
+}
+
+#[tokio::test]
+async fn program_memory_limit_fails_closed_without_crashing() {
+    let tool = ProgramTool::new(Arc::new(ToolRegistry::new(PathBuf::from("/tmp"))));
+    let output = tool
+        .execute(
+            &serde_json::json!({
+                "type": "script",
+                "limits": { "timeoutMs": 5000 },
+                "source": r#"
+                    async function run() {
+                        const values = [];
+                        for (let index = 0; index < 100000; index++) {
+                            values.push(new Array(1000).fill(index));
+                        }
+                        return { count: values.length };
+                    }
+                "#,
+            }),
+            &ToolContext::new(PathBuf::from("/tmp")),
+        )
+        .await
+        .unwrap();
+
+    assert!(!output.success, "memory limit was not enforced: {output:?}");
+}
+
+#[tokio::test]
+async fn program_stack_limit_fails_closed_without_crashing() {
+    let tool = ProgramTool::new(Arc::new(ToolRegistry::new(PathBuf::from("/tmp"))));
+    let output = tool
+        .execute(
+            &serde_json::json!({
+                "type": "script",
+                "limits": { "timeoutMs": 5000 },
+                "source": r#"
+                    function deeper() { return deeper(); }
+                    async function run() { return deeper(); }
+                "#,
+            }),
+            &ToolContext::new(PathBuf::from("/tmp")),
+        )
+        .await
+        .unwrap();
+
+    assert!(!output.success, "stack limit was not enforced: {output:?}");
+}

@@ -628,10 +628,11 @@ mod execution_boundary_tests {
             "{host_why}"
         );
         assert_eq!(host.options[0].name, "Yes, run on host");
-        assert!(host
-            .options
-            .iter()
-            .all(|option| option.kind != acp::PermissionOptionKind::AllowAlways));
+        assert!(
+            host.options
+                .iter()
+                .all(|option| option.kind != acp::PermissionOptionKind::AllowAlways)
+        );
 
         let network = tool_permission_ask(
             &session_id,
@@ -659,10 +660,12 @@ mod execution_boundary_tests {
             "{network_why}"
         );
         assert_eq!(network.options[0].name, "Yes, allow this network origin");
-        assert!(network
-            .options
-            .iter()
-            .all(|option| option.kind != acp::PermissionOptionKind::AllowAlways));
+        assert!(
+            network
+                .options
+                .iter()
+                .all(|option| option.kind != acp::PermissionOptionKind::AllowAlways)
+        );
     }
 
     #[test]
@@ -682,10 +685,12 @@ mod execution_boundary_tests {
             "{why}"
         );
         assert_eq!(request.options[0].name, "Yes, proceed");
-        assert!(request
-            .options
-            .iter()
-            .any(|option| option.kind == acp::PermissionOptionKind::AllowAlways));
+        assert!(
+            request
+                .options
+                .iter()
+                .any(|option| option.kind == acp::PermissionOptionKind::AllowAlways)
+        );
     }
 
     #[test]

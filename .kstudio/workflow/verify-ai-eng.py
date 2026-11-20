@@ -264,23 +264,23 @@ def main() -> int:
         if not skills_dir.is_dir():
             fail("missing .kstudio/skills/ (P15)", errors)
         for req_skill in (
-            "k-status",
-            "k-progress",
-            "k-plan",
-            "k-go",
-            "k-yolo",
-            "k-task",
-            "k-goal",
-            "k-wiki",
-            "k-clean",
-            "k-review",
-            "k-init",
-            "k-loop",
+            "status",
+            "progress",
+            "plan",
+            "go",
+            "yolo",
+            "task",
+            "goal",
+            "wiki",
+            "clean",
+            "review",
+            "init",
+            "loop",
         ):
             sk = skills_dir / req_skill / "SKILL.md"
             if not sk.is_file():
                 fail(f"missing .kstudio/skills/{req_skill}/SKILL.md (P15)", errors)
-        yolo_skill = skills_dir / "k-yolo" / "SKILL.md"
+        yolo_skill = skills_dir / "yolo" / "SKILL.md"
         if yolo_skill.is_file():
             yolo_text = yolo_skill.read_text(encoding="utf-8")
             for needle in (
@@ -291,16 +291,16 @@ def main() -> int:
             ):
                 if needle not in yolo_text:
                     fail(
-                        f"k-yolo/SKILL.md missing stop-discipline phrase: {needle}",
+                        f"yolo/SKILL.md missing stop-discipline phrase: {needle}",
                         errors,
                     )
         if not (ks / "workflow" / "loop-kstudio.py").is_file():
-            fail("missing workflow/loop-kstudio.py (P15 k-loop)", errors)
+            fail("missing workflow/loop-kstudio.py (P15 loop)", errors)
         if not (ks / "workflow" / "init-kstudio.py").is_file():
-            fail("missing workflow/init-kstudio.py (P15 k-init)", errors)
+            fail("missing workflow/init-kstudio.py (P15 init)", errors)
         review = ks / "workflow" / "review.py"
         if not review.is_file():
-            fail("missing workflow/review.py (P15 k-review)", errors)
+            fail("missing workflow/review.py (P15 review)", errors)
         else:
             import subprocess
 
@@ -313,16 +313,40 @@ def main() -> int:
                 fail("review configuration invalid: " + (review_config.stderr or review_config.stdout).strip()[:300], errors)
         clean = ks / "workflow" / "clean-kstudio.py"
         if not clean.is_file():
-            fail("missing workflow/clean-kstudio.py (P15 k-clean)", errors)
+            fail("missing workflow/clean-kstudio.py (P15 clean)", errors)
+        canonical = {
+            "init",
+            "goal",
+            "status",
+            "progress",
+            "plan",
+            "task",
+            "go",
+            "loop",
+            "yolo",
+            "review",
+            "clean",
+            "wiki",
+        }
         for child in skills_dir.iterdir():
-            if child.is_dir() and not child.name.startswith("k-"):
+            if not child.is_dir():
+                continue
+            if child.name.startswith("k-"):
                 fail(
-                    f"skills/{child.name}/ must use k- prefix (P15)",
+                    f"skills/{child.name}/ legacy k- prefix removed (P15); use bare name",
                     errors,
                 )
-        example = ks / "config.kcl.example"
+            elif child.name not in canonical and (child / "SKILL.md").is_file():
+                fail(
+                    f"skills/{child.name}/ not a canonical conductor skill name (P15)",
+                    errors,
+                )
+        for name in sorted(canonical):
+            if not (skills_dir / name / "SKILL.md").is_file():
+                fail(f"skills/{name}/SKILL.md missing (P15)", errors)
+        example = ks / "project.acl.example"
         if not example.is_file():
-            fail("missing .kstudio/config.kcl.example (P16)", errors)
+            fail("missing .kstudio/project.acl.example (P16)", errors)
         load_cfg = ks / "workflow" / "load-config.py"
         if not load_cfg.is_file():
             fail("missing workflow/load-config.py (P16)", errors)
@@ -337,7 +361,7 @@ def main() -> int:
             )
             if r.returncode != 0:
                 fail(
-                    "config.kcl failed to parse: " + (r.stderr or r.stdout).strip()[:200],
+                    "project.acl failed to parse: " + (r.stderr or r.stdout).strip()[:200],
                     errors,
                 )
             else:

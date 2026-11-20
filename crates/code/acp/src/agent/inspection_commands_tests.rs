@@ -193,11 +193,13 @@ async fn deep_memory_inspect_cycle_then_flush_and_dream_without_a_model() {
         )
         .await
         .unwrap_err();
-    assert!(stale
-        .data
-        .as_ref()
-        .and_then(|value| value.as_str())
-        .is_some_and(|text| text.contains("conflict")));
+    assert!(
+        stale
+            .data
+            .as_ref()
+            .and_then(|value| value.as_str())
+            .is_some_and(|text| text.contains("conflict"))
+    );
     host.handle_inspection_command(
         &session,
         run(&format!("/memory delete deep-note {revision}")),
@@ -336,10 +338,11 @@ async fn terminal_tasks_stop_only_the_session_owned_canceller() {
         text.contains("owned-task") && text.contains("in_progress"),
         "{text}"
     );
-    assert!(host
-        .handle_inspection_command(&session, parse("/tasks stop foreign-task").unwrap())
-        .await
-        .is_err());
+    assert!(
+        host.handle_inspection_command(&session, parse("/tasks stop foreign-task").unwrap())
+            .await
+            .is_err()
+    );
     assert!(!token.is_cancelled());
     assert_eq!(
         host.handle_inspection_command(&session, parse("/tasks stop owned-task").unwrap())
@@ -396,14 +399,14 @@ async fn memory_commands_follow_the_session_workspace_without_widening_unbound_a
         )
     };
     let query = serde_json::json!({"operation":"list","query":"","memory_type":null,"cursor":null});
-    for session in [None, Some(live[0].0 .0.to_string()), Some("unknown".into())] {
+    for session in [None, Some(live[0].0.0.to_string()), Some("unknown".into())] {
         let request = body(
             "aster/memory/manage",
             serde_json::json!({"workspace_root":b,"session_id":session,"request":query}),
         );
         assert!(host.handle_memory_management(&request).await.is_err());
     }
-    for (session, count) in [(None, 2), (Some(live[0].0 .0.to_string()), 1)] {
+    for (session, count) in [(None, 2), (Some(live[0].0.0.to_string()), 1)] {
         let request = body(
             "aster/memory/snapshot",
             serde_json::json!({"workspace_root":a,"session_id":session,"layer":"session"}),
@@ -412,10 +415,12 @@ async fn memory_commands_follow_the_session_workspace_without_widening_unbound_a
         let value: serde_json::Value = serde_json::from_str(reply.0.get()).unwrap();
         assert_eq!(value["items"].as_array().unwrap().len(), count);
         if session.is_some() {
-            assert!(value["items"][0]["content"]
-                .as_str()
-                .unwrap()
-                .contains("scope-alpha"));
+            assert!(
+                value["items"][0]["content"]
+                    .as_str()
+                    .unwrap()
+                    .contains("scope-alpha")
+            );
         }
     }
     let count = body(

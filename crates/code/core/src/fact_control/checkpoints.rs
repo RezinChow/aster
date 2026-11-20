@@ -107,9 +107,10 @@ pub(super) async fn save_committed(
             total_usage: usage,
             tool_calls_count: calls,
             verification_reports: reports,
-            convergence: crate::loop_checkpoint::LoopConvergenceState {
-                mutations,
-                ..Default::default()
+            convergence: {
+                let mut convergence = surface.agent.fact_convergence_snapshot();
+                convergence.mutations = mutations;
+                convergence
             },
             checkpoint_ms,
         })

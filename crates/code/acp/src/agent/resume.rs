@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use agent_client_protocol as acp;
 
-use super::{workspace_scope::canonical_workspace, AsterCodeAgent};
+use super::{AsterCodeAgent, workspace_scope::canonical_workspace};
 
 impl AsterCodeAgent {
     pub(super) async fn resume_snapshot_store(

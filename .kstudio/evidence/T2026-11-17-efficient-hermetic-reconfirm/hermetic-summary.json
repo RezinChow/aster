@@ -1,0 +1,70 @@
+{
+  "pack": "hermetic-perf-e2e",
+  "aster_acp_bin": "/Users/roylin/code/aster/target/debug/aster-acp",
+  "aster_tui_bin": "/Users/roylin/code/aster/target/debug/aster",
+  "suites": 4,
+  "passed": 4,
+  "failed": 0,
+  "ignored": 0,
+  "seconds": 2.15,
+  "failed_suites": [],
+  "results": [
+    {
+      "suite": "hg2_core_discard",
+      "exit": 0,
+      "seconds": 0.57,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/var/folders/3d/0pn3wn612t7cs79b5ml89x440000gn/T/aster-hermetic-perf-e2e/hg2_core_discard.log",
+      "failed_tests": [],
+      "kind": "lib",
+      "package": "aster-core",
+      "filter": "hg2_discard_freeze_grader"
+    },
+    {
+      "suite": "hg2_acp_token",
+      "exit": 0,
+      "seconds": 0.67,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/var/folders/3d/0pn3wn612t7cs79b5ml89x440000gn/T/aster-hermetic-perf-e2e/hg2_acp_token.log",
+      "failed_tests": [],
+      "kind": "lib",
+      "package": "aster-acp",
+      "filter": "hg2_token_freeze_grader"
+    },
+    {
+      "suite": "hg2_web_search_discard",
+      "exit": 0,
+      "seconds": 0.52,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/var/folders/3d/0pn3wn612t7cs79b5ml89x440000gn/T/aster-hermetic-perf-e2e/hg2_web_search_discard.log",
+      "failed_tests": [],
+      "kind": "lib",
+      "package": "aster-core",
+      "filter": "hg2_web_search_discarded_chars_freeze"
+    },
+    {
+      "suite": "hg2_kburn_workflow_helpers",
+      "exit": 0,
+      "seconds": 0.39,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/var/folders/3d/0pn3wn612t7cs79b5ml89x440000gn/T/aster-hermetic-perf-e2e/hg2_kburn_workflow_helpers.log",
+      "failed_tests": [],
+      "kind": "lib",
+      "package": "aster-core",
+      "filter": "materialize_seeds_workflow_helpers_under_aster"
+    }
+  ],
+  "explicitly_not_claimed": [
+    "named YOLO Done",
+    "Meta Harness Pass",
+    "headed Studio / live LLM"
+  ]
+}

@@ -179,10 +179,12 @@ async fn prove_fork(file: bool) {
         if with_policy {
             assert_ne!(saved.session.durable_source, source_binding);
         }
-        assert!(saved
-            .run_records
-            .iter()
-            .all(|r| r.snapshot.session_id == "fork-target" && r.snapshot.status.is_terminal()));
+        assert!(
+            saved
+                .run_records
+                .iter()
+                .all(|r| r.snapshot.session_id == "fork-target" && r.snapshot.status.is_terminal())
+        );
         assert_eq!(
             saved.session_review.as_ref().unwrap().session_id,
             "fork-target"
@@ -195,10 +197,12 @@ async fn prove_fork(file: bool) {
             ["aster://tool-output/fork/evidence"]
         );
         assert_eq!(saved.artifacts[0].content, "retained evidence");
-        assert!(read_workspace_facts(target_workspace.path(), "fork-target")
-            .unwrap()
-            .iter()
-            .all(|f| !f.kind.starts_with("aster.goal.")));
+        assert!(
+            read_workspace_facts(target_workspace.path(), "fork-target")
+                .unwrap()
+                .iter()
+                .all(|f| !f.kind.starts_with("aster.goal."))
+        );
         target.close().await;
         source.close().await;
         agent.close().await;
@@ -278,10 +282,12 @@ async fn refuses(
         .await
         .unwrap_err();
     assert!(error.to_string().contains(message), "{message}: {error}");
-    assert!(!agent
-        .list_sessions()
-        .await
-        .contains(&"fork-target".to_owned()));
+    assert!(
+        !agent
+            .list_sessions()
+            .await
+            .contains(&"fork-target".to_owned())
+    );
 }
 
 #[tokio::test]
@@ -389,9 +395,11 @@ async fn fork_admission_refuses_debt_busy_and_changed_source_without_execution()
     .await;
     assert_eq!(log.read(&thread).unwrap(), before);
     assert_eq!(calls.load(Ordering::SeqCst), 0);
-    assert!(read_workspace_facts(target_workspace.path(), "fork-target")
-        .unwrap()
-        .is_empty());
+    assert!(
+        read_workspace_facts(target_workspace.path(), "fork-target")
+            .unwrap()
+            .is_empty()
+    );
     agent.close().await;
 }
 

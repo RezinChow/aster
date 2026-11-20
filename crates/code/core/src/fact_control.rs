@@ -189,7 +189,11 @@ impl Completion for CappedCompletion {
         Box::pin(async move {
             let decision = inner.complete(request, cancel).await?;
             if let ModelDecision::Question { .. } = &decision {
-                if let Err(error) = ask_user::begin(&run_id, "q", "cap-check", &[], false) {
+                // Elicitation IDs are global; another Run's pending cap-check
+                // must not roll back this Run's question budget.
+                let question_id = format!("{run_id}:cap-check");
+                if let Err(error) = ask_user::begin(&run_id, &question_id, "cap-check", &[], false)
+                {
                     if matches!(error, AskUserError::CapExceeded) {
                         return Err(ActorError::Defect("ask_user question cap exceeded".into()));
                     }
@@ -781,10 +785,24 @@ impl Completion for LiveCompletion {
                     .tool_context_handle()
                     .set_reply_language(Some(language));
             }
-            let tools = definitions_for(&catalog, &request.tools)
+            let mut tools = definitions_for(&catalog, &request.tools)
                 .into_iter()
                 .filter(|tool| visibility.expose_to_model(&tool.name))
                 .collect::<Vec<_>>();
+            let synthesis_directive = surface
+                .as_ref()
+                .and_then(|surface| surface.agent.fact_read_only_synthesis_directive());
+            if let Some(directive) = synthesis_directive {
+                messages.push(Message::user_wire(directive.prompt()));
+                if directive.requires_no_tools() {
+                    tools.clear();
+                }
+                tracing::info!(
+                    directive = ?directive,
+                    tools_offered = tools.len(),
+                    "read-only staged synthesis"
+                );
+            }
             let execution_limit = surface
                 .as_ref()
                 .and_then(|surface| surface.agent.max_execution_time());
@@ -906,7 +924,25 @@ impl Completion for LiveCompletion {
                 }
             }
             prompt_tokens.store(response.usage.prompt_tokens as u64, Ordering::SeqCst);
-            Ok(decision_from_response(&response, &policy, surface.as_ref()).await)
+            let decision = decision_from_response(&response, &policy, surface.as_ref()).await;
+            if matches!(decision, ModelDecision::Tool { .. }) {
+                if let Some(surface) = &surface {
+                    surface.agent.fact_observe_read_only_synthesis_tools();
+                }
+            }
+            if synthesis_directive.is_some_and(|directive| directive.requires_no_tools())
+                && matches!(decision, ModelDecision::Tool { .. })
+            {
+                let text = response.text();
+                if text.trim().is_empty() {
+                    return Err(ActorError::Defect(
+                        "read-only finalization returned a tool call despite an empty tool list"
+                            .into(),
+                    ));
+                }
+                return Ok(ModelDecision::Text { text });
+            }
+            Ok(decision)
         })
     }
 

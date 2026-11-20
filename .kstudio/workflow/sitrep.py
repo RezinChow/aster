@@ -12,8 +12,29 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-KSTUDIO = ROOT / ".kstudio"
+def _resolve_eng() -> tuple[Path, Path]:
+    here = Path(__file__).resolve()
+    root = here.parents[2]
+    aster = root / ".aster"
+    legacy = root / ".kstudio"
+
+    def present(p: Path) -> bool:
+        return (
+            (p / "MANIFEST.json").is_file()
+            or (p / "workflow").is_dir()
+            or (p / "skills").is_dir()
+            or (p / "wiki").is_dir()
+            or (p / "evidence").is_dir()
+        )
+
+    if present(aster):
+        return root, aster
+    if legacy.exists():
+        return root, legacy
+    return root, here.parents[1]
+
+
+ROOT, KSTUDIO = _resolve_eng()
 WF = KSTUDIO / "workflow"
 MANIFEST = KSTUDIO / "MANIFEST.json"
 
@@ -77,19 +98,35 @@ def progress_refs(manifest: dict) -> list[str]:
     return out
 
 
+CANONICAL_SKILLS = {
+    "init",
+    "goal",
+    "status",
+    "progress",
+    "plan",
+    "task",
+    "go",
+    "loop",
+    "yolo",
+    "review",
+    "clean",
+    "wiki",
+}
+
+
 def list_skills() -> list[str]:
     skills = KSTUDIO / "skills"
     if not skills.is_dir():
         return []
     names = []
     for d in sorted(skills.iterdir()):
-        if d.is_dir() and d.name.startswith("k-") and (d / "SKILL.md").exists():
+        if d.is_dir() and d.name in CANONICAL_SKILLS and (d / "SKILL.md").exists():
             names.append(d.name)
     return names
 
 
 def load_project_config() -> dict:
-    """P16 config.kcl summary (optional)."""
+    """P16 project.acl summary (optional)."""
     import subprocess
 
     load = WF / "load-config.py"
@@ -209,7 +246,7 @@ def build() -> dict:
             "print_paste": ".kstudio/workflow/print-paste.sh",
             "verify": "python3 .kstudio/workflow/verify-ai-eng.py --level L3",
             "skills_dir": ".kstudio/skills/",
-            "config_kcl": ".kstudio/config.kcl",
+            "project_acl": ".kstudio/project.acl",
             "goals": ".kstudio/workflow/GOALS.md",
         },
     }
@@ -217,7 +254,7 @@ def build() -> dict:
 
 def render_tty(data: dict) -> str:
     lines = [
-        "=== k-status sitrep (P15) ===",
+        "=== status sitrep (P15) ===",
         f"HEAD: {data.get('head_wave')}",
         f"wave: {data.get('wave_path')}",
         f"skills: {', '.join(data.get('skills_k') or []) or '(none)'}",
@@ -248,7 +285,7 @@ def render_tty(data: dict) -> str:
     for p in data.get("progress_refs") or ["(none declared)"]:
         lines.append(f"  · {p}")
     cfg = data.get("config") or {}
-    lines += ["", "-- config.kcl fleet (P16: connect / use) --"]
+    lines += ["", "-- project.acl fleet (P16: connect / use) --"]
     for m in cfg.get("fleet") or []:
         lines.append(f"  · {m.get('id')}: {m.get('label')} [{m.get('class')}]")
         via = m.get("via") or "?"
@@ -259,7 +296,7 @@ def render_tty(data: dict) -> str:
         if m.get("use_summary"):
             lines.append(f"      use: {m.get('use_summary')}")
     if not cfg.get("fleet"):
-        lines.append("  · (no config.kcl — copy config.kcl.example)")
+        lines.append("  · (no project.acl — copy project.acl.example)")
     if cfg.get("prefs_roles"):
         lines.append(f"  prefs roles: {', '.join(cfg['prefs_roles'])}")
     lines.append("  tip: python3 .kstudio/workflow/load-config.py --machine <id>")
@@ -267,7 +304,7 @@ def render_tty(data: dict) -> str:
         "",
         "-- tools --",
         f"  skills: {data['tools']['skills_dir']}",
-        f"  config: {data['tools']['config_kcl']}",
+        f"  config: {data['tools']['project_acl']}",
         f"  goals: {data['tools'].get('goals', '.kstudio/workflow/GOALS.md')}",
         f"  paste: {data['tools']['print_paste']}",
         "=== end sitrep ===",

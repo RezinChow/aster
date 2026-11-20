@@ -250,10 +250,14 @@ async fn invalid_permission_seed_is_refused_before_creating_any_session() {
         json!({"yoloMode":"true"}),
         json!({"permissionPosture":"typo"}),
     ] {
-        assert!(agent
-            .new_session(acp::NewSessionRequest::new(root.path()).meta(meta.as_object().cloned()))
-            .await
-            .is_err());
+        assert!(
+            agent
+                .new_session(
+                    acp::NewSessionRequest::new(root.path()).meta(meta.as_object().cloned())
+                )
+                .await
+                .is_err()
+        );
     }
     assert!(agent.sessions.lock().await.is_empty());
     assert!(agent.core_agent.lock().await.is_none());

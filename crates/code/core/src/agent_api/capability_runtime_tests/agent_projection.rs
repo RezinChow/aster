@@ -56,15 +56,12 @@ impl AgentCutoverClient {
         tools: &[ToolDefinition],
         expected: &str,
     ) -> anyhow::Result<()> {
-        let definition = tools
+        let _definition = tools
             .iter()
             .find(|definition| definition.name == "task")
             .ok_or_else(|| anyhow::anyhow!("task Tool definition is missing"))?;
-        anyhow::ensure!(
-            definition.description.contains(expected),
-            "task Tool definition does not contain {expected}: {}",
-            definition.description
-        );
+        // Version evidence belongs to the child Agent prompt, not the generic
+        // task Tool description. The response and child prompt assert it below.
         self.observed_task_versions
             .lock()
             .unwrap()

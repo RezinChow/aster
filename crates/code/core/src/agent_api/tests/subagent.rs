@@ -569,10 +569,12 @@ async fn test_registered_task_fanout_inherits_final_confirmation_manager() {
         let pending = session.pending_confirmations().await;
         if let Some(request) = pending.first() {
             assert_eq!(request.tool_name, "read");
-            assert!(session
-                .confirm_tool_use(&request.tool_id, true, Some("test approval".to_string()))
-                .await
-                .unwrap());
+            assert!(
+                session
+                    .confirm_tool_use(&request.tool_id, true, Some("test approval".to_string()))
+                    .await
+                    .unwrap()
+            );
             approved = true;
             break;
         }

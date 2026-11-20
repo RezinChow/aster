@@ -68,6 +68,125 @@ async fn zero_tool_rounds_executes_beyond_fifty_without_budget_finalization() {
 }
 
 #[tokio::test]
+async fn read_only_synthesis_budget_prompts_for_summary_without_removing_tools() {
+    let workspace = tempfile::tempdir().unwrap();
+    let executor = Arc::new(ToolExecutor::new(workspace.path().display().to_string()));
+    executor.register_dynamic_tool(Arc::new(ConcurrentReadProbe {
+        parallel: true,
+        active: Arc::new(AtomicUsize::new(0)),
+        max_active: Arc::new(AtomicUsize::new(0)),
+    }));
+    let client = Arc::new(MockLlmClient::new(vec![
+        MockLlmClient::tool_call_response(
+            "read-1",
+            "concurrent_read_probe",
+            serde_json::json!({"which":"one"}),
+        ),
+        MockLlmClient::tool_call_response(
+            "read-2",
+            "concurrent_read_probe",
+            serde_json::json!({"which":"two"}),
+        ),
+        MockLlmClient::text_response("Synthesized after two read waves."),
+        MockLlmClient::tool_call_response(
+            "read-3",
+            "concurrent_read_probe",
+            serde_json::json!({"which":"must-not-run"}),
+        ),
+    ]));
+    let config = AgentConfig {
+        tools: vec![model_tool_definition("concurrent_read_probe")],
+        read_only_synthesis_rounds: Some(2),
+        ..loop_config(0)
+    };
+    let agent = AgentLoop::new(
+        client.clone(),
+        executor,
+        ToolContext::new(workspace.path().to_path_buf()),
+        config,
+    );
+    let result = agent
+        .execute(&[], "Analyze this repository", None)
+        .await
+        .unwrap();
+    assert_eq!(result.text, "Synthesized after two read waves.");
+    assert_eq!(result.tool_calls_count, 2);
+    assert_eq!(client.call_count.load(Ordering::SeqCst), 3);
+    assert!(client
+        .request_tools
+        .lock()
+        .unwrap()
+        .last()
+        .unwrap()
+        .iter()
+        .any(|tool| tool == "concurrent_read_probe"));
+    assert!(client
+        .request_texts
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|text| text.contains("interactive exploration budget")));
+}
+
+#[tokio::test]
+async fn non_mutating_tool_response_resets_soft_synthesis_streak() {
+    let workspace = tempfile::tempdir().unwrap();
+    let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let executor = Arc::new(ToolExecutor::new(workspace.path().display().to_string()));
+    executor.register_dynamic_tool(Arc::new(ConcurrentReadProbe {
+        parallel: true,
+        active: Arc::new(AtomicUsize::new(0)),
+        max_active: Arc::new(AtomicUsize::new(0)),
+    }));
+    executor.register_dynamic_tool(Arc::new(RecordedCallTool {
+        calls: Arc::clone(&calls),
+    }));
+    let responses = vec![
+        MockLlmClient::tool_call_response(
+            "read-1",
+            "concurrent_read_probe",
+            serde_json::json!({"which":"one"}),
+        ),
+        MockLlmClient::tool_call_response(
+            "non-mutating-command",
+            "recorded_call",
+            serde_json::json!({"which":"no workspace change"}),
+        ),
+        MockLlmClient::tool_call_response(
+            "read-2",
+            "concurrent_read_probe",
+            serde_json::json!({"which":"two"}),
+        ),
+        MockLlmClient::text_response("Non-mutating command reset the read streak."),
+    ];
+    let client = Arc::new(MockLlmClient::new(responses));
+    let config = AgentConfig {
+        tools: vec![
+            model_tool_definition("concurrent_read_probe"),
+            model_tool_definition("recorded_call"),
+        ],
+        read_only_synthesis_rounds: Some(2),
+        ..loop_config(0)
+    };
+    let agent = AgentLoop::new(
+        client.clone(),
+        executor,
+        ToolContext::new(workspace.path().to_path_buf()),
+        config,
+    );
+    let result = agent.execute(&[], "Read then inspect", None).await.unwrap();
+    assert_eq!(result.text, "Non-mutating command reset the read streak.");
+    assert_eq!(result.tool_calls_count, 3);
+    assert_eq!(client.call_count.load(Ordering::SeqCst), 4);
+    assert!(client
+        .request_tools
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|tools| !tools.is_empty()));
+}
+
+#[tokio::test]
 async fn positive_tool_rounds_still_stops_at_three() {
     let workspace = tempfile::tempdir().unwrap();
     let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -100,6 +219,62 @@ async fn positive_tool_rounds_still_stops_at_three() {
         .last()
         .unwrap()
         .is_empty());
+}
+
+#[tokio::test]
+async fn identical_calls_in_one_response_execute_only_once() {
+    let workspace = tempfile::tempdir().unwrap();
+    let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let executor = Arc::new(ToolExecutor::new(workspace.path().display().to_string()));
+    executor.register_dynamic_tool(Arc::new(RecordedCallTool {
+        calls: Arc::clone(&calls),
+    }));
+    let mut batch = MockLlmClient::tool_call_response(
+        "call-1",
+        "recorded_call",
+        serde_json::json!({"which":"same"}),
+    );
+    batch.message.content.extend([
+        ContentBlock::ToolUse {
+            id: "call-2".into(),
+            name: "recorded_call".into(),
+            input: serde_json::json!({"which":"same"}),
+        },
+        ContentBlock::ToolUse {
+            id: "call-3".into(),
+            name: "recorded_call".into(),
+            input: serde_json::json!({"which":"different"}),
+        },
+    ]);
+    let client = Arc::new(MockLlmClient::new(vec![
+        batch,
+        MockLlmClient::text_response("Deduplicated batch complete."),
+    ]));
+    let agent = AgentLoop::new(
+        client,
+        executor,
+        ToolContext::new(workspace.path().to_path_buf()),
+        loop_config(0),
+    );
+    let result = agent
+        .execute(&[], "Avoid duplicate reads", None)
+        .await
+        .unwrap();
+    assert_eq!(result.text, "Deduplicated batch complete.");
+    assert_eq!(result.tool_calls_count, 2);
+    assert_eq!(
+        *calls.lock().unwrap(),
+        vec!["same".to_string(), "different".to_string()]
+    );
+    assert_eq!(
+        result
+            .messages
+            .iter()
+            .flat_map(|message| &message.content)
+            .filter(|block| matches!(block, ContentBlock::ToolResult { .. }))
+            .count(),
+        3
+    );
 }
 
 #[tokio::test]

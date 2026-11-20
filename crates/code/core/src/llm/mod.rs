@@ -65,7 +65,9 @@ use tokio_util::sync::CancellationToken;
 // `LlmConfig::retry_config` and provider builder methods already expose this
 // type in the public API. Re-export it from the same module so hosts can
 // configure retry authority without reaching into a crate-private module.
-pub use crate::retry::{RetryConfig, RetryExhaustedError, MAX_RETRIES};
+pub use crate::retry::{
+    with_retry_observer, RetryConfig, RetryExhaustedError, RetryNotice, RetryObserver, MAX_RETRIES,
+};
 
 /// Bearer and base URL already used for this session's model calls.
 /// The decision request reuses them. The key is not written into traces.

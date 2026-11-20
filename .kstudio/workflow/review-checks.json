@@ -3,6 +3,7 @@
   "checks": [
     {
       "id": "skill-sync",
+      "paths": [".kstudio"],
       "argv": [
         "python3",
         ".kstudio/workflow/sync-k-skills.py",
@@ -11,6 +12,7 @@
     },
     {
       "id": "ai-engineering",
+      "paths": [".kstudio"],
       "argv": [
         "python3",
         ".kstudio/workflow/verify-ai-eng.py",

@@ -443,24 +443,35 @@ pub(super) fn build_effective_skill_registry(
 
     base_registry.exclude_discovered_files(&opts.projected_skill_files);
 
-    match crate::kstudio::arm_kburn_runtime(workspace, &base_registry) {
-        Ok(report) if report.skipped_absent => {}
-        Ok(report) => {
+    let armed = match opts.kburn_mode {
+        crate::kstudio::KburnMode::Auto => {
+            Some(crate::kstudio::arm_kburn_runtime(workspace, &base_registry))
+        }
+        crate::kstudio::KburnMode::Enabled => Some(crate::kstudio::arm_kburn_runtime_enabled(
+            workspace,
+            &base_registry,
+        )),
+        crate::kstudio::KburnMode::Disabled => None,
+    };
+    match armed {
+        Some(Ok(report)) if report.skipped_absent => {}
+        Some(Ok(report)) => {
             tracing::info!(
                 target: "aster_core::kstudio",
                 materialized = report.materialized.len(),
                 skills_loaded = report.skills_loaded,
                 skill_errors = report.skill_errors,
-                "armed kburn runtime for workspace engineering root (.aster or .kstudio)"
+                "armed kburn runtime for workspace .aster engineering root"
             );
         }
-        Err(error) => {
+        Some(Err(error)) => {
             tracing::warn!(
                 target: "aster_core::kstudio",
                 error = %error,
                 "kburn auto-arm failed; continuing without factory materialize"
             );
         }
+        None => {}
     }
 
     for dir in &opts.skill_dirs {

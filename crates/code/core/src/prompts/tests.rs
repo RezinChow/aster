@@ -524,21 +524,27 @@ fn test_slots_all_slots_combined() {
 #[test]
 fn test_slots_is_empty() {
     assert!(SystemPromptSlots::default().is_empty());
-    assert!(!SystemPromptSlots {
-        role: Some("test".to_string()),
-        ..Default::default()
-    }
-    .is_empty());
-    assert!(!SystemPromptSlots {
-        style: Some(AgentStyle::Plan),
-        ..Default::default()
-    }
-    .is_empty());
-    assert!(!SystemPromptSlots {
-        output_language: Some("zh-CN".to_string()),
-        ..Default::default()
-    }
-    .is_empty());
+    assert!(
+        !SystemPromptSlots {
+            role: Some("test".to_string()),
+            ..Default::default()
+        }
+        .is_empty()
+    );
+    assert!(
+        !SystemPromptSlots {
+            style: Some(AgentStyle::Plan),
+            ..Default::default()
+        }
+        .is_empty()
+    );
+    assert!(
+        !SystemPromptSlots {
+            output_language: Some("zh-CN".to_string()),
+            ..Default::default()
+        }
+        .is_empty()
+    );
 }
 
 // ── AgentStyle tests ──

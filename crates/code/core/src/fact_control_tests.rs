@@ -1013,7 +1013,8 @@ async fn repeated_tool_call_is_a_nudge_and_the_turn_continues() {
             fact.kind == "tool.result"
                 && fact
                     .payload
-                    .get("output")
+                    .get("receipt")
+                    .and_then(|receipt| receipt.get("output"))
                     .and_then(|value| value.as_str())
                     .is_some_and(|output| output.contains("Change your approach"))
         })
@@ -1111,7 +1112,8 @@ async fn configured_duplicate_guard_refuses_the_second_identical_call() {
             fact.kind == "tool.result"
                 && fact
                     .payload
-                    .get("output")
+                    .get("receipt")
+                    .and_then(|receipt| receipt.get("output"))
                     .and_then(|value| value.as_str())
                     .is_some_and(|output| output.contains("identical arguments"))
         })
@@ -1851,6 +1853,19 @@ async fn seam_admission_denied_write_under_always_approve_does_not_run() {
 
 #[tokio::test]
 async fn fact_log_question_cap_rejects_before_a_fourth_fact() {
+    let (_prior_dir, prior, _, _, _) = run_with(
+        vec![Ok(ModelDecision::Question {
+            question_id: "prior".into(),
+            question: "prior?".into(),
+            allow_free_text: false,
+            options: vec!["a".into()],
+        })],
+        None,
+        4,
+        false,
+    );
+    prior.user_text("prime an independent Run").await.unwrap();
+
     let questions = (1..=4)
         .map(|index| {
             Ok(ModelDecision::Question {
@@ -2974,7 +2989,11 @@ async fn host_cancel_drops_a_hung_tool_and_records_cancelled() {
             assert!(
                 settled.log.iter().any(|fact| {
                     fact.kind == "tool.result"
-                        && fact.payload.get("output").and_then(|value| value.as_str())
+                        && fact
+                            .payload
+                            .get("receipt")
+                            .and_then(|receipt| receipt.get("output"))
+                            .and_then(|value| value.as_str())
                             == Some("cancelled")
                 }),
                 "settlement missing cancelled tool.result"
@@ -2990,7 +3009,12 @@ async fn host_cancel_drops_a_hung_tool_and_records_cancelled() {
         facts.iter().any(|fact| {
             fact.kind == "tool.result"
                 && fact.payload.get("ok").and_then(|value| value.as_bool()) == Some(false)
-                && fact.payload.get("output").and_then(|value| value.as_str()) == Some("cancelled")
+                && fact
+                    .payload
+                    .get("receipt")
+                    .and_then(|receipt| receipt.get("output"))
+                    .and_then(|value| value.as_str())
+                    == Some("cancelled")
         }),
         "log missing cancelled tool.result"
     );

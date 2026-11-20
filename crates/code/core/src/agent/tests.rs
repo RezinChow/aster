@@ -55,6 +55,10 @@ impl crate::tools::Tool for RecordedCallTool {
 }
 
 impl crate::permissions::PermissionChecker for AllowAllTools {
+    fn allows_unsandboxed_execution(&self) -> bool {
+        true
+    }
+
     fn check(
         &self,
         _tool_name: &str,
@@ -5718,6 +5722,106 @@ async fn test_agent_end_event_contains_final_text() {
         assert_eq!(text, "Final answer here");
         assert_eq!(usage.total_tokens, 15);
     }
+}
+
+struct ConcurrentReadProbe {
+    parallel: bool,
+    active: Arc<AtomicUsize>,
+    max_active: Arc<AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl crate::tools::Tool for ConcurrentReadProbe {
+    fn name(&self) -> &str {
+        "concurrent_read_probe"
+    }
+
+    fn description(&self) -> &str {
+        "Measures overlap in a read-only tool batch"
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {"which": {"type": "string"}},
+            "required": ["which"]
+        })
+    }
+
+    fn capabilities(&self, _args: &serde_json::Value) -> crate::tools::ToolCapabilities {
+        if self.parallel {
+            crate::tools::ToolCapabilities::parallel_safe_read(2)
+        } else {
+            crate::tools::ToolCapabilities::conservative()
+        }
+    }
+
+    fn requires_confirmation(&self, _args: &serde_json::Value) -> bool {
+        false
+    }
+
+    async fn execute(
+        &self,
+        args: &serde_json::Value,
+        _ctx: &ToolContext,
+    ) -> anyhow::Result<crate::tools::ToolOutput> {
+        let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
+        self.max_active.fetch_max(active, Ordering::SeqCst);
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        self.active.fetch_sub(1, Ordering::SeqCst);
+        Ok(crate::tools::ToolOutput::success(
+            args["which"].as_str().unwrap_or_default(),
+        ))
+    }
+}
+
+async fn concurrent_read_probe_max_active(parallel: bool) -> usize {
+    let hermetic_root = crate::test_support::hermetic_workspace();
+    let executor = Arc::new(ToolExecutor::new(hermetic_root.display().to_string()));
+    let max_active = Arc::new(AtomicUsize::new(0));
+    executor.register_dynamic_tool(Arc::new(ConcurrentReadProbe {
+        parallel,
+        active: Arc::new(AtomicUsize::new(0)),
+        max_active: Arc::clone(&max_active),
+    }));
+    let mut calls = MockLlmClient::tool_call_response(
+        "read-left",
+        "concurrent_read_probe",
+        serde_json::json!({"which":"left"}),
+    );
+    calls.message.content.push(ContentBlock::ToolUse {
+        id: "read-right".into(),
+        name: "concurrent_read_probe".into(),
+        input: serde_json::json!({"which":"right"}),
+    });
+    let client = Arc::new(MockLlmClient::new(vec![
+        calls,
+        MockLlmClient::text_response("read batch complete"),
+    ]));
+    let agent = AgentLoop::new(
+        client,
+        executor,
+        ToolContext::new(hermetic_root.clone()),
+        AgentConfig {
+            permission_checker: Some(Arc::new(AllowAllTools)),
+            planning_mode: PlanningMode::Disabled,
+            continuation_enabled: false,
+            max_parallel_tasks: 2,
+            ..AgentConfig::default()
+        },
+    );
+    let result = agent.execute(&[], "read both", None).await.unwrap();
+    assert_eq!(result.text, "read batch complete");
+    assert_eq!(result.tool_calls_count, 2);
+    let observed = max_active.load(Ordering::SeqCst);
+    assert!(observed > 0, "tool results: {:?}", result.messages);
+    observed
+}
+
+#[tokio::test]
+async fn read_only_tool_batch_overlaps_only_with_explicit_parallel_capabilities() {
+    assert_eq!(concurrent_read_probe_max_active(true).await, 2);
+    assert_eq!(concurrent_read_probe_max_active(false).await, 1);
 }
 
 /// Regression: the parallel write fast path bypasses `ToolSafetyGate`, so it

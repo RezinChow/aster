@@ -810,6 +810,9 @@ mod plan_snapshot_tests {
                     .with_session_id("plan-snapshot-stream")
                     .with_session_store(store.clone())
                     .with_auto_save(true)
+                    .with_permission_policy(
+                        crate::permissions::PermissionPolicy::new().allow("update_plan"),
+                    )
                     .with_planning_mode(crate::PlanningMode::Disabled),
             )
             .unwrap();

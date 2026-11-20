@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use super::{test_launch, AsterCodeAgent};
+use super::{AsterCodeAgent, test_launch};
 use agent_client_protocol::{self as acp, Agent as _};
 
 #[tokio::test]

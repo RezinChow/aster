@@ -51,6 +51,10 @@ impl crate::agent::TurnEngine {
         )
     }
 
+    fn bind_fact_synthesis_intent(&self, inferred: crate::prompts::AgentStyle) {
+        self.fact_bind_read_only_synthesis(self.config.prompt_slots.style.unwrap_or(inferred));
+    }
+
     #[cfg(test)]
     pub(super) async fn emit_task_updated(
         &self,
@@ -82,15 +86,58 @@ impl crate::agent::TurnEngine {
         current_goal: Option<&crate::goal_control::DurableGoalDefinitionV1>,
     ) -> Result<()> {
         let analysis = match (current_goal, &self.config.planning_mode) {
-            (Some(_), _) | (None, crate::prompts::PlanningMode::Enabled) => None,
-            (None, crate::prompts::PlanningMode::Disabled) => return Ok(()),
+            (Some(_), _) => {
+                self.bind_fact_synthesis_intent(crate::prompts::AgentStyle::GeneralPurpose);
+                None
+            }
+            (None, crate::prompts::PlanningMode::Enabled) => {
+                if self.config.read_only_synthesis_rounds.is_some() {
+                    let analysis = self
+                        .run_pre_analysis(prompt, Some(session_id), event_tx, cancel)
+                        .await?;
+                    if let Some(analysis) = analysis {
+                        self.bind_fact_synthesis_intent(analysis.intent);
+                        Some(analysis)
+                    } else {
+                        self.bind_fact_synthesis_intent(crate::prompts::AgentStyle::GeneralPurpose);
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            (None, crate::prompts::PlanningMode::Disabled) => {
+                if let Some(style) = self.config.prompt_slots.style {
+                    self.bind_fact_synthesis_intent(style);
+                } else if self.config.read_only_synthesis_rounds.is_some() {
+                    if let Some(analysis) = self
+                        .run_pre_analysis(prompt, Some(session_id), event_tx, cancel)
+                        .await?
+                    {
+                        self.bind_fact_synthesis_intent(analysis.intent);
+                    } else {
+                        self.bind_fact_synthesis_intent(crate::prompts::AgentStyle::GeneralPurpose);
+                    }
+                }
+                return Ok(());
+            }
             (None, crate::prompts::PlanningMode::Auto) => {
                 match self
                     .run_pre_analysis(prompt, Some(session_id), event_tx, cancel)
                     .await?
                 {
-                    Some(analysis) if analysis.requires_planning => Some(analysis),
-                    _ => return Ok(()),
+                    Some(analysis) => {
+                        self.bind_fact_synthesis_intent(analysis.intent);
+                        if analysis.requires_planning {
+                            Some(analysis)
+                        } else {
+                            return Ok(());
+                        }
+                    }
+                    None => {
+                        self.bind_fact_synthesis_intent(crate::prompts::AgentStyle::GeneralPurpose);
+                        return Ok(());
+                    }
                 }
             }
         };

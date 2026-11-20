@@ -5,14 +5,14 @@
 
 use crate::error::{read_or_recover, write_or_recover};
 
+use super::ToolResult;
 use super::artifacts::{ArtifactStore, ArtifactStoreLimits, ToolArtifact};
 use super::types::{Tool, ToolCapabilities, ToolContext, ToolOutput};
-use super::ToolResult;
 use super::{
-    merge_tool_output_artifact_metadata, tool_output_artifact, transform_tool_output_with_artifact,
     ImmutableContentAdapterSession, ImmutableContentError, ImmutableContentKindV1,
-    ToolOutputArtifact, ToolResultTransformBindingV1, ToolResultTransformPolicyV1,
-    TOOL_RESULT_CONTENT_MEDIA_TYPE,
+    TOOL_RESULT_CONTENT_MEDIA_TYPE, ToolOutputArtifact, ToolResultTransformBindingV1,
+    ToolResultTransformPolicyV1, merge_tool_output_artifact_metadata, tool_output_artifact,
+    transform_tool_output_with_artifact,
 };
 use crate::llm::ToolDefinition;
 use crate::trace::{InMemoryTraceSink, TraceEvent, TraceSink};
@@ -654,6 +654,17 @@ impl ToolRegistry {
                 transform_binding,
             });
         };
+        if let Some(message) = crate::kstudio::product_write_blocked(
+            &ctx.workspace,
+            ctx.kburn_loop_invoked(),
+            name,
+            args,
+        ) {
+            return Ok(PreparedToolOutput {
+                output: Some(ToolOutput::error(message)),
+                transform_binding,
+            });
+        }
 
         let mut scoped = ctx
             .clone()

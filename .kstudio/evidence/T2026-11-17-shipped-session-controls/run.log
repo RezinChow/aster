@@ -1,0 +1,215 @@
+warning: unused imports: `BrowserBackend`, `CodeConfig`, and `StorageBackend`
+  --> crates/code/core/src/config/loader_tests.rs:1:13
+   |
+ 1 | use super::{BrowserBackend, CodeConfig, StorageBackend};
+   |             ^^^^^^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/code/core/src/config/mod.rs:20:1
+   |
+20 | mod loader_tests;
+   | ^^^^^^^^^^^^^^^^^
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::mcp::McpTransportConfig`
+  --> crates/code/core/src/config/loader_tests.rs:2:5
+   |
+ 2 | use crate::mcp::McpTransportConfig;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/code/core/src/config/mod.rs:20:1
+   |
+20 | mod loader_tests;
+   | ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `SessionLane` and `TaskHandlerMode`
+  --> crates/code/core/src/config/loader_tests.rs:3:20
+   |
+ 3 | use crate::queue::{SessionLane, TaskHandlerMode};
+   |                    ^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/code/core/src/config/mod.rs:20:1
+   |
+20 | mod loader_tests;
+   | ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `attachments_from_fact_tool_images`
+  --> crates/code/core/src/fact_control.rs:86:5
+   |
+86 |     attachments_from_fact_tool_images, confirmation_parked, decision_from_response,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ProgressBasis`
+  --> crates/code/core/src/goal_control/facts.rs:45:75
+   |
+45 | pub(crate) use run::{prepare_run, render_run_context, ContinuationSource, ProgressBasis};
+   |                                                                           ^^^^^^^^^^^^^
+
+warning: unused import: `std::hash::Hasher`
+  --> crates/code/core/src/tools/registry.rs:21:5
+   |
+21 | use std::hash::Hasher;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unreachable pattern
+   --> crates/code/core/src/workspace/manifest/scanner.rs:459:19
+    |
+458 |                 | ".aster"
+    |                   -------- matches all the relevant values
+459 |                 | ".aster"
+    |                   ^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+  --> crates/code/core/src/workspace/source_egress.rs:65:19
+   |
+64 |                 | ".aster"
+   |                   -------- matches all the relevant values
+65 |                 | ".aster"
+   |                   ^^^^^^^^ no value can reach this
+
+warning: associated function `observed_mutations` is never used
+  --> crates/code/core/src/goal_control/facts/run/continuation.rs:26:19
+   |
+25 | impl ContinuationSource {
+   | ----------------------- associated function in this implementation
+26 |     pub(crate) fn observed_mutations(
+   |                   ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `recorded_uncertainties` is never used
+   --> crates/code/core/src/harness_loop.rs:746:19
+    |
+366 | impl MutationLedger {
+    | ------------------- method in this implementation
+...
+746 |     pub(crate) fn recorded_uncertainties(&self) -> &std::collections::BTreeSet<String> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `with_scheduler_quota_from` is never used
+   --> crates/code/core/src/llm/admission.rs:338:19
+    |
+257 | impl ModelGenerationAdmission {
+    | ----------------------------- method in this implementation
+...
+338 |     pub(crate) fn with_scheduler_quota_from(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `uses_anthropic_messages_api` is never used
+   --> crates/code/core/src/llm/factory.rs:258:15
+    |
+258 | pub(crate) fn uses_anthropic_messages_api(provider: &str, base_url: Option<&str>) -> bool {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `lines` is never used
+   --> crates/code/core/src/porcelain.rs:499:21
+    |
+499 | pub(crate) async fn lines(root: &Path) -> Option<Vec<String>> {
+    |                     ^^^^^
+
+warning: associated function `new` is never used
+   --> crates/code/core/src/tools/types.rs:320:8
+    |
+318 | impl ModelGenerationPermitReservation {
+    | ------------------------------------- associated function in this implementation
+319 |     /// Called from the `dynamic-workflow` surface.
+320 |     fn new(permit: Arc<crate::llm::ModelGenerationPermit>) -> Self {
+    |        ^^^
+
+warning: method `with_model_generation_permit` is never used
+   --> crates/code/core/src/tools/types.rs:861:19
+    |
+408 | impl ToolContext {
+    | ---------------- method in this implementation
+...
+861 |     pub(crate) fn with_model_generation_permit(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated functions `default_catalog` and `default_catalog_with_engine` are never used
+   --> crates/code/core/src/workspace/retrieval/catalog.rs:287:19
+    |
+153 | impl WorkspaceChunkCatalog {
+    | -------------------------- associated functions in this implementation
+...
+287 |     pub(crate) fn default_catalog() -> Arc<Self> {
+    |                   ^^^^^^^^^^^^^^^
+...
+295 |     pub(crate) fn default_catalog_with_engine(engine: WorkspaceLexicalEngine) -> Arc<Self> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `aster-core` (lib) generated 16 warnings (run `cargo fix --lib -p aster-core` to apply 5 suggestions)
+warning: unused import: `sha2::Digest`
+  --> crates/embedding/src/hygiene.rs:10:5
+   |
+10 | use sha2::Digest as _;
+   |     ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> crates/embedding/src/vector/hnsw.rs:41:13
+   |
+41 |         let mut index =
+   |             ----^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `dimension` is never read
+  --> crates/embedding/src/vector/hnsw.rs:21:5
+   |
+17 | pub struct HnswBackend {
+   |            ----------- field in this struct
+...
+21 |     dimension: usize,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aster-embedding` (lib) generated 3 warnings (run `cargo fix --lib -p aster-embedding` to apply 1 suggestion)
+warning: unused import: `preview_text`
+  --> crates/code/acp/src/agent.rs:80:25
+   |
+80 |     prepared_raw_input, preview_text, preview_text_owned, streaming_bash_delta, task_to_plan_entry,
+   |                         ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `register_embedding_provider` is never used
+  --> crates/code/acp/src/agent/local_embedding.rs:42:8
+   |
+42 | pub fn register_embedding_provider(factory: Factory) -> Result<(), String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `as_str` is never used
+  --> crates/code/acp/src/host_context.rs:64:12
+   |
+57 | impl CompletionAttestation {
+   | -------------------------- method in this implementation
+...
+64 |     pub fn as_str(self) -> &'static str {
+   |            ^^^^^^
+
+warning: `aster-acp` (lib) generated 3 warnings (run `cargo fix --lib -p aster-acp` to apply 1 suggestion)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `aster-acp` (bin "aster-acp") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.56s
+     Running tests/shipped_tui_e2e.rs (target/debug/deps/shipped_tui_e2e-6190e52b2be81d14)
+
+running 3 tests
+test session_controls::mouse_stop_ctrl_c_and_send_now_release_a_stalled_turn ... ok
+test session_controls::queue_drains_three_follow_ups_in_order_once ... ok
+test session_controls::resume_command_opens_and_restores_the_selected_session ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 27.61s
+

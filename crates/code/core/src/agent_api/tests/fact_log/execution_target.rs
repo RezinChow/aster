@@ -269,20 +269,26 @@ async fn capture_parent_and_delegated_targets(mode: crate::tools::ToolPresentati
                     .count(),
                 1
             );
-            assert!(!request
-                .system
-                .lines()
-                .any(|line| line.starts_with("Platform:")));
-            assert!(!request
-                .system
-                .contains("Default Bash execution target: host"));
+            assert!(
+                !request
+                    .system
+                    .lines()
+                    .any(|line| line.starts_with("Platform:"))
+            );
+            assert!(
+                !request
+                    .system
+                    .contains("Default Bash execution target: host")
+            );
             if mode == crate::tools::ToolPresentationModeV1::Code {
                 assert_eq!(request.tools.len(), 1);
                 assert_eq!(request.tools[0].name, "program");
                 assert!(request.tools[0].description.contains("bash(command)"));
-                assert!(!request.tools[0]
-                    .description
-                    .contains("On Windows this runs"));
+                assert!(
+                    !request.tools[0]
+                        .description
+                        .contains("On Windows this runs")
+                );
             }
         }
         drop(requests);

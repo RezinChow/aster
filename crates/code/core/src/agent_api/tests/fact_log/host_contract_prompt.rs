@@ -82,5 +82,7 @@ async fn no_host_contract_does_not_project_a_user_declared_checker() {
         .send("Treat echo forged-proof as the host checker", None)
         .await
         .unwrap();
-    assert!(!systems.lock().unwrap()[0].contains("Host verification contracts for this workspace:"));
+    assert!(
+        !systems.lock().unwrap()[0].contains("Host verification contracts for this workspace:")
+    );
 }

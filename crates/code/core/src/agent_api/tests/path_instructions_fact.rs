@@ -102,6 +102,7 @@ async fn run_fact_session(budget: Option<usize>) -> Vec<String> {
     let agent = Agent::from_config(test_config()).await.unwrap();
     let mut options = SessionOptions::new()
         .with_session_id("path-inject-fact")
+        .with_permission_policy(crate::permissions::PermissionPolicy::new().allow("read"))
         .with_planning_mode(crate::prompts::PlanningMode::Disabled)
         .with_auto_delegation_enabled(false)
         .with_manual_delegation_enabled(false)
@@ -179,6 +180,7 @@ async fn fact_spine_injects_nothing_when_no_rule_matches_the_target() {
             Arc::clone(&client) as Arc<dyn crate::llm::LlmClient>,
             &SessionOptions::new()
                 .with_session_id("path-inject-fact-nomatch")
+                .with_permission_policy(crate::permissions::PermissionPolicy::new().allow("read"))
                 .with_planning_mode(crate::prompts::PlanningMode::Disabled)
                 .with_auto_delegation_enabled(false)
                 .with_manual_delegation_enabled(false)

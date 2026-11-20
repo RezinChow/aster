@@ -37,6 +37,8 @@ pub(super) struct TerminalBenchRunResultV1 {
     terminal_event: bool,
     exit_code: i32,
     duration_ms: u64,
+    /// Session budget passed to Core (`--max-execution-time-ms`).
+    max_execution_time_ms: u64,
     turns: usize,
     tool_calls: usize,
     successful_tool_calls: usize,
@@ -48,6 +50,13 @@ pub(super) struct TerminalBenchRunResultV1 {
     provider_status: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_error: Option<String>,
+    /// False when the adapter stopped before a valid Harbor reward could be
+    /// produced (for example a repeated KBurn settlement stall).
+    #[serde(rename = "reward_valid")]
+    reward_valid: bool,
+    /// A durable storage failure ended the run before a valid reward existed.
+    #[serde(rename = "storage_fatal")]
+    storage_fatal: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +81,8 @@ pub(super) struct RunProgress {
     pub(super) stream_closed_without_terminal_event: bool,
     pub(super) evidence_missing: bool,
     last_error: Option<String>,
+    reward_valid: bool,
+    storage_fatal: bool,
 }
 
 impl RunProgress {
@@ -90,6 +101,8 @@ impl RunProgress {
             stream_closed_without_terminal_event: false,
             evidence_missing: false,
             last_error: None,
+            reward_valid: true,
+            storage_fatal: false,
         }
     }
 
@@ -126,10 +139,19 @@ impl RunProgress {
         self.remember_error("agent ended without a successful tool execution");
     }
 
+    pub(super) fn mark_reward_invalid(&mut self) {
+        self.reward_valid = false;
+    }
+
+    pub(super) fn mark_storage_fatal(&mut self) {
+        self.storage_fatal = true;
+    }
+
     pub(super) fn report(
         &self,
         outcome: ExecutionResultOutcomeV1,
         reason: TerminalReason,
+        max_execution_time_ms: u64,
     ) -> TerminalBenchRunResultV1 {
         TerminalBenchRunResultV1 {
             schema: TERMINAL_BENCH_RESULT_SCHEMA_V1,
@@ -142,6 +164,7 @@ impl RunProgress {
                 1
             },
             duration_ms: self.duration_ms(),
+            max_execution_time_ms,
             turns: self.turns,
             tool_calls: self.tool_calls,
             successful_tool_calls: self.successful_tool_calls,
@@ -150,6 +173,8 @@ impl RunProgress {
             provider: self.provider.clone(),
             provider_status: self.provider_status,
             last_error: self.last_error.clone(),
+            reward_valid: self.reward_valid,
+            storage_fatal: self.storage_fatal,
         }
     }
 }
@@ -317,6 +342,7 @@ mod tests {
         let report = progress.report(
             ExecutionResultOutcomeV1::Succeeded,
             TerminalReason::AgentEnd,
+            840_000,
         );
         let json = serde_json::to_value(report).expect("report JSON");
         assert_eq!(json["schema"], TERMINAL_BENCH_RESULT_SCHEMA_V1);
@@ -330,6 +356,36 @@ mod tests {
         assert_eq!(json["errorCount"], 1);
         assert_eq!(json["provider"], "openai");
         assert_eq!(json["providerStatus"], 402);
+        assert_eq!(json["maxExecutionTimeMs"], 840_000);
+        assert_eq!(json["reward_valid"], true);
+    }
+
+    #[test]
+    fn stopped_run_can_mark_reward_invalid() {
+        let mut progress = RunProgress::new();
+        progress.mark_reward_invalid();
+        let report = progress.report(
+            ExecutionResultOutcomeV1::Failed,
+            TerminalReason::ExecutionFailed,
+            840_000,
+        );
+        let json = serde_json::to_value(report).expect("report JSON");
+        assert_eq!(json["reward_valid"], false);
+    }
+
+    #[test]
+    fn storage_fatal_result_is_not_reward_comparable() {
+        let mut progress = RunProgress::new();
+        progress.mark_storage_fatal();
+        progress.mark_reward_invalid();
+        let report = progress.report(
+            ExecutionResultOutcomeV1::Failed,
+            TerminalReason::ExecutionFailed,
+            840_000,
+        );
+        let json = serde_json::to_value(report).expect("report JSON");
+        assert_eq!(json["storage_fatal"], true);
+        assert_eq!(json["reward_valid"], false);
     }
 
     #[test]
@@ -446,6 +502,7 @@ mod tests {
         let report = progress.report(
             ExecutionResultOutcomeV1::Failed,
             TerminalReason::ProviderRejected,
+            840_000,
         );
         let json = serde_json::to_value(report).expect("report JSON");
         assert_eq!(json["provider"], "anthropic");
@@ -464,6 +521,7 @@ mod tests {
         let report = progress.report(
             ExecutionResultOutcomeV1::Failed,
             TerminalReason::ProviderExhausted,
+            840_000,
         );
         let json = serde_json::to_value(report).expect("report JSON");
         assert_eq!(json["providerStatus"], 429);
@@ -487,6 +545,7 @@ mod tests {
         let first = progress.report(
             ExecutionResultOutcomeV1::Succeeded,
             TerminalReason::AgentEnd,
+            840_000,
         );
         persist_result(&path, &first)
             .await
@@ -495,6 +554,7 @@ mod tests {
         let second = progress.report(
             ExecutionResultOutcomeV1::Failed,
             TerminalReason::ExecutionFailed,
+            840_000,
         );
         persist_result(&path, &second)
             .await

@@ -8,7 +8,7 @@ async fn diagnostic_calls_keep_literal_arguments_and_runtime_refusals_in_model_h
     for (name, args, policy, reason) in [
         (
             "search",
-            json!({"mode":"grep", "query":"needle", "path":".", "context":0, "limit":1}),
+            json!({"mode":"grep", "query":"needle", "output_mode":"summary", "limit":1}),
             crate::permissions::PermissionPolicy::new().allow("*"),
             "supported only with output_mode",
         ),
@@ -52,11 +52,13 @@ async fn diagnostic_calls_keep_literal_arguments_and_runtime_refusals_in_model_h
                 .collect::<Vec<_>>();
             assert_eq!(coding.len(), 2);
             for request in &coding {
-                assert!(request
-                    .system
-                    .as_deref()
-                    .unwrap()
-                    .contains(crate::prompts::RUNTIME_CONTRACT));
+                assert!(
+                    request
+                        .system
+                        .as_deref()
+                        .unwrap()
+                        .contains(crate::prompts::RUNTIME_CONTRACT)
+                );
                 assert_eq!(
                     request
                         .messages
@@ -95,7 +97,7 @@ async fn diagnostic_calls_keep_literal_arguments_and_runtime_refusals_in_model_h
                 .collect::<Vec<_>>();
             assert_eq!(results.len(), 1);
             assert_eq!(results[0].0, "diagnostic-call");
-            assert_eq!(*results[0].2, Some(true));
+            assert_eq!(*results[0].2, Some(true), "{results:?}");
             assert!(results[0].1.contains(reason), "{}", results[0].1);
             assert_eq!(
                 std::fs::read(workspace.path().join("protected.txt")).unwrap(),

@@ -213,30 +213,36 @@ async fn prove_snapshot_source(file: bool) {
                 !source_file.exists(),
                 "fork must not recreate its missing source"
             );
-            assert!(resumed
-                .send("source removed after restore", None)
-                .await
-                .is_err());
+            assert!(
+                resumed
+                    .send("source removed after restore", None)
+                    .await
+                    .is_err()
+            );
             assert!(resumed.resume_run(&checkpoint.run_id).await.is_err());
-            assert!(resumed
-                .spawn_recovery_with_run_id(&checkpoint.run_id, "refused-exact")
-                .await
-                .is_err());
+            assert!(
+                resumed
+                    .spawn_recovery_with_run_id(&checkpoint.run_id, "refused-exact")
+                    .await
+                    .is_err()
+            );
             assert!(resumed.run_snapshot("refused-exact").await.is_none());
             let evidence =
                 crate::session_checkpoint::SessionLogicalResumeEvidenceV1::from_checkpoint(
                     &checkpoint,
                 )
                 .unwrap();
-            assert!(resumed
-                .prepare_recovery_from_checkpoint(
-                    &evidence,
-                    "source-evidence",
-                    "refused-prepared",
-                    checkpoint.clone()
-                )
-                .await
-                .is_err());
+            assert!(
+                resumed
+                    .prepare_recovery_from_checkpoint(
+                        &evidence,
+                        "source-evidence",
+                        "refused-prepared",
+                        checkpoint.clone()
+                    )
+                    .await
+                    .is_err()
+            );
             assert!(resumed.run_snapshot("refused-prepared").await.is_none());
             assert_eq!(calls.load(Ordering::SeqCst), attempts);
         }
@@ -283,11 +289,13 @@ async fn fork_refuses_invalid_source_before_first_snapshot() {
                 .unwrap();
             session.send("original history", None).await.unwrap();
             assert!(session.saved_durable_source().is_none());
-            assert!(store
-                .load_snapshot(session.session_id())
-                .await
-                .unwrap()
-                .is_none());
+            assert!(
+                store
+                    .load_snapshot(session.session_id())
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
             let thread = crate::fact_control::thread_for_session(session.session_id());
             let log = aster_effect::FileLog::open(crate::session_folder::effect_log_dir(
                 workspace.path(),

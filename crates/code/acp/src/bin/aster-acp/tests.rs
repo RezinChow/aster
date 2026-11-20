@@ -12,6 +12,13 @@ fn a_launch_without_the_flag_stays_interactive() {
 }
 
 #[test]
+fn kburn_flags_are_explicit_and_default_to_auto_detection() {
+    assert_eq!(parse(&[]).expect("auto").kburn, None);
+    assert_eq!(parse(&["--kburn"]).expect("enabled").kburn, Some(true));
+    assert_eq!(parse(&["--no-kburn"]).expect("disabled").kburn, Some(false));
+}
+
+#[test]
 fn configuration_overlays_preserve_base_selection_and_declaration_order() {
     let args = parse(&[
         "--config",

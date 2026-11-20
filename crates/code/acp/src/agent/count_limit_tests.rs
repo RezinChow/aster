@@ -52,6 +52,7 @@ fn interactive_count_is_unbounded_without_an_explicit_limit_for_every_effort() {
     for effort in all_efforts() {
         let options = interactive_options(effort, None);
         assert_eq!(options.max_tool_rounds, Some(0), "effort {effort:?}");
+        assert_eq!(options.read_only_synthesis_rounds, Some(2));
         let guidelines = options.prompt_slots.unwrap().guidelines.unwrap();
         assert!(guidelines.contains("Tool calls have no count limit."));
         assert!(!guidelines.contains("tool_rounds="));
@@ -60,7 +61,9 @@ fn interactive_count_is_unbounded_without_an_explicit_limit_for_every_effort() {
                 let limits = effort_limits(token).unwrap();
                 assert!(options.reasoning_effort.is_none());
                 assert!(options.thinking_budget.is_none());
-                assert!(guidelines.contains(&format!("thinking_budget={}", limits.thinking_budget)));
+                assert!(
+                    guidelines.contains(&format!("thinking_budget={}", limits.thinking_budget))
+                );
             }
             None => {
                 assert!(options.reasoning_effort.is_none());

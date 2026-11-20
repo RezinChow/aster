@@ -10,6 +10,7 @@ use tokio::sync::mpsc;
 
 const TOOL_BUDGET_FINALIZATION: &str = "Tool-use budget reached. Stop gathering evidence and return the best complete final answer now using only the tool results already present. Do not call any tool.";
 const REPEATED_TOOL_FINALIZATION: &str = "Repeated identical tool calls have no new evidence. Stop gathering evidence and return the best complete final answer now using only the tool results already present. Do not call any tool.";
+use super::READ_ONLY_SYNTHESIS_FINALIZATION;
 
 impl crate::agent::TurnEngine {
     /// Core execution loop (without planning routing).
@@ -188,6 +189,12 @@ impl crate::agent::TurnEngine {
             let budget_hit = self.config.max_tool_rounds != 0
                 && state.current_turn() >= self.config.max_tool_rounds;
             let repeated_tool = state.take_duplicate_finalization();
+            let read_only_synthesis = state.take_read_only_synthesis();
+            if read_only_synthesis {
+                state
+                    .messages
+                    .push(Message::user_wire(READ_ONLY_SYNTHESIS_FINALIZATION));
+            }
             let force_finalization = budget_hit || repeated_tool;
             if force_finalization {
                 let message = if budget_hit {
@@ -352,6 +359,7 @@ impl crate::agent::TurnEngine {
                 }
             }
 
+            let read_only_tool_response = self.tool_response_is_read_only(&tool_calls);
             let tool_dispatch_context = if verifier_role {
                 scoped_tool_context.clone().with_verifier_read_only(true)
             } else {
@@ -396,6 +404,10 @@ impl crate::agent::TurnEngine {
                 }
                 return Err(state.finish_failed(e));
             }
+            state.observe_tool_response(
+                read_only_tool_response,
+                self.config.read_only_synthesis_rounds,
+            );
 
             if let Err(error) = close_capability_turn(capability_turn.as_ref()).await {
                 return Err(state.finish_failed(error));

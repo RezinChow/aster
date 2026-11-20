@@ -15,6 +15,10 @@ pub enum ActorError {
     BadThreadId { thread_id: String },
     #[error("fact schema: {0}")]
     Schema(String),
+    /// The fact log cannot admit another fact without pruning a covered span.
+    /// Typed so callers can stop a run instead of retrying a durable failure.
+    #[error("fact schema: fact log byte limit exceeded: {detail}")]
+    FactLogByteLimit { detail: String },
     #[error("config: {0}")]
     Config(String),
     /// A defect. The coding fold does not retry it and does not append a fact.

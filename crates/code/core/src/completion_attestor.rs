@@ -33,8 +33,8 @@ pub struct MutatedPathRecord {
 /// Host-supplied evidence binder for the completion gate.
 ///
 /// Return `None` to leave the report list unchanged. A returned report still
-/// must [`report_binds_pass`](crate::harness_loop) (digest match + required
-/// checks Passed) for the gate to allow the run.
+/// must [`report_binds_pass`](crate::harness_loop) (digest match + overall
+/// report and required checks Passed) for the gate to allow the run.
 pub trait CompletionAttestor: Send + Sync {
     /// Called once the mutation ledger digest and paths exist.
     fn attest(

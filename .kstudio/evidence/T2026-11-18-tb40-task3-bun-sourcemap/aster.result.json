@@ -1,0 +1,14 @@
+{
+  "schema": "aster.code.terminal-bench-result.v1",
+  "outcome": "succeeded",
+  "reason": "agent_end",
+  "terminalEvent": true,
+  "exitCode": 0,
+  "durationMs": 1679580,
+  "maxExecutionTimeMs": 28800000,
+  "turns": 44,
+  "toolCalls": 46,
+  "successfulToolCalls": 52,
+  "artifactEvidenceCount": 0,
+  "errorCount": 0
+}

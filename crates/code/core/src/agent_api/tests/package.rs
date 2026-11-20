@@ -65,11 +65,13 @@ async fn package_binding_is_persisted_and_retained_by_run_events() {
         })
         .collect::<Vec<_>>();
     assert_eq!(bound_events, vec![&expected]);
-    assert!(!snapshot
-        .run_records
-        .iter()
-        .flat_map(|record| &record.events)
-        .any(|record| matches!(record.event, AgentEvent::MemoryRecalled { .. })));
+    assert!(
+        !snapshot
+            .run_records
+            .iter()
+            .flat_map(|record| &record.events)
+            .any(|record| matches!(record.event, AgentEvent::MemoryRecalled { .. }))
+    );
     snapshot.validate_for_session("package-session").unwrap();
 
     let mut tampered = snapshot.clone();
@@ -117,10 +119,12 @@ async fn package_provider_failure_and_generation_drift_fail_closed_without_fallb
         let records = session.run_store.records().await;
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].snapshot.status, crate::run::RunStatus::Failed);
-        assert!(records[0]
-            .events
-            .iter()
-            .any(|record| matches!(record.event, AgentEvent::PackageContextBound { .. })));
+        assert!(
+            records[0]
+                .events
+                .iter()
+                .any(|record| matches!(record.event, AgentEvent::PackageContextBound { .. }))
+        );
         assert!(!records[0].events.iter().any(|record| matches!(
             record.event,
             AgentEvent::MemoryRecalled { .. } | AgentEvent::End { .. }

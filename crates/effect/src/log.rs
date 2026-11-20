@@ -150,6 +150,8 @@ mod fencing;
 pub use fencing::{FileLogRunOwnerFence, FileLogWriterFence};
 
 const MAX_LOG_BYTES: u64 = 16 * 1024 * 1024;
+/// Trigger a compaction while there is still room to write its anchor.
+pub(crate) const DEFAULT_COMPACT_AFTER_PRUNABLE_BYTES: u64 = MAX_LOG_BYTES * 3 / 4;
 const MAX_LOG_FACTS: usize = 100_000;
 /// Largest single JSONL record (one fact line, without its newline). Three
 /// quarters of the 16 MiB file cap: still leaves room for sibling facts and a
@@ -550,6 +552,12 @@ const ANCHOR_KIND: &str = "compaction.done";
 const PRUNED_KIND: &str = "compaction.pruned";
 const BYTE_LIMIT: &str = "fact log byte limit exceeded";
 
+fn byte_limit_error(detail: impl Into<String>) -> ActorError {
+    ActorError::FactLogByteLimit {
+        detail: detail.into(),
+    }
+}
+
 /// Transcript facts the coding fold replays only to rebuild what a compaction
 /// summary already carries. `tool.prepared` holds a workspace baseline per
 /// tool call, and every superseded summary repeats its kept tail, so these
@@ -562,6 +570,14 @@ const SUMMARIZED_KINDS: [&str; 6] = [
     "question.answered",
     ANCHOR_KIND,
 ];
+
+pub(crate) fn is_summarized_fact_kind(kind: &str) -> bool {
+    SUMMARIZED_KINDS.contains(&kind)
+}
+
+pub(crate) fn fact_json_len(fact: &Fact) -> usize {
+    json_len(fact)
+}
 
 /// Replace the facts covered by the latest compaction summary with tombstones.
 /// The summary is the latest one in the log, or the one in `incoming`.
@@ -597,7 +613,7 @@ fn compacted_prefix(facts: &[Fact], incoming: &[Fact]) -> Option<Vec<Fact>> {
 }
 
 fn is_byte_limit_error(error: &ActorError) -> bool {
-    matches!(error, ActorError::Schema(message) if message == BYTE_LIMIT)
+    matches!(error, ActorError::FactLogByteLimit { .. })
 }
 
 /// The log cannot take `added` even after pruning. Name what fills it so the
@@ -630,8 +646,8 @@ fn byte_limit_diagnostic(facts: &[Fact], added: &[Fact], reason: &str) -> ActorE
         .map(|(kind, bytes)| format!("{kind} {bytes} bytes"))
         .unwrap_or_else(|| "none".into());
     let added_bytes = encode_facts(added, u64::MAX, false).map(|bytes| bytes.len());
-    storage_error(format!(
-        "{BYTE_LIMIT}: {reason} (limit {MAX_LOG_BYTES} bytes, {} facts, appending {} facts / {} bytes, largest kind: {largest})",
+    byte_limit_error(format!(
+        "{reason} (limit {MAX_LOG_BYTES} bytes, {} facts, appending {} facts / {} bytes, largest kind: {largest})",
         facts.len(),
         added.len(),
         added_bytes.unwrap_or(0),
@@ -643,7 +659,7 @@ fn validate_regular(metadata: &Metadata) -> Result<(), ActorError> {
         return Err(storage_error("fact log must be a single-link regular file"));
     }
     if metadata.len() > MAX_LOG_BYTES {
-        return Err(storage_error(BYTE_LIMIT));
+        return Err(byte_limit_error("log exceeds its byte limit"));
     }
     Ok(())
 }
@@ -686,21 +702,30 @@ fn encode_facts(facts: &[Fact], limit: u64, separator: bool) -> Result<Vec<u8>, 
         remaining: limit,
     };
     if separator {
-        buffer.write_all(b"\n").map_err(storage_error)?;
+        buffer.write_all(b"\n").map_err(encode_error)?;
     }
     for fact in facts {
         let before = buffer.bytes.len();
-        serde_json::to_writer(&mut buffer, fact).map_err(storage_error)?;
+        serde_json::to_writer(&mut buffer, fact).map_err(encode_error)?;
         if buffer.bytes.len() - before > MAX_RECORD_BYTES {
             return Err(storage_error(RECORD_LIMIT));
         }
-        buffer.write_all(b"\n").map_err(storage_error)?;
+        buffer.write_all(b"\n").map_err(encode_error)?;
     }
     Ok(buffer.bytes)
 }
 
 fn storage_error(error: impl std::fmt::Display) -> ActorError {
     ActorError::Schema(error.to_string())
+}
+
+fn encode_error(error: impl std::fmt::Display) -> ActorError {
+    let text = error.to_string();
+    if text.contains(BYTE_LIMIT) {
+        byte_limit_error("fact batch does not fit")
+    } else {
+        storage_error(text)
+    }
 }
 
 fn restrict_file_permissions(file: &fs::File) -> Result<(), ActorError> {

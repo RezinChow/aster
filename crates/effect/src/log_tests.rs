@@ -353,14 +353,17 @@ fn byte_limit_without_a_summary_fails_with_a_diagnostic_and_keeps_the_log() {
             None,
         )
         .unwrap_err();
-    let ActorError::Schema(message) = error else {
-        panic!("expected a schema error");
+    let ActorError::FactLogByteLimit { detail } = &error else {
+        panic!("expected a typed byte-limit error");
     };
     assert!(
-        message.starts_with("fact log byte limit exceeded: "),
-        "{message}"
+        detail.contains("largest kind: tool.result"),
+        "{detail}"
     );
-    assert!(message.contains("largest kind: tool.result"), "{message}");
+    assert!(
+        error.to_string().starts_with("fact schema: fact log byte limit exceeded"),
+        "{error}"
+    );
     assert_eq!(
         std::fs::read(dir.path().join("thread-1.jsonl")).unwrap(),
         before

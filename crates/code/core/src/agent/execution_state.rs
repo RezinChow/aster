@@ -19,6 +19,8 @@ pub(super) struct ExecutionLoopState {
     guarded_duplicate_signature: Option<String>,
     guarded_duplicate_count: u32,
     duplicate_finalization_pending: bool,
+    read_only_synthesis_rounds: u32,
+    read_only_synthesis_status: crate::loop_checkpoint::ReadOnlySynthesisStatus,
     last_incomplete_response_hash: Option<String>,
     incomplete_response_stalled: bool,
     pub(super) gate_continuation_count: u32,
@@ -27,6 +29,7 @@ pub(super) struct ExecutionLoopState {
     pub(super) targeted_paths: Vec<String>,
     pub(super) verifier_spent: bool,
     pub(super) next_turn_is_verifier: bool,
+    pub(super) kburn_loop_invoked: bool,
     pub(super) run_watch: Option<crate::porcelain::RunWatch>,
     pub(super) run_watch_is_baseline: bool,
     workspace_watch_bound: bool,
@@ -87,6 +90,8 @@ impl ExecutionLoopState {
             guarded_duplicate_signature: convergence.guarded_duplicate_signature,
             guarded_duplicate_count: convergence.guarded_duplicate_count,
             duplicate_finalization_pending: convergence.duplicate_finalization_pending,
+            read_only_synthesis_rounds: convergence.read_only_synthesis_rounds,
+            read_only_synthesis_status: convergence.read_only_synthesis_status,
             last_incomplete_response_hash: convergence.last_incomplete_response_hash,
             incomplete_response_stalled: convergence.incomplete_response_stalled,
             gate_continuation_count: convergence.gate_continuation_count,
@@ -95,6 +100,7 @@ impl ExecutionLoopState {
             targeted_paths: Vec::new(),
             verifier_spent: convergence.verifier_spent,
             next_turn_is_verifier: convergence.next_turn_is_verifier,
+            kburn_loop_invoked: convergence.kburn_loop_invoked,
             run_watch: None,
             run_watch_is_baseline: false,
             workspace_watch_bound: convergence.workspace_watch_bound,
@@ -210,6 +216,10 @@ impl ExecutionLoopState {
             guarded_duplicate_signature: self.guarded_duplicate_signature.clone(),
             guarded_duplicate_count: self.guarded_duplicate_count,
             read_only_evidence_rounds: 0,
+            read_only_synthesis_rounds: self.read_only_synthesis_rounds,
+            read_only_synthesis_status: self.read_only_synthesis_status,
+            read_only_synthesis_intent: None,
+            read_only_synthesis_finalization_pending: false,
             duplicate_finalization_pending: self.duplicate_finalization_pending,
             last_incomplete_response_hash: self.last_incomplete_response_hash.clone(),
             incomplete_response_stalled: self.incomplete_response_stalled,
@@ -218,6 +228,7 @@ impl ExecutionLoopState {
             open_observations: self.open_observations.clone(),
             verifier_spent: self.verifier_spent,
             next_turn_is_verifier: self.next_turn_is_verifier,
+            kburn_loop_invoked: self.kburn_loop_invoked,
             workspace_watch_bound: self.workspace_watch_bound,
             workspace_porcelain: self.workspace_porcelain.clone(),
             workspace_head: self.workspace_head.clone(),
@@ -236,6 +247,39 @@ impl ExecutionLoopState {
 
     pub(super) fn record_tool_call(&mut self) {
         self.tool_calls_count += 1;
+    }
+
+    pub(super) fn observe_tool_response(
+        &mut self,
+        all_read_only: bool,
+        synthesis_budget: Option<u32>,
+    ) {
+        use crate::loop_checkpoint::ReadOnlySynthesisStatus as Status;
+        if self.read_only_synthesis_status != Status::Collecting {
+            return;
+        }
+        if !all_read_only {
+            self.read_only_synthesis_rounds = 0;
+            if !self.mutations.is_empty() {
+                self.read_only_synthesis_status = Status::Ineligible;
+            }
+            return;
+        }
+        self.read_only_synthesis_rounds = self.read_only_synthesis_rounds.saturating_add(1);
+        if synthesis_budget
+            .is_some_and(|budget| budget > 0 && self.read_only_synthesis_rounds >= budget)
+        {
+            self.read_only_synthesis_status = Status::Pending;
+        }
+    }
+
+    pub(super) fn take_read_only_synthesis(&mut self) -> bool {
+        use crate::loop_checkpoint::ReadOnlySynthesisStatus as Status;
+        if self.read_only_synthesis_status != Status::Pending {
+            return false;
+        }
+        self.read_only_synthesis_status = Status::Spent;
+        true
     }
 
     pub(super) fn duplicate_tool_call(
@@ -346,6 +390,9 @@ impl ExecutionLoopState {
         args: &Value,
         is_error: bool,
     ) {
+        if crate::kstudio::is_loop_skill_invocation(tool_name, args) {
+            self.kburn_loop_invoked = true;
+        }
         self.recent_tool_signatures.push(format!(
             "{} => {}",
             Self::tool_signature(tool_name, args),
@@ -479,12 +526,14 @@ mod tests {
     #[tokio::test]
     async fn baseline_sees_an_unpublished_write_and_ignores_harness_metadata() {
         let workspace = tempfile::tempdir().unwrap();
-        assert!(std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(workspace.path())
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("git")
+                .args(["init"])
+                .current_dir(workspace.path())
+                .status()
+                .unwrap()
+                .success()
+        );
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(workspace.path()).await;
         std::fs::write(workspace.path().join("guest.txt"), "hello\n").unwrap();
@@ -521,41 +570,51 @@ mod tests {
             ["config", "user.name", "test"][..].as_ref(),
             ["config", "commit.gpgsign", "false"][..].as_ref(),
         ] {
-            assert!(std::process::Command::new("git")
-                .args(args)
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+        std::fs::write(root.join("README.md"), "base\n").unwrap();
+        assert!(
+            std::process::Command::new("git")
+                .args(["add", "README.md"])
                 .current_dir(root)
                 .status()
                 .unwrap()
-                .success());
-        }
-        std::fs::write(root.join("README.md"), "base\n").unwrap();
-        assert!(std::process::Command::new("git")
-            .args(["add", "README.md"])
-            .current_dir(root)
-            .status()
-            .unwrap()
-            .success());
-        assert!(std::process::Command::new("git")
-            .args(["commit", "-m", "base"])
-            .current_dir(root)
-            .status()
-            .unwrap()
-            .success());
+                .success()
+        );
+        assert!(
+            std::process::Command::new("git")
+                .args(["commit", "-m", "base"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(root).await;
         std::fs::write(root.join("guest.txt"), "foreign\n").unwrap();
-        assert!(std::process::Command::new("git")
-            .args(["add", "guest.txt"])
-            .current_dir(root)
-            .status()
-            .unwrap()
-            .success());
-        assert!(std::process::Command::new("git")
-            .args(["commit", "-m", "foreign"])
-            .current_dir(root)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("git")
+                .args(["add", "guest.txt"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            std::process::Command::new("git")
+                .args(["commit", "-m", "foreign"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
         let paths = state.unseen_workspace_paths(root).await.paths;
         assert!(
             !paths.iter().any(|path| path == "guest.txt"),
@@ -566,12 +625,14 @@ mod tests {
     #[tokio::test]
     async fn baseline_keeps_every_unpublished_path() {
         let workspace = tempfile::tempdir().unwrap();
-        assert!(std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(workspace.path())
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("git")
+                .args(["init"])
+                .current_dir(workspace.path())
+                .status()
+                .unwrap()
+                .success()
+        );
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(workspace.path()).await;
         for index in 0..33 {
@@ -594,12 +655,14 @@ mod tests {
     async fn a_git_tree_past_the_stamp_cap_stays_a_complete_status_read() {
         let workspace = tempfile::tempdir().unwrap();
         let root = workspace.path();
-        assert!(std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(root)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("git")
+                .args(["init"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
         for index in 0..=crate::porcelain::FILE_WALK_CAP {
             std::fs::write(root.join(format!("f{index:04}.txt")), "x").unwrap();
         }
@@ -619,12 +682,14 @@ mod tests {
                 "baseline",
             ],
         ] {
-            assert!(std::process::Command::new("git")
-                .args(args)
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success());
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
         }
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(root).await;
@@ -647,16 +712,18 @@ mod tests {
 
     #[tokio::test]
     async fn a_path_list_over_the_stamp_cap_stays_recorded_and_the_gate_stays_open() {
-        use crate::harness_loop::{decide_completion, CompletionGate, MutationLedger};
+        use crate::harness_loop::{CompletionGate, MutationLedger, decide_completion};
         use crate::porcelain::FILE_WALK_CAP;
         let workspace = tempfile::tempdir().unwrap();
         let root = workspace.path();
-        assert!(std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(root)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("git")
+                .args(["init"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(root).await;
         for index in 0..=FILE_WALK_CAP {
@@ -672,10 +739,12 @@ mod tests {
             "{:?}",
             observed.paths
         );
-        assert!(observed
-            .paths
-            .iter()
-            .any(|path| path == &format!("f{FILE_WALK_CAP:04}.txt")));
+        assert!(
+            observed
+                .paths
+                .iter()
+                .any(|path| path == &format!("f{FILE_WALK_CAP:04}.txt"))
+        );
         let mut ledger = MutationLedger::default();
         ledger.set_observation_incomplete(observed.incomplete || observed.budget_exceeded);
         assert!(matches!(
@@ -686,16 +755,18 @@ mod tests {
 
     #[tokio::test]
     async fn a_fresh_status_record_cap_closes_the_gate() {
-        use crate::harness_loop::{decide_completion, CompletionGate, MutationLedger};
+        use crate::harness_loop::{CompletionGate, MutationLedger, decide_completion};
         use crate::porcelain::STATUS_RECORD_CAP;
         let workspace = tempfile::tempdir().unwrap();
         let root = workspace.path();
-        assert!(std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(root)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("git")
+                .args(["init"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(root).await;
         for index in 0..=STATUS_RECORD_CAP {
@@ -720,12 +791,14 @@ mod tests {
     #[tokio::test]
     async fn baseline_sees_a_quoted_path() {
         let workspace = tempfile::tempdir().unwrap();
-        assert!(std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(workspace.path())
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("git")
+                .args(["init"])
+                .current_dir(workspace.path())
+                .status()
+                .unwrap()
+                .success()
+        );
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(workspace.path()).await;
         std::fs::write(workspace.path().join("my file.txt"), "x\n").unwrap();
@@ -747,12 +820,14 @@ mod tests {
     #[tokio::test]
     async fn baseline_sees_a_rewrite_of_an_already_untracked_file() {
         let workspace = tempfile::tempdir().unwrap();
-        assert!(std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(workspace.path())
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            std::process::Command::new("git")
+                .args(["init"])
+                .current_dir(workspace.path())
+                .status()
+                .unwrap()
+                .success()
+        );
         std::fs::write(workspace.path().join("guest.txt"), "one\n").unwrap();
         let mut state = ExecutionLoopState::new(&[]);
         state.bind_run_watch(workspace.path()).await;
@@ -1015,6 +1090,17 @@ mod tests {
     }
 
     #[test]
+    fn kburn_loop_skill_marks_completion_requirement_and_checkpoint() {
+        let mut state = ExecutionLoopState::new(&[]);
+        assert!(!state.kburn_loop_invoked);
+        state.remember_tool_signature("Skill", &json!({"skill_name":"loop"}), false);
+        assert!(state.kburn_loop_invoked);
+        assert!(state.convergence_checkpoint().kburn_loop_invoked);
+        state.remember_tool_signature("Skill", &json!({"skill_name":"review"}), false);
+        assert!(state.kburn_loop_invoked);
+    }
+
+    #[test]
     fn duplicate_tool_call_uses_recent_success_and_error_signatures() {
         let mut state = ExecutionLoopState::new(&[]);
         let args = json!({"path":"src/lib.rs"});
@@ -1037,10 +1123,12 @@ mod tests {
 
         let second = state.record_parse_error("bad json", 1);
         assert_eq!(second.count, 2);
-        assert!(second
-            .fatal_message
-            .unwrap()
-            .contains("max_parse_retries=1"));
+        assert!(
+            second
+                .fatal_message
+                .unwrap()
+                .contains("max_parse_retries=1")
+        );
     }
 
     #[test]
@@ -1107,10 +1195,12 @@ mod tests {
         original.remember_tool_signature("read", &args, true);
         assert_eq!(original.record_duplicate_guard("read", &args), 1);
         assert!(original.should_inject_continuation(true, true, 1, 10));
-        assert!(original
-            .record_parse_error("bad json", 1)
-            .fatal_message
-            .is_none());
+        assert!(
+            original
+                .record_parse_error("bad json", 1)
+                .fatal_message
+                .is_none()
+        );
         assert!(!original.repeated_incomplete_response("secret response must-not-persist"));
         let convergence = original.convergence_checkpoint();
         let encoded = serde_json::to_string(&convergence).unwrap();
@@ -1128,10 +1218,56 @@ mod tests {
         assert!(resumed.duplicate_tool_call("read", &args, 2).is_some());
         assert_eq!(resumed.record_duplicate_guard("read", &args), 2);
         assert!(!resumed.should_inject_continuation(true, true, 1, 10));
-        assert!(resumed
-            .record_parse_error("bad json", 1)
-            .fatal_message
-            .is_some());
+        assert!(
+            resumed
+                .record_parse_error("bad json", 1)
+                .fatal_message
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn read_only_synthesis_checkpoint_preserves_pending_and_spent_states() {
+        let mut state = ExecutionLoopState::new(&[]);
+        state.observe_tool_response(true, Some(2));
+        let first = state.convergence_checkpoint();
+        let mut resumed = ExecutionLoopState::new_seeded(
+            &[],
+            Some(ExecutionSeed {
+                convergence: first,
+                ..ExecutionSeed::default()
+            }),
+        );
+        resumed.observe_tool_response(true, Some(2));
+        let pending = resumed.convergence_checkpoint();
+        assert_eq!(
+            pending.read_only_synthesis_status,
+            crate::loop_checkpoint::ReadOnlySynthesisStatus::Pending
+        );
+        let mut resumed_pending = ExecutionLoopState::new_seeded(
+            &[],
+            Some(ExecutionSeed {
+                convergence: pending,
+                ..ExecutionSeed::default()
+            }),
+        );
+        assert!(resumed_pending.take_read_only_synthesis());
+        let spent = resumed_pending.convergence_checkpoint();
+        let mut resumed_spent = ExecutionLoopState::new_seeded(
+            &[],
+            Some(ExecutionSeed {
+                convergence: spent,
+                ..ExecutionSeed::default()
+            }),
+        );
+        assert!(!resumed_spent.take_read_only_synthesis());
+        resumed_spent.observe_tool_response(true, Some(2));
+        assert_eq!(
+            resumed_spent
+                .convergence_checkpoint()
+                .read_only_synthesis_status,
+            crate::loop_checkpoint::ReadOnlySynthesisStatus::Spent
+        );
     }
 
     #[test]

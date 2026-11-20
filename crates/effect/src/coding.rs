@@ -23,6 +23,7 @@ use crate::effect::{Effect, Schedule};
 use crate::error::ActorError;
 use crate::exit::Exit;
 use crate::fact::{Fact, NewFact};
+use crate::log::{fact_json_len, is_summarized_fact_kind, DEFAULT_COMPACT_AFTER_PRUNABLE_BYTES};
 
 #[cfg(test)]
 mod context_pressure_tests;
@@ -285,6 +286,9 @@ pub struct CodingServices {
 pub struct HarnessConfig {
     budget: Option<u32>,
     compact_after_chars: usize,
+    /// Compact once facts a summary can cover reach this size, leaving room
+    /// for the anchor before the log's hard byte limit.
+    compact_after_prunable_bytes: u64,
     step_limit: Option<u32>,
     model_attempts: u32,
     system: Vec<String>,
@@ -327,6 +331,7 @@ impl HarnessConfig {
         Ok(Self {
             budget: Some(budget),
             compact_after_chars,
+            compact_after_prunable_bytes: DEFAULT_COMPACT_AFTER_PRUNABLE_BYTES,
             step_limit: Some(step_limit),
             model_attempts,
             system,
@@ -351,6 +356,12 @@ impl HarnessConfig {
     /// threshold fires. `0` keeps only the latest tool pair.
     pub fn with_keep_tokens(mut self, keep_tokens: usize) -> Self {
         self.compact_keep_tokens = keep_tokens;
+        self
+    }
+
+    /// Override the fact-byte threshold that forces a compaction anchor.
+    pub fn with_compact_after_prunable_bytes(mut self, bytes: u64) -> Self {
+        self.compact_after_prunable_bytes = bytes;
         self
     }
 
@@ -551,6 +562,8 @@ struct SchedulerState {
     duplicate_reset_pending: bool,
     summary: String,
     tool_runs: u32,
+    /// Serialized bytes of summarized facts written since the last anchor.
+    prunable_fact_bytes: u64,
     /// A compaction landed and no model call has reported since. Pressure is
     /// measured again only after the model has seen the compacted prompt.
     compacted_awaiting_model: bool,
@@ -597,6 +610,7 @@ impl SchedulerState {
             duplicate_reset_pending: false,
             summary: String::new(),
             tool_runs: 0,
+            prunable_fact_bytes: 0,
             compacted_awaiting_model: false,
             assistant: None,
             pending_call: None,
@@ -736,8 +750,9 @@ fn after_input(state: SchedulerState, config: &HarnessConfig) -> SchedulerState 
         .is_some_and(|limit| state.prompt_tokens.is_some_and(|used| used >= limit));
     let char_pressure = (config.compact_after_tokens.is_none() || state.prompt_tokens.is_none())
         && state.size() >= config.compact_after_chars;
-    let needs_compact =
-        !prefix.is_empty() && (token_pressure || char_pressure) && !state.compacted_awaiting_model;
+    let byte_pressure = state.prunable_fact_bytes >= config.compact_after_prunable_bytes;
+    let needs_compact = !state.compacted_awaiting_model
+        && (byte_pressure || ((token_pressure || char_pressure) && !prefix.is_empty()));
     SchedulerState {
         phase: if needs_compact {
             CodingPhase::Compact
@@ -1130,6 +1145,10 @@ fn step(mut state: SchedulerState, fact: &Fact, config: &HarnessConfig) -> Sched
     {
         return state;
     }
+    if is_summarized_fact_kind(&fact.kind) {
+        let bytes = fact_json_len(fact) as u64 + 1;
+        state.prunable_fact_bytes = state.prunable_fact_bytes.saturating_add(bytes);
+    }
     match fact.kind.as_str() {
         "compaction.pruned" => SchedulerState {
             in_pruned_span: true,
@@ -1170,6 +1189,7 @@ fn step(mut state: SchedulerState, fact: &Fact, config: &HarnessConfig) -> Sched
                 let mut next = SchedulerState {
                     summary: payload.summary,
                     compacted_awaiting_model: true,
+                    prunable_fact_bytes: 0,
                     // The count before compaction no longer describes the prompt.
                     prompt_tokens: None,
                     phase: CodingPhase::Infer,

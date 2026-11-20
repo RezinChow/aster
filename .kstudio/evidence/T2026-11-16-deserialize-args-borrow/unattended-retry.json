@@ -1,0 +1,28 @@
+{
+  "pack": "hermetic-perf-e2e",
+  "aster_acp_bin": "/Users/roylin/code/aster/target/debug/aster-acp",
+  "aster_tui_bin": "/Users/roylin/code/aster/target/debug/aster",
+  "suites": 1,
+  "passed": 33,
+  "failed": 0,
+  "ignored": 0,
+  "seconds": 43.18,
+  "failed_suites": [],
+  "results": [
+    {
+      "suite": "unattended_e2e",
+      "exit": 0,
+      "seconds": 43.18,
+      "passed": 33,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-unattended-retry/unattended_e2e.log",
+      "failed_tests": []
+    }
+  ],
+  "explicitly_not_claimed": [
+    "named YOLO Done",
+    "Meta Harness Pass",
+    "headed Studio / live LLM"
+  ]
+}

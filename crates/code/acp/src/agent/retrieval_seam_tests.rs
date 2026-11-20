@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use super::{test_launch, AsterCodeAgent, SessionSetup};
+use super::{AsterCodeAgent, SessionSetup, test_launch};
 use aster_core::{
     CodeConfig, EmbeddingBatchRequest, EmbeddingBatchResponse, EmbeddingProvider,
     EmbeddingProviderDescriptor, EmbeddingProviderError, ModelConfig, ProviderConfig,
@@ -68,14 +68,18 @@ async fn embedded_local_vectors_publish_before_search_and_are_released_on_close(
         ))
         .await
         .unwrap();
-    assert!(found
-        .hits
-        .iter()
-        .any(|hit| hit.chunk.path.as_ref() == "settings.rs"));
-    assert!(found
-        .hits
-        .iter()
-        .all(|hit| hit.chunk.path.as_ref() != ".env"));
+    assert!(
+        found
+            .hits
+            .iter()
+            .any(|hit| hit.chunk.path.as_ref() == "settings.rs")
+    );
+    assert!(
+        found
+            .hits
+            .iter()
+            .all(|hit| hit.chunk.path.as_ref() != ".env")
+    );
     eprintln!(
         "ORACLE vector-open-ms={} vector-ready-ms={} vector-records={} vector-bytes={}",
         opened.as_millis(),
@@ -87,12 +91,14 @@ async fn embedded_local_vectors_publish_before_search_and_are_released_on_close(
     let closed = session.workspace_retrieval_status();
     assert_eq!(closed.phase, WorkspaceRetrievalPhase::Closed);
     assert_eq!(closed.vector_records, 0);
-    assert!(session
-        .semantic_search(aster_core::workspace::WorkspaceSemanticSearchRequest::new(
-            "configuration"
-        ))
-        .await
-        .is_err());
+    assert!(
+        session
+            .semantic_search(aster_core::workspace::WorkspaceSemanticSearchRequest::new(
+                "configuration"
+            ))
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -148,10 +154,12 @@ async fn offline_vectors_index_a_large_fixture_before_search_with_bounded_state(
                 ))
                 .await
                 .unwrap();
-            assert!(found
-                .hits
-                .iter()
-                .any(|hit| hit.chunk.path.as_ref() == "billing.md"));
+            assert!(
+                found
+                    .hits
+                    .iter()
+                    .any(|hit| hit.chunk.path.as_ref() == "billing.md")
+            );
             searches.push(query_started.elapsed().as_micros());
         }
         eprintln!(

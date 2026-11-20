@@ -1865,10 +1865,7 @@ fn report_binds_pass(report: &VerificationReport, digest: &str) -> bool {
     required
         .iter()
         .all(|check| check.status == VerificationStatus::Passed)
-        && !matches!(
-            report.status,
-            VerificationStatus::Failed | VerificationStatus::NeedsReview
-        )
+        && report.status == VerificationStatus::Passed
 }
 
 /// Model-visible observation attached after a mutation. Never a verification pass.

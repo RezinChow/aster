@@ -2,7 +2,7 @@
 
 use super::{AsterCodeAgent, SessionSetup};
 use agent_client_protocol::{self as acp, Agent as _};
-use aster_core::{sandbox::SandboxNetworkMode, CodeConfig};
+use aster_core::{CodeConfig, sandbox::SandboxNetworkMode};
 
 #[tokio::test]
 async fn terminal_html_artifact_guidance_requires_the_explicit_client_capability() {
@@ -40,10 +40,12 @@ async fn terminal_html_artifact_guidance_requires_the_explicit_client_capability
     let meta = [("aster/terminalMarkdown".into(), serde_json::json!("true"))]
         .into_iter()
         .collect();
-    assert!(agent
-        .initialize(acp::InitializeRequest::new(acp::ProtocolVersion::V1).meta(Some(meta)))
-        .await
-        .is_err());
+    assert!(
+        agent
+            .initialize(acp::InitializeRequest::new(acp::ProtocolVersion::V1).meta(Some(meta)))
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -148,10 +150,12 @@ async fn assert_compile_ceiling(
         report.effect_digest.as_deref(),
         Some("fixture-effect-digest")
     );
-    assert!(report
-        .checks
-        .iter()
-        .all(|check| check.status == aster_core::verification::VerificationStatus::Passed));
+    assert!(
+        report
+            .checks
+            .iter()
+            .all(|check| check.status == aster_core::verification::VerificationStatus::Passed)
+    );
     std::fs::write(&candidate, b"Changed after the effect receipt.").unwrap();
     assert!(attestor.attest("fixture-effect-digest", &records).is_none());
     let opened = agent
@@ -172,13 +176,15 @@ async fn assert_compile_ceiling(
         .unwrap()
         .session
         .clone();
-    assert!(session
-        .memory()
-        .unwrap()
-        .recall_similar("ambient sentinel", 5)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        session
+            .memory()
+            .unwrap()
+            .recall_similar("ambient sentinel", 5)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     assert!(!ambient_memory.exists());
     for mode in ["default", "plan", "auto", "yolo"] {
         agent
@@ -244,18 +250,22 @@ async fn assert_compile_ceiling(
             member
         ]})).await.unwrap();
         assert_ne!(refused.exit_code, 0, "{refused:?}");
-        assert!(!std::path::Path::new(&job.staging)
-            .join("concepts/alias-must-not-exist.md")
-            .exists());
+        assert!(
+            !std::path::Path::new(&job.staging)
+                .join("concepts/alias-must-not-exist.md")
+                .exists()
+        );
     }
     let refused = session.governed_tool("batch", json!({"invocations":[
         {"tool":"write","args":{"file_path":"concepts/should-not-exist.md","content":"Candidate"}},
         {"tool":"write","args":{"file_path":source,"content":"Changed"}}
     ]})).await.unwrap();
     assert_ne!(refused.exit_code, 0, "{refused:?}");
-    assert!(!std::path::Path::new(&job.staging)
-        .join("concepts/should-not-exist.md")
-        .exists());
+    assert!(
+        !std::path::Path::new(&job.staging)
+            .join("concepts/should-not-exist.md")
+            .exists()
+    );
     stop();
     let refused = session
         .governed_tool(
@@ -265,9 +275,11 @@ async fn assert_compile_ceiling(
         .await
         .unwrap();
     assert_ne!(refused.exit_code, 0, "{refused:?}");
-    assert!(!std::path::Path::new(&job.staging)
-        .join("concepts/after-stop.md")
-        .exists());
+    assert!(
+        !std::path::Path::new(&job.staging)
+            .join("concepts/after-stop.md")
+            .exists()
+    );
     session.close().await;
 }
 
@@ -515,9 +527,11 @@ fn typed_setup_preserves_host_safety_and_context_without_activation() {
     ));
     assert!(confirmation.yolo_lanes.is_empty());
     assert!(options.skill_dirs.contains(&skills));
-    assert!(options
-        .watch_skill_dirs
-        .contains(&root.path().join(".aster/skills")));
+    assert!(
+        options
+            .watch_skill_dirs
+            .contains(&root.path().join(".aster/skills"))
+    );
     assert!(!store.exists());
     let slots = options.prompt_slots.expect("prompt slots");
     assert_eq!(slots.output_language.as_deref(), Some("zh-CN"));
@@ -744,31 +758,39 @@ async fn source_review_has_no_tools_even_after_a_yolo_mode_change() {
         .session
         .clone();
     assert!(!session.tool_definitions().is_empty());
-    assert!(session
-        .presented_tool_definitions("Review the supplied text.")
-        .unwrap()
-        .is_empty());
+    assert!(
+        session
+            .presented_tool_definitions("Review the supplied text.")
+            .unwrap()
+            .is_empty()
+    );
     assert!(!ambient_memory.exists());
-    assert!(session
-        .memory()
-        .unwrap()
-        .recall_similar("Private personal evidence", 5)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        session
+            .memory()
+            .unwrap()
+            .recall_similar("Private personal evidence", 5)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     for name in ["open_local_asset", "search_wiki", "search_memory"] {
-        assert!(!session
-            .tool_definitions()
-            .iter()
-            .any(|tool| tool.name == name));
+        assert!(
+            !session
+                .tool_definitions()
+                .iter()
+                .any(|tool| tool.name == name)
+        );
     }
     host.set_session_mode(acp::SetSessionModeRequest::new(id.clone(), "yolo"))
         .await
         .unwrap();
-    assert!(session
-        .presented_tool_definitions("Read private.txt using bash or read.")
-        .unwrap()
-        .is_empty());
+    assert!(
+        session
+            .presented_tool_definitions("Read private.txt using bash or read.")
+            .unwrap()
+            .is_empty()
+    );
     let result = session
         .governed_tool("read", json!({"file_path":"private.txt"}))
         .await
@@ -777,10 +799,12 @@ async fn source_review_has_no_tools_even_after_a_yolo_mode_change() {
     assert!(result.output.contains("Permission denied"));
     assert!(!result.output.contains("not part of the supplied snapshot"));
     for name in ["office_read", "office_file", "output_check"] {
-        assert!(!session
-            .tool_definitions()
-            .iter()
-            .any(|tool| tool.name == name));
+        assert!(
+            !session
+                .tool_definitions()
+                .iter()
+                .any(|tool| tool.name == name)
+        );
     }
     session.close().await;
 
@@ -796,20 +820,26 @@ async fn source_review_has_no_tools_even_after_a_yolo_mode_change() {
         .unwrap()
         .session
         .clone();
-    assert!(!ordinary
-        .presented_tool_definitions("Read private.txt.")
-        .unwrap()
-        .is_empty());
+    assert!(
+        !ordinary
+            .presented_tool_definitions("Read private.txt.")
+            .unwrap()
+            .is_empty()
+    );
     for name in ["office_read", "office_file"] {
-        assert!(!ordinary
+        assert!(
+            !ordinary
+                .tool_definitions()
+                .iter()
+                .any(|tool| tool.name == name)
+        );
+    }
+    assert!(
+        ordinary
             .tool_definitions()
             .iter()
-            .any(|tool| tool.name == name));
-    }
-    assert!(ordinary
-        .tool_definitions()
-        .iter()
-        .any(|tool| tool.name == "output_check"));
+            .any(|tool| tool.name == "output_check")
+    );
     ordinary.close().await;
 }
 

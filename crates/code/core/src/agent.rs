@@ -208,6 +208,28 @@ pub(crate) fn fact_compact_keep_tokens(window: usize) -> usize {
 }
 pub(crate) const DEFAULT_MAX_PARALLEL_TASKS: usize = 8;
 
+pub(crate) const READ_ONLY_SYNTHESIS_FINALIZATION: &str = "The interactive exploration budget is reached. Synthesize the current findings now: state supported conclusions, evidence, gaps, and whether more work is needed. Return the best answer if the evidence is sufficient; otherwise continue only with tools that answer a named gap. Do not repeat completed exploration.";
+pub(crate) const READ_ONLY_GAP_FINALIZATION: &str = "The named-gap exploration wave is complete. Return the best supported answer now, including remaining uncertainty. Do not call any tool.";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FactReadOnlySynthesisDirective {
+    Synthesize,
+    Finalize,
+}
+
+impl FactReadOnlySynthesisDirective {
+    pub(crate) fn prompt(self) -> &'static str {
+        match self {
+            Self::Synthesize => READ_ONLY_SYNTHESIS_FINALIZATION,
+            Self::Finalize => READ_ONLY_GAP_FINALIZATION,
+        }
+    }
+
+    pub(crate) fn requires_no_tools(self) -> bool {
+        matches!(self, Self::Finalize)
+    }
+}
+
 /// Internal agent loop configuration.
 #[derive(Clone)]
 pub(crate) struct AgentConfig {
@@ -228,6 +250,8 @@ pub(crate) struct AgentConfig {
     pub tool_presentation_profile: crate::tools::ToolPresentationProfileV1,
     /// Tool execution ceiling; zero disables only the count ceiling.
     pub max_tool_rounds: usize,
+    /// Optional staged synthesis gate for explicitly read-only task intents.
+    pub read_only_synthesis_rounds: Option<u32>,
     /// Optional security provider for input taint tracking and output sanitization
     pub security_provider: Option<Arc<dyn crate::security::SecurityProvider>>,
     /// Optional permission checker for tool execution control
@@ -442,6 +466,7 @@ impl Default for AgentConfig {
             tools: Vec::new(), // Tools are provided by ToolExecutor
             tool_presentation_profile: crate::tools::ToolPresentationProfileV1::default(),
             max_tool_rounds: MAX_TOOL_ROUNDS,
+            read_only_synthesis_rounds: None,
             security_provider: None,
             permission_checker: None,
             permission_policy: None,
@@ -612,6 +637,10 @@ pub enum AgentEvent {
     /// Error occurred
     #[serde(rename = "error")]
     Error { message: String },
+
+    /// The durable fact log refused a write; retrying the session cannot help.
+    #[serde(rename = "fact_log_byte_limit")]
+    FactLogByteLimit { message: String },
 
     /// Execution identity is unresolved; blind retries may duplicate effects.
     #[serde(rename = "tool_effect_unresolved")]
@@ -1035,6 +1064,16 @@ pub enum AgentEvent {
 
 impl AgentEvent {
     pub(crate) fn execution_error(error: &anyhow::Error) -> Self {
+        if let Some(effect_error) = error
+            .chain()
+            .find_map(|cause| cause.downcast_ref::<aster_effect::ActorError>())
+        {
+            if matches!(effect_error, aster_effect::ActorError::FactLogByteLimit { .. }) {
+                return Self::FactLogByteLimit {
+                    message: error.to_string(),
+                };
+            }
+        }
         match error
             .chain()
             .find_map(|cause| cause.downcast_ref::<crate::harness_loop::ToolEffectUnresolved>())
@@ -1282,6 +1321,9 @@ pub(crate) struct TurnEngine {
     /// stay on the run scope.
     pub(crate) fact_turn:
         Arc<tokio::sync::Mutex<Option<crate::capability::AgentCapabilityOperation>>>,
+    /// Production FactRun synthesis state shared by the planning and model ports.
+    pub(crate) fact_convergence:
+        Arc<std::sync::Mutex<crate::loop_checkpoint::LoopConvergenceState>>,
     /// Set for a `task` or `skill` child run: its composed permission checker
     /// holds the parent boundary and decides alone.
     child_run: bool,

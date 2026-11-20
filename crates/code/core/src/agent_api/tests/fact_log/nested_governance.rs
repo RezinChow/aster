@@ -113,10 +113,20 @@ async fn fact_run_without_permission_or_confirmation_presents_no_tools() {
                 .with_planning_mode(crate::PlanningMode::Disabled),
         )
         .unwrap();
-    assert!(session
-        .tool_definitions()
-        .iter()
-        .any(|tool| tool.name == "Skill"));
+    assert!(
+        session
+            .tool_definitions()
+            .iter()
+            .any(|tool| tool.name == "Skill")
+    );
+    assert!(session.config.permission_checker.is_none());
+    assert!(session.config.permission_policy.is_none());
+    assert!(session.config.confirmation_manager.is_none());
+    let looped = crate::agent_api::agent_loop_runtime::build_agent_loop(&session);
+    let direct = looped
+        .present_fact_turn_tools(&session.tool_definitions(), &[])
+        .unwrap();
+    assert!(direct.is_empty(), "direct projection: {direct:?}");
     let result = session
         .send("Inspect workspace evidence", None)
         .await
@@ -124,7 +134,7 @@ async fn fact_run_without_permission_or_confirmation_presents_no_tools() {
     assert_eq!(result.text, "projection captured");
     let definitions = definitions.lock().unwrap();
     assert!(!definitions.is_empty());
-    assert!(definitions.iter().all(Vec::is_empty));
+    assert!(definitions.iter().all(Vec::is_empty), "{definitions:?}");
 }
 
 #[tokio::test]
@@ -193,11 +203,16 @@ async fn fact_run_skill_visibility_keeps_execution_permission_and_confirmation_g
             expected_visible,
             "{mode}"
         );
+        let bodies = seen
+            .iter()
+            .map(|request| request_text(&request.messages))
+            .collect::<Vec<_>>();
         assert_eq!(
-            seen.iter().any(|request| request_text(&request.messages)
-                .contains("CONTROLLED-SKILL-BODY-ONLY-AFTER-ADMISSION")),
+            bodies
+                .iter()
+                .any(|text| text.contains("CONTROLLED-SKILL-BODY-ONLY-AFTER-ADMISSION")),
             expected_body,
-            "{mode}"
+            "{mode}: {bodies:?}"
         );
     }
 }
@@ -289,12 +304,16 @@ async fn fact_run_provider_projection_retains_admitted_schema_and_profile_identi
             .collect::<Vec<_>>();
         assert!(!snapshots.is_empty());
         assert!(snapshots.iter().all(|snapshot| snapshot.profile == profile));
-        assert!(snapshots
-            .iter()
-            .any(|snapshot| snapshot.presented_tool_count == presented.len()));
-        assert!(snapshots
-            .iter()
-            .all(|snapshot| !snapshot.snapshot_digest.is_empty()));
+        assert!(
+            snapshots
+                .iter()
+                .any(|snapshot| snapshot.presented_tool_count == presented.len())
+        );
+        assert!(
+            snapshots
+                .iter()
+                .all(|snapshot| !snapshot.snapshot_digest.is_empty())
+        );
     }
 }
 

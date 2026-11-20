@@ -1,0 +1,12 @@
+{"suite": "hg2_pager_latency", "exit": 0, "seconds": 186.8, "passed": 1, "failed": 0, "ignored": 0, "log": "/var/folders/3d/0pn3wn612t7cs79b5ml89x440000gn/T/aster-hermetic-perf-e2e/hg2_pager_latency.log", "failed_tests": [], "kind": "lib", "package": "aster-pager", "filter": "hg2_estimate_line_widths_latency_freeze"}
+{"suite": "hg2_json_serialized_len", "exit": 0, "seconds": 2.74, "passed": 1, "failed": 0, "ignored": 0, "log": "/var/folders/3d/0pn3wn612t7cs79b5ml89x440000gn/T/aster-hermetic-perf-e2e/hg2_json_serialized_len.log", "failed_tests": [], "kind": "lib", "package": "aster-core", "filter": "hg2_json_serialized_len_matches_to_vec"}
+{"suite": "hg2_json_update_sha256", "exit": 0, "seconds": 0.38, "passed": 1, "failed": 0, "ignored": 0, "log": "/var/folders/3d/0pn3wn612t7cs79b5ml89x440000gn/T/aster-hermetic-perf-e2e/hg2_json_update_sha256.log", "failed_tests": [], "kind": "lib", "package": "aster-core", "filter": "hg2_json_update_sha256_matches_to_vec"}
+{
+  "pack": "hermetic-perf-e2e",
+  "suites": 3,
+  "passed": 3,
+  "failed": 0,
+  "ignored": 0,
+  "seconds": 189.92,
+  "failed_suites": []
+}

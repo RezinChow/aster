@@ -100,6 +100,7 @@ async fn the_run_removes_its_worktree_at_settlement_without_an_llm() {
             Arc::clone(&client) as Arc<dyn crate::llm::LlmClient>,
             &SessionOptions::new()
                 .with_session_id("worktree-settlement-twin")
+                .with_permission_policy(crate::permissions::PermissionPolicy::new().allow("git"))
                 .with_planning_mode(crate::prompts::PlanningMode::Disabled)
                 .with_auto_delegation_enabled(false)
                 .with_manual_delegation_enabled(false),
@@ -121,7 +122,8 @@ async fn the_run_removes_its_worktree_at_settlement_without_an_llm() {
         .filter(|fact| fact.kind == "tool.result")
         .any(|fact| {
             fact.payload
-                .get("output")
+                .get("receipt")
+                .and_then(|receipt| receipt.get("output"))
                 .and_then(|value| value.as_str())
                 .is_some_and(|output| output.contains("Created worktree at:"))
         });

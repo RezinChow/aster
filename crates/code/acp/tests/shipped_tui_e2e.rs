@@ -2564,7 +2564,6 @@ fn exercise_marker_navigation(
     pty.focus_composer();
 
     // One scoped host approval covers this exact execution request.
-    let before_expand = state.lock().expect("mock").bodies.len();
     pty.type_text("EXPAND-ORACLE");
     pty.enter();
     let allow_expand = pty.wait_for("Yes, run on host", Duration::from_secs(20));
@@ -2580,18 +2579,10 @@ fn exercise_marker_navigation(
         "execution must stay parked until approval"
     );
     pty.write_bytes(b"1");
-    let expand_deadline = Instant::now() + Duration::from_secs(25);
-    while Instant::now() < expand_deadline {
-        if state.lock().expect("mock").bodies.len() > before_expand.saturating_add(1) {
-            break;
-        }
-        pty.pump(Duration::from_millis(100));
-    }
-    assert!(
-        state.lock().expect("mock").bodies.len() > before_expand.saturating_add(1),
-        "expand bash did not finish\n{}",
-        pty.screen()
-    );
+    // Pre-analysis adds a model call before the product turn. Wait for the
+    // original prompt's ACP settlement instead of mistaking those calls for
+    // the post-approval response and cancelling the prepared tool on panic.
+    wait_prompt_response(&mut pty, &trace, "EXPAND-ORACLE");
     let requests: Vec<serde_json::Value> = std::fs::read_to_string(&trace)
         .expect("approval trace")
         .lines()

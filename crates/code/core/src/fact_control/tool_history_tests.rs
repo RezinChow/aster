@@ -31,7 +31,14 @@ fn folded_command_results_label_only_digest_bound_retained_streams() {
     assert_eq!(tool_use_id, "failed-command");
     assert_eq!(*is_error, Some(true));
     assert_eq!(*trust, crate::llm::ToolResultTrustV1::WorkspaceData);
-    assert_eq!(content.as_text(), format!("Tool exit code: 7\nCaptured stdout ({} UTF-8 bytes):\n{stdout}\nCaptured stderr ({} UTF-8 bytes):\n{stderr}", stdout.len(), stderr.len()));
+    assert_eq!(
+        content.as_text(),
+        format!(
+            "Tool exit code: 7\nCaptured stdout ({} UTF-8 bytes):\n{stdout}\nCaptured stderr ({} UTF-8 bytes):\n{stderr}",
+            stdout.len(),
+            stderr.len()
+        )
+    );
     assert_eq!(receipt, original);
 
     let redacted = runner_result_value("[redacted]\n", true, &[], 7, Some(&metadata), None, None);
@@ -1087,17 +1094,22 @@ async fn current_verification_follows_the_last_observation_without_changing_the_
                     .as_text()
                     .contains("current workspace changes are verified"));
             } else {
-                assert!(content.as_text().contains("[host verification state]"), "state {state}, compact={compact}: current verification must be beside the observation");
+                assert!(
+                    content.as_text().contains("[host verification state]"),
+                    "state {state}, compact={compact}: current verification must be beside the observation"
+                );
                 assert!(content.as_text().contains("run-exact-suite"));
             }
         }
         let systems = client.1.lock().unwrap();
         assert_eq!(systems.len(), 4);
         assert!(systems.windows(2).all(|pair| pair[0] == pair[1]));
-        assert!(systems.iter().all(|system| !system
-            .as_deref()
-            .unwrap_or_default()
-            .contains("[host verification state]")));
+        assert!(systems.iter().all(|system| {
+            !system
+                .as_deref()
+                .unwrap_or_default()
+                .contains("[host verification state]")
+        }));
         let after = read_workspace_facts(workspace.path(), THREAD).unwrap();
         assert!(after.len() >= original.len());
         assert_eq!(
@@ -1268,4 +1280,41 @@ fn automatic_summary_and_retained_tail_share_the_original_call_cursor() {
     assert!(!kept.join("\n").contains("original provider continuation"));
     assert_eq!(&projected[1..projected.len() - 1], prefix);
     assert_eq!(&kept[1..], tail);
+}
+
+#[test]
+fn tool_image_stubbing_is_bounded_to_the_latest_user_turn() {
+    let fact = |seq, kind: &str, payload| aster_effect::Fact {
+        seq,
+        kind: kind.to_owned(),
+        key: format!("{kind}-{seq}"),
+        cause: None,
+        payload,
+    };
+    let mut facts = vec![
+        fact(1, "user.message", serde_json::json!({"text":"inspect"})),
+        fact(
+            2,
+            "tool.result",
+            serde_json::json!({"toolCallId":"image-call","ok":true}),
+        ),
+        fact(
+            3,
+            "model.turn",
+            serde_json::json!({"kind":"text","text":"seen"}),
+        ),
+    ];
+    assert!(
+        super::history_seed::tool_image_ids_to_stub(&facts).contains("image-call"),
+        "same-turn model activity may retain only the image stub"
+    );
+    facts.push(fact(
+        4,
+        "user.message",
+        serde_json::json!({"text":"inspect it again"}),
+    ));
+    assert!(
+        super::history_seed::tool_image_ids_to_stub(&facts).is_empty(),
+        "a new user turn must reload the retained image bytes"
+    );
 }

@@ -1,0 +1,12 @@
+{
+  "host": "macOS 26.6.2, arm64, 18 cores",
+  "loadavg_idle_before_studio": [5.35, 6.35, 6.36],
+  "loadavg_dev_renderer_running": [13.47, 9.65, 7.7],
+  "loadavg_dev_renderer_steady": [11.23, 9.38, 7.65],
+  "loadavg_production_renderer_running": [7.63, 8.69, 7.53],
+  "renderer_http": 200,
+  "renderer_entry": "index.8d68f7997e.js",
+  "renderer_sha256": "cfb78647370d593b2cf7073c2fdd08742fd348d05ce94c37bb4bed98a68b5334",
+  "sampling_gate": "dev always on; production on with ?perf=1 or localStorage aster:perf=1",
+  "page_performance_tests": "7 passed"
+}

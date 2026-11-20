@@ -8,8 +8,9 @@ pub(super) async fn prepare_pre_analysis(
     let Some(surface) = &parts.surface else {
         return Ok(());
     };
-    // `Auto` pays one structured pre-analysis call and plans only when it
-    // returns `requires_planning`; `Disabled` makes no call.
+    // `Auto` plans only when pre-analysis returns `requires_planning`. `Disabled`
+    // skips plan execution, but an interactive synthesis policy still needs the
+    // structured intent to avoid classifying coding work from tool names.
     surface
         .agent
         .fact_publish_plan(

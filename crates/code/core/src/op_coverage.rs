@@ -126,26 +126,12 @@ impl crate::PackageContextProvider for StubPackage {
 }
 
 fn package_binding() -> crate::PackageBindingV1 {
-    let generation_digest =
-        "sha256:aa0beeb62f1b7b21bf70f21e6f0e858a1e4b720d313f0907209b5b9dad2eeb20";
-    let knowledge = crate::PackageKnowledgeBindingV1::new(
-        "domain-knowledge",
-        "0.2",
-        "sha256:1def786da6d190b7b3ce0176e71d99ff1cac3f8c8cc7c0f8b76a893c544e7a90",
-        7,
-        generation_digest,
-    )
-    .unwrap();
-    crate::PackageBindingV1::new(
-        "contra-sense/handbook",
+    crate::package_context::package_binding_for_generation(
         "0.1.0",
         7,
-        generation_digest,
-        "sha256:1e0f0a0162f5b290887ade8886af69fbba4548c863df026178e3550c77813455",
-        knowledge,
-        crate::PackageContextLimits::default(),
+        "sha256:aa0beeb62f1b7b21bf70f21e6f0e858a1e4b720d313f0907209b5b9dad2eeb20",
+        "sha256:1def786da6d190b7b3ce0176e71d99ff1cac3f8c8cc7c0f8b76a893c544e7a90",
     )
-    .unwrap()
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -1435,17 +1421,6 @@ fn opcov_release_bind() {
     }
     assert_eq!(manifest.identity(), original);
     op("release.bind_publication", "artifact-digest");
-}
-
-impl crate::AuxiliaryExecutor for RecordingExecutor {
-    async fn execute(
-        &self,
-        context: crate::AuxiliaryRunContextV1,
-    ) -> Result<serde_json::Value, crate::AuxiliaryRunError> {
-        Ok(json!({
-            "sequence": context.evidence.events.first().map(|event| event.sequence)
-        }))
-    }
 }
 
 #[test]

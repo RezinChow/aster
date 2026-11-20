@@ -42,7 +42,10 @@ def owned_file(path: Path) -> bool:
         return False
     if path.is_relative_to(KS) and path.suffix == ".pyc" and path.parent.name == "__pycache__":
         return True
-    if path.parent == CURSOR / "commands" and re.fullmatch(r"k-[a-z0-9-]+\.md", path.name):
+    if path.parent == CURSOR / "commands" and re.fullmatch(
+        r"(?:init|goal|status|progress|plan|task|go|loop|yolo|review|clean|wiki)\.md",
+        path.name,
+    ):
         if (KS / "skills" / path.stem / "SKILL.md").exists():
             return False
         name = path.stem
@@ -81,7 +84,7 @@ def referenced(path: Path, plan_path: Path | None = None) -> bool:
     if KS.is_dir():
         candidates.update(KS.rglob("*"))
     for source in candidates:
-        if source.suffix not in (".md", ".json", ".jsonl", ".toml", ".kcl", ".txt", ".rs", ".py", ".ts", ".tsx", ".mjs", ".yml", ".yaml", ".sh", ".ps1", ".html"):
+        if source.suffix not in (".md", ".json", ".jsonl", ".toml", ".acl", ".txt", ".rs", ".py", ".ts", ".tsx", ".mjs", ".yml", ".yaml", ".sh", ".ps1", ".html"):
             continue
         if source == path or source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(ROOT) or source.is_relative_to(KS / "local") or plan_path is not None and source.resolve() == plan_path.resolve():
             continue
@@ -112,11 +115,17 @@ def collect() -> dict[str, list[Path]]:
     for base in (KS / "skills", CURSOR / "skills"):
         if base.is_dir():
             for path in sorted(base.iterdir()):
-                if path.name == "k-dispatch" or base == CURSOR / "skills" and path.name.startswith("k-") and not (KS / "skills" / path.name / "SKILL.md").is_file():
+                # Flag orphan cursor skills (legacy k-* or bare) without eng-root SKILL.md.
+                if path.name == "k-dispatch" or (
+                    base == CURSOR / "skills"
+                    and path.is_dir()
+                    and not (KS / "skills" / path.name / "SKILL.md").is_file()
+                    and not (KS / "skills" / path.name.removeprefix("k-") / "SKILL.md").is_file()
+                ):
                     flag.append(path)
     commands = CURSOR / "commands"
     if commands.is_dir():
-        for path in commands.glob("k-*.md"):
+        for path in commands.glob("skill.md"):
             if not (KS / "skills" / path.stem / "SKILL.md").is_file():
                 (delete if owned_file(path) and git_safe(path) and not referenced(path) else flag).append(path)
     for pattern in ("*.orig", "*.swp", "*~"):
@@ -167,7 +176,7 @@ def main() -> int:
                 print(f"deleted: {path}")
             return 0
         bags = collect()
-        plan = args.plan or KS / "local" / "k-clean" / f"{uuid.uuid4().hex}.json"
+        plan = args.plan or KS / "local" / "clean" / f"{uuid.uuid4().hex}.json"
         plan.parent.mkdir(parents=True, exist_ok=True)
         payload = {"schema": SCHEMA, "root": str(ROOT), "delete": [{"path": rel(p), "sha256": fingerprint(p)} for p in bags["delete"]], "flag": [rel(p) for p in bags["flag"]]}
         with plan.open("x", encoding="utf-8") as stream:

@@ -20,9 +20,9 @@
     "output_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/conductor-output-profile.md"
   },
   "project_config": {
-    "config": "config.kcl",
-    "config_example": "config.kcl.example",
-    "config_local": "config.local.kcl",
+    "config": "project.acl",
+    "config_example": "project.acl.example",
+    "config_local": "project.local.acl",
     "schema": "kstudio.project-config.v1"
   },
   "ai_engineering": {
@@ -51,6 +51,7 @@
     "first_principles_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/conductor-first-principles.md",
     "conductor_skills_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/conductor-skills.md",
     "project_config_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/project-config-kcl.md",
+    "project_config_note": "Aster eng config uses project.acl (ACL); upstream doc may still say kcl",
     "git_branch_discipline_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/git-branch-discipline.md",
     "full_seat_utilization_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/full-seat-utilization.md",
     "environment_prompt_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/environment-prompt.md",
@@ -61,7 +62,29 @@
     "init_tool": "workflow/init-kstudio.py",
     "agent_skill_activation": "workflow/activate-k-skills.py",
     "loop_tool": "workflow/loop-kstudio.py",
-    "loop_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/task-engineering-loop.md"
+    "loop_ref": "https://github.com/kense-labs/kstudio/blob/main/docs/task-engineering-loop.md",
+    "progress_refs": [
+      ".kstudio/evidence/T2026-11-17-hermetic-e2-e8-p7-p8/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-efficient-yolo-reconfirm/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-p7-feature-switch-enabled/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-p8-permission-denial-code/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-e2-empty-line-refuse/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-aster-eng-gitignore/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-e8-compaction-failed-phase/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-hg6-close/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-shipped-tui-launch-resume-reconfirm/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-conductor-e2e/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-kburn-workflow-helpers/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-efficient-hermetic-reconfirm/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-efficient-latency-reconfirm/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-l3-bare-skills-gate/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-hg6-core-slice-review/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-unattended-e2e-reconfirm/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-17-shipped-tui-hermetic/OUTCOME.md",
+      ".kstudio/evidence/T2026-11-16-defect-mechanisms-audit/OUTCOME.md",
+      "crates/code/core/src/kstudio/mod.rs",
+      "docs/release-governance.md"
+    ]
   },
   "extensions": [],
   "contexts": []

@@ -1987,3 +1987,47 @@ fn a_config_without_a_transform_policy_keeps_the_legacy_conservative_policy() {
         crate::tools::ToolResultTransformPolicyV1::context_bounded()
     );
 }
+
+#[tokio::test]
+async fn file_store_snapshot_cas_allows_only_one_writer_when_expected_digest_matches() {
+    use fs2::FileExt;
+
+    let dir = tempdir().unwrap();
+    let first = FileSessionStore::new(dir.path()).await.unwrap();
+    let second = FileSessionStore::new(dir.path()).await.unwrap();
+    let base = create_test_snapshot().await;
+    first.save_snapshot(&base).await.unwrap();
+    let expected = snapshot_content_digest(&base).unwrap();
+
+    // Hold the WAL flock while both handles compare the same durable digest.
+    // Their commit paths must serialize the comparison and the write together.
+    let lock_path = dir.path().join("v1/wal/session-store.lock");
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(lock_path)
+        .unwrap();
+    lock.lock_exclusive().unwrap();
+
+    let mut stale_a = base.clone();
+    stale_a.session.config.name = "writer-a".into();
+    let mut stale_b = base.clone();
+    stale_b.session.config.name = "writer-b".into();
+    let write_a = first.save_snapshot_cas(&stale_a, Some(&expected));
+    let write_b = second.save_snapshot_cas(&stale_b, Some(&expected));
+    tokio::pin!(write_a, write_b);
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    drop(lock);
+
+    let (a, b) = tokio::join!(write_a, write_b);
+    let successes = [a.unwrap(), b.unwrap()]
+        .into_iter()
+        .filter(|success| *success)
+        .count();
+    assert_eq!(
+        successes, 1,
+        "both CAS writers passed the same stale digest"
+    );
+}

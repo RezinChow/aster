@@ -892,6 +892,8 @@ const __asterCtx = Object.freeze({{
 
 Object.defineProperty(globalThis, "__asterCtx", {{ value: __asterCtx, configurable: false }});
 Object.defineProperty(globalThis, "__asterInputs", {{ value: {inputs_json}, configurable: false }});
+Object.defineProperty(globalThis, "eval", {{ value: undefined, configurable: false, writable: false }});
+Object.defineProperty(globalThis, "Function", {{ value: undefined, configurable: false, writable: false }});
 Object.defineProperty(globalThis, "fetch", {{ value: undefined, configurable: false, writable: false }});
 Object.defineProperty(globalThis, "WebSocket", {{ value: undefined, configurable: false, writable: false }});
 Object.defineProperty(globalThis, "Worker", {{ value: undefined, configurable: false, writable: false }});

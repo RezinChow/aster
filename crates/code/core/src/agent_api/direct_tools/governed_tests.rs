@@ -69,10 +69,8 @@ fn runtime_posture_and_host_deny_both_govern_direct_calls() {
             PermissionDecision::Ask,
         ),
     ] {
-        let checker = RuntimePermissionChecker {
-            policy,
-            ceiling: Some(Arc::new(StaticPermission(ceiling))),
-        };
+        let checker =
+            RuntimePermissionChecker::for_test(policy, Some(Arc::new(StaticPermission(ceiling))));
         assert_eq!(checker.check("write", &args), expected);
     }
 }
@@ -96,15 +94,15 @@ fn runtime_policy_retains_visibility_and_the_hosts_snapshot_boundary() {
         }
     }
     let ceiling = Arc::new(Mutable(std::sync::atomic::AtomicBool::new(true)));
-    let checker = RuntimePermissionChecker {
-        policy: crate::permissions::policy_for_posture("yolo").deny("write"),
-        ceiling: Some(ceiling.clone()),
-    };
+    let checker = RuntimePermissionChecker::for_test(
+        crate::permissions::policy_for_posture("yolo").deny("write"),
+        Some(ceiling.clone()),
+    );
     assert!(!checker.expose_to_model("write"));
-    let checker = RuntimePermissionChecker {
-        policy: crate::permissions::policy_for_posture("yolo"),
-        ceiling: Some(ceiling.clone()),
-    };
+    let checker = RuntimePermissionChecker::for_test(
+        crate::permissions::policy_for_posture("yolo"),
+        Some(ceiling.clone()),
+    );
     let frozen = checker.snapshot_for_run().unwrap();
     ceiling.0.store(false, Ordering::SeqCst);
     assert_eq!(
@@ -392,4 +390,51 @@ async fn governed_host_call_requires_approval_before_side_effects() {
     let approved = approved.unwrap();
     assert_eq!(approved.exit_code, 0, "{}", approved.output);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn runtime_upper_argument_allow_stays_visible_without_a_confirmation_route() {
+    use crate::agent_api::agent_loop_runtime::RuntimePermissionChecker;
+    struct ArgumentAllow;
+    impl PermissionChecker for ArgumentAllow {
+        fn check(&self, _: &str, args: &serde_json::Value) -> PermissionDecision {
+            if args.get("file_path").and_then(serde_json::Value::as_str) == Some("allowed.rs") {
+                PermissionDecision::Allow
+            } else {
+                PermissionDecision::Ask
+            }
+        }
+    }
+    let checker = RuntimePermissionChecker::for_test_without_confirmation(
+        crate::permissions::PermissionPolicy::new(),
+        Some(Arc::new(ArgumentAllow)),
+        None,
+    );
+    assert!(checker.expose_to_model("read"));
+}
+
+#[test]
+fn runtime_instruction_skill_never_bypasses_its_own_explicit_deny() {
+    use crate::agent_api::agent_loop_runtime::RuntimePermissionChecker;
+    let registry = Arc::new(crate::skills::SkillRegistry::new());
+    registry.register_unchecked(Arc::new(crate::skills::Skill {
+        name: "instruction".into(),
+        description: "instruction only".into(),
+        allowed_tools: None,
+        disable_model_invocation: false,
+        kind: crate::skills::SkillKind::Instruction,
+        content: "read only content".into(),
+        tags: Vec::new(),
+        version: None,
+    }));
+    let checker = RuntimePermissionChecker::for_test_without_confirmation(
+        crate::permissions::PermissionPolicy::new().deny("Skill"),
+        None,
+        Some(registry),
+    );
+    assert!(!checker.expose_to_model("Skill"));
+    assert_eq!(
+        checker.check("Skill", &serde_json::json!({"skill_name":"instruction"})),
+        PermissionDecision::Deny
+    );
 }

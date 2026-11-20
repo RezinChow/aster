@@ -10,7 +10,11 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 impl crate::agent::TurnEngine {
-    pub(super) async fn execute_parallel_write_batch(
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Parallel dispatch uses the same turn-scoped invocation context as the sequential path"
+    )]
+    pub(super) async fn execute_parallel_tool_batch(
         &self,
         tool_calls: &[ToolCall],
         state: &mut ExecutionLoopState,
@@ -18,14 +22,16 @@ impl crate::agent::TurnEngine {
         session_id: Option<&str>,
         cancel_token: &CancellationToken,
         base_tool_context: &ToolContext,
+        max_concurrency: usize,
     ) {
         tracing::info!(
             count = tool_calls.len(),
-            "Parallel write batch: executing {} independent file writes concurrently",
-            tool_calls.len()
+            max_concurrency,
+            "Parallel tool batch: executing independent calls concurrently"
         );
 
         let tool_calls = tool_calls.to_vec();
+        let recent_tools = state.recent_tool_signatures();
         let invoker = self.scoped_tool_invoker(session_id, event_tx);
         let tool_context = base_tool_context
             .clone()
@@ -34,17 +40,18 @@ impl crate::agent::TurnEngine {
             .with_tool_invoker(Arc::clone(&invoker));
         let results = crate::ordered_parallel::run_ordered_parallel_with_limit(
             tool_calls.clone(),
-            self.config.max_parallel_tasks,
+            max_concurrency,
             {
                 let tool_context = tool_context.clone();
                 let invoker = Arc::clone(&invoker);
                 move |_index, tc| {
                     let ctx = tool_context.clone();
                     let invoker = Arc::clone(&invoker);
+                    let recent_tools = recent_tools.clone();
                     async move {
                         invoker
                             .invoke(
-                                ToolInvocation::agent(tc.id, tc.name, tc.args, Vec::new()),
+                                ToolInvocation::agent(tc.id, tc.name, tc.args, recent_tools),
                                 &ctx,
                             )
                             .await
@@ -93,6 +100,24 @@ impl crate::agent::TurnEngine {
                 normalized.redaction_reviewed,
             );
         }
+    }
+
+    pub(super) fn parallel_read_batch_limit(&self, tool_calls: &[ToolCall]) -> Option<usize> {
+        if tool_calls.len() <= 1 {
+            return None;
+        }
+        let mut limit = self.config.max_parallel_tasks;
+        for call in tool_calls {
+            let capabilities = self
+                .tool_executor
+                .registry()
+                .capabilities(&call.name, &call.args)?;
+            if !capabilities.allows_parallel_batch() {
+                return None;
+            }
+            limit = limit.min(capabilities.max_parallelism);
+        }
+        Some(limit.max(1))
     }
 
     pub(super) fn can_run_parallel_write_batch(&self, tool_calls: &[ToolCall]) -> bool {

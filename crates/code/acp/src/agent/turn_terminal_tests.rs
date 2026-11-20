@@ -307,11 +307,13 @@ async fn malformed_send_now_refuses_without_cancelling_or_waiting_for_the_queue(
         .expect("invalid metadata must not enter the queue")
         .unwrap_err();
         assert_eq!(error.data.unwrap(), "sendNow must be a boolean");
-        assert!(!agent
-            .cancelled_generation
-            .lock()
-            .await
-            .contains_key(&session_key));
+        assert!(
+            !agent
+                .cancelled_generation
+                .lock()
+                .await
+                .contains_key(&session_key)
+        );
     }
     session.close().await;
 }
@@ -459,12 +461,14 @@ async fn completed_worker_returns_even_when_a_background_sender_stays_open() {
     let error = drain_with_channel_lifetime(Vec::new(), false, true)
         .await
         .unwrap_err();
-    assert!(error
-        .data
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .contains("without a terminal event"));
+    assert!(
+        error
+            .data
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("without a terminal event")
+    );
 }
 
 fn end() -> AgentEvent {
@@ -489,12 +493,14 @@ async fn a_worker_return_without_a_terminal_is_a_failed_turn() {
         }],
     ] {
         let error = drain(events, false).await.unwrap_err();
-        assert!(error
-            .data
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .contains("without a terminal event"));
+        assert!(
+            error
+                .data
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .contains("without a terminal event")
+        );
     }
 }
 
@@ -863,12 +869,14 @@ async fn assert_late_child_terminal(via_event: bool, parent_cancelled: bool) {
                     acp::StopReason::EndTurn
                 }
             );
-            assert!(session
-                .subagent_task("late-child")
-                .await
-                .unwrap()
-                .finished_ms
-                .is_none());
+            assert!(
+                session
+                    .subagent_task("late-child")
+                    .await
+                    .unwrap()
+                    .finished_ms
+                    .is_none()
+            );
             release.send(()).unwrap();
             let mut reader = tokio::io::BufReader::new(client_end);
             let finished = tokio::time::timeout(std::time::Duration::from_secs(2), async {

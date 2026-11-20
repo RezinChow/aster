@@ -321,6 +321,18 @@ impl SessionOptions {
         self
     }
 
+    /// Select automatic KBurn arming. `Enabled` may materialize factory seeds;
+    /// `Disabled` does not change explicitly configured skill directories.
+    pub fn with_kburn_mode(mut self, mode: crate::kstudio::KburnMode) -> Self {
+        self.kburn_mode = mode;
+        self
+    }
+
+    /// Explicitly enable or disable automatic KBurn arming.
+    pub fn with_kburn_enabled(self, enabled: bool) -> Self {
+        self.with_kburn_mode(crate::kstudio::KburnMode::from(Some(enabled)))
+    }
+
     /// Add skill directories to scan for skill files (*.md).
     /// Merged with any global `skill_dirs` from
     /// [`CodeConfig`](crate::config::CodeConfig) at session build time.
@@ -828,6 +840,13 @@ impl SessionOptions {
     /// pass the agent definition's `max_steps` value here to enforce its step budget.
     pub fn with_max_tool_rounds(mut self, rounds: usize) -> Self {
         self.max_tool_rounds = Some(rounds);
+        self
+    }
+
+    /// Inject one synthesis prompt after `rounds` read-only tool responses.
+    /// Tools remain available when the model identifies a specific evidence gap.
+    pub fn with_read_only_synthesis_rounds(mut self, rounds: u32) -> Self {
+        self.read_only_synthesis_rounds = Some(rounds);
         self
     }
 

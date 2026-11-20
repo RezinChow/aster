@@ -6,9 +6,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use aster_effect::{
-    coding_actor, ingest_coding, message_fact, resume_coding, ActorError, CodingPhase,
-    CodingServices, Compactor, Completion, CompletionRequest, FileLog, HarnessConfig, LogStore,
-    MemoryLog, ModelDecision, NewFact, ToolCall, ToolRunner,
+    coding_actor, ingest_coding, message_fact, resume_coding, tool_args_digest, ActorError,
+    CodingPhase, CodingServices, Compactor, Completion, CompletionRequest, Effect, FileLog,
+    HarnessConfig, LogStore, MemoryLog, ModelDecision, NewFact, PreparedToolExecution, ToolCall,
+    ToolEffectObservationV1, ToolExecutionOutcome, ToolExecutionResultV1, ToolPreparationRequest,
+    ToolPreparedV1, ToolRecoveryPolicy, ToolRunner,
+    TOOL_PREPARED_SCHEMA, TOOL_RESULT_SCHEMA,
 };
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
@@ -74,6 +77,54 @@ impl ToolRunner for BigOutput {
                 call.id,
                 "x".repeat(OUTPUT_BYTES)
             )))
+        })
+    }
+}
+
+struct BigPreparedBaseline {
+    preparations: Arc<AtomicUsize>,
+    baseline_bytes: usize,
+}
+
+impl ToolRunner for BigPreparedBaseline {
+    fn run(
+        &self,
+        call: ToolCall,
+        _cancel: CancellationToken,
+    ) -> aster_effect::coding::BoxFuture<Result<Value, ActorError>> {
+        Box::pin(async move { Ok(Value::String(format!("ok:{}", call.id))) })
+    }
+
+    fn prepare(
+        self: Arc<Self>,
+        request: ToolPreparationRequest,
+        _cancel: CancellationToken,
+    ) -> aster_effect::coding::BoxFuture<Result<PreparedToolExecution, ActorError>> {
+        Box::pin(async move {
+            self.preparations.fetch_add(1, Ordering::SeqCst);
+            let digest = tool_args_digest(&request.call.args)?;
+            let prepared = ToolPreparedV1 {
+                schema: TOOL_PREPARED_SCHEMA.into(),
+                identity: request.identity,
+                tool_name: request.call.name.clone(),
+                original_args_digest: digest.clone(),
+                effective_args_digest: digest,
+                recovery: ToolRecoveryPolicy::NeverReplay,
+                baseline: Some(serde_json::json!({
+                    "workspace": "x".repeat(self.baseline_bytes),
+                })),
+            };
+            let result = ToolExecutionResultV1 {
+                schema: TOOL_RESULT_SCHEMA.into(),
+                identity: prepared.identity.clone(),
+                prepared_digest: prepared.digest()?,
+                outcome: ToolExecutionOutcome::Succeeded,
+                exit_code: None,
+                output: Value::String(format!("ok:{}", request.call.id)),
+                effects: ToolEffectObservationV1::incomplete("hermetic baseline"),
+            };
+            let execute = Effect::succeed(result);
+            Ok(PreparedToolExecution { prepared, execute })
         })
     }
 }
@@ -327,4 +378,49 @@ async fn log_tombstoned_before_counters_were_carried_keeps_running() {
     .unwrap_or_else(|error| panic!("legacy log hard-failed: {error:?}"));
     assert_eq!(settled.view.schema_error, None);
     assert_eq!(settled.view.assistant.as_deref(), Some("finished"));
+}
+
+#[tokio::test]
+async fn large_prepared_baselines_force_a_compaction_before_the_byte_limit() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = FileLog::open(dir.path()).unwrap();
+    let preparations = Arc::new(AtomicUsize::new(0));
+    let config = HarnessConfig::new(8, usize::MAX, 64, 1, vec!["system".into()], Vec::new())
+        .unwrap()
+        .without_count_limits()
+        .with_token_compact(u64::MAX, 1)
+        .with_compact_after_prunable_bytes(12 * 1024 * 1024);
+    let services = Arc::new(CodingServices {
+        completion: Arc::new(BatchModel {
+            rounds: 45,
+            calls: AtomicUsize::new(0),
+        }),
+        tools: Arc::new(BigPreparedBaseline {
+            preparations: Arc::clone(&preparations),
+            baseline_bytes: 180 * 1024,
+        }),
+        compactor: Arc::new(Summaries(Mutex::new(0))),
+    });
+
+    let settled = ingest_coding(
+        &coding_actor(config),
+        &log,
+        services,
+        THREAD,
+        message_fact("m1", "keep going"),
+        LIMIT,
+    )
+    .await
+    .unwrap_or_else(|error| panic!("run hard-failed: {error:?}"));
+
+    assert_eq!(settled.view.schema_error, None);
+    assert_eq!(settled.view.assistant.as_deref(), Some("finished"));
+    assert!(preparations.load(Ordering::SeqCst) > 60);
+    let facts = log.read(THREAD).unwrap();
+    assert!(facts
+        .iter()
+        .any(|fact| fact.kind == "compaction.done"));
+    assert!(facts
+        .iter()
+        .any(|fact| fact.kind == "compaction.pruned"));
 }

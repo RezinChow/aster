@@ -25,6 +25,38 @@ use serde::{Deserialize, Serialize};
 pub const LOOP_CHECKPOINT_SCHEMA_VERSION: u32 = 1;
 pub(crate) const LOOP_CHECKPOINT_SOURCE_SCHEMA_VERSION: u32 = 2;
 
+/// Optional soft synthesis progress for a sequence of read-only model tool responses.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadOnlySynthesisStatus {
+    #[default]
+    Collecting,
+    Pending,
+    Spent,
+    Ineligible,
+}
+
+/// Structured task intents that admit the interactive staged-synthesis policy.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadOnlySynthesisIntent {
+    Plan,
+    Explore,
+    CodeReview,
+}
+
+impl ReadOnlySynthesisIntent {
+    pub(crate) fn from_style(style: crate::prompts::AgentStyle) -> Option<Self> {
+        match style {
+            crate::prompts::AgentStyle::Plan => Some(Self::Plan),
+            crate::prompts::AgentStyle::Explore => Some(Self::Explore),
+            crate::prompts::AgentStyle::CodeReview => Some(Self::CodeReview),
+            crate::prompts::AgentStyle::GeneralPurpose
+            | crate::prompts::AgentStyle::Verification => None,
+        }
+    }
+}
+
 /// Loop state that must survive crash recovery to preserve convergence limits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LoopConvergenceState {
@@ -45,6 +77,19 @@ pub struct LoopConvergenceState {
     /// but ignored on resume and written as zero.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub read_only_evidence_rounds: u32,
+    /// Optional interactive read-only synthesis policy. This is separate from
+    /// the retired hard ceiling above and from `max_tool_rounds`.
+    #[serde(default)]
+    pub read_only_synthesis_rounds: u32,
+    #[serde(default)]
+    pub read_only_synthesis_status: ReadOnlySynthesisStatus,
+    /// Intent admitted by structured pre-analysis or an explicit host role.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_only_synthesis_intent: Option<ReadOnlySynthesisIntent>,
+    /// The synthesis turn requested one final gap-filling tool wave. The next
+    /// provider call must answer without tools.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub read_only_synthesis_finalization_pending: bool,
     /// The next provider turn must answer without tools.
     /// Older checkpoints omit the field and do not force that turn.
     #[serde(default, skip_serializing_if = "is_false")]
@@ -63,6 +108,9 @@ pub struct LoopConvergenceState {
     pub verifier_spent: bool,
     #[serde(default, skip_serializing_if = "is_false")]
     pub next_turn_is_verifier: bool,
+    /// `Skill("loop")` was invoked; completion requires a real task acceptance.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub kburn_loop_invoked: bool,
     /// Git baseline from run start. A resumed process deltas against this
     /// instead of a fresh snapshot, so an unobserved write still opens the gate.
     #[serde(default, skip_serializing_if = "is_false")]

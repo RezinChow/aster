@@ -36,7 +36,8 @@ SUITES = [
     ('workspace_layer_trust_stdio', False),
     ('unattended_e2e', False),
     ('shipped_tui_e2e', False),
-    ('tui_913_hermetic', True),
+    # Pair BUILD_ID: prefer `just hermetic-perf-e2e` (rebuilds aster+aster-acp).
+    ('tui_913_hermetic', False),
 ]
 
 RESULT_RE = re.compile(

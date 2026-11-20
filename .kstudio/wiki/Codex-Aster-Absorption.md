@@ -40,7 +40,7 @@ Updated: 2026-11-16 · by: S · status: **wave-locked** · ≠产品 Pass
 | **机制** | 追加写事实日志的边界能力：反向扫描、坏行拒绝、超大记录跳过、冻结字节偏移、写锁/持久化指标 |
 | **Codex** | `codex-rs/rollout/`（`reverse_jsonl_scanner.rs` · `recorder.rs` · `policy.rs` · `writer_lock.rs`） |
 | **Aster 落点** | `crates/effect`（log/resume 原语）+ `crates/code/core/src/session_folder.rs` / `fact_control/`（产品会话布局） |
-| **现状** | Effect 已是不可变事实日志 + resume；session 目录与 fork 已有。**P0-2 已落地**：损坏/截断 JSONL 整体拒绝（不跳行）；单条记录 `MAX_RECORD_BYTES`（4 MiB）读写有界；writer fence/`LogBusy` 沿用并引用测试；`FileLog::freeze` 暴露已提交 `byte_len`。未做 reverse-scan 与计数器。证据：`docs/evidence/effect-rollout-hardening-2026-11-16/OUTCOME.md`（≠产品 Pass） |
+| **现状** | Effect 已是不可变事实日志 + resume；session 目录与 fork 已有。**P0-2 已落地**：损坏/截断 JSONL 整体拒绝（不跳行）；单条记录 `MAX_RECORD_BYTES`（12 MiB）读写有界；writer fence/`LogBusy` 沿用并引用测试；`FileLog::freeze` 暴露已提交 `byte_len`。未做 reverse-scan 与计数器。证据：`docs/evidence/effect-rollout-hardening-2026-11-16/OUTCOME.md`（≠产品 Pass） |
 | **可验证完成定义** | (1) hermetic：截断/损坏行后 resume 或扫描行为符合文档（拒绝或跳过，不静默错解析）；(2) 超大记录有界；(3) 写并发有锁或等价 fence；(4) OUTCOME 含命令与「Explicitly not claimed」 |
 | **非目标** | 引入 Codex rollout 文件名/目录布局；旁路 effect 另起 session blob |
 

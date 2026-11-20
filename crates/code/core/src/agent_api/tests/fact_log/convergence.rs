@@ -1,6 +1,6 @@
 use super::*;
 use crate::tools::{Tool, ToolCapabilities, ToolContext, ToolOutput};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 struct CompactingObservations {
     requests: Arc<AtomicUsize>,
@@ -147,9 +147,11 @@ async fn identical_calls_with_new_external_observations_complete_through_the_ses
             .count(),
         7
     );
-    assert!(!facts
-        .iter()
-        .any(|fact| fact.kind == "tool.result" && fact.payload["receipt"]["outcome"] == "denied"));
+    assert!(
+        !facts.iter().any(
+            |fact| fact.kind == "tool.result" && fact.payload["receipt"]["outcome"] == "denied"
+        )
+    );
 }
 
 #[tokio::test]
@@ -202,10 +204,12 @@ async fn repeated_compaction_cannot_refresh_the_original_session_duplicate_allow
         result.is_err(),
         "a refusal cycle cannot finish successfully: {result:?}"
     );
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("run.tool_refusal_cycle:"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("run.tool_refusal_cycle:")
+    );
     assert_eq!(compactions.load(Ordering::SeqCst), 3);
     assert_eq!(executions.load(Ordering::SeqCst), 3);
     assert_eq!(requests.load(Ordering::SeqCst), 5);
@@ -217,14 +221,16 @@ async fn repeated_compaction_cannot_refresh_the_original_session_duplicate_allow
         compacted.len() >= 2,
         "actual repeated compaction must be exercised"
     );
-    assert!(compacted.iter().any(
-        |fact| fact.payload["kept"].as_array().is_some_and(|kept| kept
-            .iter()
-            .filter_map(Value::as_str)
-            .filter(|line| line.starts_with("assistant\ntool "))
-            .count()
-            == 1)
-    ));
+    assert!(
+        compacted.iter().any(
+            |fact| fact.payload["kept"].as_array().is_some_and(|kept| kept
+                .iter()
+                .filter_map(Value::as_str)
+                .filter(|line| line.starts_with("assistant\ntool "))
+                .count()
+                == 1)
+        )
+    );
 }
 
 #[tokio::test]
@@ -405,9 +411,11 @@ async fn automatic_compaction_receives_original_public_tool_turn_text_without_pr
     agent.close().await;
     assert!(result.is_ok(), "{result:?}");
     assert_eq!(executions.load(Ordering::SeqCst), 3);
-    assert!(facts.iter().any(|fact| fact.payload["call"]["text"]
-        .as_str()
-        .is_some_and(|text| text.contains("PUBLIC-CHECKPOINT-0"))));
+    assert!(facts.iter().any(|fact| {
+        fact.payload["call"]["text"]
+            .as_str()
+            .is_some_and(|text| text.contains("PUBLIC-CHECKPOINT-0"))
+    }));
     let summaries = client.summaries.lock().unwrap();
     assert!(
         summaries.len() >= 2,
@@ -420,10 +428,14 @@ async fn automatic_compaction_receives_original_public_tool_turn_text_without_pr
             .any(|text| text.contains("PUBLIC-CHECKPOINT-0")),
         "the original public result must reach the compactor"
     );
-    assert!(summaries
-        .iter()
-        .any(|text| text.contains("PUBLIC-CHECKPOINT-1")));
-    assert!(summaries
-        .iter()
-        .all(|text| !text.contains("SYNTHETIC-PRIVATE-REASONING")));
+    assert!(
+        summaries
+            .iter()
+            .any(|text| text.contains("PUBLIC-CHECKPOINT-1"))
+    );
+    assert!(
+        summaries
+            .iter()
+            .all(|text| !text.contains("SYNTHETIC-PRIVATE-REASONING"))
+    );
 }

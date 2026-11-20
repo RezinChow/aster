@@ -126,7 +126,10 @@ studio $slug=env_var_or_default('ASTER_TENANT_SLUG', 'aster'):
       echo "warning: Studio is starting as root; the fcitx immodule cannot commit composed text for a non-session uid, so IME input will not work. Start it as the session user." >&2
     fi
     export ASTER_TENANT_SLUG="${slug}"
-    export STUDIO_RENDERER_DEV="${STUDIO_RENDERER_DEV:-1}"
+    # Daily use runs the production renderer: the rspack dev watcher and the
+    # unminified React/HMR bundle keep several cores busy even when idle.
+    # `just dev` explicitly opts back into hot reload when it is actually needed.
+    export STUDIO_RENDERER_DEV="${STUDIO_RENDERER_DEV:-0}"
     cd apps/studio
     exec scripts/studio-shell.sh
 
@@ -199,6 +202,11 @@ dev $slug=env_var_or_default('ASTER_TENANT_SLUG', 'aster'):
 
 # Start Aster Studio for this tenant. `just work:toyou` selects that tenant.
 work $slug=env_var_or_default('ASTER_TENANT_SLUG', 'aster'): (studio slug)
+
+# Named-YOLO hermetic Core/ACP/TUI e2e pack (paired bins; headed/live parked).
+# Opt-in; does not change default CI. %≠Pass.
+hermetic-perf-e2e *args:
+    python3 scripts/verify-hermetic-perf-e2e.py {{args}}
 
 # Backend spine recipes (up / up-ci / down / middleware-up / backend-test)
 # were migrated to kense/incoming/spine. Client recipes only below.

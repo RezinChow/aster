@@ -759,19 +759,25 @@ impl acp::Agent for AsterCodeAgent {
             } else {
                 None
             };
-            self.stream_turn(
-                &args.session_id,
-                &session,
-                &prompt,
-                &attachments,
-                generation,
-                turn_permit,
-                observation.as_ref(),
-                gate,
-                requested_posture,
-                output_schema.as_ref(),
+            let (retry_observer, retry_forwarder) = self.provider_retry_forwarder(&args.session_id);
+            let response = aster_core::llm::with_retry_observer(
+                retry_observer,
+                self.stream_turn(
+                    &args.session_id,
+                    &session,
+                    &prompt,
+                    &attachments,
+                    generation,
+                    turn_permit,
+                    observation.as_ref(),
+                    gate,
+                    requested_posture,
+                    output_schema.as_ref(),
+                ),
             )
-            .await
+            .await;
+            let _ = retry_forwarder.await;
+            response
         };
         if generate_title && output_schema.is_none() {
             match &mut response {

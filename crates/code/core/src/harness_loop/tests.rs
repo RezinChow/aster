@@ -835,3 +835,20 @@ async fn absorb_open_children_deltas_git_backed_markers() {
     assert!(!incomplete || ledger.open_children.is_empty());
     assert!(ledger.open_children.is_empty());
 }
+
+#[test]
+fn skipped_report_is_not_a_pass() {
+    let ledger = ledger_with_write();
+    let mut report = VerificationReport::new(
+        "host",
+        vec![VerificationCheck::required("build", "command", "compiles")
+            .with_status(VerificationStatus::Passed)],
+    )
+    .with_effect_digest(ledger.digest());
+    report.status = VerificationStatus::Skipped;
+
+    assert!(matches!(
+        decide_completion(&ledger, &[report], &[], false),
+        CompletionGate::Incomplete { .. }
+    ));
+}

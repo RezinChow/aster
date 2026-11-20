@@ -1,0 +1,36 @@
+# Evaluation ACL for Harbor Terminal-Bench (native runner).
+# Secrets stay in the host environment; nothing here embeds credentials.
+#
+# Required host env for the chosen provider, for example:
+#   ASTER_TB_DEFAULT_MODEL=deepseek/deepseek-flash
+#   DEEPSEEK_API_KEY=...
+# Or point ASTER_CONFIG at a local trusted ACL instead of this file.
+
+default_model = env("ASTER_TB_DEFAULT_MODEL")
+
+providers "deepseek" {
+  api_key = env("DEEPSEEK_API_KEY")
+  base_url = "https://api.deepseek.com"
+  models "deepseek-flash" {
+    name = "DeepSeek Flash"
+  }
+  models "deepseek-chat" {
+    name = "DeepSeek Chat"
+  }
+}
+
+providers "openai" {
+  api_key = env("OPENAI_API_KEY")
+  models "gpt-4o" {
+    name = "GPT-4o"
+  }
+}
+
+providers "anthropic" {
+  api_key = env("ANTHROPIC_API_KEY")
+  models "claude-sonnet-4-20250514" {
+    name = "Claude Sonnet 4"
+  }
+}
+
+# Codex login path uses --codex-auth on the runner; no provider block required.

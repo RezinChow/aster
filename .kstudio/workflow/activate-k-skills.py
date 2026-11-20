@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 
 AGENTS = ("codex", "claude", "cursor", "opencode")
-CORE_SKILLS = {"k-init", "k-status", "k-progress", "k-plan", "k-go", "k-yolo", "k-task", "k-loop", "k-goal", "k-wiki", "k-review", "k-clean"}
-NAME = re.compile(r"^k-[a-z0-9-]+$")
+CORE_SKILLS = {"init", "status", "progress", "plan", "go", "yolo", "task", "loop", "goal", "wiki", "review", "clean"}
+NAME = re.compile(r"^(?:init|goal|status|progress|plan|task|go|loop|yolo|review|clean|wiki)$")
 
 
 def installed_agents(home: Path) -> dict[str, str]:

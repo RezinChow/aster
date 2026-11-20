@@ -127,6 +127,9 @@ impl crate::agent::TurnEngine {
             bound_invocation: None,
             capability_runtime: None,
             fact_turn: Arc::new(tokio::sync::Mutex::new(None)),
+            fact_convergence: Arc::new(std::sync::Mutex::new(
+                crate::loop_checkpoint::LoopConvergenceState::default(),
+            )),
             child_run: false,
         }
     }
@@ -298,6 +301,98 @@ impl crate::agent::TurnEngine {
             self.config.max_continuation_turns,
             self.config.max_tool_rounds,
         )
+    }
+
+    pub(crate) fn fact_bind_read_only_synthesis(&self, style: crate::prompts::AgentStyle) {
+        use crate::loop_checkpoint::ReadOnlySynthesisStatus;
+        let intent = crate::loop_checkpoint::ReadOnlySynthesisIntent::from_style(style);
+        let mut convergence = self
+            .fact_convergence
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        convergence.read_only_synthesis_rounds = 0;
+        convergence.read_only_synthesis_intent = intent;
+        convergence.read_only_synthesis_finalization_pending = false;
+        convergence.read_only_synthesis_status = if intent.is_some()
+            && self
+                .config
+                .read_only_synthesis_rounds
+                .is_some_and(|rounds| rounds > 0)
+        {
+            ReadOnlySynthesisStatus::Collecting
+        } else {
+            ReadOnlySynthesisStatus::Ineligible
+        };
+    }
+
+    pub(crate) fn fact_read_only_synthesis_directive(
+        &self,
+    ) -> Option<super::FactReadOnlySynthesisDirective> {
+        use crate::loop_checkpoint::ReadOnlySynthesisStatus;
+        let mut convergence = self
+            .fact_convergence
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if convergence.read_only_synthesis_intent.is_none() {
+            return None;
+        }
+        if convergence.read_only_synthesis_finalization_pending {
+            return Some(super::FactReadOnlySynthesisDirective::Finalize);
+        }
+        if convergence.read_only_synthesis_status == ReadOnlySynthesisStatus::Pending {
+            convergence.read_only_synthesis_status = ReadOnlySynthesisStatus::Spent;
+            return Some(super::FactReadOnlySynthesisDirective::Synthesize);
+        }
+        None
+    }
+
+    pub(crate) fn fact_observe_read_only_synthesis_tools(&self) {
+        use crate::loop_checkpoint::ReadOnlySynthesisStatus;
+        let Some(budget) = self.config.read_only_synthesis_rounds else {
+            return;
+        };
+        let mut convergence = self
+            .fact_convergence
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if convergence.read_only_synthesis_intent.is_none() {
+            return;
+        }
+        match convergence.read_only_synthesis_status {
+            ReadOnlySynthesisStatus::Collecting => {
+                convergence.read_only_synthesis_rounds =
+                    convergence.read_only_synthesis_rounds.saturating_add(1);
+                if convergence.read_only_synthesis_rounds >= budget {
+                    convergence.read_only_synthesis_status = ReadOnlySynthesisStatus::Pending;
+                }
+            }
+            ReadOnlySynthesisStatus::Spent => {
+                convergence.read_only_synthesis_finalization_pending = true;
+            }
+            ReadOnlySynthesisStatus::Pending | ReadOnlySynthesisStatus::Ineligible => {}
+        }
+    }
+
+    pub(crate) fn fact_convergence_snapshot(&self) -> crate::loop_checkpoint::LoopConvergenceState {
+        self.fact_convergence
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    pub(crate) fn fact_restore_read_only_synthesis(
+        &self,
+        checkpoint: &crate::loop_checkpoint::LoopConvergenceState,
+    ) {
+        let mut convergence = self
+            .fact_convergence
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        convergence.read_only_synthesis_rounds = checkpoint.read_only_synthesis_rounds;
+        convergence.read_only_synthesis_status = checkpoint.read_only_synthesis_status;
+        convergence.read_only_synthesis_intent = checkpoint.read_only_synthesis_intent;
+        convergence.read_only_synthesis_finalization_pending =
+            checkpoint.read_only_synthesis_finalization_pending;
     }
 
     pub(crate) fn tool_executor_handle(&self) -> Arc<ToolExecutor> {

@@ -1,0 +1,20 @@
+Traceback (most recent call last):
+  File "/Users/roylin/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/trial/trial.py", line 616, in run
+    await self._run()
+  File "/Users/roylin/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/trial/single_step.py", line 52, in _run
+    await self._run_verifier()
+  File "/Users/roylin/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/trial/single_step.py", line 102, in _run_verifier
+    self.result.verifier_result = await self._run_separate_verifier(
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/roylin/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/trial/trial.py", line 1097, in _run_separate_verifier
+    return await self._verify_with_timeout(verifier, timeout_sec)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/roylin/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/trial/trial.py", line 990, in _verify_with_timeout
+    return await asyncio.wait_for(verifier.verify(), timeout=timeout_sec)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/roylin/.local/share/uv/python/cpython-3.12.14-macos-aarch64-none/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/Users/roylin/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/verifier/verifier.py", line 304, in verify
+    raise RewardFileNotFoundError(
+harbor.verifier.verifier.RewardFileNotFoundError: No reward file found at jobs/2026-11-18__03-27-56/biped-contact-dynamics__S88iAKA/verifier/reward.txt or jobs/2026-11-18__03-27-56/biped-contact-dynamics__S88iAKA/verifier/reward.json

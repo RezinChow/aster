@@ -1,0 +1,218 @@
+{
+  "pack": "hermetic-perf-e2e",
+  "aster_acp_bin": "/Users/roylin/code/aster/target/debug/aster-acp",
+  "aster_tui_bin": "/Users/roylin/code/aster/target/debug/aster",
+  "suites": 20,
+  "passed": 251,
+  "failed": 0,
+  "ignored": 13,
+  "seconds": 342.83,
+  "failed_suites": [],
+  "results": [
+    {
+      "suite": "tui_913_hermetic",
+      "exit": 0,
+      "seconds": 29.02,
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/tui_913_hermetic.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "acp_conformance_stdio",
+      "exit": 0,
+      "seconds": 10.92,
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/acp_conformance_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "protocol_commands_stdio",
+      "exit": 0,
+      "seconds": 15.31,
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/protocol_commands_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "memory_canonical_stdio",
+      "exit": 0,
+      "seconds": 41.01,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/memory_canonical_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "workspace_layer_trust_stdio",
+      "exit": 0,
+      "seconds": 40.2,
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/workspace_layer_trust_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "approval_rules_stdio",
+      "exit": 0,
+      "seconds": 18.64,
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/approval_rules_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "client_fs_stdio",
+      "exit": 0,
+      "seconds": 14.76,
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/client_fs_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "shell_bypass_learning",
+      "exit": 0,
+      "seconds": 3.65,
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/shell_bypass_learning.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "retrieval_qualification_stdio",
+      "exit": 0,
+      "seconds": 45.14,
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/retrieval_qualification_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "plugin_workspace_stdio",
+      "exit": 0,
+      "seconds": 7.74,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/plugin_workspace_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "codex_account_stdio",
+      "exit": 0,
+      "seconds": 8.12,
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/codex_account_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "local_model_responses_stdio",
+      "exit": 0,
+      "seconds": 8.34,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/local_model_responses_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "account_import_opt_in_stdio",
+      "exit": 0,
+      "seconds": 8.41,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/account_import_opt_in_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "consumer_deny",
+      "exit": 0,
+      "seconds": 3.97,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/consumer_deny.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "startup_error",
+      "exit": 0,
+      "seconds": 8.12,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/startup_error.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "memory_management",
+      "exit": 0,
+      "seconds": 8.53,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/memory_management.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "unattended_e2e",
+      "exit": 0,
+      "seconds": 46.56,
+      "passed": 33,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-full20b/unattended_e2e.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "long_horizon_contracts",
+      "exit": 0,
+      "seconds": 10.4,
+      "passed": 75,
+      "failed": 0,
+      "ignored": 3,
+      "log": "/tmp/aster-hermetic-full20b/long_horizon_contracts.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "long_horizon_rust_stdio",
+      "exit": 0,
+      "seconds": 8.92,
+      "passed": 68,
+      "failed": 0,
+      "ignored": 7,
+      "log": "/tmp/aster-hermetic-full20b/long_horizon_rust_stdio.log",
+      "failed_tests": []
+    },
+    {
+      "suite": "long_horizon_preflight",
+      "exit": 0,
+      "seconds": 5.07,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 3,
+      "log": "/tmp/aster-hermetic-full20b/long_horizon_preflight.log",
+      "failed_tests": []
+    }
+  ],
+  "explicitly_not_claimed": [
+    "named YOLO Done",
+    "Meta Harness Pass",
+    "headed Studio / live LLM"
+  ]
+}

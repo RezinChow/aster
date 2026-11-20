@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load .kstudio/config.kcl (+ optional config.local.kcl) → JSON.
+"""Load .kstudio/project.acl (+ optional project.local.acl) → JSON.
 
 Minimal Kense-KCL subset parser for kstudio.project-config.v1 (P16).
 Does not require the Rust kcl crate. Unknown blocks are kept as raw attrs.
@@ -12,8 +12,35 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-KSTUDIO = ROOT / ".kstudio"
+def _resolve_eng() -> tuple[Path, Path]:
+    here = Path(__file__).resolve()
+    root = here.parents[2]
+    aster = root / ".aster"
+    legacy = root / ".kstudio"
+
+    def present(p: Path) -> bool:
+        return (
+            (p / "MANIFEST.json").is_file()
+            or (p / "workflow").is_dir()
+            or (p / "project.acl").is_file()
+            or (p / "project.acl.example").is_file()
+        )
+
+    if present(aster) and (
+        (aster / "project.acl").is_file()
+        or (aster / "project.acl.example").is_file()
+        or (aster / "MANIFEST.json").is_file()
+        or (aster / "workflow").is_dir()
+    ):
+        # Prefer .aster only when it holds eng config/layout — not bare product config.acl alone.
+        if (aster / "project.acl").is_file() or (aster / "MANIFEST.json").is_file() or (aster / "workflow").is_dir():
+            return root, aster
+    if legacy.exists():
+        return root, legacy
+    return root, here.parents[1]
+
+
+ROOT, KSTUDIO = _resolve_eng()
 SCHEMA = "kstudio.project-config.v1"
 
 STR_RE = re.compile(r'^"(?:\\.|[^"\\])*"$')
@@ -212,9 +239,9 @@ def load_paths(paths: list[Path]) -> dict:
 
 def default_paths() -> list[Path]:
     return [
-        KSTUDIO / "config.kcl.example",
-        KSTUDIO / "config.kcl",
-        KSTUDIO / "config.local.kcl",
+        KSTUDIO / "project.acl.example",
+        KSTUDIO / "project.acl",
+        KSTUDIO / "project.local.acl",
     ]
 
 
@@ -271,18 +298,18 @@ def prefer_for_role(cfg: dict, role: str) -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Load .kstudio config.kcl (P16)")
+    ap = argparse.ArgumentParser(description="Load .kstudio project.acl (P16)")
     ap.add_argument("--json", action="store_true", default=True)
     ap.add_argument("--role", help="print prefer_* + machine card for RoleID")
     ap.add_argument("--machine", help="print connect/use card for machine id")
-    ap.add_argument("--no-example", action="store_true", help="skip config.kcl.example")
+    ap.add_argument("--no-example", action="store_true", help="skip project.acl.example")
     args = ap.parse_args()
     paths = default_paths()
     if args.no_example:
-        paths = [p for p in paths if p.name != "config.kcl.example"]
-    # Prefer real config over example: load example only if config.kcl missing
-    if (KSTUDIO / "config.kcl").is_file():
-        paths = [p for p in paths if p.name != "config.kcl.example"]
+        paths = [p for p in paths if p.name != "project.acl.example"]
+    # Prefer real config over example: load example only if project.acl missing
+    if (KSTUDIO / "project.acl").is_file():
+        paths = [p for p in paths if p.name != "project.acl.example"]
     try:
         cfg = load_paths(paths)
     except ValueError as e:

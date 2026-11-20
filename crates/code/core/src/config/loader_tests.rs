@@ -11,6 +11,7 @@ storage_backend = "custom"
 sessions_dir = "./sessions"
 memory_dir = "./memory"
 storage_url = "sqlite://state.db"
+kburn = false
 skill_dirs = ["./skills", "./shared-skills"]
 agent_dirs = ["./agents"]
 user_instructions_dir = "./personal-instructions"
@@ -170,6 +171,7 @@ mcp_servers "filesystem" {
     assert_eq!(config.sessions_dir.unwrap().to_string_lossy(), "./sessions");
     assert_eq!(config.memory_dir.unwrap().to_string_lossy(), "./memory");
     assert_eq!(config.storage_url.as_deref(), Some("sqlite://state.db"));
+    assert_eq!(config.kburn, Some(false));
     assert_eq!(config.skill_dirs.len(), 2);
     assert_eq!(config.agent_dirs.len(), 1);
     assert_eq!(

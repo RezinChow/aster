@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Persistent, bounded /k-task controller. Consumes evidence; never launches agents."""
+"""Persistent, bounded /task controller. Consumes evidence; never launches agents."""
 from __future__ import annotations
 
 import argparse
@@ -21,8 +21,9 @@ LIMITS = {"max_iterations": 20, "max_seconds": 7200, "max_stagnant": 5, "max_sam
 STATES = {"running", "ready_for_review", "task_accepted", "blocked", "stopped"}
 IDENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
 SHA = re.compile(r"^[a-f0-9]{64}$")
-BASE = ".kstudio/local/loops"
-AUDIT = ".kstudio/evidence/k-loop"
+ENG_ROOT = Path(__file__).resolve().parents[1].name
+BASE = f"{ENG_ROOT}/local/loops"
+AUDIT = f"{ENG_ROOT}/evidence/loop"
 
 
 def load_review():
@@ -88,7 +89,7 @@ def validate_spec(value: dict) -> dict:
     if not isinstance(value, dict) or value.get("schema") != "kstudio.loop-spec.v1":
         fail("expected kstudio.loop-spec.v1 object")
     if not isinstance(value.get("task_id"), str) or not IDENT.fullmatch(value["task_id"]):
-        fail("task_id must be a stable safe identifier from /k-task")
+        fail("task_id must be a stable safe identifier from /task")
     if not isinstance(value.get("goal"), str) or not value["goal"].strip():
         fail("a concrete goal is required")
     roles = value.get("roles")
@@ -100,7 +101,7 @@ def validate_spec(value: dict) -> dict:
     for name in paths:
         if not isinstance(name, str) or not name or name == "." or any(c in name for c in "*?[]:\\\0") or Path(name).is_absolute() or ".." in Path(name).parts:
             fail("write_paths need explicit project-relative files/directories, not root/globs")
-        if name.startswith((".git/", ".kstudio/local", ".kstudio/evidence", ".kstudio/wiki/site")) or name == ".git":
+        if name.startswith((".git/", f"{ENG_ROOT}/local", f"{ENG_ROOT}/evidence", f"{ENG_ROOT}/wiki/site")) or name == ".git":
             fail("generated state/evidence and Git internals cannot be progress inputs")
     acceptance = value.get("acceptance")
     if not isinstance(acceptance, dict) or not isinstance(acceptance.get("description"), str) or not acceptance["description"].strip():
@@ -213,7 +214,12 @@ def save(root: Path, state: dict, kind: str, detail: str = ""):
 
 
 def in_scope(name: str, paths: list[str]) -> bool:
-    return any(name == p or name.startswith(p.rstrip("/") + "/") for p in paths)
+    return any(p == "." or name == p or name.startswith(p.rstrip("/") + "/") for p in paths)
+
+
+def uncovered_write_paths(spec: dict, checks: list[dict]) -> list[str]:
+    selected = {row["id"]: row.get("paths", []) for row in checks if row["id"] in spec["acceptance"]["check_ids"]}
+    return [name for name in spec["write_paths"] if not any(in_scope(name, paths) for paths in selected.values())]
 
 
 def source_map(root: Path, paths: list[str], head: str | None = None, dirty: dict | None = None) -> dict:
@@ -375,7 +381,7 @@ def feedback(root: Path, state: dict, path: Path):
         if not finite(reviewed_at) or not state["last_receipt_finished"] <= reviewed_at <= time.time() + 1:
             fail("review feedback is old or from the future")
         report_name = value.get("review_path")
-        if not isinstance(report_name, str) or not report_name.startswith(".kstudio/evidence/"):
+        if not isinstance(report_name, str) or not report_name.startswith(f"{ENG_ROOT}/evidence/"):
             fail("review_path must identify a retained project evidence report")
         report = safe(root, report_name)
         report_data = report.read_bytes() if report.is_file() else None
@@ -419,7 +425,7 @@ def start(root: Path, spec: dict, controller: str) -> dict:
     current = source_map(root, spec["write_paths"])
     sha = digest(current)
     state = {"schema": "kstudio.loop-state.v1", "root": str(root), "spec": spec, "spec_sha256": digest(spec), "controller": controller, "status": "running", "stop_reason": "", "started_at": now, "last_observed_at": now, "elapsed_seconds": 0, "iterations": 0, "stagnant": 0, "same_failure": 0, "sequence": 0, "history": [], "initial_source": current, "last_source": sha, "seen_sources": [sha], "seen_outcomes": [], "seen_receipts": [], "seen_feedback": [], "seen_findings": [], "review_epoch": 0, "pending_checks": [], "reproduced_checks": [], "last_outcome": None, "last_failure": None, "best_passed": [], "last_receipt_finished": now, "last_receipt_sha256": None, "last_summary": {}, "config_sha256": cfg_hash, "evidence_dir": f"{AUDIT}/{spec['task_id']}-{uuid.uuid4().hex}"}
-    billets = read_json(safe(root, ".kstudio/workflow/billets.json"))
+    billets = read_json(safe(root, f"{ENG_ROOT}/workflow/billets.json"))
     rows = billets.get("billets") if isinstance(billets, dict) else None
     if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
         fail("project billets must contain a role array")
@@ -429,6 +435,8 @@ def start(root: Path, spec: dict, controller: str) -> dict:
         state.update(status="blocked", stop_reason="no_executable_role")
     elif errors or not set(spec["acceptance"]["check_ids"]).issubset(row["id"] for row in checks):
         state.update(status="blocked", stop_reason="invalid_check_configuration", last_summary={"errors": errors})
+    elif uncovered := uncovered_write_paths(spec, checks):
+        state.update(status="blocked", stop_reason="uncovered_acceptance_scope", last_summary={"uncovered_write_paths": uncovered})
     save(root, state, "start")
     return state
 

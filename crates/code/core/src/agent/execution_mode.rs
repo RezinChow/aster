@@ -53,7 +53,7 @@ impl crate::agent::TurnEngine {
 
     pub(super) fn should_run_pre_analysis(&self) -> bool {
         match self.config.planning_mode {
-            PlanningMode::Disabled => false,
+            PlanningMode::Disabled => self.config.read_only_synthesis_rounds.is_some(),
             PlanningMode::Enabled => true,
             PlanningMode::Auto => true,
         }

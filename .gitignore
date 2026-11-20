@@ -8,8 +8,36 @@
 .env
 .env.*
 !.env.example
-.aster/
-.aster/
+# Product runtime under workspace/.aster (sessions/memory/config.acl/…).
+# Engineering markers may be tracked when present (HG6 / Q14); do not un-ignore
+# config.acl (often secrets).
+.aster/*
+!.aster/MANIFEST.json
+!.aster/project.acl
+!.aster/project.acl.example
+!.aster/ENGINEERING.md
+!.aster/README.md
+!.aster/.gitignore
+!.aster/skills/
+!.aster/skills/**
+!.aster/workflow/
+!.aster/workflow/**
+!.aster/wiki/
+!.aster/wiki/**
+!.aster/evidence/
+!.aster/evidence/**
+!.aster/agent-rules/
+!.aster/agent-rules/**
+!.aster/contexts/
+!.aster/contexts/**
+!.aster/extensions/
+!.aster/extensions/**
+!.aster/lanes/
+!.aster/lanes/**
+!.aster/migration/
+!.aster/migration/**
+!.aster/workflows/
+!.aster/workflows/**
 .aster-test/
 .aster-agent-retrievals
 .aster-vec.lock
@@ -40,6 +68,9 @@ __pycache__/
 # Local CUA / GUI / release scratch outputs (never product evidence).
 /artifacts/
 /segments/
+
+# Harbor job directories from local Terminal-Bench / Harbor runs.
+/jobs/
 
 # Generated artifacts: the WorkBuddy desktop agent's repo-local memory and
 # the T01 harness output directory.

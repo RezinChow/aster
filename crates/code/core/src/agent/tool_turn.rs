@@ -34,14 +34,19 @@ impl crate::agent::TurnEngine {
             return Ok(());
         }
 
-        if self.can_run_parallel_write_batch(&tool_calls) {
-            self.execute_parallel_write_batch(
+        let parallel_limit = self.parallel_read_batch_limit(&tool_calls).or_else(|| {
+            self.can_run_parallel_write_batch(&tool_calls)
+                .then_some(self.config.max_parallel_tasks)
+        });
+        if let Some(max_concurrency) = parallel_limit {
+            self.execute_parallel_tool_batch(
                 &tool_calls,
                 state,
                 event_tx,
                 session_id,
                 cancel_token,
                 tool_context,
+                max_concurrency,
             )
             .await;
             return Ok(());
@@ -60,6 +65,16 @@ impl crate::agent::TurnEngine {
         }
 
         Ok(())
+    }
+
+    pub(super) fn tool_response_is_read_only(&self, tool_calls: &[ToolCall]) -> bool {
+        !tool_calls.is_empty()
+            && tool_calls.iter().all(|call| {
+                self.tool_executor
+                    .registry()
+                    .capabilities(&call.name, &call.args)
+                    .is_some_and(|capabilities| capabilities.read_only)
+            })
     }
 
     async fn execute_sequential_tool_call(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""k-progress helper: dump GOALS + progress_refs for completion rubrics.
+"""progress helper: dump GOALS + progress_refs for completion rubrics.
 
 Does NOT invent a percentage — the agent scores against real source.
 Project-agnostic. Read-only.
@@ -11,8 +11,27 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-KS = ROOT / ".kstudio"
+def _resolve_eng() -> tuple[Path, Path]:
+    here = Path(__file__).resolve()
+    root = here.parents[2]
+    aster = root / ".aster"
+    legacy = root / ".kstudio"
+
+    def present(p: Path) -> bool:
+        return (
+            (p / "MANIFEST.json").is_file()
+            or (p / "workflow").is_dir()
+            or (p / "skills").is_dir()
+        )
+
+    if present(aster):
+        return root, aster
+    if legacy.exists():
+        return root, legacy
+    return root, here.parents[1]
+
+
+ROOT, KS = _resolve_eng()
 GOALS = KS / "workflow" / "GOALS.md"
 MANIFEST = KS / "MANIFEST.json"
 
@@ -28,10 +47,10 @@ def section(md: str, title: str) -> str:
 
 
 def main() -> int:
-    print("=== k-progress scan (inputs only; % is agent-judged) ===")
+    print("=== progress scan (inputs only; % is agent-judged) ===")
     print(f"root: {ROOT}")
     if not GOALS.is_file():
-        print("GOALS.md: MISSING — run /k-goal first")
+        print("GOALS.md: MISSING — run /goal first")
         print("=== end ===")
         return 0
     text = GOALS.read_text(encoding="utf-8")
@@ -74,7 +93,7 @@ def main() -> int:
         print("  (none)")
     print("tip: score axes vs real source; TTY reply with bars:")
     print("     python3 .kstudio/workflow/tty-fmt.py bar 61 --label 总体")
-    print("     overall%≠Pass; ≠ /k-status sitrep; no 套话.")
+    print("     overall%≠Pass; ≠ /status sitrep; no 套话.")
     print("=== end ===")
     return 0
 

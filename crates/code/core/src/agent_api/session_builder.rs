@@ -325,6 +325,7 @@ fn finish_agent_session(
             .max_continuation_turns
             .unwrap_or(base.max_continuation_turns),
         max_tool_rounds: resolved.limits.max_tool_rounds,
+        read_only_synthesis_rounds: opts.read_only_synthesis_rounds,
         max_parallel_tasks: resolved.limits.max_parallel_tasks,
         auto_delegation,
         agent_registry: Some(Arc::clone(&agent_registry)),

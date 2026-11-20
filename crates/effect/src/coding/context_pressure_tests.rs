@@ -114,3 +114,29 @@ async fn fresh_reported_usage_keeps_priority_over_the_character_estimate() {
     eprintln!("fresh known usage: {compactions} compactions");
     assert_eq!(compactions, 0);
 }
+
+#[test]
+fn prunable_byte_pressure_compacts_without_a_message_prefix() {
+    let config = HarnessConfig::new(8, usize::MAX, 64, 1, vec![], vec![])
+        .unwrap()
+        .with_token_compact(u64::MAX, 1)
+        .with_compact_after_prunable_bytes(64);
+    let state = SchedulerState {
+        prunable_fact_bytes: 128,
+        ..SchedulerState::new()
+    };
+    let compacted = after_input(state, &config);
+    assert_eq!(compacted.phase, CodingPhase::Compact);
+    assert!(compacted.messages.is_empty());
+
+    let awaiting = after_input(
+        SchedulerState {
+            prunable_fact_bytes: 128,
+            compacted_awaiting_model: true,
+            phase: CodingPhase::Infer,
+            ..SchedulerState::new()
+        },
+        &config,
+    );
+    assert_eq!(awaiting.phase, CodingPhase::Infer);
+}

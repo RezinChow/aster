@@ -222,6 +222,39 @@ fn total_attempts(max_retries: u32) -> u32 {
     max_retries.saturating_add(1)
 }
 
+/// Observable provider retry scheduled before the backoff wait.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetryNotice {
+    /// Failed provider attempt, one-indexed.
+    pub attempt: u32,
+    /// Total provider attempts allowed by the retry budget.
+    pub max_attempts: u32,
+    /// Bounded provider failure suitable for host progress presentation.
+    pub reason: String,
+}
+
+pub type RetryObserver = std::sync::Arc<dyn Fn(RetryNotice) + Send + Sync>;
+
+tokio::task_local! {
+    static RETRY_OBSERVER: RetryObserver;
+}
+
+/// Observe retries started directly within `future` without changing retry authority.
+///
+/// Task-local scope keeps concurrent sessions isolated. Deliberately spawned child
+/// tasks do not inherit the observer; provider retry loops run before their stream
+/// worker is spawned and therefore remain inside this scope.
+pub async fn with_retry_observer<F>(observer: RetryObserver, future: F) -> F::Output
+where
+    F: std::future::Future,
+{
+    RETRY_OBSERVER.scope(observer, future).await
+}
+
+fn notify_retry(notice: RetryNotice) {
+    let _ = RETRY_OBSERVER.try_with(|observer| observer(notice));
+}
+
 /// Execute an async operation with retry logic.
 ///
 /// The `operation` closure is called on each attempt and must return an `AttemptOutcome`.
@@ -291,9 +324,14 @@ where
                 retry_after,
             } => {
                 last_status = Some(status);
-                last_body = body;
+                last_body = bound_retry_body(body);
 
                 if attempt < config.max_retries {
+                    notify_retry(RetryNotice {
+                        attempt: attempt.saturating_add(1),
+                        max_attempts: total_attempts(config.max_retries),
+                        reason: format!("API error (status {status}): {last_body}"),
+                    });
                     // Determine delay: prefer Retry-After header, fallback to exponential backoff
                     let delay = retry_after.unwrap_or_else(|| config.delay_for_attempt(attempt));
 
@@ -372,6 +410,53 @@ mod tests {
         assert_eq!(total_attempts(0), 1);
         assert_eq!(total_attempts(10), 11);
         assert_eq!(total_attempts(u32::MAX), u32::MAX);
+    }
+
+    #[tokio::test]
+    async fn retry_observer_reports_rate_limit_before_successful_retry() {
+        let config = RetryConfig {
+            max_retries: 1,
+            base_delay_ms: 0,
+            max_delay_ms: 0,
+            ..RetryConfig::default()
+        };
+        let notices = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed = Arc::clone(&notices);
+        let observer: RetryObserver = Arc::new(move |notice| {
+            observed.lock().unwrap().push(notice);
+        });
+        let calls = Arc::new(AtomicU32::new(0));
+        let calls_for_operation = Arc::clone(&calls);
+        let result = with_retry_observer(
+            observer,
+            with_retry(&config, move |_| {
+                let attempt = calls_for_operation.fetch_add(1, Ordering::Relaxed);
+                async move {
+                    if attempt == 0 {
+                        AttemptOutcome::Retryable {
+                            status: StatusCode::TOO_MANY_REQUESTS,
+                            body: "rate limited".into(),
+                            retry_after: None,
+                        }
+                    } else {
+                        AttemptOutcome::Success("ok")
+                    }
+                }
+            }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result, "ok");
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+        assert_eq!(
+            *notices.lock().unwrap(),
+            vec![RetryNotice {
+                attempt: 1,
+                max_attempts: 2,
+                reason: "API error (status 429 Too Many Requests): rate limited".into(),
+            }]
+        );
     }
 
     #[tokio::test]

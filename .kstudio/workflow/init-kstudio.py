@@ -19,7 +19,7 @@ from pathlib import Path
 TOOLS = ("loop-kstudio.py", "init-kstudio.py", "activate-k-skills.py", "review.py", "clean-kstudio.py", "verify-ai-eng.py",
          "sync-k-skills.py", "load-config.py", "sitrep.py", "progress-scan.py",
          "wiki-site.py", "tty-fmt.py", "print-paste.sh")
-SKILLS = ("k-init", "k-status", "k-progress", "k-plan", "k-go", "k-yolo", "k-task", "k-goal", "k-wiki", "k-clean", "k-review", "k-loop")
+SKILLS = ("init", "status", "progress", "plan", "go", "yolo", "task", "goal", "wiki", "clean", "review", "loop")
 SEATS = ("O", "B", "R", "M", "I", "S", "D")
 
 
@@ -97,7 +97,7 @@ def bundle(root: Path, factory: Path) -> tuple[dict[str, bytes], set[str]]:
         if path.is_file():
             name = ".kstudio/" + path.relative_to(skeleton).as_posix()
             files[name] = source_bytes(factory, relative)
-    required = ["MANIFEST.json", "config.kcl", "config.kcl.example", "workflow/HEAD", "workflow/billets.json", "workflow/review-checks.json", "wiki/Home.md", "wiki/Chronicle.md", "wiki/Decisions.md", "wiki/Tasks.md", "extensions/README.md"]
+    required = ["MANIFEST.json", "project.acl", "project.acl.example", "workflow/HEAD", "workflow/billets.json", "workflow/review-checks.json", "wiki/Home.md", "wiki/Chronicle.md", "wiki/Decisions.md", "wiki/Tasks.md", "extensions/README.md"]
     required += [f"workflow/waves/bootstrap/{name}" for name in ("work-plan.md", "STATUS.md", "lineage.json", "timeline.jsonl")]
     required += [f"workflow/waves/bootstrap/roles/{seat}.md" for seat in SEATS]
     for name in required:
@@ -106,7 +106,7 @@ def bundle(root: Path, factory: Path) -> tuple[dict[str, bytes], set[str]]:
     if re.search(rb"(?m)^## T[0-9]", files[".kstudio/wiki/Tasks.md"]):
         raise ValueError("factory task ledger must not contain completed project history")
     parse = load_parser(factory)
-    for name in ("config.kcl", "config.kcl.example"):
+    for name in ("project.acl", "project.acl.example"):
         starter = parse(files[".kstudio/" + name].decode())
         if starter.get("schema") != "kstudio.project-config.v1" or any(starter.get(section) for section in ("fleet", "agents", "models", "prefs")):
             raise ValueError("factory config must be valid and unconfigured; do not copy real fleet, agent or model bindings")
@@ -130,7 +130,12 @@ def bundle(root: Path, factory: Path) -> tuple[dict[str, bytes], set[str]]:
         managed.add(dest)
     for name in ("styles.css", "wiki.css", "kense-icon.png", "kense-mark.png"):
         files[f".kstudio/workflow/wiki-assets/{name}"] = source_bytes(factory, f"kstudio-workflow-tools/wiki-assets/{name}")
-    names = {p.name for p in safe_path(factory, "kstudio-skills").iterdir() if p.name.startswith("k-")}
+    skills_root = safe_path(factory, "kstudio-skills")
+    names = {
+        p.name
+        for p in skills_root.iterdir()
+        if p.is_dir() and (p / "SKILL.md").is_file()
+    } if skills_root.is_dir() else set()
     for name in SKILLS:
         if name not in names:
             raise ValueError(f"factory skill missing: {name}")
@@ -144,12 +149,12 @@ def bundle(root: Path, factory: Path) -> tuple[dict[str, bytes], set[str]]:
                 dest = f".kstudio/skills/{name}/" + source.relative_to(directory).as_posix()
                 files[dest] = source_bytes(factory, relative)
                 managed.add(dest)
-    for name in ("k-skills.mdc", "git-branch-discipline.mdc"):
+    for name in ("skills.mdc", "git-branch-discipline.mdc"):
         dest = f".kstudio/agent-rules/{name}"
         files[dest] = source_bytes(factory, f"kstudio-agent-rules/{name}")
         managed.add(dest)
     files[".kstudio/workflows/templates/parallel-lanes-example.v1.json"] = source_bytes(factory, "workflow-templates/parallel-lanes-example.v1.json")
-    files["AGENTS.md"] = b"# Project AI engineering\n\nAuthoritative skills are in .kstudio/skills/k-*/SKILL.md. Read the matching skill when a user invokes /k-*.\nUse /k-goal for unknown product goals, /k-task for the current task, and /k-plan for whole-project planning.\nConductor O orchestrates only; Implementer roles change product source. Bind agents, models and environments explicitly.\nReview actual source and evidence before claiming acceptance; initialization and L3 are not product Pass.\n"
+    files["AGENTS.md"] = b"# Project AI engineering\n\nAuthoritative skills are in .kstudio/skills/<skill>/SKILL.md. Read the matching skill when a user invokes /<skill>.\nUse /goal for unknown product goals, /task for the current task, and /plan for whole-project planning.\nConductor O orchestrates only; Implementer roles change product source. Bind agents, models and environments explicitly.\nReview actual source and evidence before claiming acceptance; initialization and L3 are not product Pass.\n"
 
     head = safe_path(root, ".kstudio/workflow/HEAD")
     wave = head.read_text().strip() if head.is_file() else "bootstrap"
@@ -170,7 +175,10 @@ def bundle(root: Path, factory: Path) -> tuple[dict[str, bytes], set[str]]:
     project_skills = safe_path(root, ".kstudio/skills")
     if project_skills.is_dir():
         for directory in sorted(project_skills.iterdir()):
-            if not re.fullmatch(r"k-[a-z0-9-]+", directory.name):
+            if not re.fullmatch(
+                r"(?:init|goal|status|progress|plan|task|go|loop|yolo|review|clean|wiki)",
+                directory.name,
+            ):
                 continue
             safe_path(root, str(directory.relative_to(root)))
             if not (directory / "SKILL.md").is_file():
@@ -234,11 +242,11 @@ def project_facts(root: Path) -> dict:
 
 def validate_existing(root: Path, factory: Path) -> None:
     parse = load_parser(factory)
-    for name in ("config.kcl.example", "config.kcl", "config.local.kcl"):
+    for name in ("project.acl.example", "project.acl", "project.local.acl"):
         path = safe_path(root, ".kstudio/" + name)
         if path.is_file():
             cfg = parse(path.read_text())
-            if name != "config.local.kcl" and cfg.get("schema") != "kstudio.project-config.v1":
+            if name != "project.local.acl" and cfg.get("schema") != "kstudio.project-config.v1":
                 raise ValueError(f"existing {name} has an invalid schema; it is not overwritten")
     for name, schema in (("MANIFEST.json", "kstudio.project-manifest.v1"), ("workflow/review-checks.json", "kstudio.review-checks.v1")):
         path = safe_path(root, ".kstudio/" + name)

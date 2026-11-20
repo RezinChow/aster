@@ -51,6 +51,44 @@ DEEPSEEK_API_KEY=… \
   ./scripts/harbor/run_native_tb.sh
 ```
 
+The runner's built-in default budget is **840s** (short smoke). Harbor TB tasks
+often allow hours (`timeout_sec` up to 28800). `run_native_tb.sh` and the
+Harbor adapter therefore default `--max-execution-time-ms` to **28800000**
+unless `ASTER_TERMINAL_BENCH_MAX_EXECUTION_MS` is set. Do not evaluate long
+tasks without that alignment — the agent will be killed mid-repair while
+Harbor's wall clock still has budget.
+
+When the model already used tools in an attempt but never opened a completion-
+gate digest, the runner nudges at most **twice** then exits so Harbor's native
+verifier can grade — **unless** task artifacts from `task.toml` (or
+`ASTER_TB_REQUIRED_PATHS` / `--require-path`) are still missing; those keep
+nudging under `HARBOR_HOST_MISSING_ARTIFACT_STOPS`. The artifact gate ignores
+seed inputs already on disk and prefers missing deliverables named in the
+instruction (e.g. `/app/dist/...`). Once graded artifacts exist, one
+**parameterized local proof** nudge asks for non-sample re-runs (privacy/leak
+tasks must plant private-classified secrets into reachable private inputs and
+scan shipped artifacts including bundled JS; numeric tasks vary parameters).
+Privacy/leak tasks then get a **build-graph isolation** nudge (map redaction
+alone is not enough) and a **privacy dual proof** (public runtime still exact
+and reachable private secrets still absent). A **bound headroom** nudge runs
+only when the prompt states numeric hard bounds. A finished repair must not burn fifteen identical
+status summaries (`HARBOR_HOST_PREGATE_TOOL_STOPS`). The adapter probes image
+`pwd` when Harbor omits `workdir`, and keeps `/logs` mode `755` so rewardkit's
+Worker can trust `/logs/verifier`. `run_native_tb.sh` also runs
+`scripts/harbor/ensure_logs_trust_patch.py` so Harbor's ensure/empty dirs do not
+leave `/logs` at mode `777` (that yields `Untrusted parent directory of
+/logs/verifier` and `RewardFileNotFoundError`). `aster.result.json` records
+`maxExecutionTimeMs` for failure attribution.
+
+For a controlled KBurn comparison, keep the task, model, runner, and
+`ASTER_SKILLS_DIR` identical and vary only `ASTER_KBURN`: `0` passes
+`--no-kburn` and does not copy the pack into the task workspace; `1` copies the
+uploaded pack to `.aster/skills` (refusing to replace an existing directory) and
+passes `--kburn`. The runner also accepts these flags directly. Unset preserves
+`.aster` marker auto-detection. The comparison does not change the instruction
+or verifier; a single task and attempt remains diagnostic, not a leaderboard
+estimate.
+
 Or with the local Codex login:
 
 ```bash

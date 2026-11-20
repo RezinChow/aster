@@ -3,7 +3,7 @@
 //! Original fact receipts retain child evidence even when their wrapper fails.
 
 use super::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 struct ControlledFailedCheck;
 
@@ -132,7 +132,9 @@ async fn write_then_failed_check_and_throw_keeps_both_original_child_results() {
     assert_eq!(calls[1]["success"], false);
     assert_ne!(calls[1]["exit_code"], 0);
     assert_eq!(calls[1]["metadata"]["source"], "controlled-check");
-    assert!(calls
-        .iter()
-        .all(|call| call["duration_ms"].as_u64().is_some()));
+    assert!(
+        calls
+            .iter()
+            .all(|call| call["duration_ms"].as_u64().is_some())
+    );
 }

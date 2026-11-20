@@ -701,7 +701,7 @@ def page_shell(
         <p class="nav-label">Wiki</p>
         {nav}
       </nav>
-      <div class="docs-version"><span class="version-dot"></span> /k-wiki · KRun docs style</div>
+      <div class="docs-version"><span class="version-dot"></span> /wiki · KRun docs style</div>
     </aside>
     <main id="content" tabindex="-1">
       <details class="mobile-navigation">
@@ -833,7 +833,7 @@ def main() -> int:
     copied = copy_artifacts([p["path"] for p in pages] + [resource["path"] for resource in resources.values()])
 
     index = (OUT / "index.html").resolve()
-    print("=== k-wiki site built (KRun docs style) ===")
+    print("=== wiki site built (KRun docs style) ===")
     print(f"assets: {find_asset_dir()}")
     print(f"pages: {len(pages)}")
     print(f"source viewers: {len(sources)}")

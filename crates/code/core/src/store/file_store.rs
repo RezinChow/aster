@@ -271,6 +271,10 @@ impl FileSessionStore {
     async fn commit_snapshot_under_lock(&self, snapshot: &SessionSnapshotV1) -> Result<()> {
         // Held after `write_lock` so lock order is always process-mutex → flock.
         let _wal_lock = self.acquire_wal_file_lock().await?;
+        self.commit_snapshot_lock_held(snapshot).await
+    }
+
+    async fn commit_snapshot_lock_held(&self, snapshot: &SessionSnapshotV1) -> Result<()> {
         self.ensure_writer_lease_allows_commit_unlocked().await?;
         snapshot.ensure_loadable()?;
         let snapshot_digest = snapshot_content_digest(snapshot)?;
@@ -940,6 +944,9 @@ impl SessionStore for FileSessionStore {
         expected_current_digest: Option<&str>,
     ) -> Result<bool> {
         let _guard = self.write_lock.lock().await;
+        // The CAS comparison and its commit must share one cross-process lock,
+        // or a second writer can pass the same stale comparison before the first rename.
+        let _wal_lock = self.acquire_wal_file_lock().await?;
         if let Some(expected) = expected_current_digest {
             let current = match self.load_snapshot_without_wal(&snapshot.session.id).await? {
                 Some(existing) => Some(snapshot_content_digest(&existing)?),
@@ -950,7 +957,7 @@ impl SessionStore for FileSessionStore {
                 _ => return Ok(false),
             }
         }
-        self.commit_snapshot_under_lock(snapshot).await?;
+        self.commit_snapshot_lock_held(snapshot).await?;
         Ok(true)
     }
 

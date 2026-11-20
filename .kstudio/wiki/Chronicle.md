@@ -1,3 +1,43 @@
+## 2026-11-17 · YOLO：B1/B2/D1/D2/F2 诚实关闭 + tui913 11/11
+
+## 2026-11-18 · YOLO：TB4.0 task2 biped 评测
+- 题：`biped-contact-dynamics`；Harbor 无 reward（verifier Untrusted `/logs/verifier`）
+- Agent 早退缺 npz；计划：artifact 门闩 + 修 verifier 挂载
+- 证据 `T2026-11-18-tb40-task2-biped`；≠Pass
+
+## 2026-11-17 · YOLO：TB4.0 task1 根因优化后重评
+- 修：8h 默认预算；工具后 pregate nudge≤2；result 记 maxExecutionTimeMs
+- 重评 `batched-eval-parity` + kimi-01/k3.1-pro → **reward 1.0** / 5/5
+- ≠ Meta Harness Pass；证据 `T2026-11-17-tb40-task1-rerun-optimized`
+
+## 2026-11-17 · /go：如何优化 Aster
+- 产出 [Optimize-Aster.md](Optimize-Aster.md)：按可组合/高效/可信排 P0–P3
+- 教训：TB 840s 默认二次浪费；H2 Studio dirty 仍是可信主阻塞
+- ≠产品 Pass；下一刀建议 H2 land（需授权）或 A1 指纹
+
+- 缺陷目录多条 by-design/known；tui_913 11/11；H2/headed 仍 park
+- 证据 `T2026-11-17-b1-b2-write-parallel-honesty` · `T2026-11-17-d1-d2-f2-honesty` · `T2026-11-17-tui913-hermetic-reconfirm2`
+
+## 2026-11-17 · YOLO：A7 FG lease 诚实关闭 + unattended 33/33
+
+- A7 by-design（继承父 lease）；unattended_e2e 33/33
+- 证据 `T2026-11-17-a7-fg-lease-honesty` · `T2026-11-17-unattended-e2e-yolo-reconfirm2`；≠ Meta Done
+
+## 2026-11-17 · YOLO：app_view 280（slash-gate + tip）
+
+- slash-gate `/init` + tip 分歧断言；`app_view` 280/280
+- 证据 `T2026-11-17-appview-280-slash-tip`；≠ Meta Done
+
+## 2026-11-17 · YOLO：P7 Experimental 调用点硬拒
+
+- `feature_switch_call_site_allowed`；动态注册拒 Experimental；hermetic p7×3
+- 证据 `T2026-11-17-p7-experimental-call-site`；≠ Meta Done
+
+## 2026-11-17 · YOLO：slash-gate `/init` 对齐
+
+- `ASTER_EFFECTIVE_COMMANDS` +`init`；gate 测试 4/4
+- 证据 `T2026-11-17-slash-gate-init`；≠ Meta Done；H2/headed 仍 park
+
 ## 2026-11-17 · YOLO：真实 DSH Plugin E2E（安装/使用/卸载）
 
 - 真实 `dsh` 0.2.2-rc.1；hermetic `$DSH_HOME`；fixture `dsh-aster-e2e-hello`

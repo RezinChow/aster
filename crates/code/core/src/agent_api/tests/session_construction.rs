@@ -145,13 +145,15 @@ async fn test_session_routes_agents_md_through_context_provider() {
         .iter()
         .find(|provider| provider.name() == "agents_md")
         .expect("AGENTS.md provider should be registered");
-    assert!(!session
-        .config
-        .prompt_slots
-        .extra
-        .as_deref()
-        .unwrap_or_default()
-        .contains("Instructions (personal + project AGENTS.md chain)"));
+    assert!(
+        !session
+            .config
+            .prompt_slots
+            .extra
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Instructions (personal + project AGENTS.md chain)")
+    );
 
     let result = agents_provider
         .query(&crate::context::ContextQuery::new("complete the task"))
@@ -161,9 +163,11 @@ async fn test_session_routes_agents_md_through_context_provider() {
     assert_eq!(result.items.len(), 1);
     assert_eq!(result.items[0].id, "agents_md");
     assert!(result.items[0].is_required());
-    assert!(result.items[0]
-        .content
-        .contains("Always run focused tests before reporting completion."));
+    assert!(
+        result.items[0]
+            .content
+            .contains("Always run focused tests before reporting completion.")
+    );
     assert_eq!(result.items[0].relevance, 1.0);
 }
 
@@ -198,18 +202,22 @@ async fn isolated_session_omits_discovered_context_and_prior_memory() {
         )
         .await
         .unwrap();
-    assert!(ordinary
-        .config
-        .skill_registry
-        .as_ref()
-        .unwrap()
-        .get("ambient-sentinel")
-        .is_some());
-    assert!(ordinary
-        .config
-        .context_providers
-        .iter()
-        .any(|provider| provider.name() == "agents_md"));
+    assert!(
+        ordinary
+            .config
+            .skill_registry
+            .as_ref()
+            .unwrap()
+            .get("ambient-sentinel")
+            .is_some()
+    );
+    assert!(
+        ordinary
+            .config
+            .context_providers
+            .iter()
+            .any(|provider| provider.name() == "agents_md")
+    );
     assert_eq!(
         ordinary
             .memory()
@@ -233,18 +241,22 @@ async fn isolated_session_omits_discovered_context_and_prior_memory() {
         .await
         .unwrap();
     assert!(isolated.config.skill_registry.as_ref().unwrap().is_empty());
-    assert!(!isolated
-        .config
-        .context_providers
-        .iter()
-        .any(|provider| matches!(provider.name(), "agents_md" | "skills_catalog")));
-    assert!(isolated
-        .memory()
-        .unwrap()
-        .recall_similar("ambient memory sentinel", 5)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        !isolated
+            .config
+            .context_providers
+            .iter()
+            .any(|provider| matches!(provider.name(), "agents_md" | "skills_catalog"))
+    );
+    assert!(
+        isolated
+            .memory()
+            .unwrap()
+            .recall_similar("ambient memory sentinel", 5)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(prior.count().await.unwrap(), 1);
     ordinary.close().await;
     isolated.close().await;
@@ -297,8 +309,8 @@ async fn test_session_with_model_not_found() {
 
 #[tokio::test]
 async fn test_session_skill_dirs_preserve_agent_registry_validator() {
-    use crate::skills::validator::DefaultSkillValidator;
     use crate::skills::SkillRegistry;
+    use crate::skills::validator::DefaultSkillValidator;
 
     let registry = Arc::new(SkillRegistry::new());
     registry.set_validator(Arc::new(DefaultSkillValidator::default()));
@@ -438,20 +450,47 @@ async fn test_session_specific_skills_do_not_leak_across_sessions() {
         .await
         .unwrap();
 
-    assert!(session_one
-        .config
-        .skill_registry
-        .as_ref()
-        .unwrap()
-        .get("session-only")
-        .is_some());
-    assert!(session_two
-        .config
-        .skill_registry
-        .as_ref()
-        .unwrap()
-        .get("session-only")
-        .is_none());
+    assert!(
+        session_one
+            .config
+            .skill_registry
+            .as_ref()
+            .unwrap()
+            .get("session-only")
+            .is_some()
+    );
+    assert!(
+        session_two
+            .config
+            .skill_registry
+            .as_ref()
+            .unwrap()
+            .get("session-only")
+            .is_none()
+    );
+}
+
+#[test]
+fn kburn_session_mode_disables_auto_arm_without_touching_explicit_skills() {
+    let root = tempfile::tempdir().unwrap();
+    let status = root.path().join(".aster/skills/status");
+    std::fs::create_dir_all(&status).unwrap();
+    std::fs::write(
+        status.join("SKILL.md"),
+        "---\nname: status\ndescription: project status\n---\nSTATUS-INSTRUCTIONS\n",
+    )
+    .unwrap();
+    let disabled = build_effective_registry_for_test_in(
+        None,
+        &SessionOptions::new().with_kburn_enabled(false),
+        root.path(),
+    );
+    assert!(disabled.get("status").is_none());
+    assert!(!root.path().join(".aster/MANIFEST.json").exists());
+
+    let automatic = build_effective_registry_for_test_in(None, &SessionOptions::new(), root.path());
+    assert!(automatic.get("status").is_some());
+    assert!(root.path().join(".aster/MANIFEST.json").is_file());
 }
 
 #[tokio::test]
@@ -495,25 +534,31 @@ async fn test_session_for_agent_applies_definition_and_keeps_skill_overrides_iso
     let extra = session_one.config.prompt_slots.extra.as_deref().unwrap();
     assert!(extra.contains("Agent definition prompt"));
     assert!(!extra.contains("agent-session-skill"));
-    assert!(session_one
-        .config
-        .context_providers
-        .iter()
-        .any(|provider| provider.name() == "skills_catalog"));
-    assert!(session_one
-        .config
-        .skill_registry
-        .as_ref()
-        .unwrap()
-        .get("agent-session-skill")
-        .is_some());
-    assert!(session_two
-        .config
-        .skill_registry
-        .as_ref()
-        .unwrap()
-        .get("agent-session-skill")
-        .is_none());
+    assert!(
+        session_one
+            .config
+            .context_providers
+            .iter()
+            .any(|provider| provider.name() == "skills_catalog")
+    );
+    assert!(
+        session_one
+            .config
+            .skill_registry
+            .as_ref()
+            .unwrap()
+            .get("agent-session-skill")
+            .is_some()
+    );
+    assert!(
+        session_two
+            .config
+            .skill_registry
+            .as_ref()
+            .unwrap()
+            .get("agent-session-skill")
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -544,13 +589,15 @@ async fn test_session_for_agent_preserves_existing_prompt_slots_when_injecting_d
         session.config.prompt_slots.role.as_deref(),
         Some("Custom role")
     );
-    assert!(session
-        .config
-        .prompt_slots
-        .extra
-        .as_deref()
-        .unwrap()
-        .contains("Definition extra prompt"));
+    assert!(
+        session
+            .config
+            .prompt_slots
+            .extra
+            .as_deref()
+            .unwrap()
+            .contains("Definition extra prompt")
+    );
     assert_eq!(session.config.max_tool_rounds, 3);
 }
 

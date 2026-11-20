@@ -1,0 +1,304 @@
+warning: unused imports: `BrowserBackend`, `CodeConfig`, and `StorageBackend`
+  --> crates/code/core/src/config/loader_tests.rs:1:13
+   |
+ 1 | use super::{BrowserBackend, CodeConfig, StorageBackend};
+   |             ^^^^^^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/code/core/src/config/mod.rs:20:1
+   |
+20 | mod loader_tests;
+   | ^^^^^^^^^^^^^^^^^
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::mcp::McpTransportConfig`
+  --> crates/code/core/src/config/loader_tests.rs:2:5
+   |
+ 2 | use crate::mcp::McpTransportConfig;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/code/core/src/config/mod.rs:20:1
+   |
+20 | mod loader_tests;
+   | ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `SessionLane` and `TaskHandlerMode`
+  --> crates/code/core/src/config/loader_tests.rs:3:20
+   |
+ 3 | use crate::queue::{SessionLane, TaskHandlerMode};
+   |                    ^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+   |
+help: if this is a test module, consider adding a `#[cfg(test)]` to the containing module
+  --> crates/code/core/src/config/mod.rs:20:1
+   |
+20 | mod loader_tests;
+   | ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `attachments_from_fact_tool_images`
+  --> crates/code/core/src/fact_control.rs:86:5
+   |
+86 |     attachments_from_fact_tool_images, confirmation_parked, decision_from_response,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ProgressBasis`
+  --> crates/code/core/src/goal_control/facts.rs:45:75
+   |
+45 | pub(crate) use run::{prepare_run, render_run_context, ContinuationSource, ProgressBasis};
+   |                                                                           ^^^^^^^^^^^^^
+
+warning: unused import: `std::hash::Hasher`
+  --> crates/code/core/src/tools/registry.rs:21:5
+   |
+21 | use std::hash::Hasher;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unreachable pattern
+   --> crates/code/core/src/workspace/manifest/scanner.rs:459:19
+    |
+458 |                 | ".aster"
+    |                   -------- matches all the relevant values
+459 |                 | ".aster"
+    |                   ^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+  --> crates/code/core/src/workspace/source_egress.rs:65:19
+   |
+64 |                 | ".aster"
+   |                   -------- matches all the relevant values
+65 |                 | ".aster"
+   |                   ^^^^^^^^ no value can reach this
+
+warning: associated function `observed_mutations` is never used
+  --> crates/code/core/src/goal_control/facts/run/continuation.rs:26:19
+   |
+25 | impl ContinuationSource {
+   | ----------------------- associated function in this implementation
+26 |     pub(crate) fn observed_mutations(
+   |                   ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `recorded_uncertainties` is never used
+   --> crates/code/core/src/harness_loop.rs:746:19
+    |
+366 | impl MutationLedger {
+    | ------------------- method in this implementation
+...
+746 |     pub(crate) fn recorded_uncertainties(&self) -> &std::collections::BTreeSet<String> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `with_scheduler_quota_from` is never used
+   --> crates/code/core/src/llm/admission.rs:338:19
+    |
+257 | impl ModelGenerationAdmission {
+    | ----------------------------- method in this implementation
+...
+338 |     pub(crate) fn with_scheduler_quota_from(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `uses_anthropic_messages_api` is never used
+   --> crates/code/core/src/llm/factory.rs:258:15
+    |
+258 | pub(crate) fn uses_anthropic_messages_api(provider: &str, base_url: Option<&str>) -> bool {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `lines` is never used
+   --> crates/code/core/src/porcelain.rs:499:21
+    |
+499 | pub(crate) async fn lines(root: &Path) -> Option<Vec<String>> {
+    |                     ^^^^^
+
+warning: associated function `new` is never used
+   --> crates/code/core/src/tools/types.rs:320:8
+    |
+318 | impl ModelGenerationPermitReservation {
+    | ------------------------------------- associated function in this implementation
+319 |     /// Called from the `dynamic-workflow` surface.
+320 |     fn new(permit: Arc<crate::llm::ModelGenerationPermit>) -> Self {
+    |        ^^^
+
+warning: method `with_model_generation_permit` is never used
+   --> crates/code/core/src/tools/types.rs:861:19
+    |
+408 | impl ToolContext {
+    | ---------------- method in this implementation
+...
+861 |     pub(crate) fn with_model_generation_permit(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated functions `default_catalog` and `default_catalog_with_engine` are never used
+   --> crates/code/core/src/workspace/retrieval/catalog.rs:287:19
+    |
+153 | impl WorkspaceChunkCatalog {
+    | -------------------------- associated functions in this implementation
+...
+287 |     pub(crate) fn default_catalog() -> Arc<Self> {
+    |                   ^^^^^^^^^^^^^^^
+...
+295 |     pub(crate) fn default_catalog_with_engine(engine: WorkspaceLexicalEngine) -> Arc<Self> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `aster-core` (lib) generated 16 warnings (run `cargo fix --lib -p aster-core` to apply 5 suggestions)
+warning: unused import: `sha2::Digest`
+  --> crates/embedding/src/hygiene.rs:10:5
+   |
+10 | use sha2::Digest as _;
+   |     ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> crates/embedding/src/vector/hnsw.rs:41:13
+   |
+41 |         let mut index =
+   |             ----^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `dimension` is never read
+  --> crates/embedding/src/vector/hnsw.rs:21:5
+   |
+17 | pub struct HnswBackend {
+   |            ----------- field in this struct
+...
+21 |     dimension: usize,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aster-embedding` (lib) generated 3 warnings (run `cargo fix --lib -p aster-embedding` to apply 1 suggestion)
+warning: unused import: `preview_text`
+  --> crates/code/acp/src/agent.rs:80:25
+   |
+80 |     prepared_raw_input, preview_text, preview_text_owned, streaming_bash_delta, task_to_plan_entry,
+   |                         ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `register_embedding_provider` is never used
+  --> crates/code/acp/src/agent/local_embedding.rs:42:8
+   |
+42 | pub fn register_embedding_provider(factory: Factory) -> Result<(), String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `as_str` is never used
+  --> crates/code/acp/src/host_context.rs:64:12
+   |
+57 | impl CompletionAttestation {
+   | -------------------------- method in this implementation
+...
+64 |     pub fn as_str(self) -> &'static str {
+   |            ^^^^^^
+
+warning: `aster-acp` (lib) generated 3 warnings (run `cargo fix --lib -p aster-acp` to apply 1 suggestion)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `aster-acp` (bin "aster-acp") generated 1 warning
+warning: function `digest` is never used
+  --> crates/code/acp/tests/long_horizon/artifact.rs:45:8
+   |
+45 | pub fn digest(path: &Path) -> std::io::Result<String> {
+   |        ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variants `Process`, `Executable`, and `OpaqueId` are never constructed
+  --> crates/code/acp/tests/long_horizon/timing.rs:87:5
+   |
+85 | pub enum Subject {
+   |          ------- variants in this enum
+86 |     Request(usize),
+87 |     Process(u32),
+   |     ^^^^^^^
+88 |     Executable(String),
+   |     ^^^^^^^^^^
+89 |     OpaqueId([u8; 32]),
+   |     ^^^^^^^^
+   |
+   = note: `Subject` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `path` is never read
+   --> crates/code/acp/tests/long_horizon/timing.rs:113:5
+    |
+108 | struct State {
+    |        ----- field in this struct
+...
+113 |     path: PathBuf,
+    |     ^^^^
+
+warning: struct `Guard` is never constructed
+   --> crates/code/acp/tests/long_horizon/timing.rs:207:12
+    |
+207 | pub struct Guard {
+    |            ^^^^^
+
+warning: associated function `open` is never used
+   --> crates/code/acp/tests/long_horizon/timing.rs:221:12
+    |
+220 | impl Guard {
+    | ---------- associated function in this implementation
+221 |     pub fn open(directory: &Path) -> std::io::Result<Self> {
+    |            ^^^^
+
+warning: function `point` is never used
+   --> crates/code/acp/tests/long_horizon/timing.rs:314:8
+    |
+314 | pub fn point(phase: Phase, subject: Option<Subject>) {
+    |        ^^^^^
+
+warning: function `opaque_id` is never used
+   --> crates/code/acp/tests/long_horizon/timing.rs:324:8
+    |
+324 | pub fn opaque_id(value: &str) -> Subject {
+    |        ^^^^^^^^^
+
+warning: `aster-acp` (test "unattended_e2e") generated 7 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.57s
+     Running tests/unattended_e2e.rs (target/debug/deps/unattended_e2e-29b01f38b1d44eb9)
+
+running 33 tests
+test a_continuation_attempt_never_outlives_the_run_deadline ... ok
+test a_delegated_child_refusal_returns_to_the_actual_acp_parent ... ok
+test a_goal_launch_runs_the_first_attempt_as_the_bound_task_slice ... ok
+test a_missing_skill_call_does_not_block_later_writes ... ok
+test a_successful_write_cycle_stops_before_another_actual_acp_generation ... ok
+test an_interactive_launch_never_binds_the_gate_and_keeps_state_in_the_workspace ... ok
+test an_interactive_run_stops_generating_after_repeated_original_refusals ... ok
+test artifact::tests::bounded_artifacts_refuse_directories_oversize_and_traversal ... ok
+test artifact::tests::fixture_links_and_nonregular_files_are_refused_before_reading ... ok
+test artifact::tests::public_handoff_evidence_is_bounded_and_omits_private_model_fields ... ok
+test artifact::timing::tests::sink_creation_refuses_overwriting_previous_timing_evidence ... ok
+test artifact::timing::tests::spans_retain_monotonic_intervals_parallel_overlap_and_shutdown_records ... ok
+test artifact::timing::tests::unwinding_closes_the_observed_scope_without_claiming_task_success ... ok
+test bash_in_a_large_non_git_workspace_does_not_end_the_run ... ok
+test candidate::tests::a_member_changed_after_selection_cannot_be_frozen_as_approved ... ok
+test candidate::tests::linked_or_nonregular_members_are_refused_without_reading_them ... ok
+test candidate::tests::registered_pair_copies_only_the_declared_bytes_despite_other_candidates ... ok
+test candidate::tests::same_build_id_does_not_admit_changed_binary_bytes_or_a_partial_pair ... ok
+test candidate::tests::unknown_manifest_fields_stale_ids_and_oversized_records_fail_closed ... ok
+test convergence::actual_acp_compaction_allows_new_external_observations ... ok
+test convergence::actual_acp_compaction_keeps_the_original_repeat_allowance ... ok
+test default_goal_stagnation_writes_a_terminal_result_before_the_deadline ... ok
+test goal_feedback::rejected_goal_delivers_all_feedback_then_accepts_new_verified_file ... ok
+test incident_grep_is_bounded_through_default_interactive_and_unattended_acp ... ok
+test one_external_edit_does_not_disable_later_actual_acp_cycle_detection ... ok
+test permission_modes::interactive_permission_modes_apply_to_each_prompt_and_preserve_denies ... ok
+test permission_modes::rejecting_a_command_does_not_execute_or_learn_an_approval ... ok
+test provider_failures::exhausted_provider_failure_has_a_retryable_external_result ... ok
+test provider_failures::failed_goal_provider_is_retryable_without_replaying_the_exact_run ... ok
+test provider_failures::recovered_provider_can_receive_gate_guidance_and_verify_the_write ... ok
+test reused_model_ids_keep_distinct_actual_acp_authorizations_and_rows ... ok
+test unattended_prompt_binds_proves_and_records_without_touching_the_workspace ... ok
+test verified_goal_finishes_without_repeating_read_only_verification ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 43.46s
+

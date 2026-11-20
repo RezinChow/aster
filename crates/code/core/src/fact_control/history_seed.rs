@@ -817,13 +817,17 @@ pub(super) fn recorded_tool_messages(
     Ok(())
 }
 
-/// Tool-result call ids whose images should be stubbed because a later
-/// `model.turn` already consumed that observation.
+/// Tool-result call ids whose images were already consumed in the current user
+/// turn. A new user message re-admits the retained bytes for the new question.
 pub(super) fn tool_image_ids_to_stub(
     facts: &[aster_effect::Fact],
 ) -> std::collections::HashSet<String> {
+    let start = facts
+        .iter()
+        .rposition(|fact| fact.kind == "user.message")
+        .map_or(0, |index| index + 1);
     let mut stub = std::collections::HashSet::new();
-    for (index, fact) in facts.iter().enumerate() {
+    for (index, fact) in facts.iter().enumerate().skip(start) {
         if fact.kind != "tool.result" {
             continue;
         }
@@ -836,6 +840,7 @@ pub(super) fn tool_image_ids_to_stub(
         };
         if facts[index + 1..]
             .iter()
+            .take_while(|next| next.kind != "user.message")
             .any(|next| next.kind == "model.turn")
         {
             stub.insert(id.to_owned());

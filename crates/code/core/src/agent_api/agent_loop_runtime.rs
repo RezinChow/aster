@@ -59,6 +59,63 @@ impl PinnedRuntimeProjection {
 pub(super) struct RuntimePermissionChecker {
     pub(super) policy: crate::permissions::PermissionPolicy,
     pub(super) ceiling: Option<Arc<dyn crate::permissions::PermissionChecker>>,
+    confirmation_available: bool,
+    skill_registry: Option<Arc<crate::skills::SkillRegistry>>,
+}
+
+impl RuntimePermissionChecker {
+    fn new(
+        session: &AgentSession,
+        policy: crate::permissions::PermissionPolicy,
+        ceiling: Option<Arc<dyn crate::permissions::PermissionChecker>>,
+    ) -> Self {
+        Self {
+            policy,
+            ceiling,
+            confirmation_available: session.config.confirmation_manager.is_some(),
+            skill_registry: session.config.skill_registry.clone(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn for_test(
+        policy: crate::permissions::PermissionPolicy,
+        ceiling: Option<Arc<dyn crate::permissions::PermissionChecker>>,
+    ) -> Self {
+        Self {
+            policy,
+            ceiling,
+            confirmation_available: true,
+            skill_registry: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn for_test_without_confirmation(
+        policy: crate::permissions::PermissionPolicy,
+        ceiling: Option<Arc<dyn crate::permissions::PermissionChecker>>,
+        skill_registry: Option<Arc<crate::skills::SkillRegistry>>,
+    ) -> Self {
+        Self {
+            policy,
+            ceiling,
+            confirmation_available: false,
+            skill_registry,
+        }
+    }
+
+    fn default_ask_without_rule(&self, name: &str) -> bool {
+        !self.confirmation_available
+            && self.policy.default_decision == crate::permissions::PermissionDecision::Ask
+            && !self.policy.declares_tool_access(name)
+    }
+
+    fn instruction_skill(&self, args: &serde_json::Value) -> bool {
+        args.get("skill_name")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|name| self.skill_registry.as_ref()?.get(name))
+            .is_some_and(|skill| skill.inherits_session_tools())
+    }
 }
 
 impl crate::permissions::PermissionChecker for RuntimePermissionChecker {
@@ -74,11 +131,30 @@ impl crate::permissions::PermissionChecker for RuntimePermissionChecker {
                     .snapshot_for_run()
                     .unwrap_or_else(|| Arc::clone(checker))
             }),
+            confirmation_available: self.confirmation_available,
+            skill_registry: self.skill_registry.clone(),
         }))
     }
 
     fn expose_to_model(&self, name: &str) -> bool {
-        crate::permissions::PermissionChecker::expose_to_model(&self.policy, name)
+        let policy_visible =
+            crate::permissions::PermissionChecker::expose_to_model(&self.policy, name);
+        if self.default_ask_without_rule(name) {
+            // The upper checker owns argument-scoped visibility. Do not probe it
+            // with empty arguments and mistake a conditional Allow for a denial.
+            if let Some(ceiling) = &self.ceiling {
+                return policy_visible && ceiling.expose_to_model(name);
+            }
+            // Instruction skills are content providers; their nested tools retain
+            // their own execution gates. An empty registry has nothing to advertise.
+            return policy_visible
+                && name == "Skill"
+                && self
+                    .skill_registry
+                    .as_ref()
+                    .is_some_and(|registry| !registry.is_empty());
+        }
+        policy_visible
             && self
                 .ceiling
                 .as_ref()
@@ -90,6 +166,16 @@ impl crate::permissions::PermissionChecker for RuntimePermissionChecker {
         name: &str,
         args: &serde_json::Value,
     ) -> crate::permissions::PermissionDecision {
+        if name == "Skill"
+            && self.policy.check(name, args) != crate::permissions::PermissionDecision::Deny
+            && self.default_ask_without_rule(name)
+            && self.instruction_skill(args)
+            && self.ceiling.as_ref().is_none_or(|checker| {
+                checker.check(name, args) != crate::permissions::PermissionDecision::Deny
+            })
+        {
+            return crate::permissions::PermissionDecision::Allow;
+        }
         crate::fact_control::execution_permission(&self.policy, self.ceiling.as_deref(), name, args)
     }
 }
@@ -102,10 +188,11 @@ pub(super) fn build_agent_loop(session: &AgentSession) -> AgentLoop {
     // observes their latest definitions when it is constructed.
     config.tools = tool_executor.definitions();
     if let Some(policy) = session.runtime_permission_policy() {
-        config.permission_checker = Some(Arc::new(RuntimePermissionChecker {
+        config.permission_checker = Some(Arc::new(RuntimePermissionChecker::new(
+            session,
             policy,
-            ceiling: config.permission_checker.clone(),
-        }));
+            config.permission_checker.clone(),
+        )));
     }
     finish_agent_loop(session, tool_executor, config)
 }
@@ -472,10 +559,11 @@ pub(super) fn capture_owned_preparation(
         .runtime_permission_policy()
         .or_else(|| session.config.permission_policy.clone())
         .unwrap_or_default();
-    config.permission_checker = Some(Arc::new(RuntimePermissionChecker {
-        policy: permission.clone(),
-        ceiling: config.permission_checker.clone(),
-    }));
+    config.permission_checker = Some(Arc::new(RuntimePermissionChecker::new(
+        session,
+        permission.clone(),
+        config.permission_checker.clone(),
+    )));
     let inputs = LoopAssemblyInputs::from_session(session, config);
     let workspace = inputs.workspace.clone();
     Ok(OwnedPreparationCapture {

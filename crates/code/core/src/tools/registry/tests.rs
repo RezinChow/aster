@@ -95,9 +95,11 @@ fn governed_argument_validation_enforces_required_types_and_unknown_fields() {
 
     let registry = ToolRegistry::new(std::env::temp_dir());
     registry.register(Arc::new(ValidatedTool));
-    assert!(registry
-        .validate_arguments("validated", &serde_json::json!({"count": 2}))
-        .is_ok());
+    assert!(
+        registry
+            .validate_arguments("validated", &serde_json::json!({"count": 2}))
+            .is_ok()
+    );
     let missing = registry
         .validate_arguments("validated", &serde_json::json!({}))
         .unwrap_err();
@@ -168,9 +170,11 @@ async fn large_change_metadata_is_bounded_hashed_and_artifact_backed() {
         .unwrap();
     let artifact = registry.get_artifact(before_uri).unwrap();
     assert!(artifact.content.starts_with("before\n"));
-    assert!(metadata["change"]["unified_diff"]
-        .as_str()
-        .is_some_and(|diff| diff.contains("--- before")));
+    assert!(
+        metadata["change"]["unified_diff"]
+            .as_str()
+            .is_some_and(|diff| diff.contains("--- before"))
+    );
 }
 
 #[test]
@@ -293,10 +297,12 @@ async fn hidden_tools_remain_registered_and_executable_without_model_schema_cost
 
     assert!(registry.contains("compatibility_alias"));
     assert!(registry.list().contains(&"compatibility_alias".to_string()));
-    assert!(!registry
-        .definitions()
-        .iter()
-        .any(|definition| definition.name == "compatibility_alias"));
+    assert!(
+        !registry
+            .definitions()
+            .iter()
+            .any(|definition| definition.name == "compatibility_alias")
+    );
 
     let result = registry
         .execute("compatibility_alias", &serde_json::json!({}))
@@ -456,9 +462,11 @@ async fn test_registry_truncates_large_tool_output() {
     let policy = super::super::ToolResultTransformPolicyV1::default();
     assert_eq!(result.exit_code, 0);
     assert!(result.output.contains("[tool output bounded by"));
-    assert!(result
-        .output
-        .contains("Full output artifact: aster://tool-output/large_output/"));
+    assert!(
+        result
+            .output
+            .contains("Full output artifact: aster://tool-output/large_output/")
+    );
     assert!(result.output.len() < policy.max_output_bytes + 512);
     let metadata = result.metadata.expect("artifact metadata");
     assert_eq!(
@@ -476,14 +484,18 @@ async fn test_registry_truncates_large_tool_output() {
             policy.head_bytes + policy.tail_bytes,
         ))
     );
-    assert!(metadata["artifact"]["artifact_id"]
-        .as_str()
-        .unwrap()
-        .starts_with("tool-output:large_output:"));
-    assert!(metadata["artifact"]["artifact_uri"]
-        .as_str()
-        .unwrap()
-        .starts_with("aster://tool-output/large_output/"));
+    assert!(
+        metadata["artifact"]["artifact_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("tool-output:large_output:")
+    );
+    assert!(
+        metadata["artifact"]["artifact_uri"]
+            .as_str()
+            .unwrap()
+            .starts_with("aster://tool-output/large_output/")
+    );
     let evidence: super::super::ToolResultEvidenceV1 =
         serde_json::from_value(metadata["aster_tool_result_evidence"].clone()).unwrap();
     assert_eq!(
@@ -627,4 +639,37 @@ fn test_registry_replace_tool() {
     }));
     // Should still have only 1 tool (replaced)
     assert_eq!(registry.len(), 1);
+}
+
+#[tokio::test]
+async fn kburn_loop_requires_running_controller_before_product_write() {
+    let root = tempfile::tempdir().unwrap();
+    let executor = crate::tools::ToolExecutor::new(root.path().to_string_lossy().into_owned());
+    let context = executor.registry().context().with_session_id("kburn-test");
+    context.mark_kburn_loop_invoked();
+    let args = serde_json::json!({"file_path":"src/main.py", "content":"value = 1\n"});
+    let blocked = executor
+        .execute_with_context("write", &args, &context)
+        .await
+        .unwrap();
+    assert_ne!(blocked.exit_code, 0, "{blocked:?}");
+    assert!(
+        blocked.output.contains("no controller is running"),
+        "{blocked:?}"
+    );
+    assert!(!root.path().join("src/main.py").exists());
+
+    let state = root.path().join(".kstudio/local/loops/demo.json");
+    std::fs::create_dir_all(state.parent().unwrap()).unwrap();
+    std::fs::write(&state, r#"{"spec":{"task_id":"demo"},"status":"running"}"#).unwrap();
+    std::fs::create_dir_all(root.path().join("src")).unwrap();
+    let allowed = executor
+        .execute_with_context("write", &args, &context)
+        .await
+        .unwrap();
+    assert_eq!(allowed.exit_code, 0, "{allowed:?}");
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("src/main.py")).unwrap(),
+        "value = 1\n"
+    );
 }

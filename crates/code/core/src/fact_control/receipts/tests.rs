@@ -900,7 +900,7 @@ async fn unchanged_ask_obeys_the_frozen_host_confirmation_authority() {
             true,
             false,
             false,
-            ToolExecutionOutcome::Succeeded,
+            ToolExecutionOutcome::Denied,
         ),
         ("host-asks", true, true, false, ToolExecutionOutcome::Denied),
         (

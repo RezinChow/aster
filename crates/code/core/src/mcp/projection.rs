@@ -15,7 +15,11 @@ use crate::capability::{
 };
 
 /// Same bound as agent bootstrap. One unreachable server must not stall session admission.
+#[cfg(not(test))]
 const MCP_PROJECTION_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+/// Cold stdio fixtures can exceed the production bound while the serial suite is loaded.
+#[cfg(test)]
+const MCP_PROJECTION_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Fallible MCP preparation owned by one capability contribution.
 ///

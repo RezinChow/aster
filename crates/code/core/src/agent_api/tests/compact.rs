@@ -112,10 +112,12 @@ async fn compact_conversation_writes_a_summary_fact() {
         .unwrap();
 
     let empty = session.compact_conversation(None).await;
-    assert!(empty
-        .expect_err("empty session")
-        .to_string()
-        .contains("Nothing to compact yet"));
+    assert!(
+        empty
+            .expect_err("empty session")
+            .to_string()
+            .contains("Nothing to compact yet")
+    );
 
     finish_stream(&session, "remember the auth bug in login.rs").await;
     finish_stream(&session, "the fix belongs in the session middleware").await;
@@ -147,13 +149,17 @@ async fn compact_conversation_writes_a_summary_fact() {
     assert_eq!(done.kind, "compaction.done");
     let summary = done.payload["summary"].as_str().expect("summary");
     assert!(summary.contains("auth middleware updated"));
-    assert!(session.history()[0]
-        .text()
-        .contains("auth middleware updated"));
+    assert!(
+        session.history()[0]
+            .text()
+            .contains("auth middleware updated")
+    );
 
     let again = session.compact_conversation(None).await;
-    assert!(again
-        .expect_err("already compacted")
-        .to_string()
-        .contains("Nothing to compact yet"));
+    assert!(
+        again
+            .expect_err("already compacted")
+            .to_string()
+            .contains("Nothing to compact yet")
+    );
 }

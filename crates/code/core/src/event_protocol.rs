@@ -62,6 +62,7 @@ define_agent_event_types_v1! {
     TurnEnd => TURN_END = "turn_end",
     End => AGENT_END = "agent_end",
     Error => ERROR = "error",
+    FactLogByteLimit => FACT_LOG_BYTE_LIMIT = "fact_log_byte_limit",
     ToolEffectUnresolved => TOOL_EFFECT_UNRESOLVED = "tool_effect_unresolved",
     ConfirmationRequired => CONFIRMATION_REQUIRED = "confirmation_required",
     ConfirmationReceived => CONFIRMATION_RECEIVED = "confirmation_received",
@@ -723,5 +724,17 @@ mod tests {
         assert_eq!(projection.tool_id.as_deref(), Some("c9"));
         assert_eq!(projection.tool_name.as_deref(), Some("bash"));
         assert!(projection.data_json.is_some());
+    }
+
+    #[test]
+    fn typed_fact_log_byte_limit_maps_to_a_stable_event() {
+        let error = anyhow::anyhow!(aster_effect::ActorError::FactLogByteLimit {
+            detail: "append failed".into(),
+        });
+        let event = AgentEvent::execution_error(&error);
+        assert!(
+            matches!(&event, AgentEvent::FactLogByteLimit { message } if message.contains("append failed")),
+            "{event:?}"
+        );
     }
 }

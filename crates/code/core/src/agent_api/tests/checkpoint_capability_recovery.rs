@@ -122,9 +122,11 @@ async fn cutover_after_exact_preparation_cannot_change_the_pinned_recovery_gener
             crate::session_checkpoint::SessionCheckpointError::ContentDrift(_)
         )
     ));
-    assert!(session
-        .run_snapshot("prepared-cutover-target")
-        .await
-        .is_none());
+    assert!(
+        session
+            .run_snapshot("prepared-cutover-target")
+            .await
+            .is_none()
+    );
     session.close().await;
 }

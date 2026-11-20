@@ -424,6 +424,13 @@ pub(super) async fn settle_owned_fact(
     let settled = async {
         let fact = pinned.parts.open()?;
         current_goal = fact.current_goal().cloned();
+        if let Some(checkpoint) = checkpoint.as_ref() {
+            if let Some(surface) = &pinned.parts.surface {
+                surface
+                    .agent
+                    .fact_restore_read_only_synthesis(&checkpoint.convergence);
+            }
+        }
         if ordinary {
             if let Some(checkpoint) = checkpoint.as_ref() {
                 let mut seed = checkpoint.messages.clone();

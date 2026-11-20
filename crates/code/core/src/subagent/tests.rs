@@ -39,6 +39,14 @@ fn test_agent_registry_get() {
     assert_eq!(explore.name, "explore");
     assert!(explore.native);
     assert!(!explore.hidden);
+    assert_eq!(explore.max_steps, Some(8));
+    assert_eq!(
+        explore
+            .permissions
+            .check("write", &serde_json::json!({"file_path":"x","content":"y"})),
+        crate::permissions::PermissionDecision::Deny
+    );
+    assert!(explore.description.contains("well-scoped question"));
 
     let general = registry.get("general-purpose").unwrap();
     assert_eq!(general.name, "general");

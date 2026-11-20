@@ -1,0 +1,28 @@
+{
+  "pack": "hermetic-perf-e2e",
+  "aster_acp_bin": "/Users/roylin/code/aster/target/debug/aster-acp",
+  "aster_tui_bin": "/Users/roylin/code/aster/target/debug/aster",
+  "suites": 1,
+  "passed": 1,
+  "failed": 0,
+  "ignored": 0,
+  "seconds": 21.65,
+  "failed_suites": [],
+  "results": [
+    {
+      "suite": "memory_management",
+      "exit": 0,
+      "seconds": 21.65,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/tmp/aster-hermetic-memmgmt/memory_management.log",
+      "failed_tests": []
+    }
+  ],
+  "explicitly_not_claimed": [
+    "named YOLO Done",
+    "Meta Harness Pass",
+    "headed Studio / live LLM"
+  ]
+}

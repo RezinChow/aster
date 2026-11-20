@@ -12,8 +12,12 @@ pub(in crate::fact_control) enum ExecutionCycle {
 impl ExecutionCycle {
     pub(in crate::fact_control) fn diagnostic(self) -> String {
         match self {
-            Self::Refused(tool) => format!("run.tool_refusal_cycle: tool '{tool}' repeated a refused invocation without fresh original progress; revise the approach or obtain new host input"),
-            Self::ObservedState(tool) => format!("run.tool_state_cycle: tool '{tool}' exhausted its duplicate allowance while revisiting already observed workspace states without fresh original information; revise the approach or obtain new host input"),
+            Self::Refused(tool) => format!(
+                "run.tool_refusal_cycle: tool '{tool}' repeated a refused invocation without fresh original progress; revise the approach or obtain new host input"
+            ),
+            Self::ObservedState(tool) => format!(
+                "run.tool_state_cycle: tool '{tool}' exhausted its duplicate allowance while revisiting already observed workspace states without fresh original information; revise the approach or obtain new host input"
+            ),
         }
     }
 }

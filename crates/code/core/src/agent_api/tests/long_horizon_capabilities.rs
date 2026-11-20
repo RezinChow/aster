@@ -248,7 +248,8 @@ async fn plan_batch_and_recovery_choreography_survives_the_fact_spine() {
         .filter(|fact| fact.kind == "tool.result")
         .filter_map(|fact| {
             fact.payload
-                .get("output")
+                .get("receipt")
+                .and_then(|receipt| receipt.get("output"))
                 .and_then(serde_json::Value::as_str)
         })
         .collect();
@@ -315,10 +316,14 @@ async fn distinct_read_only_sources_do_not_force_an_incomplete_answer() {
     assert_eq!(results.len(), 16);
     assert!(results.iter().all(|fact| fact.payload["ok"] == true));
     for (index, result) in results.iter().enumerate() {
-        assert!(result.payload["output"]
-            .as_str()
-            .unwrap()
-            .contains(&format!("evidence-{index}")));
+        assert!(
+            result.payload["receipt"]["output"]
+                .as_str()
+                .unwrap()
+                .contains(&format!("evidence-{index}")),
+            "unexpected read result {index}: {}",
+            result.payload
+        );
     }
     session.close().await;
 }
@@ -385,7 +390,7 @@ async fn failed_read_calls_still_exhaust_the_total_tool_budget() {
     assert_eq!(results.len(), 3, "the fourth failed read must not execute");
     assert!(results.iter().all(|fact| fact.payload["ok"] == false));
     assert!(results.iter().all(|fact| {
-        fact.payload["output"]
+        fact.payload["receipt"]["output"]
             .as_str()
             .unwrap()
             .contains("Failed to read file")
@@ -576,7 +581,8 @@ async fn declared_suite_contract_binds_a_passing_run_and_completes_verified() {
         facts.iter().any(|fact| fact.kind == "tool.result"
             && fact
                 .payload
-                .get("output")
+                .get("receipt")
+                .and_then(|receipt| receipt.get("output"))
                 .and_then(|value| value.as_str())
                 .is_some_and(|output| output.contains(GATE_CONTRACT_SENTINEL))),
         "the passing suite run must be on the fact log"
@@ -1019,7 +1025,8 @@ async fn crash_mid_long_task_resumes_its_mutation_ledger_and_completes_verified(
         facts.iter().any(|fact| fact.kind == "tool.result"
             && fact
                 .payload
-                .get("output")
+                .get("receipt")
+                .and_then(|receipt| receipt.get("output"))
                 .and_then(|value| value.as_str())
                 .is_some_and(|output| output.contains(GATE_CONTRACT_SENTINEL))),
         "the resumed suite run must be on the fact log"
@@ -1178,7 +1185,8 @@ async fn interrupted_run_mutations_carry_into_the_next_send_gate() {
         facts.iter().any(|fact| fact.kind == "tool.result"
             && fact
                 .payload
-                .get("output")
+                .get("receipt")
+                .and_then(|receipt| receipt.get("output"))
                 .and_then(|value| value.as_str())
                 .is_some_and(|output| output.contains(GATE_CONTRACT_SENTINEL))),
         "the continuation's suite run must be on the fact log"
@@ -1453,12 +1461,14 @@ fn open_mutation_digest(error: &impl std::fmt::Display) -> String {
 fn host_passed_report(digest: &str) -> crate::verification::VerificationReport {
     crate::verification::VerificationReport::new(
         "host:recorded",
-        vec![crate::verification::VerificationCheck::required(
-            "check:host",
-            "host",
-            "Host bound this effect digest before the next send.",
-        )
-        .with_status(crate::verification::VerificationStatus::Passed)],
+        vec![
+            crate::verification::VerificationCheck::required(
+                "check:host",
+                "host",
+                "Host bound this effect digest before the next send.",
+            )
+            .with_status(crate::verification::VerificationStatus::Passed),
+        ],
     )
     .with_effect_digest(digest.to_string())
 }
@@ -1736,6 +1746,7 @@ async fn unstreamed_final_response_text_is_resent_at_settle() {
             &SessionOptions::new()
                 .with_session_id("lh4-unstreamed-final")
                 .with_sandbox_handle(Arc::clone(&sandbox) as Arc<dyn crate::sandbox::BashSandbox>)
+                .with_permission_policy(crate::permissions::PermissionPolicy::new().allow("bash"))
                 .with_planning_mode(crate::prompts::PlanningMode::Disabled)
                 .with_auto_delegation_enabled(false)
                 .with_manual_delegation_enabled(false),
@@ -2126,9 +2137,11 @@ async fn manual_compaction_cannot_accept_unverified_original_mutation() {
         .unwrap_err();
     assert!(first.to_string().contains("no bound Passed verification"));
     let before = crate::fact_control::read_workspace_facts(workspace.path(), "lh4-debt").unwrap();
-    assert!(before
-        .iter()
-        .any(|fact| fact.kind == "tool.result" && fact.payload["ok"] == true));
+    assert!(
+        before
+            .iter()
+            .any(|fact| fact.kind == "tool.result" && fact.payload["ok"] == true)
+    );
     session.compact_conversation(None).await.unwrap();
     let compacted =
         crate::fact_control::read_workspace_facts(workspace.path(), "lh4-debt").unwrap();
@@ -2141,9 +2154,11 @@ async fn manual_compaction_cannot_accept_unverified_original_mutation() {
         .unwrap_err();
     assert!(second.to_string().contains("no bound Passed verification"));
     let after = crate::fact_control::read_workspace_facts(workspace.path(), "lh4-debt").unwrap();
-    assert!(!after
-        .iter()
-        .any(|fact| fact.kind == crate::fact_control::TURN_COMPLETE_FACT_KIND));
+    assert!(
+        !after
+            .iter()
+            .any(|fact| fact.kind == crate::fact_control::TURN_COMPLETE_FACT_KIND)
+    );
     session.close().await;
     agent.close().await;
 }

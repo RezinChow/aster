@@ -260,10 +260,11 @@ fn attempt_settlement_preserves_specific_errors_and_recognizes_a_terminal() {
 
     let mut eof = TurnState::default();
     attempt::settle_attempt_state(&mut eof, None);
-    assert!(eof
-        .turn_failure
-        .as_deref()
-        .is_some_and(|message| message.contains("without a terminal event")));
+    assert!(
+        eof.turn_failure
+            .as_deref()
+            .is_some_and(|message| message.contains("without a terminal event"))
+    );
 
     let mut terminal = TurnState {
         end_text: Some(String::new()),

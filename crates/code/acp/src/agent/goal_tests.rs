@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use super::{test_launch, AsterCodeAgent};
+use super::{AsterCodeAgent, test_launch};
 use agent_client_protocol::{self as acp, Agent as _};
 use aster_core::goal_control::{
     GoalCommandKindV1, GoalDefinitionCommandV1, GoalImportSourceV1, GoalState,
@@ -152,7 +152,7 @@ async fn explicit_new_goals_use_default_bounds_and_trusted_disable_wins() {
 
 #[tokio::test]
 async fn chinese_goal_status_is_concise_and_does_not_claim_completion_when_paused() {
-    use crate::goal::{apply_bound_goal, GoalLanguage, GoalOp};
+    use crate::goal::{GoalLanguage, GoalOp, apply_bound_goal};
 
     let root = tempfile::tempdir().unwrap();
     let (launch, provider) =
@@ -329,20 +329,24 @@ async fn bound_goal_verbs_and_typed_commands_share_core_and_respect_host_disable
         unbound,
         serde_json::json!({"definition": null, "work_policy_digest": null, "tick": null})
     );
-    assert!(ext(
-        &host,
-        "aster/goal/state",
-        serde_json::json!({"session_id": id.0, "x": 1})
-    )
-    .await
-    .is_err());
-    assert!(ext(
-        &host,
-        "aster/goal/state",
-        serde_json::json!({"session_id": "unknown"})
-    )
-    .await
-    .is_err());
+    assert!(
+        ext(
+            &host,
+            "aster/goal/state",
+            serde_json::json!({"session_id": id.0, "x": 1})
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        ext(
+            &host,
+            "aster/goal/state",
+            serde_json::json!({"session_id": "unknown"})
+        )
+        .await
+        .is_err()
+    );
 
     let workspace = WorkspaceServices::local(session.workspace())
         .workspace_ref()
@@ -397,13 +401,15 @@ async fn bound_goal_verbs_and_typed_commands_share_core_and_respect_host_disable
 
     // No typed method is a wake: a tick is not a control command.
     let bound = facts();
-    assert!(ext(
-        &host,
-        "aster/goal/control",
-        goal_ref("tick", "acp-tick", &accepted)
-    )
-    .await
-    .is_err());
+    assert!(
+        ext(
+            &host,
+            "aster/goal/control",
+            goal_ref("tick", "acp-tick", &accepted)
+        )
+        .await
+        .is_err()
+    );
     let error = prompt(&host, &id, "/goal Replace the objective")
         .await
         .unwrap_err();
@@ -468,13 +474,15 @@ async fn prove_bound_clear(real_model: bool) {
         let config = std::env::var_os("ASTER_CONFIG_FILE").expect("explicit live ACL path");
         let mut launch =
             crate::config::load_launch_config(root.path().to_owned(), Some(config.into())).unwrap();
-        assert!(launch
-            .config
-            .find_provider("boyue")
-            .unwrap()
-            .models
-            .iter()
-            .any(|model| model.id == "deepseek-v4-flash"));
+        assert!(
+            launch
+                .config
+                .find_provider("boyue")
+                .unwrap()
+                .models
+                .iter()
+                .any(|model| model.id == "deepseek-v4-flash")
+        );
         launch.model_id = "boyue/deepseek-v4-flash".into();
         launch.config.default_model = Some(launch.model_id.clone());
         launch.config.sessions_dir = Some(root.path().join("sessions"));
@@ -536,19 +544,23 @@ async fn prove_bound_clear(real_model: bool) {
             .unwrap(),
         selected
     );
-    assert!(preview(
-        &host,
-        &acp::SessionId::new("unknown"),
-        serde_json::Value::Null
-    )
-    .await
-    .is_err());
+    assert!(
+        preview(
+            &host,
+            &acp::SessionId::new("unknown"),
+            serde_json::Value::Null
+        )
+        .await
+        .is_err()
+    );
     let mut changed = original_file.clone();
     changed.push(b'\n');
     std::fs::write(&path, changed).unwrap();
-    assert!(preview(&host, &id, selected["source"].clone())
-        .await
-        .is_err());
+    assert!(
+        preview(&host, &id, selected["source"].clone())
+            .await
+            .is_err()
+    );
     std::fs::write(&path, &original_file).unwrap();
     assert!(session.goal_definition().unwrap().is_none());
     assert_eq!(session.recorded_usage_tokens(), initial_usage);
@@ -586,10 +598,12 @@ async fn prove_bound_clear(real_model: bool) {
             );
         });
         assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
-        assert!(session
-            .durable_transcript()
-            .iter()
-            .any(|message| message.role == "assistant" && message.text().contains(&marker)));
+        assert!(
+            session
+                .durable_transcript()
+                .iter()
+                .any(|message| message.role == "assistant" && message.text().contains(&marker))
+        );
         assert!(session.recorded_usage_tokens().0 > 0);
         eprintln!(
             "ACP-BOUND-CLEAR model={} elapsed_ms={} usage={:?}",
@@ -673,9 +687,11 @@ async fn prove_bound_clear(real_model: bool) {
     assert_eq!(definition.import_source, command.import_source);
     assert_eq!(import(&host, &command).await.unwrap(), imported);
     assert!(!host.goals.lock().await.contains_key(id.0.as_ref()));
-    assert!(preview(&host, &id, selected["source"].clone())
-        .await
-        .is_err());
+    assert!(
+        preview(&host, &id, selected["source"].clone())
+            .await
+            .is_err()
+    );
     let error = prompt(&host, &id, "/goal replace the definition")
         .await
         .unwrap_err();
@@ -1050,10 +1066,12 @@ async fn session_scoped_legacy_goal_reaches_real_model_after_new_host_reopen() {
         .find(|f| f.kind == "user.message")
         .unwrap();
     assert!(input.payload["text"].as_str().unwrap().contains(&marker));
-    assert!(!input.payload["text"]
-        .as_str()
-        .unwrap()
-        .contains("UNOWNED-WORKSPACE-MARKER"));
+    assert!(
+        !input.payload["text"]
+            .as_str()
+            .unwrap()
+            .contains("UNOWNED-WORKSPACE-MARKER")
+    );
     assert_eq!(std::fs::read(&root_source).unwrap(), unowned);
     assert!(next.recorded_usage_tokens().2 > before.2);
     eprintln!(
