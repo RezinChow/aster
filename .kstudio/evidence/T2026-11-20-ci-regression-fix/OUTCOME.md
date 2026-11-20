@@ -76,6 +76,15 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
   3. 最终改为 `mkdir -p "$target_dir/debug/studio-resources/document"`——tauri-build 只校验映射目录存在；真实 PDFIUM/字体资产由 release packaging 的 `document_assets.py` 负责，CI 门禁不装 node_modules。保留完整资源映射，不用 `ASTER_DEFER_RUNTIME_COMPONENTS=1` 缩减覆盖。
 - 注：`crates/oci-runtime` 已不存在，`sandbox_assets_expected()` 为 false，macOS 也不会顺带 stage document，故两侧都需要这一步。
 
+### 10. Studio tenant 测试的 legacy 遗留（run 44727782165）
+- 症状：Ubuntu "Build and test the desktop product identity" 的 `tenant::` 测试 11 passed / 4 failed：
+  - `default_aster_identity_is_closed_and_the_compiled_product_is_authoritative`：`HostIdentity::parse("legacy")` 变成 unknown released tenant。
+  - `default_aster_preserves_the_published_legacy_bundle_id`：`bundle_identifier("legacy")` 已不是 `dev.aster.studio`。
+  - `side_instances_keep_the_released_tenant_brand_and_assets` / `loads_the_selected_tenant_files`：`load_slug("legacy")` 因 tenant 目录已删而 NotFound。
+- 根因：单 tenant 化后遗留断言（与 Kylin/flatpak 同类）。
+- 修复（Studio 子模块）：4 处断言改为 aster 口径——删除 legacy released tenant 行、bundle id 测试只断言 aster、`load_slug` 改 aster；并把 `selected_development_slug(Some("aster"))` 从非法列表移除（现在编译 tenant 就是 aster，它合法）。
+- 验证：本地 `cargo test --locked -p aster-studio --lib --no-default-features --features tenant-aster tenant:: -- --test-threads=1` **16 passed / 0 failed**（首轮暴露第 5 个断言，修正后复跑全绿）；fmt 0 差异。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -91,7 +100,9 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | 7ffaa2e96 | gitlink→1cb9204f13 + 本证据第 7 项 |
 | 主仓 | 21ba5695c | macOS-only TUI 测试门控 + ci-all feature + 本证据第 8 项 |
 | 主仓 | e250d1572 | CI 补 document assets staging（首版） |
-| 主仓 | (本轮) | CI 改为 mkdir document 空目录 + 本证据第 9 项定稿 |
+| 主仓 | 08d6aebb6 | CI 改为 mkdir document 空目录 + 本证据第 9 项定稿 |
+| Studio | fcccc33a52 | tenant 测试改 aster 单 tenant 口径 |
+| 主仓 | (本轮) | gitlink→fcccc33a52 + 本证据第 10 项 |
 
 ## 验证
 
