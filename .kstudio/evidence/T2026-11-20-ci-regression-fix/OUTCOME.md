@@ -123,7 +123,7 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | c09cb5596 | gitlink→fcccc33a52 + 本证据第 10 项 |
 | Studio | d9663cc91c | Codex canonical effort + provider fixture 修正 |
 | 主仓 | 667d1105c | gitlink→d9663cc91c + 本证据第 11 项 |
-| 主仓 | (本轮) | ide_state_db 平台分支修复 + 本证据第 12 项 |
+| 主仓 | 41bdc5d33 | ide_state_db 平台分支修复 + 本证据第 12 项 |
 
 ## 验证
 
