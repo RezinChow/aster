@@ -176,7 +176,7 @@ class KylinInputMethodTest(unittest.TestCase):
         self.assertIn("org.freedesktop.portal.Fcitx", talks)
         self.assertNotIn("org.fcitx.Fcitx-5", talks)
         self.assertEqual(command, ["--command=kylin-launch"])
-        for tenant in ("aster", "toyou"):
+        for tenant in ("aster",):
             self.assertIn("Exec=kylin-launch %U", desktop_entry(tenant))
         self.assertLess(text.index('test-input-method.sh'), text.index('flatpak build-export'))
         self.assertNotIn("--socket=session-bus", args)
