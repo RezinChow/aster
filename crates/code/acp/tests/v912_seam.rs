@@ -321,6 +321,8 @@ fn decide(raw: &str, state: &mut MockState) -> String {
         // The foreign writer waits for a marker created by the bash command
         // itself. That guarantees the write lands after the tool's before
         // snapshot, so the unpublishable path enters the completion ledger.
+        // The marker lives in the workspace root: the native sandbox can write
+        // it there, while `.aster` metadata paths may be refused.
         let marker_line = state
             .marker_path
             .take()
@@ -413,10 +415,9 @@ async fn spawn_agent(workspace: &Path, config: &Path, home: &Path) -> AgentProc 
         .arg("--cwd")
         .arg(workspace)
         .env("ASTER_CONFIG", config)
-        // The gate seam needs a bash tool that can actually run in this test
-        // process. CI VMs and container jobs are outer isolation boundaries,
-        // so opt this fixture's child into the process-host fallback when the
-        // native sandbox cannot initialize; production defaults stay fail-closed.
+        // CI VMs and container jobs are outer isolation boundaries: if the
+        // native Bash sandbox cannot run, use the process-host fallback.
+        // Production defaults stay fail-closed.
         .env("ASTER_ALLOW_PROCESS_HOST_SANDBOX", "1")
         .env("ASTER_DISABLE_GROK_ACCOUNT", "1")
         .env("ASTER_DISABLE_CURSOR_ACCOUNT", "1")
@@ -1268,10 +1269,11 @@ async fn v912_readonly_git_parallel_commit_opens_the_gate() {
             let workspace = isolate("readonly-git");
             git_init(&workspace);
             let (agent, session, state) = open_session(&workspace, "true").await;
-            // `.aster` is harness metadata: writable by the sandboxed bash tool
-            // and excluded from the gate's source paths.
-            let marker = workspace.join(".aster/readonly-ready");
+            // A normal workspace file is writable under both the native and
+            // process-host Bash sandboxes; `.aster` metadata paths may be refused.
+            let marker = workspace.join("readonly-ready");
             state.lock().expect("mock state").marker_path = Some(marker.display().to_string());
+            let marker_path = marker.clone();
             let commit_root = workspace.clone();
             let committer = tokio::task::spawn_blocking(move || {
                 for _ in 0..1000 {
@@ -1287,7 +1289,14 @@ async fn v912_readonly_git_parallel_commit_opens_the_gate() {
             let response = say(&agent, &session, "READONLY-GIT inspect the tree").await;
             committer.await.expect("parallel commit task");
             let error = match response {
-                Ok(response) => panic!("a foreign concurrent write must open the completion gate: response={response:?}"),
+                Ok(response) => {
+                    let diagnostic_log = effect_log(&workspace);
+                    panic!(
+                        "a foreign concurrent write must open the completion gate: response={response:?} marker={} guest={} log={diagnostic_log}",
+                        marker_path.is_file(),
+                        workspace.join("guest.txt").is_file()
+                    )
+                }
                 Err(error) => error,
             };
             let rendered = format!("{error:?}");
@@ -1299,6 +1308,10 @@ async fn v912_readonly_git_parallel_commit_opens_the_gate() {
                 rendered.contains("guest.txt"),
                 "the gate did not name the foreign path: {rendered}"
             );
+            assert_eq!(
+                std::fs::read_to_string(&marker_path).expect("marker content"),
+                "ready\n"
+            );
             let log = effect_log(&workspace);
             assert!(
                 log.contains("READONLY-SEEN"),
@@ -1309,7 +1322,7 @@ async fn v912_readonly_git_parallel_commit_opens_the_gate() {
             let paths = changed_paths_in_log(&log);
             assert!(
                 paths.iter().any(|path| path == "guest.txt"),
-                "the foreign write was not observed as a workspace mutation: {paths:?}"
+                "the foreign write was not observed as a workspace mutation: {paths:?}; log={log}"
             );
             git_at(&workspace, &["add", "guest.txt"]);
             git_at(&workspace, &["commit", "-m", "foreign"]);

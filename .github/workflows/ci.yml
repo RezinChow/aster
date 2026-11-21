@@ -144,7 +144,7 @@ jobs:
       - name: Install Studio native contract dependencies
         working-directory: apps/studio
         run: |
-          npm install --global pnpm@12.6.0
+          npm install --global pnpm@12.6.0 node-gyp
           pnpm install --frozen-lockfile
       - name: Studio native contracts
         run: cargo test --locked -p aster-studio-data-sqlite -p aster-studio-desktop-contract
