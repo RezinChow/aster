@@ -165,12 +165,15 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - Qualify aster：Ubuntu/Windows 全绿，macOS 仍失败于 `retrieval::shipped_retrieval_stdio_executes_embedded_semantic_search` 的 `RETRIEVAL-EVIDENCE-MISSING`；本地单跑 10/10 PASS。已把断言改为输出实际回复与最后一次请求体，下一轮 CI 可据此区分模型加载、检索排序或行号格式问题。
 - 结论：本轮不再是产品功能回归；剩余两项都是测试夹具/环境时序问题，但尚未全部关闭，不能宣称 CI 全绿。
 
-### 23. run 44874035630 / 44874035817 结论：current_thread 未奏效，CI-only 失败需诊断现场
-- `flavor = "current_thread"` 是冗余改动——`#[tokio::test]` 默认即 current_thread，故 CI 行为无变化，memory-retention 仍在 `support.rs:831` `.unwrap()` 失败。CI stdout 仅打印一次 `original drain wake Memory/Blocking: 5.001s`，说明第一个迭代起 `capture.events()` 就没有任何 `memory_retention` 事件（不是断言值不符）。
-- 排除：`drain_llm_extractions` 是纯 async 无 `spawn_blocking`；`TraceCapture` 为线程局部 subscriber；失败测试是唯一 `start_paused=true` + 手动 `poll_close` 的用例。
-- 复现尝试：`aster-followup-tests:1.97.1-arm64` 容器定点 1/1、完整组并发 3/3、限 1 核 5/5 均 16/16 PASS，无法复现。CI runner 为 x86_64、容器为 arm64，架构/负载差异是唯一未排除变量。
-- 修复：把 `TraceCapture::last()` 的无信息 `.unwrap()` 改为带 `total_events` + 每条事件 `(target, message, disposition)` 摘要的 panic。下一轮 CI 可直接区分「零事件（subscriber 未捕获）」与「有事件但 target/disposition 不符」。`cargo fmt --check` 0 差异；本地定点 1/1 PASS。
-- macOS Qualify：`reasoning::delayed_catalog_keeps_draft_and_explicit_effort` 超时时屏幕停在 `mock/gpt (none)`，但已有 `Switched to slow/gpt` + `Switched to mock/gpt (none effort)`——delayed catalog 返回后 model 显示回退；`retrieval` 仍 `RETRIEVAL-EVIDENCE-MISSING`，断言已改为只输出 `tool_results`（避免 system prompt 淹没诊断）。两者仍为 CI-only 时序/夹具问题。
+### 23. run 44874035630 / 44874035817 → 44881613171/44881613245：memory-retention 并发干扰根因与修复
+- `flavor = "current_thread"` 是冗余改动——`#[tokio::test]` 默认即 current_thread，故 CI 行为无变化，memory-retention 仍在 `support.rs:831` `.unwrap()` 失败。CI stdout 仅打印一次 `original drain wake Memory/Blocking: 5.001s`。
+- 诊断提交 `cf4bebe5d` 把 `.unwrap()` 改为带现场摘要的 panic。run 44881613171（Ubuntu+macOS）现场：**`total_events=1`，唯一事件是 `aster_core::agent_api::session_close` 的 "Completed-turn memory extraction did not drain before close timeout"；`memory_retention` 事件为零**。subscriber 工作正常（捕获到 warn），问题不是 level filter（其它 15 个同类测试都读到 info 事件）。
+- **复现成功**：容器 `aster-followup-tests:1.97.1-arm64` 用默认 `--test-threads`（18 核）跑完整组全过；显式 `--test-threads=2/3/4` **确定性失败**（诊断文本与 CI 逐字一致），`--test-threads=1` 和 `=8` 通过。即失败取决于「中等并发度」——与 CI 2-4 核 runner 吻合。
+- **根因**：每个契约用 `tracing::subscriber::set_default` 装线程局部 subscriber 捕获生产 tokio worker 发出的 `memory_retention` 事件。多测试并发时 worker 线程被复用，一个测试的 subscriber guard 覆盖/恢复另一个的，close-timeout 契约读不到自己的事件。加临时 `eprintln`（同步 I/O 改变时序）或单独只跑该测试都会消失——典型 heisenbug。`yield_now` 循环、`std::thread::sleep` 轮询都无法解决（后者反而阻塞 current-thread runtime）。
+- **修复**：CI step 加 `-- --test-threads=1`。线程局部 subscriber 测试的标准解法；从根上消除并发干扰，非靠运气。验证：容器 threads=1 单核高负载 3/3 + 常规 5/5 全过；threads=4 时 4/5 仍失败（证明干扰源）。YAML 解析 OK、`git diff --check` 0 差异。
+- **排除的产品改动**：`drain_llm_extractions` 纯 async 无 spawn_blocking；tracing 无 max_level 过滤；未改任何产品代码。长期方案（未采纳，超出本轮范围）：全局 subscriber + 每测试唯一 session_id 过滤，可支持并发。
+- **macOS Qualify**：run 44881613245 三平台全绿；上一轮 reasoning 超时与 retrieval `EVIDENCE-MISSING` 未复现，确认是负载相关 flake，非产品回归。retrieval 断言的 `tool_results` 诊断保留。
+- **结论**：memory-retention 是最后一个非绿的确定性 Rust check 失败，已修复待 CI 验证；Qualify 已全绿。
 
 ## 提交
 
@@ -209,7 +212,8 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | ca21e1d18 | v912 子进程 process-host 沙盒 opt-in + marker 入 `.aster`；macOS prune 忽略 EIO + 单测 |
 | 主仓 | d0151e2bf | v912 恢复 bash 同步、marker 改工作区根、失败现场诊断；CI 安装 node-gyp |
 | 主仓 | 86d42448c | memory-retention 用例改 current-thread；retrieval 断言加诊断输出；证据第 22 项 |
-| 主仓 | (本笔) | memory-retention capture 失败带事件摘要诊断；retrieval tool_results 诊断定稿；证据第 23 项 |
+| 主仓 | cf4bebe5d | memory-retention capture 失败带事件摘要诊断；retrieval tool_results 诊断定稿；证据第 23 项初稿 |
+| 主仓 | (本笔) | CI memory-retention step 加 `--test-threads=1`（并发 subscriber 干扰修复）；证据第 23 项定稿 |
 
 ## 验证
 
@@ -224,11 +228,11 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - v912 门禁用例：Linux 容器 `aster-followup-tests:1.97.1-arm64` 单跑 1/1、连续 10 次全 PASS、完整套件 10 passed / 1 ignored；最终修复后在不带任何沙盒 env 的 CI 等价容器再次单跑 10/10 PASS、完整套件 10 passed / 1 ignored。
 - macOS prune 进程检查：`prune::process::tests` 3/3 PASS；`env_manager` frozen 参考 12/12 PASS；`aster-use-tool-acquire --lib` 另 4 例失败已用无改动 stash 基线证明为既有失败。
 - PTY/检索套件：`shipped_retrieval_stdio_executes_embedded_semantic_search` 本地单跑 10/10 PASS；用 `ASTER_TUI_BIN` 对齐隔离 target 后完整串行 `shipped_tui_e2e` 26 passed / 1 ignored；CI 侧用例漂移式超时未认领为稳定绿。
-- CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→44791594953/44791595251（Qualify aster 三平台与 Cross-platform text 全绿；Rust ubuntu 到 native contracts 剩 Linux chrome 期望失败）→44802434279/44802458866/44802458957（chrome 修复生效，ubuntu 推进到 ACP integration 暴露 v912 时序竞态；macOS Qualify 一例 TUI 等待偶发超时）→下一轮 CI 待结论。
+- CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→44791594953/44791595251（Qualify aster 三平台与 Cross-platform text 全绿；Rust ubuntu 到 native contracts 剩 Linux chrome 期望失败）→44802434279/44802458866/44802458957（chrome 修复生效，ubuntu 推进到 ACP integration 暴露 v912 时序竞态；macOS Qualify 一例 TUI 等待偶发超时）→44861622243/44861622255（v912 真实 CI 通过；暴露 memory-retention 与 retrieval 夹具问题）→44874035630/44874035817（current_thread 冗余、仍未过）→44881613171/44881613245（诊断现场确认零 memory_retention 事件；Qualify 三平台全绿；Rust Ubuntu/macOS 仍失败于并发 subscriber 干扰）→本笔 `--test-threads=1` 修复待 CI 验证。
 
 ## 边界
 
 - 交付闭环（commit/push）≠ 产品 Pass；%≠Pass。
 - musl 编译步骤是 5d2d6ad90 既有缺陷，本轮让 main CI 首次具备全绿条件；release 通道实机证据、headed/daily-use Pass 仍未认领（park）。
 - `fact-log-byte-limit-fix` 等其它未跟踪证据目录非本轮产物，未触碰。
-- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证；Linux chrome 期望已修并经 CI 越过该步骤。v912 用例已在 Linux 容器中按 CI 等价条件复验（不设沙盒 env），根因是 CI VM 中原生沙盒无法执行 bash；修复是测试子进程显式 opt-in process-host，产品默认仍 fail-closed。PTY/检索套件在 CI 完整串行运行下会出现用例漂移式时序失败（reasoning / retrieval），`shipped_tui_e2e` 整体不能宣称稳定绿；本地完整套件在二进制目录一致时 26 passed / 1 ignored。
+- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证；Linux chrome 期望已修并经 CI 越过该步骤。v912 用例已在 Linux 容器中按 CI 等价条件复验（不设沙盒 env），根因是 CI VM 中原生沙盒无法执行 bash；修复是测试子进程显式 opt-in process-host，产品默认仍 fail-closed。PTY/检索套件 reasoning / retrieval 失败经 run 44881613245 三平台全绿确认为负载相关 flake（本地完整套件 26 passed / 1 ignored），但未多次连续验证，仍不宣称绝对稳定绿。memory-retention 并发 subscriber 干扰已用 CI `--test-threads=1` 规避（非产品 bug）；长期方案是全局 subscriber + session 隔离以支持并发，超出本轮范围。

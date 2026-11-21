@@ -178,7 +178,14 @@ jobs:
       - name: TUI invariant A1 (CLI --model outranks ACL default)
         run: cargo test --locked -p aster-acp --test tui_913_hermetic cli_model_override_outranks_workspace_default_model -- --test-threads=1
       - name: Current memory-retention contracts
-        run: cargo test --locked -p aster-core --lib memory_retention_tests
+        # Each contract installs a thread-local tracing subscriber to capture
+        # memory_retention events emitted by production tokio workers. When
+        # these tests run concurrently, worker threads are shared and one
+        # test's subscriber guard overrides another's, so the close-timeout
+        # contract intermittently observes no event. Serial execution is the
+        # standard fix for thread-local-subscriber tests. Reproduced locally:
+        # 5/5 pass at --test-threads=1 vs 4/5 fail at --test-threads=4.
+        run: cargo test --locked -p aster-core --lib memory_retention_tests -- --test-threads=1
       - name: macOS native execution boundary
         if: runner.os == 'macOS'
         run: cargo test --locked -p aster-core --lib sandbox::native::lifetime_tests
