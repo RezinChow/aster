@@ -145,6 +145,12 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 已在测试中把 committer 改为「没收到 marker 就不写文件、不 panic」，并把 `Ok(_)` 分支的 panic 改成输出完整 `PromptResponse`，下一轮可直接看到是没有工具调用还是 gate 判定问题。Linux 容器 10/10 复验的是工具正常出现的路径；CI 特有路径仍待诊断。
 - `Qualify aster` 的 macOS `reasoning::delayed_catalog_keeps_draft_and_explicit_effort` 再次 `timed out waiting for "slow/gpt (none)"`；屏幕最终状态是 `mock/gpt (none)`，两条 scrollback 为 `Switched to slow/gpt` 与 `Switched to mock/gpt (none effort)`。本地单跑 10/10 PASS，但本地按 CI 方式跑完整 `shipped_tui_e2e` 套件也复现了 PTY 用例失败（本次是另一个 `shipped_tui_launch_resume_and_visible_commands`），说明是 PTY 套件在负载下的时序敏感问题，不是单一用例可修；暂不改产品/用例逻辑，记录为已知 flake，不能宣称 CI 全绿。
 
+### 20. CI 沙盒下的 v912 门禁与 macOS prune 进程检查（run 44842923937 / 44842924047）
+- run 44842923937 的 Ubuntu `ACP integration` 仍失败，完整响应是 `EndTurn` + `modelCalls=2`。早先据此判断「mock 没生成工具调用」是误读：两次模型调用恰好对应「发起 bash 工具 → 收到工具结果 → 结束回合」。真实原因是 CI/容器 VM 中原生 ksandbox 无法运行 bash，产品默认 fail-closed，bash 命令从未执行，所以 marker 从未创建。容器 A/B 对比确认：不带沙盒开关 1/1 FAIL，带 `ASTER_ALLOW_PROCESS_HOST_SANDBOX=1` 1/1 PASS。
+- 修复：v912 测试自己启动的 `aster-acp` 子进程显式设置 `ASTER_ALLOW_PROCESS_HOST_SANDBOX=1`（CI VM 本身就是外层隔离边界；产品默认安全 posture 不变），marker 继续放在 workspace 内被 gate 源路径排除的 `.aster/`。CI 等价 Linux 容器（不带任何额外 env）完整 `v912_seam` 10 passed / 1 ignored；定点用例连续 10/10 PASS。
+- 同 run 的 `check (macos-latest)` 失败：`env_manager.rs:416` 报 `cannot inspect native process 7960: Input/output error (os error 5)`。根因是 macOS `KERN_PROCARGS2` 对退出中/受保护进程会返回 `EIO`，而 `process_error()` 只把 `ESRCH` 归一为可忽略错误，导致一个无关进程就能中断整条 `aster tool prune`。已把 `ESRCH`/`EIO` 都归为不可检视并加纯函数单测；本地 frozen 参考 12/12 PASS、新增单测 3/3 PASS。另 4 个 `aster-use-tool-acquire` lib 单测失败经无改动 stash 基线复跑同样失败，属既有问题，与本次改动无关。
+- `Qualify aster` 的 macOS 套件继续失败，但用例从 reasoning PTY 变成 `retrieval::shipped_retrieval_stdio_executes_embedded_semantic_search`；本地单跑 10/10 PASS，本地按 CI 方式串行跑完整 `shipped_tui_e2e` 又复现 `shipped_tui_launch_resume_and_visible_commands`，失败用例随负载漂移，归为套件时序敏感。不改产品或用例断言，也不宣称 Pass。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -178,7 +184,8 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | 3bb9fb7b2 | 证据补记 84023b3e6 SHA |
 | 主仓 | 716b4a8e0 | v912 并行写门禁用例第一版去时序依赖 + 本证据第 17/18 项 |
 | 主仓 | c0ac15c34 | v912 改用 bash 内标记同步，Linux 容器 10/10 复验 + 证据定稿 |
-| 主仓 | (本笔) | v912 失败诊断可读化 + 证据第 19 项 |
+| 主仓 | 1a0f7cf75 | v912 失败诊断可读化 + 证据第 19 项 |
+| 主仓 | ca21e1d18 | v912 子进程 process-host 沙盒 opt-in + marker 入 `.aster`；macOS prune 忽略 EIO + 单测 |
 
 ## 验证
 
@@ -190,7 +197,9 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - Studio `app_updater::` 45/45 PASS（delivery_manifest 15/15）；本地 SwiftPM 沙盒限制用既有 no-sandbox wrapper 绕过。
 - CLI `cli_update` 10/10 PASS；`package-aster-cli.sh` `bash -n` 0 差异。
 - `aster-studio-desktop-contract` 12/12 PASS；CI YAML 解析 OK。
-- v912 门禁用例：Linux 容器 `aster-followup-tests:1.97.1-arm64` 单跑 1/1、连续 10 次全 PASS、完整套件 10 passed / 1 ignored。
+- v912 门禁用例：Linux 容器 `aster-followup-tests:1.97.1-arm64` 单跑 1/1、连续 10 次全 PASS、完整套件 10 passed / 1 ignored；最终修复后在不带任何沙盒 env 的 CI 等价容器再次单跑 10/10 PASS、完整套件 10 passed / 1 ignored。
+- macOS prune 进程检查：`prune::process::tests` 3/3 PASS；`env_manager` frozen 参考 12/12 PASS；`aster-use-tool-acquire --lib` 另 4 例失败已用无改动 stash 基线证明为既有失败。
+- PTY/检索套件：`shipped_retrieval_stdio_executes_embedded_semantic_search` 本地单跑 10/10 PASS；完整串行 `shipped_tui_e2e` 仍会出现用例漂移式超时，未认领为稳定绿。
 - CI 递进证据：44691062449（fmt+launcher 失败）→44691837701（fmt 过、musl crate 名失败）→44693615766（env 127）→44694053135（编译推进、Kylin toyou 失败）→44696464302（musl 编译通过、Kylin flatpak 失败）→44699158998（Kylin/flatpak 过、macOS zig arm64 失败）→44700973749（macOS 守卫生效、两侧 `--all-targets` 陈旧 fixture 失败）→44791594953/44791595251（Qualify aster 三平台与 Cross-platform text 全绿；Rust ubuntu 到 native contracts 剩 Linux chrome 期望失败）→44802434279/44802458866/44802458957（chrome 修复生效，ubuntu 推进到 ACP integration 暴露 v912 时序竞态；macOS Qualify 一例 TUI 等待偶发超时）→下一轮 CI 待结论。
 
 ## 边界
@@ -198,4 +207,4 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 交付闭环（commit/push）≠ 产品 Pass；%≠Pass。
 - musl 编译步骤是 5d2d6ad90 既有缺陷，本轮让 main CI 首次具备全绿条件；release 通道实机证据、headed/daily-use Pass 仍未认领（park）。
 - `fact-log-byte-limit-fix` 等其它未跟踪证据目录非本轮产物，未触碰。
-- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证；Linux chrome 期望已修并经 CI 越过该步骤。v912 用例的正常工具路径已在 Linux 容器中等价复验（macOS 宿主受 WorkBuddy `sandbox-exec` 限制）；CI 特有无工具调用路径仍需下一轮诊断。PTY 套件在完整串行运行下也会出现其它用例的时序失败，`shipped_tui_e2e` 整体不能宣称稳定绿。
+- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证；Linux chrome 期望已修并经 CI 越过该步骤。v912 用例已在 Linux 容器中按 CI 等价条件复验（不设沙盒 env），根因是 CI VM 中原生沙盒无法执行 bash；修复是测试子进程显式 opt-in process-host，产品默认仍 fail-closed。PTY/检索套件在完整串行运行下会出现用例漂移式时序失败（CI 侧 retrieval、本地侧 launch/resume），`shipped_tui_e2e` 整体不能宣称稳定绿。
