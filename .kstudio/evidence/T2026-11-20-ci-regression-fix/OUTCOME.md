@@ -140,6 +140,11 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 症状：同一提交的 `Qualify aster` 在 run 44791595251 三平台全绿；run 44802458957 的 `Core/ACP tests (macos-latest)` 在 `shipped_tui_e2e.rs::reasoning::delayed_catalog_keeps_draft_and_explicit_effort` 报 `timed out waiting for "slow/gpt (none)"`，其余 25 个用例通过，Ubuntu/Windows job 均成功。
 - 判断与复验：本轮未改 CLI reasoning 路径；本地连续 3 次单跑该用例均 **1 passed / 0 failed**（6.2–6.5 s），上一轮同代码 CI 也全绿。属于 27 个 TUI 用例并行时的偶发等待超时，未改代码；run 44815861584 同提交的 `Core/ACP tests (macos-latest)` 已 success，确认偶发。
 
+### 19. 最新一轮剩余失败（run 44831476902 / 44831477104）
+- `check (ubuntu-latest)` 的 `ACP integration` 仍失败，但症状变了：v912 用例的 `spawn_blocking` 报 `read-only tool never signalled readiness`，说明 mock 根本没生成 READONLY-GIT 的 bash 工具调用，而不是写入时序问题。原断言在 committer 等待阶段 panic，掩盖了 `say()` 的真实响应。
+- 已在测试中把 committer 改为「没收到 marker 就不写文件、不 panic」，并把 `Ok(_)` 分支的 panic 改成输出完整 `PromptResponse`，下一轮可直接看到是没有工具调用还是 gate 判定问题。Linux 容器 10/10 复验的是工具正常出现的路径；CI 特有路径仍待诊断。
+- `Qualify aster` 的 macOS `reasoning::delayed_catalog_keeps_draft_and_explicit_effort` 再次 `timed out waiting for "slow/gpt (none)"`；屏幕最终状态是 `mock/gpt (none)`，两条 scrollback 为 `Switched to slow/gpt` 与 `Switched to mock/gpt (none effort)`。本地单跑 10/10 PASS，但本地按 CI 方式跑完整 `shipped_tui_e2e` 套件也复现了 PTY 用例失败（本次是另一个 `shipped_tui_launch_resume_and_visible_commands`），说明是 PTY 套件在负载下的时序敏感问题，不是单一用例可修；暂不改产品/用例逻辑，记录为已知 flake，不能宣称 CI 全绿。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -172,7 +177,8 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | 84023b3e6 | gitlink→a1a8d5d10f + 本证据第 16 项 |
 | 主仓 | 3bb9fb7b2 | 证据补记 84023b3e6 SHA |
 | 主仓 | 716b4a8e0 | v912 并行写门禁用例第一版去时序依赖 + 本证据第 17/18 项 |
-| 主仓 | (本笔) | v912 改用 bash 内标记同步，Linux 容器 10/10 复验 + 证据定稿 |
+| 主仓 | c0ac15c34 | v912 改用 bash 内标记同步，Linux 容器 10/10 复验 + 证据定稿 |
+| 主仓 | (本笔) | v912 失败诊断可读化 + 证据第 19 项 |
 
 ## 验证
 
@@ -192,4 +198,4 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 交付闭环（commit/push）≠ 产品 Pass；%≠Pass。
 - musl 编译步骤是 5d2d6ad90 既有缺陷，本轮让 main CI 首次具备全绿条件；release 通道实机证据、headed/daily-use Pass 仍未认领（park）。
 - `fact-log-byte-limit-fix` 等其它未跟踪证据目录非本轮产物，未触碰。
-- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证；Linux chrome 期望已修并经 CI 越过该步骤。v912 用例已在 Linux 容器中等价复验（macOS 宿主受 WorkBuddy `sandbox-exec` 限制）；macOS reasoning 用例已由 44815861584 复跑全绿。仍需下一轮 Rust run 给 ACP integration 及后续步骤最终结论。
+- Windows portable gate 已由 CI run 44756558617 验证全绿；44791595251 再次确认 Qualify aster 三平台全绿。delivery manifest、CLI update、desktop contract 均已本地验证；Linux chrome 期望已修并经 CI 越过该步骤。v912 用例的正常工具路径已在 Linux 容器中等价复验（macOS 宿主受 WorkBuddy `sandbox-exec` 限制）；CI 特有无工具调用路径仍需下一轮诊断。PTY 套件在完整串行运行下也会出现其它用例的时序失败，`shipped_tui_e2e` 整体不能宣称稳定绿。

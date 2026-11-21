@@ -1273,13 +1273,14 @@ async fn v912_readonly_git_parallel_commit_opens_the_gate() {
                     }
                     std::thread::sleep(Duration::from_millis(10));
                 }
-                assert!(marker.is_file(), "read-only tool never signalled readiness");
-                std::fs::write(commit_root.join("guest.txt"), "foreign\n").expect("guest");
+                if marker.is_file() {
+                    std::fs::write(commit_root.join("guest.txt"), "foreign\n").expect("guest");
+                }
             });
             let response = say(&agent, &session, "READONLY-GIT inspect the tree").await;
             committer.await.expect("parallel commit task");
             let error = match response {
-                Ok(_) => panic!("a foreign concurrent write must open the completion gate"),
+                Ok(response) => panic!("a foreign concurrent write must open the completion gate: response={response:?}"),
                 Err(error) => error,
             };
             let rendered = format!("{error:?}");
