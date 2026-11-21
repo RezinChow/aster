@@ -413,6 +413,11 @@ async fn spawn_agent(workspace: &Path, config: &Path, home: &Path) -> AgentProc 
         .arg("--cwd")
         .arg(workspace)
         .env("ASTER_CONFIG", config)
+        // The gate seam needs a bash tool that can actually run in this test
+        // process. CI VMs and container jobs are outer isolation boundaries,
+        // so opt this fixture's child into the process-host fallback when the
+        // native sandbox cannot initialize; production defaults stay fail-closed.
+        .env("ASTER_ALLOW_PROCESS_HOST_SANDBOX", "1")
         .env("ASTER_DISABLE_GROK_ACCOUNT", "1")
         .env("ASTER_DISABLE_CURSOR_ACCOUNT", "1")
         .env("XAI_API_KEY", "sk-dummy-not-a-model")
@@ -1263,7 +1268,9 @@ async fn v912_readonly_git_parallel_commit_opens_the_gate() {
             let workspace = isolate("readonly-git");
             git_init(&workspace);
             let (agent, session, state) = open_session(&workspace, "true").await;
-            let marker = isolate("readonly-marker").join("ready");
+            // `.aster` is harness metadata: writable by the sandboxed bash tool
+            // and excluded from the gate's source paths.
+            let marker = workspace.join(".aster/readonly-ready");
             state.lock().expect("mock state").marker_path = Some(marker.display().to_string());
             let commit_root = workspace.clone();
             let committer = tokio::task::spawn_blocking(move || {

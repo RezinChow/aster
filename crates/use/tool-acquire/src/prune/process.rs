@@ -157,11 +157,20 @@ fn macos_paths(bytes: &[u8]) -> io::Result<Vec<PathBuf>> {
 #[cfg(target_os = "macos")]
 fn process_error() -> io::Error {
     let error = io::Error::last_os_error();
-    if error.raw_os_error() == Some(libc::ESRCH) {
+    if is_uninspectable_process(error.raw_os_error()) {
         io::Error::new(io::ErrorKind::NotFound, error)
     } else {
         error
     }
+}
+
+/// A process can disappear between the sysinfo snapshot and the KERN_PROCARGS2
+/// query, and kernel/protected processes can expose no argument area at all.
+/// Report both ESRCH and EIO as "gone" so an unrelated process cannot abort
+/// the whole prune.
+#[cfg(target_os = "macos")]
+fn is_uninspectable_process(raw: Option<i32>) -> bool {
+    matches!(raw, Some(libc::ESRCH | libc::EIO))
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]

@@ -2,6 +2,15 @@ use super::*;
 
 #[cfg(target_os = "macos")]
 #[test]
+fn macos_vanished_process_errors_are_ignorable() {
+    assert!(is_uninspectable_process(Some(libc::ESRCH)));
+    assert!(is_uninspectable_process(Some(libc::EIO)));
+    assert!(!is_uninspectable_process(Some(libc::EPERM)));
+    assert!(!is_uninspectable_process(None));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
 fn macos_argc_bounds_exclude_environment_fields() {
     let mut bytes = 3i32.to_ne_bytes().to_vec();
     bytes.extend_from_slice(b"/bin/sh\0\0/bin/sh\0/tmp/tool with spaces/\xe8\x84\x9a\xe6\x9c\xac\0flag\0/tmp/not-an-argument\0SECRET=synthetic-secret\0");
