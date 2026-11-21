@@ -244,7 +244,9 @@ async fn actual_session_entered_store_results_remain_truthful_in_both_stores() {
     }
 }
 
-#[tokio::test(start_paused = true)]
+// TraceCapture installs a thread-local tracing subscriber. Keep every task on
+// the same thread so the memory-retention events are captured under CI load.
+#[tokio::test(start_paused = true, flavor = "current_thread")]
 async fn actual_session_close_timeout_uses_original_five_second_drain_in_both_stores() {
     // Real file setup/cleanup uses the real clock; only the original close
     // drain boundary is measured with the explicitly paused clock.

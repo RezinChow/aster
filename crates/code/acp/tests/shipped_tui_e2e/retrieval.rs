@@ -120,7 +120,16 @@ async fn stdio_case(local_opt_in: bool, prompt: &str) {
     .unwrap();
     let query_elapsed = query_started.elapsed();
     assert_eq!(result.stop_reason, acp::StopReason::EndTurn);
-    assert!(agent_text(&agent, &session.session_id, 0).contains(COMPLETE));
+    let answer = agent_text(&agent, &session.session_id, 0);
+    assert!(
+        answer.contains(COMPLETE),
+        "semantic retrieval did not verify: answer={answer} bodies={}",
+        {
+            let bodies = state.lock().unwrap().bodies.clone();
+            let tail = bodies.last().map(String::as_str).unwrap_or_default();
+            tail.chars().take(4000).collect::<String>()
+        }
+    );
     let bodies = state.lock().unwrap().bodies.clone();
     let first: Value = serde_json::from_str(first_tool_request(&bodies)).unwrap();
     let search = first["tools"]

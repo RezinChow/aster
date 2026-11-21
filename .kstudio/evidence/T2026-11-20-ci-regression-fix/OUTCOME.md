@@ -158,6 +158,13 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - 同 run 的 `check (macos-latest)` 在 `pnpm install --frozen-lockfile` 失败：`registry-js` / `node-mac-permissions` 没有 arm64 预编译包，`node-gyp: command not found`。CI 安装命令改为 `npm install --global pnpm@12.6.0 node-gyp`。
 - `Qualify aster` 的 Ubuntu/Windows 全绿；macOS 仍为 reasoning delayed-catalog 等待超时，本地完整套件在二进制目录一致时 26 passed / 1 ignored，未认领为稳定绿。
 
+### 22. run 44861622243 / 44861622255 结论：v912 通过，剩余两个测试夹具问题
+- **v912 已通过**：真实 GitHub Ubuntu check 越过 `ACP integration`。有效方案是 bash 工具自己把 marker 写到工作区根目录 `readonly-ready`，外部写在 marker 之后、gate 决策之前落盘；`.aster/` 元数据路径与 write 工具（不写 changed_paths ledger）都已排除。
+- macOS check 越过 `pnpm install`（node-gyp 修复生效）与 `Product and runtime tests`（EIO 修复生效）。
+- Ubuntu/macOS check 双侧的新失败：`memory_retention_tests::lifecycle::actual_session_close_timeout_uses_original_five_second_drain_in_both_stores` 在 `support.rs:831` `capture.last().unwrap()`。根因是 `TraceCapture` 用线程局部 tracing subscriber，而该用例是多线程 runtime，CI 负载下 extraction 事件落在别的线程未被捕获。已改为 `flavor = "current_thread"`，本地定点 1/1 PASS。
+- Qualify aster：Ubuntu/Windows 全绿，macOS 仍失败于 `retrieval::shipped_retrieval_stdio_executes_embedded_semantic_search` 的 `RETRIEVAL-EVIDENCE-MISSING`；本地单跑 10/10 PASS。已把断言改为输出实际回复与最后一次请求体，下一轮 CI 可据此区分模型加载、检索排序或行号格式问题。
+- 结论：本轮不再是产品功能回归；剩余两项都是测试夹具/环境时序问题，但尚未全部关闭，不能宣称 CI 全绿。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -194,6 +201,7 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | 1a0f7cf75 | v912 失败诊断可读化 + 证据第 19 项 |
 | 主仓 | ca21e1d18 | v912 子进程 process-host 沙盒 opt-in + marker 入 `.aster`；macOS prune 忽略 EIO + 单测 |
 | 主仓 | d0151e2bf | v912 恢复 bash 同步、marker 改工作区根、失败现场诊断；CI 安装 node-gyp |
+| 主仓 | (本笔) | memory-retention 用例改 current-thread；retrieval 断言加诊断输出；证据第 22 项 |
 
 ## 验证
 
