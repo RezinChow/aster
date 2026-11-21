@@ -121,14 +121,17 @@ async fn stdio_case(local_opt_in: bool, prompt: &str) {
     let query_elapsed = query_started.elapsed();
     assert_eq!(result.stop_reason, acp::StopReason::EndTurn);
     let answer = agent_text(&agent, &session.session_id, 0);
+    let bodies = state.lock().unwrap().bodies.clone();
+    let tool_results: Vec<String> = bodies
+        .iter()
+        .filter_map(|body| serde_json::from_str::<Value>(body).ok())
+        .flat_map(|body| body["messages"].as_array().cloned().unwrap_or_default())
+        .filter(|message| message["role"] == "tool")
+        .map(|message| message["content"].to_string())
+        .collect();
     assert!(
         answer.contains(COMPLETE),
-        "semantic retrieval did not verify: answer={answer} bodies={}",
-        {
-            let bodies = state.lock().unwrap().bodies.clone();
-            let tail = bodies.last().map(String::as_str).unwrap_or_default();
-            tail.chars().take(4000).collect::<String>()
-        }
+        "semantic retrieval did not verify: answer={answer} tool_results={tool_results:?}"
     );
     let bodies = state.lock().unwrap().bodies.clone();
     let first: Value = serde_json::from_str(first_tool_request(&bodies)).unwrap();

@@ -825,10 +825,27 @@ impl TraceCapture {
         self.0.lock().unwrap().clone()
     }
     pub fn last(&self) -> BTreeMap<String, String> {
-        self.events()
-            .into_iter()
+        let events = self.events();
+        events
+            .iter()
             .rfind(|event| event.get("__target").map(String::as_str) == Some("memory_retention"))
-            .unwrap()
+            .cloned()
+            .unwrap_or_else(|| {
+                let summary: Vec<_> = events
+                    .iter()
+                    .map(|event| {
+                        (
+                            event.get("__target").cloned().unwrap_or_default(),
+                            event.get("message").cloned().unwrap_or_default(),
+                            event.get("disposition").cloned().unwrap_or_default(),
+                        )
+                    })
+                    .collect();
+                panic!(
+                    "no memory_retention event captured: total_events={} events={summary:?}",
+                    events.len()
+                )
+            })
     }
 }
 pub(super) fn field(event: &BTreeMap<String, String>, name: &str, value: &str) {

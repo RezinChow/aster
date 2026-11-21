@@ -165,6 +165,13 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - Qualify aster：Ubuntu/Windows 全绿，macOS 仍失败于 `retrieval::shipped_retrieval_stdio_executes_embedded_semantic_search` 的 `RETRIEVAL-EVIDENCE-MISSING`；本地单跑 10/10 PASS。已把断言改为输出实际回复与最后一次请求体，下一轮 CI 可据此区分模型加载、检索排序或行号格式问题。
 - 结论：本轮不再是产品功能回归；剩余两项都是测试夹具/环境时序问题，但尚未全部关闭，不能宣称 CI 全绿。
 
+### 23. run 44874035630 / 44874035817 结论：current_thread 未奏效，CI-only 失败需诊断现场
+- `flavor = "current_thread"` 是冗余改动——`#[tokio::test]` 默认即 current_thread，故 CI 行为无变化，memory-retention 仍在 `support.rs:831` `.unwrap()` 失败。CI stdout 仅打印一次 `original drain wake Memory/Blocking: 5.001s`，说明第一个迭代起 `capture.events()` 就没有任何 `memory_retention` 事件（不是断言值不符）。
+- 排除：`drain_llm_extractions` 是纯 async 无 `spawn_blocking`；`TraceCapture` 为线程局部 subscriber；失败测试是唯一 `start_paused=true` + 手动 `poll_close` 的用例。
+- 复现尝试：`aster-followup-tests:1.97.1-arm64` 容器定点 1/1、完整组并发 3/3、限 1 核 5/5 均 16/16 PASS，无法复现。CI runner 为 x86_64、容器为 arm64，架构/负载差异是唯一未排除变量。
+- 修复：把 `TraceCapture::last()` 的无信息 `.unwrap()` 改为带 `total_events` + 每条事件 `(target, message, disposition)` 摘要的 panic。下一轮 CI 可直接区分「零事件（subscriber 未捕获）」与「有事件但 target/disposition 不符」。`cargo fmt --check` 0 差异；本地定点 1/1 PASS。
+- macOS Qualify：`reasoning::delayed_catalog_keeps_draft_and_explicit_effort` 超时时屏幕停在 `mock/gpt (none)`，但已有 `Switched to slow/gpt` + `Switched to mock/gpt (none effort)`——delayed catalog 返回后 model 显示回退；`retrieval` 仍 `RETRIEVAL-EVIDENCE-MISSING`，断言已改为只输出 `tool_results`（避免 system prompt 淹没诊断）。两者仍为 CI-only 时序/夹具问题。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -201,7 +208,8 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | 1a0f7cf75 | v912 失败诊断可读化 + 证据第 19 项 |
 | 主仓 | ca21e1d18 | v912 子进程 process-host 沙盒 opt-in + marker 入 `.aster`；macOS prune 忽略 EIO + 单测 |
 | 主仓 | d0151e2bf | v912 恢复 bash 同步、marker 改工作区根、失败现场诊断；CI 安装 node-gyp |
-| 主仓 | (本笔) | memory-retention 用例改 current-thread；retrieval 断言加诊断输出；证据第 22 项 |
+| 主仓 | 86d42448c | memory-retention 用例改 current-thread；retrieval 断言加诊断输出；证据第 22 项 |
+| 主仓 | (本笔) | memory-retention capture 失败带事件摘要诊断；retrieval tool_results 诊断定稿；证据第 23 项 |
 
 ## 验证
 
