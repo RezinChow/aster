@@ -628,36 +628,3 @@ fn test_registry_replace_tool() {
     // Should still have only 1 tool (replaced)
     assert_eq!(registry.len(), 1);
 }
-
-#[tokio::test]
-async fn kburn_loop_requires_running_controller_before_product_write() {
-    let root = tempfile::tempdir().unwrap();
-    let executor = crate::tools::ToolExecutor::new(root.path().to_string_lossy().into_owned());
-    let context = executor.registry().context().with_session_id("kburn-test");
-    context.mark_kburn_loop_invoked();
-    let args = serde_json::json!({"file_path":"src/main.py", "content":"value = 1\n"});
-    let blocked = executor
-        .execute_with_context("write", &args, &context)
-        .await
-        .unwrap();
-    assert_ne!(blocked.exit_code, 0, "{blocked:?}");
-    assert!(
-        blocked.output.contains("no controller is running"),
-        "{blocked:?}"
-    );
-    assert!(!root.path().join("src/main.py").exists());
-
-    let state = root.path().join(".kstudio/local/loops/demo.json");
-    std::fs::create_dir_all(state.parent().unwrap()).unwrap();
-    std::fs::write(&state, r#"{"spec":{"task_id":"demo"},"status":"running"}"#).unwrap();
-    std::fs::create_dir_all(root.path().join("src")).unwrap();
-    let allowed = executor
-        .execute_with_context("write", &args, &context)
-        .await
-        .unwrap();
-    assert_eq!(allowed.exit_code, 0, "{allowed:?}");
-    assert_eq!(
-        std::fs::read_to_string(root.path().join("src/main.py")).unwrap(),
-        "value = 1\n"
-    );
-}

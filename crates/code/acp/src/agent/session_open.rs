@@ -230,14 +230,9 @@ impl AsterCodeAgent {
                 .session_options(
                     session_id,
                     setup.model_id,
-                    session_skill_dirs(
-                        &setup.workspace,
-                        &self.launch.config.skill_dirs,
-                        kburn_mode(&self.launch.config),
-                    ),
+                    session_skill_dirs(&setup.workspace, &self.launch.config.skill_dirs),
                 )
                 .map(|options| {
-                    let options = options.with_kburn_mode(kburn_mode(&self.launch.config));
                     match embedding {
                         Some(provider) => options.with_workspace_retrieval(
                             aster_core::WorkspaceRetrievalOptions::new(provider),

@@ -3,4 +3,5 @@ Vendored subset of kense-labs/kburn `skills/init/assets/factory`
 
 Source: https://github.com/kense-labs/kburn
 License: Apache-2.0 (see kburn NOTICE / LICENSES).
-Skill package bodies are not vendored here; see aster_core::kstudio::KBURN_SKILL_NAMES.
+Skill package bodies are provided by the host through `ASTER_SKILLS_DIR`;
+they are not embedded in aster-core.

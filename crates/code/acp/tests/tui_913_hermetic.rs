@@ -25,10 +25,6 @@ const ASSISTANT_TEXT: &str = "ASSISTANT-TEXT-9c2e";
 const SWITCH_MARKER: &str = "AFTER-SWITCH-9c2e";
 const SWITCHED_TEXT: &str = "SWITCHED-TEXT-9c2e";
 const FIXTURE_KEY: &str = "hermetic-fixture-key";
-const KBURN_PROMPT: &str = "KBURN-AUTO-PROMPT: report project status";
-const KBURN_DESCRIPTION: &str = "Use for KBURN-AUTO-PROMPT engineering status requests";
-const KBURN_INSTRUCTIONS: &str = "KBURN-STATUS-INSTRUCTIONS";
-const KBURN_ANSWER: &str = "KBURN-AUTO-OK";
 const RATE_BUG: &str = "return count * 3";
 const FEE_BUG: &str = "return count + 11";
 const PASS_LINE: &str = "DUAL-GATE-7K";
@@ -351,20 +347,6 @@ fn task_reply(body: &str, counts: &mut TaskCounts) -> Option<String> {
             "optimized_input": ""
         });
         return Some(reply_text(&analysis.to_string(), streaming));
-    }
-    if body.contains(KBURN_PROMPT) {
-        if !body.contains(KBURN_DESCRIPTION) {
-            return Some(reply_text("kburn-catalog-missing", streaming));
-        }
-        if !body.contains(KBURN_INSTRUCTIONS) {
-            return Some(reply_tool(
-                "Skill",
-                r#"{"skill_name":"status"}"#,
-                1,
-                streaming,
-            ));
-        }
-        return Some(reply_text(KBURN_ANSWER, streaming));
     }
     if body.contains("Quote the final line") {
         counts.long = counts.long.saturating_add(1);
@@ -1135,94 +1117,6 @@ fn one_turn_shows_assistant_text() {
         "the turn never reached the mock"
     );
     eprintln!("ORACLE case=turn text={ASSISTANT_TEXT}");
-}
-
-fn write_kburn_status(workspace: &Path, root: &str) {
-    let dir = workspace.join(root).join("skills/status");
-    std::fs::create_dir_all(&dir).expect("kburn status dir");
-    std::fs::write(
-        dir.join("SKILL.md"),
-        format!("---\nname: status\ndescription: {KBURN_DESCRIPTION}\n---\n{KBURN_INSTRUCTIONS}\n"),
-    )
-    .expect("kburn status skill");
-}
-
-#[test]
-fn aster_engineering_root_auto_arms_kburn_skill_use_without_a_slash_command() {
-    let (addr, mock) = spawn_mock();
-    let fixture = prepare(&catalog_acl(&format!("http://{addr}/v1")));
-    write_kburn_status(&fixture.workspace, ".aster");
-    let mut pty = open_on_model(&fixture, ACL_MODEL);
-    submit_line(&mut pty, KBURN_PROMPT);
-    let answered = wait_pumped(&mut pty, KBURN_ANSWER, Duration::from_secs(60));
-    assert_no_secret(&answered);
-    assert!(fixture.workspace.join(".aster/MANIFEST.json").is_file());
-    let bodies = mock.bodies.lock().expect("bodies").clone();
-    let turns: Vec<_> = bodies
-        .iter()
-        .filter(|body| {
-            body.contains(KBURN_PROMPT) && !body.contains("You are a pre-analysis assistant")
-        })
-        .collect();
-    assert!(turns.len() >= 2, "skill turn did not settle: {turns:?}");
-    assert!(turns[0].contains(KBURN_DESCRIPTION));
-    assert!(turns[0].contains("KBurn conductor skills are active"));
-    assert!(turns[0].contains("before generic planning or orchestration tools"));
-    assert!(turns.iter().any(|body| body.contains(KBURN_INSTRUCTIONS)));
-    assert!(turns
-        .iter()
-        .any(|body| body.contains(r#"\"skill_name\":\"status\""#)));
-    eprintln!("ORACLE case=kburn-auto-skill root=.aster calls=1");
-}
-
-#[test]
-fn disabled_kburn_does_not_inject_or_materialize_the_engineering_pack() {
-    let (addr, mock) = spawn_mock();
-    let fixture = prepare(&format!(
-        "{}\nkburn = false\n",
-        catalog_acl(&format!("http://{addr}/v1"))
-    ));
-    write_kburn_status(&fixture.workspace, ".aster");
-    let mut pty = open_on_model(&fixture, ACL_MODEL);
-    submit_line(&mut pty, KBURN_PROMPT);
-    pty.wait_for("kburn-catalog-missing", Duration::from_secs(60));
-    assert!(!fixture.workspace.join(".aster/MANIFEST.json").exists());
-    let bodies = mock.bodies.lock().expect("bodies").clone();
-    assert!(!bodies.iter().any(|body| body.contains(KBURN_INSTRUCTIONS)));
-    assert!(!bodies
-        .iter()
-        .any(|body| body.contains(r#"\"skill_name\":\"status\""#)));
-    eprintln!("ORACLE case=kburn-disabled catalog=absent materialize=0");
-}
-
-#[test]
-fn legacy_kstudio_alone_does_not_auto_arm_or_inject_kburn() {
-    let (addr, mock) = spawn_mock();
-    let fixture = prepare(&catalog_acl(&format!("http://{addr}/v1")));
-    write_kburn_status(&fixture.workspace, ".kstudio");
-    let mut pty = open_on_model(&fixture, ACL_MODEL);
-    submit_line(&mut pty, KBURN_PROMPT);
-    pty.wait_for("kburn-catalog-missing", Duration::from_secs(60));
-    assert!(!fixture.workspace.join(".kstudio/MANIFEST.json").exists());
-    assert!(!fixture.workspace.join(".aster/MANIFEST.json").exists());
-    let bodies = mock.bodies.lock().expect("bodies").clone();
-    assert!(!bodies.iter().any(|body| body.contains(KBURN_INSTRUCTIONS)));
-    eprintln!("ORACLE case=kburn-legacy-auto-detect=off");
-}
-
-#[test]
-fn explicit_kburn_acl_enable_materializes_without_engineering_markers() {
-    let (addr, _mock) = spawn_mock();
-    let fixture = prepare(&format!(
-        "{}\nkburn = true\n",
-        catalog_acl(&format!("http://{addr}/v1"))
-    ));
-    let mut pty = open_on_model(&fixture, ACL_MODEL);
-    submit_line(&mut pty, TURN_MARKER);
-    pty.wait_for(ASSISTANT_TEXT, Duration::from_secs(60));
-    assert!(fixture.workspace.join(".aster/MANIFEST.json").is_file());
-    assert!(fixture.workspace.join(".aster/workflow/GOALS.md").is_file());
-    eprintln!("ORACLE case=kburn-explicit-enable materialize=1");
 }
 
 #[test]

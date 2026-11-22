@@ -654,18 +654,6 @@ impl ToolRegistry {
                 transform_binding,
             });
         };
-        if let Some(message) = crate::kstudio::product_write_blocked(
-            &ctx.workspace,
-            ctx.kburn_loop_invoked(),
-            name,
-            args,
-        ) {
-            return Ok(PreparedToolOutput {
-                output: Some(ToolOutput::error(message)),
-                transform_binding,
-            });
-        }
-
         let mut scoped = ctx
             .clone()
             .with_result_budget_bytes(policy.max_output_bytes);

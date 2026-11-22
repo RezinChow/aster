@@ -8,7 +8,7 @@ Aster TUI 0.3.9 / ACP 9.2.7 accepted the simple prompt `hi`, then showed only
 `Working…` with zero tokens. The ACP log recorded nine consecutive HTTP 429
 responses from 16:34:41 through 16:36:52, followed by the user's cancellation
 at 16:37:07. The terminal was not deadlocked and the request was not stuck in
-kburn/session assembly. See `retry-evidence.log`.
+session assembly. See `retry-evidence.log`.
 
 Core already performed bounded exponential-backoff retries, and pager already
 had `Rate limited (429) | Retrying…` presentation. The Code/Core ACP path only

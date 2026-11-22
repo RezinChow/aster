@@ -166,7 +166,6 @@ fn assemble_session_capabilities(
     let skill_registry = build_effective_skill_registry(
         input.base_config.skill_registry.as_deref(),
         input.opts,
-        input.workspace,
     );
     let agent_registry = register_task_capability(
         &input,
@@ -426,7 +425,6 @@ pub(super) fn register_skill_capability(
 pub(super) fn build_effective_skill_registry(
     agent_registry: Option<&SkillRegistry>,
     opts: &SessionOptions,
-    workspace: &Path,
 ) -> Arc<SkillRegistry> {
     if opts.isolated_context {
         return Arc::new(SkillRegistry::new());
@@ -442,37 +440,6 @@ pub(super) fn build_effective_skill_registry(
     }
 
     base_registry.exclude_discovered_files(&opts.projected_skill_files);
-
-    let armed = match opts.kburn_mode {
-        crate::kstudio::KburnMode::Auto => {
-            Some(crate::kstudio::arm_kburn_runtime(workspace, &base_registry))
-        }
-        crate::kstudio::KburnMode::Enabled => Some(crate::kstudio::arm_kburn_runtime_enabled(
-            workspace,
-            &base_registry,
-        )),
-        crate::kstudio::KburnMode::Disabled => None,
-    };
-    match armed {
-        Some(Ok(report)) if report.skipped_absent => {}
-        Some(Ok(report)) => {
-            tracing::info!(
-                target: "aster_core::kstudio",
-                materialized = report.materialized.len(),
-                skills_loaded = report.skills_loaded,
-                skill_errors = report.skill_errors,
-                "armed kburn runtime for workspace .aster engineering root"
-            );
-        }
-        Some(Err(error)) => {
-            tracing::warn!(
-                target: "aster_core::kstudio",
-                error = %error,
-                "kburn auto-arm failed; continuing without factory materialize"
-            );
-        }
-        None => {}
-    }
 
     for dir in &opts.skill_dirs {
         if let Err(e) = base_registry.load_from_dir(dir) {

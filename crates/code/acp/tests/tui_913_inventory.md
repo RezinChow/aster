@@ -130,10 +130,6 @@ test binary so a missing provider cannot hide a launch failure.
 | launch | `composer_opens_on_the_acl_default_model` | `tui_913_hermetic` |
 | model selection | `model_command_selects_the_catalog_model` | `tui_913_hermetic` |
 | one conversational turn | `one_turn_shows_assistant_text` | `tui_913_hermetic` |
-| `.aster` auto-arms KBurn and natural-language `Skill` use | `aster_engineering_root_auto_arms_kburn_skill_use_without_a_slash_command` | `tui_913_hermetic` |
-| `kburn = false` disables catalog injection and materialization | `disabled_kburn_does_not_inject_or_materialize_the_engineering_pack` | `tui_913_hermetic` |
-| legacy `.kstudio` alone does not auto-arm | `legacy_kstudio_alone_does_not_auto_arm_or_inject_kburn` | `tui_913_hermetic` |
-| `kburn = true` materializes without engineering markers | `explicit_kburn_acl_enable_materializes_without_engineering_markers` | `tui_913_hermetic` |
 | missing-provider refusal | `missing_provider_refuses_without_an_invented_reply` | `tui_913_hermetic` |
 | 轮次 | `three_turns_fix_the_bug_they_diagnosed` | `tui_913_hermetic` |
 | 长程任务 | `long_task_repairs_the_check_after_a_failure` | `tui_913_hermetic` |

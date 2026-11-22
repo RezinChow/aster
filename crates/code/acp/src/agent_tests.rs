@@ -2685,64 +2685,6 @@ fn workspace_and_home_skill_roots_are_loaded_when_they_exist() {
 }
 
 #[test]
-fn acp_host_can_compose_kburn_skill_coverage_from_core() {
-    let root =
-        std::env::temp_dir().join(format!("aster-acp-kburn-coverage-{}", uuid::Uuid::new_v4()));
-    let _ = std::fs::remove_dir_all(&root);
-    let skills = aster_core::kstudio::KstudioCoreDirs::for_workspace(&root).skills;
-    std::fs::create_dir_all(skills.join("status")).unwrap();
-    std::fs::write(
-        skills.join("status").join("SKILL.md"),
-        "---\nname: status\n---\n",
-    )
-    .unwrap();
-    let coverage = aster_core::kstudio::kburn_skill_coverage(&root);
-    assert_eq!(coverage.present, vec!["status".to_owned()]);
-    assert_eq!(coverage.missing.len(), 11);
-    assert!(!coverage.is_complete());
-    let _ = std::fs::remove_dir_all(&root);
-}
-
-#[test]
-fn disabled_kburn_omits_only_automatic_engineering_skill_roots() {
-    let root = tempfile::tempdir().unwrap();
-    let custom = root.path().join("custom-skills");
-    for dir in [
-        root.path().join("skills"),
-        root.path().join(".kstudio/skills"),
-        root.path().join(".aster/skills"),
-        custom.clone(),
-    ] {
-        std::fs::create_dir_all(dir).unwrap();
-    }
-    let disabled = session_skill_dirs(
-        root.path(),
-        std::slice::from_ref(&custom),
-        aster_core::kstudio::KburnMode::Disabled,
-    );
-    assert!(disabled.contains(&root.path().join("skills")));
-    assert!(disabled.contains(&custom));
-    assert!(!disabled.contains(&root.path().join(".kstudio/skills")));
-    assert!(!disabled.contains(&root.path().join(".aster/skills")));
-    let watched = session_watched_skill_dirs(root.path(), aster_core::kstudio::KburnMode::Disabled);
-    assert!(!watched.contains(&root.path().join(".kstudio/skills")));
-    assert!(!watched.contains(&root.path().join(".aster/skills")));
-    let automatic = session_skill_dirs(
-        root.path(),
-        std::slice::from_ref(&custom),
-        aster_core::kstudio::KburnMode::Auto,
-    );
-    assert!(!automatic.contains(&root.path().join(".kstudio/skills")));
-    assert!(automatic.contains(&root.path().join(".aster/skills")));
-    let explicit_legacy = session_skill_dirs(
-        root.path(),
-        &[PathBuf::from(".kstudio/skills")],
-        aster_core::kstudio::KburnMode::Auto,
-    );
-    assert!(explicit_legacy.contains(&root.path().join(".kstudio/skills")));
-}
-
-#[test]
 fn project_kstudio_skills_load_after_other_project_roots() {
     let root =
         std::env::temp_dir().join(format!("aster-acp-kstudio-skills-{}", uuid::Uuid::new_v4()));

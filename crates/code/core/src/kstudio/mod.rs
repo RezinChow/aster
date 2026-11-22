@@ -1,5 +1,5 @@
-//! Project AI-engineering layout roots (kburn / P15), internalized under
-//! `.aster/` (canonical) with legacy `.kstudio/` fallback.
+//! Project AI-engineering layout roots, internalized under `.aster/`
+//! (canonical) with legacy `.kstudio/` fallback.
 //!
 //! Defaults match `kstudio.project-layout.v1` core paths. This module exposes
 //! narratable Core paths for hosts to compose; it does not run the factory or
@@ -7,10 +7,10 @@
 
 use std::path::{Path, PathBuf};
 
-/// Vendored kburn layout contract (`kstudio.project-layout.v1` JSON Schema).
+/// Vendored layout contract (`kstudio.project-layout.v1` JSON Schema).
 pub const KSTUDIO_PROJECT_LAYOUT_V1_JSON: &str = include_str!("kstudio-project-layout.v1.json");
 
-/// Vendored kburn extension-pack contract (`kstudio.extension-pack.v1`).
+/// Vendored extension-pack contract (`kstudio.extension-pack.v1`).
 pub const KSTUDIO_EXTENSION_PACK_V1_JSON: &str = include_str!("kstudio-extension-pack.v1.json");
 
 /// Relative paths under the engineering root expected after a full factory drop
@@ -56,7 +56,7 @@ pub fn present_kstudio_workflow_helpers(workspace: &Path) -> Vec<PathBuf> {
 
 /// Aster product directory at the workspace root (canonical engineering home).
 pub const ASTER_DIR: &str = ".aster";
-/// Legacy portable engineering root (kburn default).
+/// Legacy portable engineering root.
 pub const KSTUDIO_DIR: &str = ".kstudio";
 pub const CORE_WORKFLOW: &str = "workflow";
 pub const CORE_WORKFLOWS: &str = "workflows";
@@ -108,8 +108,8 @@ pub fn kstudio_root(workspace: &Path) -> PathBuf {
     canonical
 }
 
-/// On-disk kburn factory drop shipped with aster-core: contracts, project
-/// skeleton, conductor skills and the executable loop/review controller.
+/// On-disk engineering factory drop shipped with aster-core: contracts,
+/// project skeleton, and the loop/review controller scripts.
 pub fn bundled_kstudio_factory_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/kstudio/factory")
 }
@@ -213,366 +213,21 @@ pub fn is_kstudio_skills_dir(workspace: &Path, skills: &Path) -> bool {
     skills == KstudioCoreDirs::for_workspace(workspace).skills
 }
 
-/// Model routing guidance when KBurn conductor skills are active.
-pub const KBURN_PRIORITY_PROMPT: &str = crate::prompts::KBURN_CATALOG_HEADER;
-
-/// Canonical kburn conductor skill names (12 conductor skills). Bodies stay on disk under
-/// `<eng-root>/skills/<name>/SKILL.md` — Core does not embed the markdown.
-pub const KBURN_SKILL_NAMES: &[&str] = &[
-    "init", "goal", "status", "progress", "plan", "task", "go", "loop", "yolo", "review", "clean",
-    "wiki",
-];
-
-/// Host selection for automatic KBurn arming.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum KburnMode {
-    /// Arm only when an engineering root already exists.
-    #[default]
-    Auto,
-    /// Materialize missing factory seeds even without an engineering root.
-    Enabled,
-    /// Do not materialize or automatically load KBurn skills.
-    Disabled,
-}
-
-impl From<Option<bool>> for KburnMode {
-    fn from(enabled: Option<bool>) -> Self {
-        match enabled {
-            Some(true) => Self::Enabled,
-            Some(false) => Self::Disabled,
-            None => Self::Auto,
-        }
-    }
-}
-
-/// Result of arming kburn runtime for one workspace session.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct KburnArmReport {
-    /// No engineering markers were present under `.aster`.
-    pub skipped_absent: bool,
-    pub materialized: Vec<PathBuf>,
-    pub skills_loaded: usize,
-    pub skill_errors: usize,
-}
-
-fn has_task_acceptance(value: &serde_json::Value) -> bool {
-    let sha256 = value
-        .get("last_receipt_sha256")
-        .and_then(serde_json::Value::as_str)
-        .is_some_and(|hash| hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit()));
-    let feedback = value
-        .get("seen_feedback")
-        .and_then(serde_json::Value::as_array)
-        .is_some_and(|entries| !entries.is_empty());
-    let accepted_event = value
-        .get("history")
-        .and_then(serde_json::Value::as_array)
-        .is_some_and(|entries| {
-            entries.iter().any(|entry| {
-                entry.get("kind").and_then(serde_json::Value::as_str) == Some("feedback")
-                    && entry.get("status").and_then(serde_json::Value::as_str)
-                        == Some("task_accepted")
-            })
-        });
-    value.get("schema").and_then(serde_json::Value::as_str) == Some("kstudio.loop-state.v1")
-        && value.get("status").and_then(serde_json::Value::as_str) == Some("task_accepted")
-        && value
-            .get("spec")
-            .and_then(|spec| spec.get("task_id"))
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|task| !task.is_empty())
-        && sha256
-        && feedback
-        && accepted_event
-}
-
-/// Return a completion-blocking diagnostic when any KBurn loop still needs
-/// implementation or semantic review. Missing state is never an acceptance proof.
-pub fn incomplete_loop_message(workspace: &Path) -> Option<String> {
-    let paths = match loop_state_paths(workspace) {
-        Ok(paths) => paths,
-        Err(error) => return Some(error),
-    };
-    for path in paths {
-        let raw = match std::fs::read(&path) {
-            Ok(raw) => raw,
-            Err(error) => {
-                return Some(format!(
-                    "KBurn loop state {} cannot be read: {error}",
-                    path.display()
-                ));
-            }
-        };
-        let value: serde_json::Value = match serde_json::from_slice(&raw) {
-            Ok(value) => value,
-            Err(error) => {
-                return Some(format!(
-                    "KBurn loop state {} is invalid: {error}",
-                    path.display()
-                ));
-            }
-        };
-        if value.get("schema").and_then(serde_json::Value::as_str) == Some("kstudio.loop-spec.v1") {
-            let task = value
-                .get("task_id")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("unknown");
-            let collision =
-                path.file_name().and_then(|name| name.to_str()) == Some(&format!("{task}.json"));
-            return Some(format!(
-                "KBurn loop {task} has a spec but its controller is not started. {}Run the controller start/status commands before more implementation, then advance task checks and submit semantic feedback to task_accepted",
-                if collision {
-                    "The spec collides with controller state; rename it to <task-id>.spec.json. "
-                } else {
-                    ""
-                }
-            ));
-        }
-        let status = value.get("status").and_then(serde_json::Value::as_str);
-        if status == Some("task_accepted") && !has_task_acceptance(&value) {
-            return Some(format!(
-                "KBurn loop state {} has invalid task acceptance evidence",
-                path.display()
-            ));
-        }
-        if matches!(status, Some("running" | "ready_for_review")) {
-            let task = value
-                .get("task_id")
-                .or_else(|| value.get("spec").and_then(|spec| spec.get("task_id")))
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("unknown");
-            let controller = value
-                .get("controller")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("unknown");
-            let action = if status == Some("running") {
-                let review = path
-                    .parent()
-                    .and_then(|parent| parent.parent())
-                    .and_then(|parent| parent.parent())
-                    .map(|root| root.join("workflow/review.py"))
-                    .unwrap_or_else(|| PathBuf::from(".kstudio/workflow/review.py"));
-                format!(
-                    "run python3 {} --run to create a fresh receipt, then call loop-kstudio.py advance --run {task} --controller {controller} --receipt <receipt.json>",
-                    review.display()
-                )
-            } else {
-                format!(
-                    "write the semantic review, then call loop-kstudio.py feedback --run {task} --controller {controller} --feedback <feedback.json>"
-                )
-            };
-            return Some(format!(
-                "KBurn loop {task} is {}; {action}. Do not stop before feedback yields task_accepted",
-                status.unwrap_or("running")
-            ));
-        }
-    }
-    None
-}
-
-fn loop_state_paths(workspace: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut paths = Vec::new();
-    for root in [ASTER_DIR, KSTUDIO_DIR] {
-        let directory = workspace.join(root).join("local/loops");
-        let entries = match std::fs::read_dir(&directory) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => {
-                return Err(format!(
-                    "KBurn loop state {} cannot be read: {error}",
-                    directory.display()
-                ));
-            }
-        };
-        for entry in entries {
-            let entry = entry.map_err(|error| {
-                format!(
-                    "KBurn loop state {} cannot be read: {error}",
-                    directory.display()
-                )
-            })?;
-            let path = entry.path();
-            let is_spec = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.ends_with(".spec.json"));
-            if path.extension().and_then(|value| value.to_str()) == Some("json") && !is_spec {
-                paths.push(path);
-            }
-        }
-    }
-    Ok(paths)
-}
-
-fn running_loop_exists(workspace: &Path) -> bool {
-    let Ok(paths) = loop_state_paths(workspace) else {
-        return false;
-    };
-    paths.into_iter().any(|path| {
-        std::fs::read(path)
-            .ok()
-            .and_then(|raw| serde_json::from_slice::<serde_json::Value>(&raw).ok())
-            .and_then(|value| {
-                value
-                    .get("status")
-                    .and_then(serde_json::Value::as_str)
-                    .map(|status| status == "running")
-            })
-            .unwrap_or(false)
-    })
-}
-
-fn engineering_path(workspace: &Path, path: &str) -> bool {
-    let relative = crate::harness_loop::workspace_relative_path(workspace, path);
-    [ASTER_DIR, KSTUDIO_DIR]
-        .iter()
-        .any(|root| relative == *root || relative.starts_with(&format!("{root}/")))
-}
-
-/// Refuse direct product writes after `Skill("loop")` until a controller is running.
-pub fn product_write_blocked(
-    workspace: &Path,
-    invoked: bool,
-    tool_name: &str,
-    args: &serde_json::Value,
-) -> Option<String> {
-    if !matches!(tool_name, "write" | "edit" | "patch") || !invoked {
-        return None;
-    }
-    if running_loop_exists(workspace) {
-        return None;
-    }
-    let paths = args
-        .get("patches")
-        .and_then(serde_json::Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(|entry| entry.get("file_path").and_then(serde_json::Value::as_str))
-                .collect::<Vec<_>>()
-        })
-        .or_else(|| {
-            args.get("file_path")
-                .and_then(serde_json::Value::as_str)
-                .map(|path| vec![path])
-        })?;
-    if paths.iter().all(|path| engineering_path(workspace, path)) {
-        return None;
-    }
-    Some(
-        "KBurn loop is invoked but no controller is running. Only a running controller authorizes product writes. Create a separate <task-id>.spec.json and start/resume the controller, then write product source; engineering spec and check files remain allowed"
-            .to_string(),
-    )
-}
-
-pub(crate) fn is_loop_skill_invocation(tool_name: &str, args: &serde_json::Value) -> bool {
-    tool_name == "Skill"
-        && args
-            .get("skill_name")
-            .or_else(|| args.get("skillName"))
-            .or_else(|| args.get("name"))
-            .and_then(serde_json::Value::as_str)
-            == Some("loop")
-}
-
-pub(crate) fn loop_skill_invoked(messages: &[crate::llm::Message]) -> bool {
-    messages.iter().any(|message| {
-        message.content.iter().any(|block| match block {
-            crate::llm::ContentBlock::ToolUse { name, input, .. } => {
-                is_loop_skill_invocation(name, input)
-            }
-            _ => false,
-        })
-    })
-}
-
-/// Whether at least one KBurn loop has a real `task_accepted` terminal state.
-pub fn accepted_loop_exists(workspace: &Path) -> bool {
-    let Ok(paths) = loop_state_paths(workspace) else {
-        return false;
-    };
-    paths.into_iter().any(|path| {
-        std::fs::read(path)
-            .ok()
-            .and_then(|raw| serde_json::from_slice::<serde_json::Value>(&raw).ok())
-            .is_some_and(|value| has_task_acceptance(&value))
-    })
-}
-
-/// Auto-arm kburn only when `.aster` already has engineering markers.
-/// Legacy `.kstudio` alone is deliberately not an automatic trigger.
-///
-/// A bare `.aster/config.acl` alone does not arm, so ordinary Aster sessions do
-/// not grow a full engineering tree.
-pub fn arm_kburn_runtime(
-    workspace: &Path,
-    registry: &crate::skills::SkillRegistry,
-) -> anyhow::Result<KburnArmReport> {
-    if !engineering_root_present(workspace) {
-        return Ok(KburnArmReport {
-            skipped_absent: true,
-            ..KburnArmReport::default()
-        });
-    }
-    arm_kburn_runtime_enabled(workspace, registry)
-}
-
-/// Explicitly arm kburn, materializing missing factory seeds even when no
-/// engineering root exists. Existing files are never overwritten.
-pub fn arm_kburn_runtime_enabled(
-    workspace: &Path,
-    registry: &crate::skills::SkillRegistry,
-) -> anyhow::Result<KburnArmReport> {
-    let materialized = materialize_kstudio_factory_seeds(workspace)?;
-    let load = load_kburn_skills(workspace, registry)?;
-    Ok(KburnArmReport {
-        skipped_absent: false,
-        materialized,
-        skills_loaded: load.loaded,
-        skill_errors: load.errors.len(),
-    })
-}
-
-/// Load present canonical kburn skill packages under `<eng-root>/skills`.
-/// Only [`KBURN_SKILL_NAMES`] directories are considered; sibling files such as
-/// `README.md` are ignored. Missing packages are skipped (not an error).
-pub fn load_kburn_skills(
-    workspace: &Path,
-    registry: &crate::skills::SkillRegistry,
-) -> anyhow::Result<crate::skills::SkillLoadReport> {
-    let skills_root = KstudioCoreDirs::for_workspace(workspace).skills;
-    let mut report = crate::skills::SkillLoadReport::default();
-    if !skills_root.is_dir() {
-        return Ok(report);
-    }
-    for name in KBURN_SKILL_NAMES {
-        let package = skills_root.join(name);
-        if !package.is_dir() {
-            continue;
-        }
-        let package_report = registry.load_from_dir_report(&package)?;
-        report.loaded += package_report.loaded;
-        report.errors.extend(package_report.errors);
-        report.overrides.extend(package_report.overrides);
-    }
-    Ok(report)
-}
-
-/// Which canonical kburn skill packages exist under the workspace skills root.
+/// Which factory seed paths exist under the engineering root.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KburnSkillCoverage {
+pub struct KstudioSeedCoverage {
     pub present: Vec<String>,
     pub missing: Vec<String>,
 }
 
-impl KburnSkillCoverage {
+impl KstudioSeedCoverage {
     pub fn is_complete(&self) -> bool {
         self.missing.is_empty()
     }
 }
 
 /// Which factory seed paths exist under `.kstudio/`.
-pub fn kstudio_factory_seed_coverage(workspace: &Path) -> KburnSkillCoverage {
+pub fn kstudio_factory_seed_coverage(workspace: &Path) -> KstudioSeedCoverage {
     let root = kstudio_root(workspace);
     let mut present = Vec::new();
     let mut missing = Vec::new();
@@ -589,23 +244,7 @@ pub fn kstudio_factory_seed_coverage(workspace: &Path) -> KburnSkillCoverage {
             missing.push((*rel).to_owned());
         }
     }
-    KburnSkillCoverage { present, missing }
-}
-
-/// Enumerate present vs missing packages for [`KBURN_SKILL_NAMES`].
-pub fn kburn_skill_coverage(workspace: &Path) -> KburnSkillCoverage {
-    let skills_root = KstudioCoreDirs::for_workspace(workspace).skills;
-    let mut present = Vec::new();
-    let mut missing = Vec::new();
-    for name in KBURN_SKILL_NAMES {
-        let skill_md = skills_root.join(name).join("SKILL.md");
-        if skill_md.is_file() {
-            present.push((*name).to_owned());
-        } else {
-            missing.push((*name).to_owned());
-        }
-    }
-    KburnSkillCoverage { present, missing }
+    KstudioSeedCoverage { present, missing }
 }
 
 /// Minimal project manifest stamp (`kstudio.project-manifest.v1`).
@@ -701,18 +340,6 @@ pub fn read_kstudio_manifest(workspace: &Path) -> anyhow::Result<Option<KstudioM
 mod tests {
     use super::*;
 
-    fn accepted_state() -> String {
-        let hash = "a".repeat(64);
-        serde_json::json!({
-            "schema": "kstudio.loop-state.v1",
-            "spec": {"task_id": "demo"},
-            "status": "task_accepted",
-            "last_receipt_sha256": hash,
-            "seen_feedback": [hash],
-            "history": [{"kind": "feedback", "status": "task_accepted"}]
-        })
-        .to_string()
-    }
 
     #[test]
     fn vendored_layout_contract_declares_schema_id() {
@@ -779,184 +406,14 @@ mod tests {
         assert!(!is_kstudio_skills_dir(ws, &ws.join("skills")));
     }
 
-    #[test]
-    fn kburn_skill_names_are_twelve_unique_conductor_skills() {
-        assert_eq!(KBURN_SKILL_NAMES.len(), 12);
-        let mut seen = std::collections::BTreeSet::new();
-        for name in KBURN_SKILL_NAMES {
-            assert!(
-                name.chars().all(|c| c.is_ascii_lowercase() || c == '-'),
-                "{name}"
-            );
-            assert!(!name.starts_with("k-"), "legacy k- prefix removed: {name}");
-            assert!(seen.insert(*name), "duplicate {name}");
-        }
-    }
 
-    #[test]
-    fn arm_kburn_runtime_skips_workspaces_without_engineering_root() {
-        let root = tempfile::tempdir().unwrap();
-        let registry = crate::skills::SkillRegistry::new();
-        let report = arm_kburn_runtime(root.path(), &registry).expect("arm");
-        assert!(report.skipped_absent);
-        std::fs::create_dir_all(legacy_kstudio_root(root.path())).unwrap();
-        assert!(!engineering_root_present(root.path()));
-        assert!(
-            arm_kburn_runtime(root.path(), &registry)
-                .expect("legacy alone")
-                .skipped_absent
-        );
-        // Bare .aster/config.acl must not auto-arm.
-        std::fs::create_dir_all(canonical_kstudio_root(root.path())).unwrap();
-        std::fs::write(
-            canonical_kstudio_root(root.path()).join("config.acl"),
-            "providers {}\n",
-        )
-        .unwrap();
-        let again = arm_kburn_runtime(root.path(), &registry).expect("arm config-only");
-        assert!(again.skipped_absent);
-        assert!(!engineering_root_present(root.path()));
-        // `.aster/skills` alone is enough to arm (loads + may materialize seeds).
-        std::fs::create_dir_all(canonical_kstudio_root(root.path()).join(CORE_SKILLS)).unwrap();
-        assert!(engineering_root_present(root.path()));
-        let armed = arm_kburn_runtime(root.path(), &registry).expect("arm skills-only");
-        assert!(!armed.skipped_absent);
-    }
 
-    #[test]
-    fn explicit_kburn_enable_materializes_without_an_engineering_root() {
-        let root = tempfile::tempdir().unwrap();
-        let registry = crate::skills::SkillRegistry::new();
-        let report = arm_kburn_runtime_enabled(root.path(), &registry).expect("enabled");
-        assert!(!report.skipped_absent);
-        assert!(!report.materialized.is_empty());
-        assert!(root.path().join(".aster").join("MANIFEST.json").is_file());
-        assert!(root.path().join(".aster").join("workflow").is_dir());
-        assert!(root
-            .path()
-            .join(".aster/workflow/loop-kstudio.py")
-            .is_file());
-        assert!(root.path().join(".aster/workflow/review.py").is_file());
-        assert_eq!(report.skills_loaded, KBURN_SKILL_NAMES.len());
-        assert!(registry.get("loop").is_some());
-    }
 
-    #[test]
-    fn loop_completion_blocks_only_active_loops() {
-        let root = tempfile::tempdir().unwrap();
-        let state = root.path().join(".kstudio/local/loops/demo.json");
-        std::fs::create_dir_all(state.parent().unwrap()).unwrap();
-        std::fs::write(&state, r#"{"task_id":"demo","status":"running"}"#).unwrap();
-        assert!(incomplete_loop_message(root.path()).is_some());
-        std::fs::write(&state, r#"{"task_id":"demo","status":"ready_for_review"}"#).unwrap();
-        assert!(incomplete_loop_message(root.path()).is_some());
-        assert!(!accepted_loop_exists(root.path()));
-        std::fs::write(&state, r#"{"task_id":"demo","status":"task_accepted"}"#).unwrap();
-        assert!(incomplete_loop_message(root.path()).is_some());
-        assert!(!accepted_loop_exists(root.path()));
-        std::fs::write(&state, accepted_state()).unwrap();
-        assert!(incomplete_loop_message(root.path()).is_none());
-        assert!(accepted_loop_exists(root.path()));
-        std::fs::write(&state, r#"{"task_id":"demo","status":"blocked"}"#).unwrap();
-        assert!(incomplete_loop_message(root.path()).is_none());
-        assert!(!accepted_loop_exists(root.path()));
-        std::fs::write(&state, b"not-json").unwrap();
-        assert!(incomplete_loop_message(root.path()).is_some());
-    }
 
-    #[test]
-    fn loop_completion_supports_canonical_aster_state() {
-        let root = tempfile::tempdir().unwrap();
-        let state = root.path().join(".aster/local/loops/demo.json");
-        std::fs::create_dir_all(state.parent().unwrap()).unwrap();
-        std::fs::write(&state, r#"{"spec":{"task_id":"demo"},"status":"running"}"#).unwrap();
-        assert!(incomplete_loop_message(root.path())
-            .is_some_and(|message| message.contains("KBurn loop demo is running")));
-        std::fs::write(&state, accepted_state()).unwrap();
-        assert!(incomplete_loop_message(root.path()).is_none());
-        assert!(accepted_loop_exists(root.path()));
-    }
 
-    #[test]
-    fn loop_completion_explains_unstarted_spec_collision() {
-        let root = tempfile::tempdir().unwrap();
-        let state = root.path().join(".kstudio/local/loops/demo.json");
-        std::fs::create_dir_all(state.parent().unwrap()).unwrap();
-        std::fs::write(
-            &state,
-            r#"{"schema":"kstudio.loop-spec.v1","task_id":"demo"}"#,
-        )
-        .unwrap();
-        let message = incomplete_loop_message(root.path()).unwrap();
-        assert!(message.contains("controller is not started"), "{message}");
-        assert!(
-            message.contains("rename it to <task-id>.spec.json"),
-            "{message}"
-        );
-        assert!(message.contains("start/status"), "{message}");
-    }
 
-    #[test]
-    fn loop_completion_ignores_companion_spec_when_state_is_running() {
-        let root = tempfile::tempdir().unwrap();
-        let directory = root.path().join(".kstudio/local/loops");
-        std::fs::create_dir_all(&directory).unwrap();
-        std::fs::write(
-            directory.join("demo.spec.json"),
-            r#"{"schema":"kstudio.loop-spec.v1","task_id":"demo"}"#,
-        )
-        .unwrap();
-        std::fs::write(
-            directory.join("demo.json"),
-            r#"{"spec":{"task_id":"demo"},"status":"running"}"#,
-        )
-        .unwrap();
-        let message = incomplete_loop_message(root.path()).unwrap();
-        assert!(message.contains("KBurn loop demo is running"), "{message}");
-        assert!(message.contains("review.py --run"), "{message}");
-        assert!(message.contains("advance --run demo"), "{message}");
-        assert!(!message.contains("controller is not started"), "{message}");
-    }
 
-    #[test]
-    fn product_writes_require_running_loop_after_invocation() {
-        let root = tempfile::tempdir().unwrap();
-        let product = serde_json::json!({"file_path":"src/main.py"});
-        assert!(product_write_blocked(root.path(), false, "write", &product).is_none());
-        assert!(product_write_blocked(root.path(), true, "write", &product).is_some());
-        let check = serde_json::json!({"file_path":".kstudio/workflow/check.py"});
-        assert!(product_write_blocked(root.path(), true, "write", &check).is_none());
-        assert!(product_write_blocked(root.path(), true, "read", &product).is_none());
-        let state = root.path().join(".kstudio/local/loops/demo.json");
-        std::fs::create_dir_all(state.parent().unwrap()).unwrap();
-        std::fs::write(&state, r#"{"spec":{"task_id":"demo"},"status":"running"}"#).unwrap();
-        assert!(product_write_blocked(root.path(), true, "write", &product).is_none());
-    }
 
-    #[test]
-    fn arm_kburn_runtime_materializes_and_loads_when_aster_engineering_present() {
-        let root = tempfile::tempdir().unwrap();
-        let skills = canonical_kstudio_root(root.path()).join(CORE_SKILLS);
-        let dir = skills.join("status");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("SKILL.md"),
-            "---\nname: status\ndescription: status\n---\n# status\n",
-        )
-        .unwrap();
-        let registry = crate::skills::SkillRegistry::new();
-        let report = arm_kburn_runtime(root.path(), &registry).expect("arm");
-        assert!(!report.skipped_absent);
-        assert!(!report.materialized.is_empty());
-        assert!(kstudio_root(root.path()).join("MANIFEST.json").is_file());
-        assert_eq!(report.skills_loaded, KBURN_SKILL_NAMES.len());
-        assert!(registry.get("status").is_some());
-        assert_eq!(
-            std::fs::read_to_string(dir.join("SKILL.md")).unwrap(),
-            "---\nname: status\ndescription: status\n---\n# status\n",
-            "an existing project skill must not be overwritten"
-        );
-    }
 
     #[test]
     fn materialize_factory_seeds_creates_missing_only() {
@@ -1074,50 +531,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn this_repo_kstudio_skills_cover_all_twelve_when_checked_out() {
-        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let workspace = manifest_dir
-            .ancestors()
-            .find(|path| {
-                path.join(".kstudio")
-                    .join("skills")
-                    .join("init")
-                    .join("SKILL.md")
-                    .is_file()
-            })
-            .expect("aster checkout with .kstudio/skills");
-        let coverage = kburn_skill_coverage(workspace);
-        assert!(
-            coverage.is_complete(),
-            "missing kburn skills under {}: {:?}",
-            workspace.display(),
-            coverage.missing
-        );
-        assert_eq!(coverage.present.len(), 12);
-        let registry = crate::skills::SkillRegistry::new();
-        let report = load_kburn_skills(workspace, &registry).expect("load repo skills");
-        assert!(report.loaded >= 12, "loaded={}", report.loaded);
-        assert!(report.errors.is_empty(), "{report:?}");
-        for name in KBURN_SKILL_NAMES {
-            assert!(registry.get(name).is_some(), "registry missing {name}");
-        }
-    }
 
-    #[test]
-    fn kburn_skill_coverage_reports_present_and_missing() {
-        let root = tempfile::tempdir().unwrap();
-        let skills = KstudioCoreDirs::for_workspace(root.path()).skills;
-        for name in ["init", "wiki"] {
-            let dir = skills.join(name);
-            std::fs::create_dir_all(&dir).unwrap();
-            std::fs::write(dir.join("SKILL.md"), "---\nname: x\n---\n").unwrap();
-        }
-        let coverage = kburn_skill_coverage(root.path());
-        assert_eq!(coverage.present, vec!["init".to_owned(), "wiki".to_owned()]);
-        assert_eq!(coverage.missing.len(), 10);
-        assert!(!coverage.is_complete());
-    }
 
     #[test]
     fn resolve_dirs_honors_manifest_core_overrides() {
@@ -1160,30 +574,4 @@ mod tests {
         assert!(err.to_string().contains("unsupported"), "{err}");
     }
 
-    #[test]
-    fn load_kburn_skills_enumerates_present_packages() {
-        let root = tempfile::tempdir().unwrap();
-        let skills = KstudioCoreDirs::for_workspace(root.path()).skills;
-        for name in ["goal", "plan", "yolo"] {
-            let dir = skills.join(name);
-            std::fs::create_dir_all(&dir).unwrap();
-            std::fs::write(
-                dir.join("SKILL.md"),
-                format!("---\nname: {name}\ndescription: test\n---\n# {name}\n"),
-            )
-            .unwrap();
-        }
-        let registry = crate::skills::SkillRegistry::new();
-        let report = load_kburn_skills(root.path(), &registry).expect("load");
-        assert_eq!(report.loaded, 3);
-        assert!(report.errors.is_empty(), "{report:?}");
-        for name in ["goal", "plan", "yolo"] {
-            assert!(registry.get(name).is_some(), "missing {name}");
-        }
-        for name in KBURN_SKILL_NAMES {
-            if !matches!(*name, "goal" | "plan" | "yolo") {
-                assert!(registry.get(name).is_none());
-            }
-        }
-    }
 }

@@ -197,21 +197,6 @@ impl crate::agent::TurnEngine {
             &state.open_observations,
             &self.config.verification_contracts,
         );
-        if matches!(gate, crate::harness_loop::CompletionGate::Allow(_)) {
-            if let Some(message) =
-                crate::kstudio::incomplete_loop_message(&self.tool_context.workspace)
-            {
-                return CompletionFlow::Blocked(message);
-            }
-            if state.kburn_loop_invoked
-                && !crate::kstudio::accepted_loop_exists(&self.tool_context.workspace)
-            {
-                return CompletionFlow::Blocked(
-                    "KBurn loop was invoked but no task_accepted receipt exists. Inspect controller status; use a separate <task-id>.spec.json, start or resume the controller, run task checks, advance, and submit semantic feedback before stopping"
-                        .to_string(),
-                );
-            }
-        }
         let completion = match gate {
             crate::harness_loop::CompletionGate::Continue { message } => {
                 state.gate_continuation_count += 1;

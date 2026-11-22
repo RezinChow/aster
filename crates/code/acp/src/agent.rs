@@ -426,15 +426,7 @@ fn watched_skill_dirs(workspace: &std::path::Path) -> Vec<PathBuf> {
     watched_skill_dirs_under(workspace, process_skill_home().as_deref())
 }
 
-fn kburn_mode(config: &aster_core::CodeConfig) -> aster_core::kstudio::KburnMode {
-    config.kburn.into()
-}
-
-fn session_skill_dirs(
-    workspace: &std::path::Path,
-    configured: &[PathBuf],
-    mode: aster_core::kstudio::KburnMode,
-) -> Vec<PathBuf> {
+fn session_skill_dirs(workspace: &std::path::Path, configured: &[PathBuf]) -> Vec<PathBuf> {
     let explicit: Vec<PathBuf> = configured
         .iter()
         .map(|dir| {
@@ -446,32 +438,17 @@ fn session_skill_dirs(
         })
         .collect();
     let legacy = workspace.join(".kstudio").join("skills");
-    let aster = workspace.join(".aster").join("skills");
     interactive_skill_dirs(workspace, configured)
         .into_iter()
-        .filter(|dir| {
-            if explicit.contains(dir) {
-                return true;
-            }
-            if dir == &legacy {
-                return false;
-            }
-            mode != aster_core::kstudio::KburnMode::Disabled || dir != &aster
-        })
+        .filter(|dir| explicit.contains(dir) || dir != &legacy)
         .collect()
 }
 
-fn session_watched_skill_dirs(
-    workspace: &std::path::Path,
-    mode: aster_core::kstudio::KburnMode,
-) -> Vec<PathBuf> {
+fn session_watched_skill_dirs(workspace: &std::path::Path) -> Vec<PathBuf> {
     let legacy = workspace.join(".kstudio").join("skills");
-    let aster = workspace.join(".aster").join("skills");
     watched_skill_dirs(workspace)
         .into_iter()
-        .filter(|dir| {
-            dir != &legacy && (mode != aster_core::kstudio::KburnMode::Disabled || dir != &aster)
-        })
+        .filter(|dir| dir != &legacy)
         .collect()
 }
 
@@ -978,13 +955,11 @@ impl AsterCodeAgent {
         if let Some(profile) = &config.tool_presentation_profile {
             options = options.with_tool_presentation_profile(profile.clone());
         }
-        let mode = kburn_mode(config);
-        options = options.with_kburn_mode(mode);
-        let skill_dirs = session_skill_dirs(&setup.workspace, &config.skill_dirs, mode);
+        let skill_dirs = session_skill_dirs(&setup.workspace, &config.skill_dirs);
         if !skill_dirs.is_empty() {
             options = options.with_skill_dirs(skill_dirs);
         }
-        options = options.with_watch_skill_dirs(session_watched_skill_dirs(&setup.workspace, mode));
+        options = options.with_watch_skill_dirs(session_watched_skill_dirs(&setup.workspace));
         if let Some(executor) = hook_executor {
             options = options.with_hook_executor(executor);
         }

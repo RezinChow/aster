@@ -21,7 +21,6 @@ struct Args {
     import_accounts: Vec<AccountImport>,
     plugin_store: Option<PathBuf>,
     studio_documents: bool,
-    kburn: Option<bool>,
     reasoning_effort: Option<String>,
     unattended: Option<Unattended>,
     workspace_mcp: Option<WorkspaceMcpCommand>,
@@ -46,7 +45,6 @@ fn parse_args_from(mut args: impl Iterator<Item = String>) -> Result<Args> {
     let mut import_accounts = Vec::new();
     let mut plugin_store = None;
     let mut studio_documents = false;
-    let mut kburn = None;
     let mut unattended = false;
     let mut max_execution_ms = None;
     let mut result_file = None;
@@ -66,8 +64,6 @@ fn parse_args_from(mut args: impl Iterator<Item = String>) -> Result<Args> {
             }
             "--goal-continuation" => goal_continuation = Some(true),
             "--no-goal-continuation" => goal_continuation = Some(false),
-            "--kburn" => kburn = Some(true),
-            "--no-kburn" => kburn = Some(false),
             "--max-execution-ms" => {
                 let value = args.next().context("--max-execution-ms requires a value")?;
                 max_execution_ms = Some(
@@ -138,10 +134,9 @@ fn parse_args_from(mut args: impl Iterator<Item = String>) -> Result<Args> {
             }
             "--help" | "-h" => {
                 eprintln!(
-                    "Usage: aster-acp [--cwd DIR] [--config FILE] [--config-overlay FILE]... [--model provider/model] [--reasoning-effort LEVEL] [--import-accounts grok,cursor,codex] [--plugin-store DIR] [--kburn|--no-kburn]\n\
+                    "Usage: aster-acp [--cwd DIR] [--config FILE] [--config-overlay FILE]... [--model provider/model] [--reasoning-effort LEVEL] [--import-accounts grok,cursor,codex] [--plugin-store DIR]\n\
                      \x20      aster-acp --list-workspace-mcp | --trust-workspace-mcp <ID|all> [--cwd DIR]\n\
-                     \x20      aster-acp --unattended [--max-execution-ms MS] [--reasoning-effort LEVEL] [--engineering-policy engineering-v1|none] [--goal-continuation|--no-goal-continuation] [--result-file FILE] [--cwd DIR] [--config FILE] [--model provider/model] [--kburn|--no-kburn]\n\
-                     KBurn auto-detects .aster engineering markers; --kburn forces it on and --no-kburn disables it. ACL: kburn = true|false.\n\
+                     \x20      aster-acp --unattended [--max-execution-ms MS] [--reasoning-effort LEVEL] [--engineering-policy engineering-v1|none] [--goal-continuation|--no-goal-continuation] [--result-file FILE] [--cwd DIR] [--config FILE] [--model provider/model]\n\
                      New sessions use engineering-v1 by default. Explicit goals use bounded continuation.\n\
                      Speaks Agent Client Protocol on stdio over aster-core {}.",
                     env!("CARGO_PKG_VERSION")
@@ -200,7 +195,6 @@ fn parse_args_from(mut args: impl Iterator<Item = String>) -> Result<Args> {
         import_accounts,
         plugin_store,
         studio_documents,
-        kburn,
         reasoning_effort,
         unattended,
         workspace_mcp,
@@ -351,9 +345,6 @@ async fn run() -> Result<()> {
             Ok(launch) => launch,
             Err(error) => return startup_error::report(error.context("load Aster ACL")).await,
         };
-    }
-    if let Some(enabled) = args.kburn {
-        launch.config.kburn = Some(enabled);
     }
     if launch.model_id.is_empty() && args.unattended.is_some() {
         return startup_error::report(anyhow::anyhow!(

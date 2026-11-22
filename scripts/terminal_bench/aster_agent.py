@@ -92,12 +92,6 @@ class AsterCodeAgent(BaseInstalledAgent):
                 raise FileNotFoundError(f"ASTER_SKILLS_DIR not found: {skills_path}")
             remote_skills = _REMOTE_ROOT / "skills"
             await environment.upload_dir(str(skills_path), str(remote_skills))
-        factory = os.environ.get("ASTER_KBURN_FACTORY_DIR")
-        if factory:
-            factory_path = Path(factory).expanduser()
-            if not factory_path.is_dir():
-                raise FileNotFoundError(f"ASTER_KBURN_FACTORY_DIR not found: {factory_path}")
-            await environment.upload_dir(str(factory_path), str(_REMOTE_ROOT / "factory"))
         overlay = os.environ.get("ASTER_EVALBENCH_OVERLAY_DIR")
         if overlay:
             overlay_path = Path(overlay).expanduser()
@@ -114,37 +108,7 @@ class AsterCodeAgent(BaseInstalledAgent):
     ) -> None:
         del context
         workspace = await self._workspace(environment)
-        kburn = os.environ.get("ASTER_KBURN", "").strip().lower()
-        if kburn not in {"", "0", "1"}:
-            raise RuntimeError("ASTER_KBURN must be 0, 1, or unset")
-        factory = os.environ.get("ASTER_KBURN_FACTORY_DIR")
         overlay = os.environ.get("ASTER_EVALBENCH_OVERLAY_DIR")
-        (self.logs_dir / "kburn-mode.txt").write_text(
-            f"mode={kburn or 'auto'}\nskills_dir_configured={bool(os.environ.get('ASTER_SKILLS_DIR'))}\n"
-            f"factory_dir_configured={bool(factory)}\ncontinuation_overlay={bool(overlay)}\n",
-            encoding="utf-8",
-        )
-        if kburn == "1" and factory:
-            # Full factory gives conductor skills their expected project root.
-            await self.exec_as_agent(
-                environment,
-                command=(
-                    "test ! -e .kstudio && "
-                    f"cp -a {shlex.quote(str(_REMOTE_ROOT / 'factory'))} .kstudio"
-                ),
-                cwd=workspace,
-            )
-        elif kburn == "1" and os.environ.get("ASTER_SKILLS_DIR"):
-            # The enabled comparison arm gets the same packaged conductor skills
-            # in the graded workspace. Never replace a task-provided directory.
-            await self.exec_as_agent(
-                environment,
-                command=(
-                    "mkdir -p .aster && test ! -e .aster/skills && "
-                    f"cp -a {shlex.quote(str(_REMOTE_ROOT / 'skills'))} .aster/skills"
-                ),
-                cwd=workspace,
-            )
         if overlay:
             # Explicit repair continuation only: start from the prior best artifact.
             await self.exec_as_agent(
@@ -183,10 +147,6 @@ class AsterCodeAgent(BaseInstalledAgent):
             "--result-file",
             str(_REMOTE_RESULT),
         ]
-        if kburn == "1":
-            cmd.append("--kburn")
-        elif kburn == "0":
-            cmd.append("--no-kburn")
 
         # Prefer explicit env; otherwise use an 8h TB-safe default so Harbor
         # long tasks are not silently clipped by the runner's 840s diagnostic
@@ -232,14 +192,6 @@ class AsterCodeAgent(BaseInstalledAgent):
                 f"set -o pipefail; {quoted} 2>&1 | "
                 f"tee /logs/agent/aster.stdout.log; "
                 f"status=${{PIPESTATUS[0]}}; "
-                "if [ -d .kstudio/local/loops ]; then "
-                "cp -a .kstudio/local/loops /logs/agent/kburn-loops; fi; "
-                "if [ -d .kstudio/evidence/loop ]; then "
-                "cp -a .kstudio/evidence/loop /logs/agent/kburn-evidence; fi; "
-                "if [ -d .aster/local/loops ]; then "
-                "cp -a .aster/local/loops /logs/agent/kburn-loops-aster; fi; "
-                "if [ -d .aster/evidence/loop ]; then "
-                "cp -a .aster/evidence/loop /logs/agent/kburn-evidence-aster; fi; "
                 "exit $status"
             ),
             env=env,

@@ -454,29 +454,6 @@ async fn test_session_specific_skills_do_not_leak_across_sessions() {
         .is_none());
 }
 
-#[test]
-fn kburn_session_mode_disables_auto_arm_without_touching_explicit_skills() {
-    let root = tempfile::tempdir().unwrap();
-    let status = root.path().join(".aster/skills/status");
-    std::fs::create_dir_all(&status).unwrap();
-    std::fs::write(
-        status.join("SKILL.md"),
-        "---\nname: status\ndescription: project status\n---\nSTATUS-INSTRUCTIONS\n",
-    )
-    .unwrap();
-    let disabled = build_effective_registry_for_test_in(
-        None,
-        &SessionOptions::new().with_kburn_enabled(false),
-        root.path(),
-    );
-    assert!(disabled.get("status").is_none());
-    assert!(!root.path().join(".aster/MANIFEST.json").exists());
-
-    let automatic = build_effective_registry_for_test_in(None, &SessionOptions::new(), root.path());
-    assert!(automatic.get("status").is_some());
-    assert!(root.path().join(".aster/MANIFEST.json").is_file());
-}
-
 #[tokio::test]
 async fn test_session_for_agent_applies_definition_and_keeps_skill_overrides_isolated() {
     use crate::skills::{Skill, SkillKind, SkillRegistry};

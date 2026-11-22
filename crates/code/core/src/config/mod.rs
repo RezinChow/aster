@@ -235,11 +235,6 @@ pub struct CodeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage_url: Option<String>,
 
-    /// KBurn automatic arming: absent detects an existing engineering root,
-    /// true materializes missing seeds, and false disables automatic KBurn use.
-    #[serde(default, alias = "kburn", skip_serializing_if = "Option::is_none")]
-    pub kburn: Option<bool>,
-
     /// Directories to scan for skill files (*.md with tool definitions)
     #[serde(default, alias = "skill_dirs")]
     pub skill_dirs: Vec<PathBuf>,

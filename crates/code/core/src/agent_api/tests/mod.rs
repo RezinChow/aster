@@ -29,7 +29,6 @@ mod conversation_busy;
 mod durable_engineering;
 mod history_concurrency;
 mod host_adapter;
-mod kburn;
 mod long_horizon_capabilities;
 mod memory;
 mod options;

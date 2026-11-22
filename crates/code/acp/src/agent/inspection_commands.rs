@@ -157,63 +157,6 @@ impl AsterCodeAgent {
     }
 }
 
-/// Host-side composition helpers retained for hermetic coverage of Core APIs
-/// (not a user slash — engineering arming is automatic in Core).
-#[cfg(test)]
-fn format_kburn_report(workspace: &std::path::Path, materialize: bool) -> acp::Result<String> {
-    let mut text = String::new();
-    if materialize {
-        let created = aster_core::kstudio::materialize_kstudio_factory_seeds(workspace)
-            .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
-        if created.is_empty() {
-            text.push_str("materialize: no missing factory seeds (existing files kept).\n\n");
-        } else {
-            text.push_str(&format!("materialize: created {} path(s)\n", created.len()));
-            for path in &created {
-                text.push_str(&format!("- {}\n", path.display()));
-            }
-            text.push('\n');
-        }
-    }
-    text.push_str(&format_kburn_coverage(workspace));
-    Ok(text)
-}
-
-#[cfg(test)]
-fn format_kburn_coverage(workspace: &std::path::Path) -> String {
-    let coverage = aster_core::kstudio::kburn_skill_coverage(workspace);
-    let dirs = aster_core::kstudio::KstudioCoreDirs::for_workspace(workspace);
-    let mut text = format!(
-        "eng root: {}\nskill coverage · {}/{} present\nskills: {}\n\n",
-        dirs.root.display(),
-        coverage.present.len(),
-        aster_core::kstudio::KBURN_SKILL_NAMES.len(),
-        dirs.skills.display()
-    );
-    if coverage.is_complete() {
-        text.push_str("Complete: all 12 canonical skill packages found.\n");
-    } else {
-        text.push_str("Present:\n");
-        for name in &coverage.present {
-            text.push_str(&format!("- {name}\n"));
-        }
-        text.push_str("Missing:\n");
-        for name in &coverage.missing {
-            text.push_str(&format!("- {name}\n"));
-        }
-    }
-    let helpers = aster_core::kstudio::present_kstudio_workflow_helpers(workspace);
-    text.push_str(&format!(
-        "\nworkflow helpers · {}/{}\n",
-        helpers.len(),
-        aster_core::kstudio::KSTUDIO_WORKFLOW_HELPERS.len()
-    ));
-    for path in &helpers {
-        text.push_str(&format!("- {}\n", path.display()));
-    }
-    text
-}
-
 fn format_memory(response: MemoryManagementResponse, query: &str) -> acp::Result<String> {
     match response {
         MemoryManagementResponse::List {

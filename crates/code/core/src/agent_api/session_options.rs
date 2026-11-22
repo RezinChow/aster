@@ -321,18 +321,6 @@ impl SessionOptions {
         self
     }
 
-    /// Select automatic KBurn arming. `Enabled` may materialize factory seeds;
-    /// `Disabled` does not change explicitly configured skill directories.
-    pub fn with_kburn_mode(mut self, mode: crate::kstudio::KburnMode) -> Self {
-        self.kburn_mode = mode;
-        self
-    }
-
-    /// Explicitly enable or disable automatic KBurn arming.
-    pub fn with_kburn_enabled(self, enabled: bool) -> Self {
-        self.with_kburn_mode(crate::kstudio::KburnMode::from(Some(enabled)))
-    }
-
     /// Add skill directories to scan for skill files (*.md).
     /// Merged with any global `skill_dirs` from
     /// [`CodeConfig`](crate::config::CodeConfig) at session build time.

@@ -548,7 +548,6 @@ const KNOWN_CONFIG_BLOCKS: &[&str] = &[
     "goal_control",
     "document_parser",
     "import_accounts",
-    "kburn",
     "llm_api_timeout_ms",
     "max_parallel_tasks",
     "max_tool_rounds",
@@ -925,11 +924,6 @@ impl CodeConfig {
                         // The long-run floor; absent means one minute.
                         min_seconds: min_seconds.unwrap_or(60),
                     });
-                }
-                "kburn" => {
-                    if let Some(enabled) = acl_bool_attr(&block, &["kburn"]) {
-                        config.kburn = Some(enabled);
-                    }
                 }
                 "skill_dirs" | "skills" => {
                     if let Some(paths) = acl_path_list_attr(&block, &["skill_dirs", "skills"]) {

@@ -456,7 +456,6 @@ pub(super) fn path_has_noise_component(path: &Path) -> bool {
             // vault (`.aster/kb/`) is carved out above via `is_personal_kb_path`.
             ".git"
                 | ".aster"
-                | ".aster"
                 | ".aster-agent-retrievals"
                 | "node_modules"
                 | "target"

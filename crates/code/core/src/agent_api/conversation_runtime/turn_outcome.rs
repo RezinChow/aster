@@ -283,17 +283,6 @@ fn checked_surface_result(
     }
     match surface.agent.decide_fact_completion_gate(&ledger, &reports) {
         crate::harness_loop::CompletionGate::Allow(terminal) => {
-            let workspace = &surface.agent.tool_context_handle().workspace;
-            if let Some(message) = crate::kstudio::incomplete_loop_message(workspace) {
-                anyhow::bail!(message);
-            }
-            if crate::kstudio::loop_skill_invoked(&result.messages)
-                && !crate::kstudio::accepted_loop_exists(workspace)
-            {
-                anyhow::bail!(
-                    "KBurn loop was invoked but no task_accepted receipt exists. Inspect controller status; use a separate <task-id>.spec.json, start or resume the controller, run task checks, advance, and submit semantic feedback before stopping"
-                );
-            }
             // The run closed accountable: mark the log position so the next
             // send's ledger replay starts here instead of inheriting this
             // run's already-verified mutations.

@@ -108,9 +108,6 @@ pub struct LoopConvergenceState {
     pub verifier_spent: bool,
     #[serde(default, skip_serializing_if = "is_false")]
     pub next_turn_is_verifier: bool,
-    /// `Skill("loop")` was invoked; completion requires a real task acceptance.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub kburn_loop_invoked: bool,
     /// Git baseline from run start. A resumed process deltas against this
     /// instead of a fresh snapshot, so an unobserved write still opens the gate.
     #[serde(default, skip_serializing_if = "is_false")]

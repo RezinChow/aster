@@ -62,7 +62,6 @@ fn has_sensitive_dir_name(path: &Path) -> bool {
             name.to_string_lossy().to_ascii_lowercase().as_str(),
             ".git"
                 | ".aster"
-                | ".aster"
                 | ".aster-agent-retrievals"
                 | ".ssh"
                 | ".aws"

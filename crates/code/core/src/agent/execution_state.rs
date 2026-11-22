@@ -29,7 +29,6 @@ pub(super) struct ExecutionLoopState {
     pub(super) targeted_paths: Vec<String>,
     pub(super) verifier_spent: bool,
     pub(super) next_turn_is_verifier: bool,
-    pub(super) kburn_loop_invoked: bool,
     pub(super) run_watch: Option<crate::porcelain::RunWatch>,
     pub(super) run_watch_is_baseline: bool,
     workspace_watch_bound: bool,
@@ -100,7 +99,6 @@ impl ExecutionLoopState {
             targeted_paths: Vec::new(),
             verifier_spent: convergence.verifier_spent,
             next_turn_is_verifier: convergence.next_turn_is_verifier,
-            kburn_loop_invoked: convergence.kburn_loop_invoked,
             run_watch: None,
             run_watch_is_baseline: false,
             workspace_watch_bound: convergence.workspace_watch_bound,
@@ -228,7 +226,6 @@ impl ExecutionLoopState {
             open_observations: self.open_observations.clone(),
             verifier_spent: self.verifier_spent,
             next_turn_is_verifier: self.next_turn_is_verifier,
-            kburn_loop_invoked: self.kburn_loop_invoked,
             workspace_watch_bound: self.workspace_watch_bound,
             workspace_porcelain: self.workspace_porcelain.clone(),
             workspace_head: self.workspace_head.clone(),
@@ -390,9 +387,6 @@ impl ExecutionLoopState {
         args: &Value,
         is_error: bool,
     ) {
-        if crate::kstudio::is_loop_skill_invocation(tool_name, args) {
-            self.kburn_loop_invoked = true;
-        }
         self.recent_tool_signatures.push(format!(
             "{} => {}",
             Self::tool_signature(tool_name, args),
@@ -1059,17 +1053,6 @@ mod tests {
         assert_eq!(state.total_usage.total_tokens, usize::MAX);
         assert_eq!(state.total_usage.cache_read_tokens, Some(8));
         assert_eq!(state.total_usage.cache_write_tokens, Some(7));
-    }
-
-    #[test]
-    fn kburn_loop_skill_marks_completion_requirement_and_checkpoint() {
-        let mut state = ExecutionLoopState::new(&[]);
-        assert!(!state.kburn_loop_invoked);
-        state.remember_tool_signature("Skill", &json!({"skill_name":"loop"}), false);
-        assert!(state.kburn_loop_invoked);
-        assert!(state.convergence_checkpoint().kburn_loop_invoked);
-        state.remember_tool_signature("Skill", &json!({"skill_name":"review"}), false);
-        assert!(state.kburn_loop_invoked);
     }
 
     #[test]

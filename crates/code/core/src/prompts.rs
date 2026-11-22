@@ -118,8 +118,6 @@ pub const PLAN_EXECUTE_STEP: &str = include_str!("../prompts/planning/plan_execu
 
 /// Skill catalog header injected before listing available skill names/descriptions.
 pub const SKILLS_CATALOG_HEADER: &str = include_str!("../prompts/common/skills_catalog_header.md");
-/// Additional routing guidance when KBurn conductor skills are active.
-pub const KBURN_CATALOG_HEADER: &str = include_str!("../prompts/common/kburn_catalog_header.md");
 
 // ============================================================================
 // Verification Agent

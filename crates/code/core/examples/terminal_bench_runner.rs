@@ -9,8 +9,6 @@
 //! Usage:
 //! `terminal_bench_runner --config /run/aster/config.acl --workspace /root --prompt-file /run/aster/instruction.md --result-file /logs/agent/aster.result.json`
 
-#[path = "terminal_bench_runner/kburn.rs"]
-mod kburn;
 #[path = "terminal_bench_runner/result.rs"]
 mod result;
 #[path = "terminal_bench_runner/sandbox.rs"]
@@ -240,7 +238,6 @@ struct Args {
     codex_auth: Option<PathBuf>,
     codex_model: Option<String>,
     codex_reasoning_effort: Option<String>,
-    kburn_mode: aster_core::kstudio::KburnMode,
 }
 
 fn parse_required_paths_env() -> Vec<PathBuf> {
@@ -265,22 +262,13 @@ fn parse_args() -> Result<Args> {
     let mut codex_auth = None;
     let mut codex_model = None;
     let mut codex_reasoning_effort = None;
-    let mut kburn_mode = aster_core::kstudio::KburnMode::Auto;
     while let Some(flag) = args.next() {
         let flag = flag.to_string_lossy();
         if matches!(flag.as_ref(), "--help" | "-h") {
             println!(
-                "usage: terminal_bench_runner --config PATH --workspace PATH --prompt-file PATH [--result-file PATH --max-execution-time-ms MS --require-path PATH --codex-auth PATH --codex-model MODEL --codex-reasoning-effort EFFORT --kburn|--no-kburn]"
+                "usage: terminal_bench_runner --config PATH --workspace PATH --prompt-file PATH [--result-file PATH --max-execution-time-ms MS --require-path PATH --codex-auth PATH --codex-model MODEL --codex-reasoning-effort EFFORT]"
             );
             std::process::exit(0);
-        }
-        if flag == "--kburn" {
-            kburn_mode = aster_core::kstudio::KburnMode::Enabled;
-            continue;
-        }
-        if flag == "--no-kburn" {
-            kburn_mode = aster_core::kstudio::KburnMode::Disabled;
-            continue;
         }
         let value = args
             .next()
@@ -319,7 +307,6 @@ fn parse_args() -> Result<Args> {
         codex_auth,
         codex_model,
         codex_reasoning_effort,
-        kburn_mode,
     })
 }
 
@@ -612,14 +599,7 @@ async fn execute(args: &Args, progress: &mut RunProgress) -> Result<()> {
     let agent = Agent::new(args.config.to_string_lossy().to_string())
         .await
         .context("load Aster Code ACL")?;
-    let prompt_extra = if args.kburn_mode == aster_core::kstudio::KburnMode::Disabled {
-        TASK_PROOF_NOTE.to_string()
-    } else {
-        format!(
-            "{TASK_PROOF_NOTE}\n\n{}",
-            aster_core::kstudio::KBURN_PRIORITY_PROMPT
-        )
-    };
+    let prompt_extra = TASK_PROOF_NOTE.to_string();
     let mut options = SessionOptions::new()
         .with_confirmation_manager(Arc::new(AutoApproveConfirmation))
         // Benchmark instructions are arbitrary user tasks. Pin the execution
@@ -634,7 +614,6 @@ async fn execute(args: &Args, progress: &mut RunProgress) -> Result<()> {
         // pre-analysis so the model receives that instruction verbatim as the
         // user message instead of a planner-rewritten wrapper.
         .with_planning_mode(PlanningMode::Disabled)
-        .with_kburn_mode(args.kburn_mode)
         // The benchmark model is the ACL default. Request its `max` thinking
         // menu entry for every task.
         .with_reasoning_effort(HARBOR_HOST_REASONING_EFFORT)
@@ -691,17 +670,9 @@ async fn execute(args: &Args, progress: &mut RunProgress) -> Result<()> {
         .context("build workspace-bound Aster Code session")?;
     eprintln!("aster: session ready");
 
-    let mut prompt = if args.kburn_mode == aster_core::kstudio::KburnMode::Disabled {
-        format!("{task_prompt}\n\n{TASK_PROOF_NOTE}")
-    } else {
-        format!(
-            "{}\n\n{task_prompt}\n\n{TASK_PROOF_NOTE}",
-            aster_core::kstudio::KBURN_PRIORITY_PROMPT
-        )
-    };
+    let mut prompt = format!("{task_prompt}\n\n{TASK_PROOF_NOTE}");
     let mut bound_digests = HashSet::new();
     let mut admission_budget = HostAdmissionBudget::default();
-    let mut kburn_stalls = kburn::SettlementStallTracker::default();
     let required_paths = graded_required_paths(resolve_required_paths(
         &args.workspace,
         &args.required_paths,
@@ -749,7 +720,6 @@ async fn execute(args: &Args, progress: &mut RunProgress) -> Result<()> {
             .await
             .context("start Aster Code stream")?;
         let mut gate_digest: Option<String> = None;
-        let mut attempt_stall: Option<&'static str> = None;
         let mut storage_fatal: Option<String> = None;
         while let Some(event) = events.recv().await {
             match event {
@@ -798,11 +768,6 @@ async fn execute(args: &Args, progress: &mut RunProgress) -> Result<()> {
                     progress.error_count = progress.error_count.saturating_add(1);
                     progress.remember_error(&message);
                     eprintln!("[aster error] {message}");
-                    if args.kburn_mode != aster_core::kstudio::KburnMode::Disabled
-                        && attempt_stall.is_none()
-                    {
-                        attempt_stall = kburn::settlement_stall_signature(&message);
-                    }
                     if let Some(digest) = parse_completion_gate_mutation_digest(&message) {
                         gate_digest = Some(digest);
                     }
@@ -820,11 +785,6 @@ async fn execute(args: &Args, progress: &mut RunProgress) -> Result<()> {
         );
         if let Some(error) = &worker_error {
             progress.remember_error(error);
-            if args.kburn_mode != aster_core::kstudio::KburnMode::Disabled
-                && attempt_stall.is_none()
-            {
-                attempt_stall = kburn::settlement_stall_signature(&error.to_string());
-            }
             if gate_digest.is_none() {
                 if let Some(digest) = parse_completion_gate_mutation_digest(&error.to_string()) {
                     gate_digest = Some(digest);
@@ -854,34 +814,6 @@ async fn execute(args: &Args, progress: &mut RunProgress) -> Result<()> {
             require_bound_margin,
             privacy_sensitive,
         );
-        if args.kburn_mode != aster_core::kstudio::KburnMode::Disabled
-            && !matches!(
-                step,
-                HostAdmissionStep::Finish | HostAdmissionStep::SameDigestStillOpen
-            )
-        {
-            match kburn::drive_running_loop(&args.workspace).await {
-                Ok(Some(next)) => {
-                    eprintln!("aster: host advanced the KBurn controller");
-                    kburn_stalls = kburn::SettlementStallTracker::default();
-                    prompt = next;
-                    continue;
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    eprintln!("aster: KBurn host advance failed: {error}");
-                }
-            }
-        }
-        if args.kburn_mode != aster_core::kstudio::KburnMode::Disabled {
-            if let Some(diagnostic) = kburn::settlement_stall(&mut kburn_stalls, attempt_stall) {
-                eprintln!("aster: {diagnostic}");
-                progress.remember_error(&diagnostic);
-                progress.mark_reward_invalid();
-                session.close().await;
-                anyhow::bail!(diagnostic);
-            }
-        }
         match step {
             HostAdmissionStep::BindNewDigest => {
                 let Some(digest) = gate_digest else {

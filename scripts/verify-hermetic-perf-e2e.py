@@ -67,17 +67,13 @@ SUITES = [
     'hg2_a5_nested_task_deny',
     'hg2_a4_skill_override_report',
     'hg2_h7_cancel_bg_toast',
-    'hg2_kburn_skill_root',
-    'hg2_kburn_layout_contract',
-    'hg2_kburn_acp_coverage',
-    'hg2_kburn_readme_skip',
-    'hg2_kburn_slash_coverage',
-    'hg2_kburn_materialize',
-    'hg2_kburn_factory_bundle',
-    'hg2_kburn_aster_root',
-    'hg2_kburn_bare_skills',
-    'hg2_kburn_project_acl',
-    'hg2_kburn_workflow_helpers',
+    'hg2_kstudio_skill_root',
+    'hg2_kstudio_layout_contract',
+    'hg2_kstudio_readme_skip',
+    'hg2_kstudio_factory_bundle',
+    'hg2_kstudio_aster_root',
+    'hg2_kstudio_project_acl',
+    'hg2_kstudio_workflow_helpers',
     'hg2_e8_compaction_failed',
     'hg2_e2_empty_line_refuse',
     'hg2_p7_feature_switch',
@@ -117,47 +113,31 @@ LIB_SUITES = {
         'aster-pager',
         'cancel_complete_toasts_when_background_tasks_still_run',
     ),
-    'hg2_kburn_skill_root': (
+    'hg2_kstudio_skill_root': (
         'aster-core',
         'agent_skill_roots_include_kstudio_skills_last',
     ),
-    'hg2_kburn_layout_contract': (
+    'hg2_kstudio_layout_contract': (
         'aster-core',
         'vendored_layout_contract_declares_schema_id',
     ),
-    'hg2_kburn_acp_coverage': (
-        'aster-acp',
-        'acp_host_can_compose_kburn_skill_coverage_from_core',
-    ),
-    'hg2_kburn_readme_skip': (
+    'hg2_kstudio_readme_skip': (
         'aster-core',
         'test_load_from_dir',
     ),
-    'hg2_kburn_slash_coverage': (
-        'aster-acp',
-        'format_kburn_coverage_reports_complete_and_partial_workspaces',
-    ),
-    'hg2_kburn_materialize': (
-        'aster-acp',
-        'format_kburn_report_materialize_creates_seeds_once',
-    ),
-    'hg2_kburn_factory_bundle': (
+    'hg2_kstudio_factory_bundle': (
         'aster-core',
         'bundled_factory_skeleton_contains_manifest_and_seed_paths',
     ),
-    'hg2_kburn_aster_root': (
+    'hg2_kstudio_aster_root': (
         'aster-core',
         'kstudio_root_prefers_aster_engineering_then_legacy',
     ),
-    'hg2_kburn_bare_skills': (
-        'aster-core',
-        'kburn_skill_names_are_twelve_unique_conductor_skills',
-    ),
-    'hg2_kburn_project_acl': (
+    'hg2_kstudio_project_acl': (
         'aster-core',
         'materialize_factory_seeds_creates_missing_only',
     ),
-    'hg2_kburn_workflow_helpers': (
+    'hg2_kstudio_workflow_helpers': (
         'aster-core',
         'materialize_seeds_workflow_helpers_under_aster',
     ),

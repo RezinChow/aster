@@ -1,6 +1,7 @@
 # Overall goals (goal · S)
 
 Updated: 2026-11-17 · by: S via /goal · status: **locked** · HG6 bar sharpened（Core 内化自动触发）
+Updated: 2026-11-22 · by: S · HG6 内化机制层已按用户要求移除（见下方硬目标 6 状态反转注记）；底层 kstudio/loop 工程工具与 fact-log 修复保留。
 
 ## Overall goal
 
@@ -17,7 +18,7 @@ Updated: 2026-11-17 · by: S via /goal · status: **locked** · HG6 bar sharpene
 3. **可信（日常 + 证据）**：在已发布通道水位之上，高危缺陷机制有关闭或显式 hold；日常稳定使用须可复跑证明；%≠Pass。当前参考：`aster-cli-stable`→0.3.9 / ACP 9.2.7。
 4. **Codex→Aster 机制吸收（手段，非总体）**：P0–P2 已落地进仓并接线；后续吸收服从 Meta Harness 三性。证据齐；≠产品 Pass。
 5. **Studio 与内核同步**：桌面 gitlink / Release 跟上内核契约与 9.2.7+ 线能力；≠产品 Pass。
-6. **kburn→Core 机制吸收（手段，非总体）**：将 `kense-labs/kburn` **全套**（AI 工程树 + 12 conductor skills）**内化进 Core**；规范落点 **`workspace/.aster/`**（`workflow`/`skills`/`wiki`/… 与产品目录同根；兼容遗留 `.kstudio/`）；会话装配时对已有工程根 **自动触发**（补齐缺失 factory seeds + 加载规范 conductor skills；仅有 `config.acl` 不触发）；可叙述 + 可复跑证据关闭本硬目标切片。挂文档/安装脚本 alone ≠ Pass；**本硬目标不要求 TUI / Studio 专用 UI**；%≠产品 Pass。 · **Status 2026-11-17: closed**（证据 `T2026-11-17-hg6-close`；≠ Meta Harness Done）。
+6. **kburn→Core 机制吸收（手段，非总体）**：将 `kense-labs/kburn` **全套**（AI 工程树 + 12 conductor skills）**内化进 Core**；规范落点 **`workspace/.aster/`**（`workflow`/`skills`/`wiki`/… 与产品目录同根；兼容遗留 `.kstudio/`）；会话装配时对已有工程根 **自动触发**（补齐缺失 factory seeds + 加载规范 conductor skills；仅有 `config.acl` 不触发）；可叙述 + 可复跑证据关闭本硬目标切片。挂文档/安装脚本 alone ≠ Pass；**本硬目标不要求 TUI / Studio 专用 UI**；%≠产品 Pass。 · **Status 2026-11-17: closed**（证据 `T2026-11-17-hg6-close`；≠ Meta Harness Done）。 **Status 2026-11-22: 内化机制层已移除** —— 用户要求「aster 中不要增加 kburn 的内化机制」；内核不再主动装配/触发 kburn 运行时（开关、完成门禁、优先级提示词、runner 专项、ACP 专用接面均已删除）。保留底层 kstudio/loop 工程工具与 fact-log byte-limit 修复；`closed` 为史实，方向反转为最新决定。
 
 ## Non-goals
 

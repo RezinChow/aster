@@ -217,8 +217,6 @@ pub struct ToolContext {
     /// Clones share the cell so a turn can publish it before tools run.
     reply_language: std::sync::Arc<std::sync::Mutex<Option<String>>>,
     reply_language_is_inherited: bool,
-    /// Session-scoped KBurn loop invocation shared by cloned tool contexts.
-    pub(crate) kburn_loop_invoked: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Run identity for the invocation that owns this context. This is kept
     /// separate from `session_id` so detached work from different runs cannot
     /// accidentally share an admission scope.
@@ -417,7 +415,6 @@ impl ToolContext {
             session_id: None,
             reply_language: std::sync::Arc::new(std::sync::Mutex::new(None)),
             reply_language_is_inherited: false,
-            kburn_loop_invoked: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             run_id: None,
             event_tx: None,
             agent_event_tx: None,
@@ -454,16 +451,6 @@ impl ToolContext {
             invocation_stack: Vec::new(),
             inside_tool_queue: false,
         }
-    }
-
-    pub(crate) fn mark_kburn_loop_invoked(&self) {
-        self.kburn_loop_invoked
-            .store(true, std::sync::atomic::Ordering::Release);
-    }
-
-    pub(crate) fn kburn_loop_invoked(&self) -> bool {
-        self.kburn_loop_invoked
-            .load(std::sync::atomic::Ordering::Acquire)
     }
 
     /// Publish the language of the latest user message that showed a script.

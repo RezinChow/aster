@@ -80,15 +80,6 @@ leave `/logs` at mode `777` (that yields `Untrusted parent directory of
 /logs/verifier` and `RewardFileNotFoundError`). `aster.result.json` records
 `maxExecutionTimeMs` for failure attribution.
 
-For a controlled KBurn comparison, keep the task, model, runner, and
-`ASTER_SKILLS_DIR` identical and vary only `ASTER_KBURN`: `0` passes
-`--no-kburn` and does not copy the pack into the task workspace; `1` copies the
-uploaded pack to `.aster/skills` (refusing to replace an existing directory) and
-passes `--kburn`. The runner also accepts these flags directly. Unset preserves
-`.aster` marker auto-detection. The comparison does not change the instruction
-or verifier; a single task and attempt remains diagnostic, not a leaderboard
-estimate.
-
 Or with the local Codex login:
 
 ```bash

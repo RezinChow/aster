@@ -251,9 +251,6 @@ A skill that declares allowed-tools runs inside this call with only those tools,
     async fn execute(&self, args: &Value, ctx: &ToolContext) -> Result<ToolOutput> {
         let args = SkillArgs::from_tool_args(args)?;
         let skill = self.invocable_skill(&args.skill_name)?;
-        if args.skill_name == "loop" {
-            ctx.mark_kburn_loop_invoked();
-        }
 
         // An instruction or persona skill with no allowed-tools is guidance for
         // the calling turn. A nested agent would hide its model call from this

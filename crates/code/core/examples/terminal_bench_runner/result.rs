@@ -51,7 +51,7 @@ pub(super) struct TerminalBenchRunResultV1 {
     #[serde(skip_serializing_if = "Option::is_none")]
     last_error: Option<String>,
     /// False when the adapter stopped before a valid Harbor reward could be
-    /// produced (for example a repeated KBurn settlement stall).
+    /// produced (for example a repeated completion-gate stall).
     #[serde(rename = "reward_valid")]
     reward_valid: bool,
     /// A durable storage failure ended the run before a valid reward existed.
