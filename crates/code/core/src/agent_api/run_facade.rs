@@ -103,7 +103,7 @@ impl AgentSession {
     /// `complete` describes the requested event window and content only.
     /// Durable tool receipts and process settlement require their original
     /// proofs; digest-only evidence does not establish either one.
-
+    ///
     /// Return a cursor-based page from the run's retained event window.
     ///
     /// `after_sequence` is exclusive. The result is `None` for an unknown run;

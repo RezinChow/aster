@@ -232,13 +232,11 @@ impl AsterCodeAgent {
                     setup.model_id,
                     session_skill_dirs(&setup.workspace, &self.launch.config.skill_dirs),
                 )
-                .map(|options| {
-                    match embedding {
-                        Some(provider) => options.with_workspace_retrieval(
-                            aster_core::WorkspaceRetrievalOptions::new(provider),
-                        ),
-                        None => options,
-                    }
+                .map(|options| match embedding {
+                    Some(provider) => options.with_workspace_retrieval(
+                        aster_core::WorkspaceRetrievalOptions::new(provider),
+                    ),
+                    None => options,
                 })
                 .map_err(|error| acp::Error::internal_error().data(error)),
             None => Self::host_session_options_with_embedding(

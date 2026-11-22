@@ -108,7 +108,7 @@ pub(super) async fn prepare_tools_with_refusal(
         if let Ok(mut guard) = ledger.lock() {
             // The delta is the Phase 2 admission input; Phase 1 observes it
             // without acting.
-            let _delta = guard.settle_prior_turns(request.identity.turn as u64);
+            let _delta = guard.settle_prior_turns(request.identity.turn);
         }
     }
     let original_evaluation = evaluate_run_permission(

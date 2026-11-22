@@ -42,7 +42,9 @@ pub fn goal_fact_key(
 mod run;
 pub(super) use run::matches_tick_run;
 pub(crate) use run::MutationProgress;
-pub(crate) use run::{prepare_run, render_run_context, ContinuationSource, ProgressBasis};
+#[cfg(test)]
+pub(crate) use run::ProgressBasis;
+pub(crate) use run::{prepare_run, render_run_context, ContinuationSource};
 mod settle;
 pub use settle::GoalStepFeedback;
 pub(crate) use settle::{prepare_settlement, reconcile_slices, tick_feedback};

@@ -100,7 +100,7 @@ async fn repeated_state_run(external_at: Option<usize>) {
     else {
         panic!("the original Run must start")
     };
-    let stopped = tokio::time::timeout(Duration::from_secs(3), &mut worker).await;
+    let stopped = tokio::time::timeout(Duration::from_secs(10), &mut worker).await;
     let calls = client.calls.load(Ordering::SeqCst);
     let executed = physical.load(Ordering::SeqCst);
     let before_deadline = now_ms() < deadline;
@@ -348,7 +348,7 @@ async fn owned_child_state_run(external_at: Option<usize>) {
     };
     let mut worker =
         tokio::spawn(async move { run.run("Apply the controlled source transitions.").await });
-    let stopped = tokio::time::timeout(Duration::from_secs(3), &mut worker).await;
+    let stopped = tokio::time::timeout(Duration::from_secs(10), &mut worker).await;
     let calls = client.calls.load(Ordering::SeqCst);
     eprintln!(
         "CHILD_REANCHOR_OBSERVATION external_at={external_at:?} model_calls={calls} stopped={}",

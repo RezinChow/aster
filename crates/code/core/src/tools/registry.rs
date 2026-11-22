@@ -18,7 +18,6 @@ use crate::llm::ToolDefinition;
 use crate::trace::{InMemoryTraceSink, TraceEvent, TraceSink};
 use anyhow::Result;
 use std::collections::HashMap;
-use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;

@@ -175,6 +175,28 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 - **macOS Qualify**：run 44881613245 三平台全绿；上一轮 reasoning 超时与 retrieval `EVIDENCE-MISSING` 未复现，确认是负载相关 flake，非产品回归。retrieval 断言的 `tool_results` 诊断保留。
 - **结论**：memory-retention 是最后一个非绿的确定性 Rust check 失败，已修复待 CI 验证；Qualify 已全绿。
 
+### 24. KBurn 内化层删除后的 Format 门禁与 macOS 时序收口（2026-11-23）
+
+- 背景：KBurn 删除提交 `849c74015` 推送后触发 run `45038914312`（Rust）/`45038914358`（Qualify aster-cli）/`
+45038914320`（Qualify aster）。查询全部 job：**所有失败都落在 Format 门禁 `cargo fmt --all -- --check`**
+（Rust check ubuntu+macOS step 8、CLI tests step 7、Core/ACP ubuntu+windows step 8），无编译/测试失败。
+- 下载 job `137258752816` 日志核对 CI diff：失败点精确为 `session_open.rs:232`、`capabilities.rs:163`、
+`kstudio/mod.rs:340/406/531/573`——均为 KBurn 删除后残留的空行/闭包换行，非逻辑错误。CI 的 `cargo fmt`
+diff 与本地 `cargo fmt --all` 输出逐字一致。
+- Format 修复覆盖 10 文件：上述 3 个 + `goal_facade.rs`（冗余 `.into()`）、`run_facade.rs`（文档空行）、
+`config/mod.rs`（`loader_tests` 加 `#[cfg(test)]`）、`fact_control.rs`/`goal_control/facts.rs`（测试专用 import 加
+`#[cfg(test)]`）、`fact_control/receipts.rs`（去掉多余 `as u64`，`settle_prior_turns` 签名本就是 u64）、
+`tools/registry.rs`（移除顶层未使用 `Hasher`，函数内各自 import）。全部为编译器/rustfmt 驱动，零行为变化。
+- macOS 时序：
+  - `goal_facade` mutation 两处 worker 等待超时 3s→10s（`mutation.rs:103/351`）。本机 macOS 原始 3s 为
+  5 failed/8，20s 为 8/8 PASS，取 10s 后本机三轮 8/8；完整 CI lib 命令 493/493 PASS。10s 仍显著低于测试
+  60s deadline，不削弱「重复状态改写应当停止 worker」的语义。
+  - reasoning PTY 三处短等待 2s→6s、ready 15s→30s（`reasoning.rs:290/293/302/309`）。单用例本地 PASS。
+- 本地完整 `shipped_tui_e2e` 受隔离 target 的 BUILD_ID 不匹配影响在 `launch_resume` 报错
+（`Aster and its ACP companion have different build identities`），为本地环境假象，非产品回归；CI 用同 target
+构建，不受影响。
+- `cargo fmt --all -- --check` EXIT=0、`git diff --check` EXIT=0。修复待新 CI run 验证。
+
 ## 提交
 
 | 仓库 | commit | 内容 |
@@ -213,7 +235,9 @@ Trigger: 上一轮 H2 交付（commit/push）后，main CI 暴露三处失败，
 | 主仓 | d0151e2bf | v912 恢复 bash 同步、marker 改工作区根、失败现场诊断；CI 安装 node-gyp |
 | 主仓 | 86d42448c | memory-retention 用例改 current-thread；retrieval 断言加诊断输出；证据第 22 项 |
 | 主仓 | cf4bebe5d | memory-retention capture 失败带事件摘要诊断；retrieval tool_results 诊断定稿；证据第 23 项初稿 |
-| 主仓 | (本笔) | CI memory-retention step 加 `--test-threads=1`（并发 subscriber 干扰修复）；证据第 23 项定稿 |
+| 主仓 | 5a5d16aa9 | CI memory-retention step 加 `--test-threads=1`（并发 subscriber 干扰修复）；证据第 23 项定稿 |
+| 主仓 | 849c74015 | KBurn 内化层删除（69 files, +145/-2698）；GOALS 方向反转注记 |
+| 主仓 | (本笔) | Format 门禁修复（KBurn 删除后的 10 文件 rustfmt/lint 清理）+ mutation/reasoning macOS 时序放宽；证据第 24 项 |
 
 ## 验证
 

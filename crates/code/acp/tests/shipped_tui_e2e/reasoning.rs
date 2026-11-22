@@ -287,10 +287,10 @@ memory {{ llm_extraction = false }}
     pty.type_text("/model slow/gpt");
     pty.enter();
     requested.recv_timeout(Duration::from_secs(5)).unwrap();
-    pty.wait_for("detecting", Duration::from_secs(2));
+    pty.wait_for("detecting", Duration::from_secs(6));
     pty.focus_composer();
     pty.type_text("/effort none");
-    pty.wait_for("/effort none", Duration::from_secs(2));
+    pty.wait_for("/effort none", Duration::from_secs(6));
     pty.enter();
     let submitted = pty.pump(Duration::from_millis(300));
     assert!(
@@ -299,11 +299,11 @@ memory {{ llm_extraction = false }}
     );
     let marker = "CAPABILITY-PROBE-LOW";
     pty.type_text(marker);
-    pty.wait_for(marker, Duration::from_secs(2));
+    pty.wait_for(marker, Duration::from_secs(6));
     assert!(initial.lock().unwrap().bodies.is_empty());
     assert!(selected.lock().unwrap().bodies.is_empty());
     release.send(()).unwrap();
-    let ready = pty.wait_for("slow/gpt (none)", Duration::from_secs(15));
+    let ready = pty.wait_for("slow/gpt (none)", Duration::from_secs(30));
     assert!(
         ready.contains(marker),
         "the catalog update lost the draft\n{ready}"

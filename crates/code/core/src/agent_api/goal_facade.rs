@@ -78,7 +78,7 @@ impl AgentSession {
             if let Some(source) = saved_source {
                 source
                     .verify(&session_id, &facts)
-                    .map_err(|error| CodeError::Internal(error.into()))?;
+                    .map_err(CodeError::Internal)?;
             }
             let policy = crate::work_policy::prepare_policy(&facts, &thread, None)
                 .map_err(|error| CodeError::Internal(error.into()))?;

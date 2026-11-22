@@ -163,10 +163,8 @@ fn assemble_session_capabilities(
         .iter()
         .map(|source| Arc::clone(&source.manager))
         .collect();
-    let skill_registry = build_effective_skill_registry(
-        input.base_config.skill_registry.as_deref(),
-        input.opts,
-    );
+    let skill_registry =
+        build_effective_skill_registry(input.base_config.skill_registry.as_deref(), input.opts);
     let agent_registry = register_task_capability(
         &input,
         &tool_executor,

@@ -340,7 +340,6 @@ pub fn read_kstudio_manifest(workspace: &Path) -> anyhow::Result<Option<KstudioM
 mod tests {
     use super::*;
 
-
     #[test]
     fn vendored_layout_contract_declares_schema_id() {
         assert!(KSTUDIO_PROJECT_LAYOUT_V1_JSON.contains("\"$id\": \"kstudio.project-layout.v1\""));
@@ -405,15 +404,6 @@ mod tests {
         assert!(is_kstudio_skills_dir(ws, &skills));
         assert!(!is_kstudio_skills_dir(ws, &ws.join("skills")));
     }
-
-
-
-
-
-
-
-
-
 
     #[test]
     fn materialize_factory_seeds_creates_missing_only() {
@@ -531,8 +521,6 @@ mod tests {
         );
     }
 
-
-
     #[test]
     fn resolve_dirs_honors_manifest_core_overrides() {
         let root = tempfile::tempdir().unwrap();
@@ -573,5 +561,4 @@ mod tests {
         let err = read_kstudio_manifest(root.path()).expect_err("bad schema");
         assert!(err.to_string().contains("unsupported"), "{err}");
     }
-
 }

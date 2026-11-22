@@ -17,6 +17,7 @@ mod execution_capabilities;
 mod forced_layer;
 mod goal_control;
 mod loader;
+#[cfg(test)]
 mod loader_tests;
 mod provider;
 mod search;

@@ -81,12 +81,13 @@ use model_wait::{
     model_idle_sleep, AbortOnDrop,
 };
 pub use tool_results::admit_tool_call;
+#[cfg(test)]
+use tool_results::attachments_from_fact_tool_images;
 pub(crate) use tool_results::exposed_tool_specs;
 use tool_results::{
-    attachments_from_fact_tool_images, confirmation_parked, decision_from_response,
-    decode_fact_tool_result, definitions_for, fact_tool_runner_value, latest_user_text,
-    message_from_folded_tool, run_permission, skill_denial, split_folded_message,
-    verified_turn_text, FACT_TOOL_RESULT_KIND,
+    confirmation_parked, decision_from_response, decode_fact_tool_result, definitions_for,
+    fact_tool_runner_value, latest_user_text, message_from_folded_tool, run_permission,
+    skill_denial, split_folded_message, verified_turn_text, FACT_TOOL_RESULT_KIND,
 };
 #[cfg(test)]
 use turn_facts::append_steer_input;
