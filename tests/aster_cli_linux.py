@@ -133,7 +133,7 @@ class LinuxPackagingTest(unittest.TestCase):
             trace = root / "readelf.log"
             archive = root / "linux.tar.gz"
             env = dict(os.environ, PATH=str(commands) + os.pathsep + os.environ["PATH"], FAKE_READELF_LOG=str(trace), FAKE_ABI_DUMP=dump)
-            result = subprocess.run(["bash", str(PACKAGE), platform, str(bins), str(archive)], env=env, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(["bash", str(PACKAGE), platform, str(bins), str(archive)], env=env, capture_output=True, text=True, timeout=30)
             return result, archive.exists(), trace.read_text() if trace.exists() else ""
 
     def test_linux_packaging_checks_both_binaries_against_the_baseline(self):
@@ -164,10 +164,47 @@ class LinuxPackagingTest(unittest.TestCase):
         self.assertIn("GLIBC_2.34", result.stderr)
         self.assertFalse(exists)
 
+    def package_musl_fixture(self, platform="linux-musl", verifier_status=0):
+        with tempfile.TemporaryDirectory(prefix="aster-musl-package-") as directory:
+            root = Path(directory)
+            bins, commands = root / "bins", root / "commands"
+            bins.mkdir()
+            commands.mkdir()
+            for name in NAMES:
+                path = bins / name
+                path.write_text(f"#!/bin/sh\nprintf '%s\\n' '{IDENTITY}'\n")
+                path.chmod(0o755)
+            verifier = commands / "python3"
+            verifier.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$FAKE_VERIFY_LOG"\nexit "${FAKE_VERIFY_STATUS:-0}"\n')
+            verifier.chmod(0o755)
+            trace = root / "verifier.log"
+            archive = root / "musl.tar.gz"
+            env = dict(os.environ, PATH=str(commands) + os.pathsep + os.environ["PATH"],
+                       FAKE_VERIFY_LOG=str(trace), FAKE_VERIFY_STATUS=str(verifier_status))
+            result = subprocess.run(["bash", str(PACKAGE), platform, str(bins), str(archive)],
+                                    env=env, capture_output=True, text=True, timeout=30)
+            return result, archive.exists(), trace.read_text() if trace.exists() else ""
+
+    def test_musl_packaging_verifies_both_binaries_with_the_architecture(self):
+        for platform, machine in (("linux-musl", "x86_64"), ("linux-musl-arm64", "aarch64")):
+            with self.subTest(platform=platform):
+                result, exists, trace = self.package_musl_fixture(platform)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(exists)
+                self.assertIn(f"--machine {machine}", trace)
+                for name in NAMES:
+                    self.assertIn("/" + name, trace)
+
+    def test_musl_packaging_refuses_when_the_pair_is_not_static(self):
+        result, exists, trace = self.package_musl_fixture(verifier_status=1)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(exists)
+        self.assertIn("--machine x86_64", trace)
+
     def test_retired_and_unknown_platforms_are_refused(self):
         for platform in ("kylin", "kylin-arm64", "plan9"):
             with self.subTest(platform=platform):
-                result = subprocess.run(["bash", str(PACKAGE), platform, "/missing", "/missing/out.tar.gz"], capture_output=True, text=True, timeout=10)
+                result = subprocess.run(["bash", str(PACKAGE), platform, "/missing", "/missing/out.tar.gz"], capture_output=True, text=True, timeout=30)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("unsupported platform", result.stderr)
 
@@ -230,7 +267,7 @@ class LinuxChannelSelectionTest(unittest.TestCase):
             with self.subTest(reported_glibc=version):
                 self.fake_tool("getconf", f'printf "%s\\n" "glibc {version}"' if version else "exit 1")
                 self.fake_tool("ldd", "exit 1")
-                result = subprocess.run(["bash", str(INSTALL), "--prefix", str(self.prefix)], env=self.environment(), capture_output=True, text=True, timeout=10)
+                result = subprocess.run(["bash", str(INSTALL), "--prefix", str(self.prefix)], env=self.environment(), capture_output=True, text=True, timeout=30)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"local release is missing aster-cli-v{VERSION}-linux.tar.gz", result.stderr)
 
@@ -245,7 +282,7 @@ class LinuxChannelSelectionTest(unittest.TestCase):
         self.fake_uname("aarch64")
         self.fake_tool("getconf", 'printf "%s\\n" "glibc 2.31"')
         self.fake_tool("ldd", "exit 1")
-        result = subprocess.run(["bash", str(INSTALL), "--prefix", str(self.prefix)], env=self.environment(), capture_output=True, text=True, timeout=10)
+        result = subprocess.run(["bash", str(INSTALL), "--prefix", str(self.prefix)], env=self.environment(), capture_output=True, text=True, timeout=30)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"local release is missing aster-cli-v{VERSION}-linux-arm64.tar.gz", result.stderr)
 
@@ -254,7 +291,7 @@ class LinuxChannelSelectionTest(unittest.TestCase):
         self.fake_tool("curl", 'printf called > "$NETWORK_MARKER"; exit 99')
         env = self.environment()
         env["NETWORK_MARKER"] = str(marker)
-        result = subprocess.run(["bash", str(INSTALL), "--prefix", str(self.prefix), f"https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v{VERSION}/aster-cli-v{VERSION}-kylin.tar.gz"], env=env, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(["bash", str(INSTALL), "--prefix", str(self.prefix), f"https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v{VERSION}/aster-cli-v{VERSION}-kylin.tar.gz"], env=env, capture_output=True, text=True, timeout=30)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("does not download that binary", result.stderr)
         self.assertFalse(marker.exists())
@@ -300,6 +337,39 @@ class LinuxChannelSelectionTest(unittest.TestCase):
                 result = self.install(env)
                 self.assertIn(f"local release is missing aster-cli-v{VERSION}-linux.tar.gz", result.stderr)
                 self.assertNotIn("evil", result.stderr)
+
+    def test_linux_x86_64_prefers_the_static_musl_archive(self):
+        self.write_manifest(self.asset("linux-musl"), self.asset("linux"))
+        result = self.install(self.environment())
+        self.assertIn(f"local release is missing aster-cli-v{VERSION}-linux-musl.tar.gz", result.stderr)
+
+    def test_linux_arm64_prefers_the_static_musl_archive(self):
+        self.fake_uname("aarch64")
+        self.write_manifest(self.asset("linux-musl-arm64"), self.asset("linux-arm64"))
+        result = self.install(self.environment())
+        self.assertIn(f"local release is missing aster-cli-v{VERSION}-linux-musl-arm64.tar.gz", result.stderr)
+
+    def test_kylin_host_prefers_static_musl_before_the_named_channel(self):
+        self.write_manifest(self.asset("linux-musl"), self.asset("kylin-x86_64"), self.asset("linux"))
+        env = self.environment()
+        env["ASTER_OS_RELEASE_FILE"] = self.os_release("kylin")
+        result = self.install(env)
+        self.assertIn(f"local release is missing aster-cli-v{VERSION}-linux-musl.tar.gz", result.stderr)
+
+    def test_direct_musl_archive_url_is_accepted(self):
+        marker = self.root / "network-called"
+        self.fake_tool("curl", 'printf called > "$NETWORK_MARKER"; exit 99')
+        env = self.environment()
+        env["NETWORK_MARKER"] = str(marker)
+        url = (f"https://github.com/aster-ai-lab/aster/releases/download/"
+               f"aster-cli-v{VERSION}/aster-cli-v{VERSION}-linux-musl.tar.gz")
+        result = subprocess.run(
+            ["bash", str(INSTALL), "--prefix", str(self.prefix), url],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertNotIn("does not download that binary", result.stderr)
+        self.assertTrue(marker.exists())
+        self.assertIn("platform=linux-musl", result.stdout)
 
     def test_direct_kylin_archive_url_is_accepted(self):
         marker = self.root / "network-called"

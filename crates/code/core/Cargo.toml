@@ -77,8 +77,8 @@ async-stream = {workspace = true}
 reqwest = {version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "http2"]}
 
 # File operations
-cap-std = "=4.0.2"
-cap-fs-ext = "=4.0.2"
+cap-std = "4.0.2"
+cap-fs-ext = "4.0.2"
 glob = {workspace = true}
 ignore = {workspace = true}
 notify = {workspace = true}
@@ -126,7 +126,7 @@ uuid = {version = "1.6", features = ["v4", "serde"]}
 
 # Time handling
 chrono = {version = "0.4", features = ["serde"]}
-rquickjs = {version = "0.11.0", features = ["futures"]}
+rquickjs = {version = "0.11.0", features = ["futures"], optional = true}
 
 aster-acl = {path = "../../acl"}
 aster-okf = {path = "../../okf"}
@@ -161,7 +161,9 @@ minimal = []
 # Minimal plus the workspace persistent aster-vec FTS lexical path, in-tree
 # trigram pruning for workspace `grep` candidates, and PDF text extraction
 # for `web_fetch`.
-local-code = ["aster-vec-fts", "grep-trigram", "web-fetch-pdf"]
+local-code = ["aster-vec-fts", "grep-trigram", "web-fetch-pdf", "ptc"]
+# Programmatic Tool Calling (QuickJS-backed `program` tool).
+ptc = ["dep:rquickjs"]
 # Local code plus durable SQLite memory vectors and browser-backed web search.
 scientific = ["local-code", "durable-memory-sqlite", "headless-search"]
 # Alias for scientific (kept for existing profile selectors).

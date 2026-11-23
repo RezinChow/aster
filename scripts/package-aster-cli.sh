@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pack the aster-cli release binaries and embedding assets into one archive.
-# Usage: scripts/package-aster-cli.sh <macos|linux|linux-arm64|kylin-x86_64|windows> <bin-dir> <out-file>
+# Usage: scripts/package-aster-cli.sh <platform> <bin-dir> <out-file>
+#   platform: macos|linux|linux-arm64|linux-musl|linux-musl-arm64|kylin-x86_64|windows
 #
 # `linux` and `kylin-x86_64` are both x86_64; `linux-arm64` is aarch64. All
 # three target glibc 2.31. `kylin-x86_64` is only a named distribution channel
@@ -8,14 +9,16 @@
 # it as a byte-identical copy of the `linux` archive. The script refuses
 # binaries that need a newer glibc, because the archive would fail on the
 # target machine with a missing GLIBC_2.3x symbol rather than at packaging
-# time.
+# time. `linux-musl` and `linux-musl-arm64` are fully static: they skip the
+# glibc ceiling and instead require tests/cli_musl.py to prove no dynamic
+# loader, dynamic section, or GLIBC_* version reference remains.
 #
 # Embedding weights ship as `embedding/*` next to the binaries so `aster-acp`
 # release builds can omit `bundled-assets` without a network fetch.
 set -euo pipefail
 
 if [[ $# -ne 3 ]]; then
-  echo "Usage: scripts/package-aster-cli.sh <macos|linux|linux-arm64|kylin-x86_64|windows> <bin-dir> <out-file>" >&2
+  echo "Usage: scripts/package-aster-cli.sh <macos|linux|linux-arm64|linux-musl|linux-musl-arm64|kylin-x86_64|windows> <bin-dir> <out-file>" >&2
   exit 2
 fi
 
@@ -40,11 +43,20 @@ copy_file() {
 }
 
 max_glibc=""
+musl_machine=""
 case "$platform" in
   macos) suffix="" ;;
   linux|linux-arm64|kylin-x86_64)
     suffix=""
     max_glibc="2.31"
+    ;;
+  linux-musl)
+    suffix=""
+    musl_machine="x86_64"
+    ;;
+  linux-musl-arm64)
+    suffix=""
+    musl_machine="aarch64"
     ;;
   windows) suffix=".exe" ;;
   *) echo "error: unsupported platform: $platform" >&2; exit 1 ;;
@@ -65,20 +77,26 @@ embedding_files=(
   "embedding/potion-code-16M-v2.tokenizer.json"
   "embedding/potion-code-16M-v2.config.json"
 )
-# Hermetic CLI tests package shell-script fixtures through this release script.
-# readelf cannot inspect those fixtures, so the tests opt out explicitly; real
-# release packaging never sets this and keeps the glibc baseline mandatory.
-if [[ -n "$max_glibc" && -z "${ASTER_CLI_PACKAGE_SKIP_GLIBC:-}" ]]; then
+# Hermetic CLI tests package shell-script fixtures through this release script;
+# real release packaging never skips either ABI gate.
+check_python() {
   if command -v python3 >/dev/null 2>&1; then
     py=(python3)
   elif command -v python >/dev/null 2>&1; then
     py=(python)
   else
-    echo "error: checking the ${platform} glibc baseline needs python" >&2
+    echo "error: checking the ${platform} baseline needs python" >&2
     exit 1
   fi
+}
+if [[ -n "$max_glibc" && -z "${ASTER_CLI_PACKAGE_SKIP_GLIBC:-}" ]]; then
+  check_python
   "${py[@]}" "${script_dir}/check-glibc-symbols.py" --max "$max_glibc" \
     "${stage}/aster${suffix}" "${stage}/aster-acp${suffix}"
+elif [[ -n "$musl_machine" ]]; then
+  check_python
+  "${py[@]}" "${script_dir}/../tests/cli_musl.py" --machine "$musl_machine" \
+    "${stage}/aster" "${stage}/aster-acp"
 fi
 aster_identity="$("${stage}/aster${suffix}" --build-id)"
 acp_identity="$("${stage}/aster-acp${suffix}" --build-id)"
@@ -98,7 +116,7 @@ sha256_file() {
   for name in "${release_files[@]}"; do sha256_file "$name"; done
 ) > "${stage}/SHA256SUMS"
 case "$platform" in
-  macos|linux|linux-arm64|kylin-x86_64)
+  macos|linux|linux-arm64|linux-musl|linux-musl-arm64|kylin-x86_64)
     # File members only (no directory entries) so installers that refuse
     # non-regular members stay compatible.
     COPYFILE_DISABLE=1 tar -C "$stage" -czf "$out" \

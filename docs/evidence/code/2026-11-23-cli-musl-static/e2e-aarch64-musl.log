@@ -1,0 +1,24 @@
+NET_READY_AFTER=10 retries
+MUSL_E2E_FINAL_BEGIN
+KERNEL=6.12.118-0-virt
+=== IDENTITY ===
+aster 0.4.0 (31fc4ef039af)
+aster-cli-pair-v1:326aed5b0bb8666c3f4fd96939ecab4dd6de34dd:aarch64-unknown-linux-musl
+9.3.0
+aster-cli-pair-v1:326aed5b0bb8666c3f4fd96939ecab4dd6de34dd:aarch64-unknown-linux-musl
+=== TURN 1: single-turn E2E ===
+ok
+T1_EXIT=0
+=== sessions after T1 ===
+/work/.aster/sessions/2026-11-23/a3270a95-1f4e-4319-9ef9-34e14d336c3e
+=== TURN 2: resume most recent, establish long-horizon context ===
+TURN2_OK
+T2_EXIT=0
+=== TURN 3: resume most recent, recall context ===
+MUSL_LH_TOKEN_7391
+T3_EXIT=0
+=== TURN 4: resume most recent, build on context ===
+MUSL_LH_TOKEN_7391 LH_DONE
+T4_EXIT=0
+MUSL_E2E_FINAL_END
+[  115.343992] reboot: Power down

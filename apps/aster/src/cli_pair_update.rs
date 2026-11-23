@@ -105,7 +105,7 @@ fn normalize_requested_version(text: &str) -> Option<Version> {
     Version::parse(text)
 }
 
-/// The release channel this host must install.
+/// The glibc release channel for this host.
 fn channel_for(os: &str, arch: &str) -> &'static str {
     match (os, arch) {
         ("macos", _) => "macos",
@@ -116,8 +116,25 @@ fn channel_for(os: &str, arch: &str) -> &'static str {
     }
 }
 
+/// A musl binary must keep updating to the static pair, never switch back to
+/// a glibc archive on the next release.
+fn channel_for_env(os: &str, arch: &str, musl: bool) -> &'static str {
+    if musl {
+        match (os, arch) {
+            ("linux", "x86_64") => return "linux-musl",
+            ("linux", "aarch64") => return "linux-musl-arm64",
+            _ => {}
+        }
+    }
+    channel_for(os, arch)
+}
+
 fn platform_key() -> &'static str {
-    channel_for(std::env::consts::OS, std::env::consts::ARCH)
+    channel_for_env(
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        cfg!(target_env = "musl"),
+    )
 }
 
 fn asset_name_for(version: Version, platform: &str) -> String {
@@ -339,7 +356,7 @@ fn parse_manifest(bytes: &[u8], tag_hint: &str) -> Result<Manifest> {
         // updater. Known platforms stay exact (name + sha256 shape).
         if !matches!(
             platform.as_str(),
-            "macos" | "linux" | "linux-arm64" | "windows"
+            "macos" | "linux" | "linux-arm64" | "linux-musl" | "linux-musl-arm64" | "windows"
         ) {
             continue;
         }

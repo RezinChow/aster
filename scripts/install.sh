@@ -9,9 +9,10 @@
 # `--version X.Y.Z` installs that exact release. A positional URL may name
 # one official archive directly. macOS downloads a .tar.gz, Linux a .tar.gz,
 # Windows a .zip; each archive contains aster and aster-acp.
-# Linux archives keep the glibc 2.31 baseline. On Kylin V10 SP1 x86_64 the
-# installer prefers the `kylin-x86_64` named channel and falls back to `linux`
-# when the release manifest does not publish it, so older releases keep working.
+# Linux prefers the static `linux-musl` / `linux-musl-arm64` pair, which needs
+# no host glibc. When a manifest predates them, the installer falls back to the
+# glibc 2.31 archives; on Kylin V10 SP1 x86_64 it then prefers the named
+# `kylin-x86_64` channel before `linux`. Older releases keep working.
 # The command does not clone this repository and does not compile.
 set -euo pipefail
 
@@ -59,7 +60,7 @@ while [[ $# -gt 0 ]]; do
       usage
       ;;
     *://*)
-      if [[ "$1" =~ ^https://github\.com/aster-ai-lab/aster/releases/download/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+-(macos|linux|linux-arm64|kylin-x86_64|windows)\.(tar\.gz|zip)$ ]]; then
+      if [[ "$1" =~ ^https://github\.com/aster-ai-lab/aster/releases/download/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+/aster-cli-v[0-9]+\.[0-9]+\.[0-9]+-(macos|linux|linux-arm64|linux-musl|linux-musl-arm64|kylin-x86_64|windows)\.(tar\.gz|zip)$ ]]; then
         direct_url="$1"
       else
         refuse
@@ -101,8 +102,9 @@ is_kylin_host() {
 
 uname_s="$(uname -s 2>/dev/null || true)"
 uname_m="$(uname -m 2>/dev/null || true)"
-# Candidates are tried in order. Only Kylin x86_64 gets a preferred named
-# channel; it always falls back to the generic linux asset.
+# Candidates are tried in order. Static musl is first for every Linux host;
+# Kylin x86_64 keeps its named channel as the next fallback, then generic linux.
+# Older manifests without musl keys resolve to the glibc archives unchanged.
 platform_candidates=()
 case "$uname_s" in
   Darwin) platform=macos ;;
@@ -110,11 +112,16 @@ case "$uname_s" in
     case "$uname_m" in
       x86_64|amd64)
         platform=linux
+        platform_candidates=(linux-musl)
         if is_kylin_host; then
-          platform_candidates=(kylin-x86_64 linux)
+          platform_candidates+=(kylin-x86_64)
         fi
+        platform_candidates+=(linux)
         ;;
-      aarch64|arm64) platform=linux-arm64 ;;
+      aarch64|arm64)
+        platform=linux-arm64
+        platform_candidates=(linux-musl-arm64 linux-arm64)
+        ;;
       *)
         echo "error: unsupported Linux architecture: ${uname_m:-unknown}" >&2
         exit 1
@@ -136,7 +143,7 @@ if [[ ${#platform_candidates[@]} -eq 0 ]]; then
 fi
 
 case "$platform" in
-  macos|linux|linux-arm64|kylin-x86_64) extension="tar.gz" ;;
+  macos|linux|linux-arm64|linux-musl|linux-musl-arm64|kylin-x86_64) extension="tar.gz" ;;
   windows) extension="zip" ;;
 esac
 
@@ -154,9 +161,11 @@ release_base="${ASTER_RELEASE_BASE:-}"
 if [[ -n "$direct_url" ]]; then
   asset_url="$direct_url"
   asset_name="${direct_url##*/}"
-  # A direct URL names its asset explicitly; reflect a named Kylin channel in
-  # the reported platform without changing any checksum or member check.
+  # A direct URL names its asset explicitly; reflect named channels in the
+  # reported platform without changing any checksum or member check.
   case "$asset_name" in
+    *-linux-musl.tar.gz) platform=linux-musl ;;
+    *-linux-musl-arm64.tar.gz) platform=linux-musl-arm64 ;;
     *-kylin-x86_64.tar.gz) platform=kylin-x86_64 ;;
   esac
 elif [[ -n "$release_base" ]]; then
@@ -193,8 +202,8 @@ if [[ -n "$manifest_json" ]]; then
     echo "error: release ${tag} does not match the requested version ${want_version}" >&2
     exit 1
   fi
-  # Try candidates in order. A manifest that omits the optional Kylin channel
-  # still resolves to the generic linux asset, so older releases stay installable.
+  # Try candidates in order. Manifests without musl (and without the optional
+  # Kylin channel) resolve to the generic linux asset, so older releases work.
   selected=""
   for candidate in "${platform_candidates[@]}"; do
     candidate_asset="aster-cli-v${version}-${candidate}.${extension}"

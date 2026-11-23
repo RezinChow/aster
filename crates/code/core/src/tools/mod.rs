@@ -17,6 +17,7 @@ mod invocation;
 mod pagination;
 mod presentation;
 pub(crate) mod process;
+#[cfg(feature = "ptc")]
 mod program_tool;
 mod registry;
 mod result_transform;
@@ -35,9 +36,11 @@ pub(crate) use builtin::{
     MAX_BATCH_INVOCATIONS,
 };
 pub use builtin::{
-    register_generate_object, register_program, register_program_with_catalog, register_task,
-    register_task_with_mcp, register_task_with_mcp_managers,
+    register_generate_object, register_task, register_task_with_mcp,
+    register_task_with_mcp_managers,
 };
+#[cfg(feature = "ptc")]
+pub use builtin::{register_program, register_program_with_catalog};
 pub(crate) use builtin::{
     register_skill, register_task_with_mcp_managers_and_scheduler,
     register_task_with_mcp_sources_and_scheduler,
@@ -63,8 +66,9 @@ pub use presentation::{
     ToolPresentationError, ToolPresentationModeV1, ToolPresentationProfileV1,
     TOOL_PRESENTATION_PROFILE_V1_SCHEMA,
 };
-#[cfg(test)]
+#[cfg(all(test, feature = "ptc"))]
 pub(crate) use program_tool::execute_script_program;
+#[cfg(feature = "ptc")]
 pub use program_tool::{ProgramTool, MAX_PROGRAM_SCRIPT_SOURCE_BYTES};
 pub use registry::ToolRegistry;
 pub(crate) use registry::ToolRegistrySnapshotError;
@@ -675,13 +679,32 @@ impl ToolExecutor {
         adapter: Option<ImmutableContentAdapterSession>,
         tracker: Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>,
     ) -> Self {
-        Self::build(
+        Self::build_with_builtins(
             workspace,
             None,
             artifact_limits,
             workspace_services,
             adapter,
             Some(tracker),
+            true,
+        )
+    }
+
+    pub(crate) fn new_empty_with_background_tracker(
+        workspace: String,
+        workspace_services: Arc<crate::workspace::WorkspaceServices>,
+        artifact_limits: ArtifactStoreLimits,
+        adapter: Option<ImmutableContentAdapterSession>,
+        tracker: Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>,
+    ) -> Self {
+        Self::build_with_builtins(
+            workspace,
+            None,
+            artifact_limits,
+            workspace_services,
+            adapter,
+            Some(tracker),
+            false,
         )
     }
 
@@ -692,6 +715,26 @@ impl ToolExecutor {
         workspace_services: Arc<crate::workspace::WorkspaceServices>,
         immutable_content_adapter: Option<ImmutableContentAdapterSession>,
         background_tracker: Option<Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>>,
+    ) -> Self {
+        Self::build_with_builtins(
+            workspace,
+            command_env,
+            artifact_limits,
+            workspace_services,
+            immutable_content_adapter,
+            background_tracker,
+            true,
+        )
+    }
+
+    fn build_with_builtins(
+        workspace: String,
+        command_env: Option<HashMap<String, String>>,
+        artifact_limits: ArtifactStoreLimits,
+        workspace_services: Arc<crate::workspace::WorkspaceServices>,
+        immutable_content_adapter: Option<ImmutableContentAdapterSession>,
+        background_tracker: Option<Arc<crate::subagent_task_tracker::InMemorySubagentTaskTracker>>,
+        register_builtins: bool,
     ) -> Self {
         let workspace_path = PathBuf::from(&workspace);
         let command_env = command_env.map(Arc::new);
@@ -708,13 +751,16 @@ impl ToolExecutor {
             registry.set_command_env(env);
         }
 
-        // Register native Rust built-in tools — only those whose required
-        // workspace capability is available, so the model never sees a tool
-        // the backend cannot service.
-        builtin::register_builtins(&registry, &workspace_services);
-        // Batch tool requires Arc<ToolRegistry>, registered separately
-        builtin::register_batch(&registry);
-        builtin::register_program(&registry);
+        if register_builtins {
+            // Register native Rust built-in tools — only those whose required
+            // workspace capability is available, so the model never sees a tool
+            // the backend cannot service.
+            builtin::register_builtins(&registry, &workspace_services);
+            // Batch tool requires Arc<ToolRegistry>, registered separately
+            builtin::register_batch(&registry);
+            #[cfg(feature = "ptc")]
+            builtin::register_program(&registry);
+        }
 
         Self {
             workspace: workspace_path,
@@ -877,6 +923,7 @@ impl ToolExecutor {
     }
 
     /// Replace the model-visible `program` tool with a custom PTC catalog.
+    #[cfg(feature = "ptc")]
     pub fn register_program_catalog(&self, catalog: crate::program::ProgramCatalog) {
         builtin::register_program_with_catalog(&self.registry, catalog);
     }

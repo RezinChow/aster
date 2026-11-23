@@ -13,7 +13,11 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_SHA = "a" * 40
 NAMES = [f"aster-cli-v0.1.6-{os}.{extension}" for os, extension in
-         [("macos", "tar.gz"), ("linux", "tar.gz"), ("linux-arm64", "tar.gz"), ("windows", "zip")]]
+         [("macos", "tar.gz"), ("linux", "tar.gz"), ("linux-arm64", "tar.gz"),
+          ("linux-musl", "tar.gz"), ("linux-musl-arm64", "tar.gz"), ("windows", "zip")]]
+MUSL_NAMES = {name for name in NAMES if "-linux-musl" in name}
+CANONICAL_PLATFORMS = {"macos", "linux", "linux-arm64", "windows"}
+CURRENT_PLATFORMS = CANONICAL_PLATFORMS | {"linux-musl", "linux-musl-arm64"}
 EXPECTED_MACOS_MEMBERS = {
     "aster",
     "aster-acp",
@@ -41,7 +45,8 @@ class ReleaseAssembly(unittest.TestCase):
                  artifact_run_id="123", branch_qualification=1,
                  version="0.1.6", source_clean=True,
                  checkout_sha=None, source_status_exit=0, core_version="9.2.3",
-                 macos_members=None, kylin=False, kylin_mismatch=False):
+                 macos_members=None, kylin=False, kylin_mismatch=False,
+                 musl=True, partial_musl=False):
         lines = (ROOT / ".github/workflows/release-aster-cli.yml").read_text().splitlines()
         start = lines.index("      - name: Assemble draft aster-cli")
         start = lines.index("        run: |", start) + 1
@@ -67,6 +72,9 @@ class ReleaseAssembly(unittest.TestCase):
                 (path / "manifest.json").write_text(json.dumps({"version": package_version}))
             names = [name.replace("0.1.6", version) for name in NAMES]
             for name in names:
+                if name in {n.replace("0.1.6", version) for n in MUSL_NAMES}:
+                    if not musl or (partial_musl and name.endswith("-linux-musl.tar.gz")):
+                        continue
                 path = dist / name
                 if name.endswith("-macos.tar.gz"):
                     if macos_members is None:
@@ -182,12 +190,12 @@ print(hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() + " *" + name)
                 self.assertIsNone(manifest)
                 self.assertIsNone(args)
 
-    def test_three_archives_form_a_draft_bound_to_the_artifact_source(self):
+    def test_current_platforms_form_a_draft_bound_to_the_artifact_source(self):
         result, manifest, args = self.assemble()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(manifest["version"], "0.1.6")
         self.assertEqual(manifest["tag"], "aster-cli-v0.1.6")
-        self.assertEqual(set(manifest["assets"]), {"macos", "linux", "linux-arm64", "windows"})
+        self.assertEqual(set(manifest["assets"]), CURRENT_PLATFORMS)
         self.assertEqual(args[args.index("--target") + 1], SOURCE_SHA)
         self.assertIn("--draft", args)
         for entry in manifest["assets"].values():
@@ -205,22 +213,49 @@ print(hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() + " *" + name)
 
     def test_missing_or_retired_archives_refuse_before_release_creation(self):
         for missing, extra, message in (
-            (True, False, "expected 4 or 5 release archives"),
+            (True, False, "expected 4 to 7 release archives"),
             (False, True, "unexpected release archive"),
         ):
             with self.subTest(missing=missing, extra=extra):
-                result, manifest, args = self.assemble(missing=missing, extra=extra)
+                result, manifest, args = self.assemble(missing=missing, extra=extra, musl=False)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(message, result.stderr)
                 self.assertIsNone(manifest)
                 self.assertIsNone(args)
+
+    def test_static_musl_pair_is_published_when_present(self):
+        result, manifest, args = self.assemble()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(set(manifest["assets"]), CURRENT_PLATFORMS)
+        for platform in ("linux-musl", "linux-musl-arm64"):
+            name = f"aster-cli-v0.1.6-{platform}.tar.gz"
+            self.assertEqual(manifest["assets"][platform]["name"], name)
+            self.assertEqual(
+                manifest["assets"][platform]["sha256"],
+                hashlib.sha256(f"opaque fixture {name}".encode()).hexdigest(),
+            )
+            self.assertIn("dist/" + name, args)
+
+    def test_legacy_four_archive_run_keeps_its_manifest_shape(self):
+        result, manifest, args = self.assemble(musl=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(set(manifest["assets"]), CANONICAL_PLATFORMS)
+        for entry in manifest["assets"].values():
+            self.assertIn("dist/" + entry["name"], args)
+
+    def test_partial_musl_pair_is_refused(self):
+        result, manifest, args = self.assemble(partial_musl=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("static musl pair needs both", result.stderr)
+        self.assertIsNone(manifest)
+        self.assertIsNone(args)
 
     def test_optional_kylin_alias_publishes_the_same_digest_as_linux(self):
         result, manifest, args = self.assemble(kylin=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             set(manifest["assets"]),
-            {"macos", "linux", "linux-arm64", "windows", "kylin-x86_64"},
+            CURRENT_PLATFORMS | {"kylin-x86_64"},
         )
         alias = manifest["assets"]["kylin-x86_64"]
         self.assertEqual(alias["name"], "aster-cli-v0.1.6-kylin-x86_64.tar.gz")
@@ -245,14 +280,14 @@ print(hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() + " *" + name)
         result, manifest, args = self.assemble(artifact_run_id="")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(args[args.index("--target") + 1], "b" * 40)
-        self.assertEqual(set(manifest["assets"]), {"macos", "linux", "linux-arm64", "windows"})
+        self.assertEqual(set(manifest["assets"]), CURRENT_PLATFORMS)
 
     def test_matching_existing_draft_reuses_its_source_without_a_tag_lookup(self):
         result, manifest, args = self.assemble(existing_draft=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(args[:2], ["release", "upload"])
         self.assertIn("--clobber", args)
-        self.assertEqual(set(manifest["assets"]), {"macos", "linux", "linux-arm64", "windows"})
+        self.assertEqual(set(manifest["assets"]), CURRENT_PLATFORMS)
 
     def test_published_or_different_source_release_refuses_upload(self):
         for draft, source in [(False, SOURCE_SHA), (True, "b" * 40)]:
@@ -302,8 +337,8 @@ class ReleaseWorkflowContract(unittest.TestCase):
         self.assertIn("actions/workflows/qualify-aster-cli.yml/runs?head_sha=${RELEASE_SHA}&event=push&status=completed", text)
         self.assertIn(".head_branch !=", text)
         # Platform builds start from preflight so they overlap qualify polling.
-        self.assertEqual(text.count("needs: preflight"), 4)
-        self.assertIn("needs: [preflight, qualified, build, build-macos, build-linux]", text)
+        self.assertEqual(text.count("needs: preflight"), 5)
+        self.assertIn("needs: [preflight, qualified, build, build-macos, build-linux, build-linux-musl]", text)
         self.assertIn("name: macos-bins", text)
         self.assertNotIn("name: macos-sandbox", text)
         self.assertIn("ASTER_QUALIFY_WAIT_SECONDS", text)
@@ -324,15 +359,19 @@ class ReleaseWorkflowContract(unittest.TestCase):
         self.assertIn("needs.preflight.result == 'success'", publish_job)
         self.assertIn("needs.build-macos.result == 'success'", publish_job)
 
-    def test_all_three_cli_platforms_have_product_specific_caches(self):
+    def test_all_cli_platform_lanes_have_product_specific_caches(self):
         text = (ROOT / ".github/workflows/release-aster-cli.yml").read_text()
-        self.assertEqual(text.count("uses: Swatinem/rust-cache@"), 3)
+        self.assertEqual(text.count("uses: Swatinem/rust-cache@"), 4)
         self.assertIn("shared-key: aster-cli-release-dist-windows", text)
         self.assertIn("shared-key: aster-cli-release-dist-macos-bins", text)
         self.assertNotIn("shared-key: aster-cli-release-dist-macos-sandbox", text)
         self.assertIn("cache_key: aster-cli-release-dist-linux", text)
         self.assertIn("cache_key: aster-cli-release-dist-linux-arm64", text)
-        self.assertIn("shared-key: ${{ matrix.cache_key }}", text)
+        self.assertIn("cache_key: aster-cli-release-dist-linux-musl", text)
+        self.assertIn("cache_key: aster-cli-release-dist-linux-musl-arm64", text)
+        self.assertEqual(text.count("shared-key: ${{ matrix.cache_key }}"), 2)
+        self.assertIn("  build-linux-musl:\n", text)
+        self.assertIn("python3 tests/cli_musl.py --machine \"$CLI_MACHINE\"", text)
         self.assertIn("CLI_ASSET_NAME: ${{ github.ref_name }}-windows.zip", text)
         self.assertIn("CLI_ASSET_NAME: ${{ github.ref_name }}-macos.tar.gz", text)
         self.assertIn("CLI_ASSET_NAME: ${{ github.ref_name }}-${{ matrix.platform }}.tar.gz", text)
@@ -352,6 +391,7 @@ class ReleaseWorkflowContract(unittest.TestCase):
         self.assertIn("cargo test --locked -p aster --bin aster -- --test-threads=4", text)
         self.assertIn("python3 tests/cli_pair_delivery.py", text)
         self.assertIn("python3 tests/aster_cli_linux.py", text)
+        self.assertIn("python3 tests/cli_musl.py", text)
         self.assertIn("python3 tests/cli_release_workflow.py", text)
         self.assertIn("shared-key: aster-cli-qualify-ubuntu-latest", text)
         self.assertNotIn("CARGO_BUILD_JOBS", text)

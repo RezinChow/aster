@@ -5,7 +5,10 @@ import sys
 import tempfile
 import unittest
 
-from release_governance import workflow_script
+try:
+    from .release_governance import workflow_script
+except ImportError:  # executed directly as `python3 tests/code_release_workflow.py`
+    from release_governance import workflow_script
 
 
 ROOT = Path(__file__).resolve().parents[1]

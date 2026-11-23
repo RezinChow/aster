@@ -37,7 +37,7 @@ GitHub Latest 上的 `latest.json` 是旧版 CLI 安装器和更新器的兼容�
 
 - 从仓库根目录使用固定 Rust 工具链和锁文件构建。
 - CLI 的 `aster` 与 `aster-acp` 必须从同一干净提交构建、验证并成对发布；归档同时携带共享 `BUILD_ID` 和 `SHA256SUMS`。
-- CLI Linux 归档按架构拆分：`linux` 为 x86_64，`linux-arm64` 为 aarch64；二者均以 glibc 2.31 为基线。
+- CLI Linux 归档按架构拆分：`linux` 为 x86_64，`linux-arm64` 为 aarch64；二者均以 glibc 2.31 为基线。同时发布静态 musl 配对归档 `linux-musl`（x86_64）与 `linux-musl-arm64`（aarch64）：两者与 glibc 归档来自同一提交、携带同一 `BUILD_ID`，但不依赖宿主机 glibc。发布前用 `tests/cli_musl.py` 验证两个二进制均无 `PT_INTERP`、动态依赖表与 `GLIBC_*` 引用，保留 RELRO 和不可执行栈，并真实启动 `--version`／`--help`。
 - `kylin-x86_64` 是银河麒麟桌面 V10 SP1 x86_64 的具名分发通道，不是第二种二进制：由 `release-aster-cli.yml` 从同一 `linux` 归档字节级复制产生，`publish-aster-cli.sh` 校验两者 SHA-256 相同，禁止在该名称下发布不同 ABI 或不同构建身份的产物。`scripts/install.sh` 在麒麟 x86_64 上优先选择该键，清单不含该键时回退 `linux`，以便继续安装旧版 Release。
 - 桌面版通过 `release-aster-desktop.yml` 构建并更新 `desktop-stable`；安装包版本与 Core／ACP 版本相互独立。
 - Core／ACP 通过 `release-code.yml` 构建。只有 `aster-acp-vX.Y.Z` tag 可以触发该流程，tag 版本必须与两个 Cargo 包版本一致，并存在对应的 `crates/code/manual/RELEASE_X.Y.Z.md`。归档文件名使用同一前缀（`aster-acp-vX.Y.Z-<platform>.*`）。
@@ -57,13 +57,13 @@ GitHub Latest 上的 `latest.json` 是旧版 CLI 安装器和更新器的兼容�
 1. 用 `release-aster-cli.yml` 构建平台归档。Aster CLI 包含 `aster`、`aster-acp`，以及离线 Model2Vec 资产目录 `embedding/`（`aster-acp` 发行构建关闭 `bundled-embedding`，运行时从该目录加载）。进程命令隔离由锁定的 ksandbox 依赖提供，不再打包 sandbox companions 或 kbox MicroVM。
    CLI 与 Studio 的 ACP feature 分叉：CLI 为 `--no-default-features --features svg-png,account-import`；Studio / 本地默认保留 `bundled-embedding`（及 Office 等桌面能力）。`aster-core` 在 ACP 上显式启用 `local-code`。
    在发布机上下载同一构建 run 的归档到 `dist/`，设置 `GH_REPO`、`BUILD_SHA`、`ARTIFACT_RUN_ID`，从干净的对应提交运行 `bash scripts/publish-aster-cli.sh`。
-   发布脚本先核对归档来源提交的分支资格与归档成员，再生成草稿。任一失败均禁止创建或上传 Release。
+   发布脚本先核对归档来源提交的分支资格与归档成员，再生成草稿。当前版本要求六个标准归档（四个原有平台加 musl 双架构），带 `kylin-x86_64` 具名别名时为七个；musl 归档缺失或只缺一种架构均禁止发布。任一失败均禁止创建或上传 Release。
 2. 检查草稿的提交、归档成员、版本和 SHA-256 后，发布 `aster-cli-vX.Y.Z`。
 3. 运行 `release-aster-cli-channel.yml`，输入相同的 `X.Y.Z`。该流程拒绝草稿或预发布版本，验证清单后更新 `aster-cli-stable` 和 Aster Latest 上的旧客户端兼容清单。
 
 #### CLI 更新器兼容
 
-- **通道清单**：`latest.json` 的 `assets` 可增加新平台键；已发布更新器必须忽略未知键，不能因未知平台拒绝整份清单。先发布带该行为的 CLI，再把新平台键写入 `aster-cli-stable`。`release-aster-cli-channel.yml` 因此要求四个标准平台齐全，并只允许 `kylin-x86_64` 作为可选键。
+- **通道清单**：`latest.json` 的 `assets` 可增加新平台键；已发布更新器必须忽略未知键，不能因未知平台拒绝整份清单。musl 双架构现为新版本的必需键，`release-aster-cli-channel.yml` 检查六个标准平台齐全，只允许 `kylin-x86_64` 作为可选键。`scripts/install.sh` 在 Linux 上优先选择 musl 归档，旧清单缺键时回退 glibc；`aster update` 按运行二进制的 libc 选择配对通道。
 - **具名通道与更新器**：`kylin-x86_64` 只影响 `scripts/install.sh` 的资产选择；`aster update` 按 `channel_for()` 继续使用 `linux`，因为两个归档字节相同。不要为具名通道改动更新器的平台映射，否则会破坏「未知键可忽略」这一兼容承诺。
 - **归档成员**：新增*必需*成员（如 `embedding/`）会使更旧的更新器无法解包。不要假设 `aster update` 能跨越这类布局变更；公告中写明用 `scripts/install.sh` / `scripts/install.ps1` 重装，或先发过渡版本。
 - **禁止**为迁就旧更新器而跳过未知归档成员后仍报告成功：会装出缺文件的半套 pair。

@@ -117,13 +117,23 @@ fn assemble_session_capabilities(
         }
         None => crate::subagent_task_tracker::InMemorySubagentTaskTracker::new(),
     });
-    let tool_executor = Arc::new(ToolExecutor::new_with_background_tracker(
-        write_root.display().to_string(),
-        workspace_services,
-        artifact_limits,
-        input.opts.immutable_content_adapter.clone(),
-        Arc::clone(&subagent_tasks),
-    ));
+    let tool_executor = Arc::new(if input.opts.disable_builtin_tools {
+        ToolExecutor::new_empty_with_background_tracker(
+            write_root.display().to_string(),
+            workspace_services,
+            artifact_limits,
+            input.opts.immutable_content_adapter.clone(),
+            Arc::clone(&subagent_tasks),
+        )
+    } else {
+        ToolExecutor::new_with_background_tracker(
+            write_root.display().to_string(),
+            workspace_services,
+            artifact_limits,
+            input.opts.immutable_content_adapter.clone(),
+            Arc::clone(&subagent_tasks),
+        )
+    });
     if let Some(command_env) = input.opts.command_env.clone() {
         tool_executor
             .registry()
@@ -165,16 +175,23 @@ fn assemble_session_capabilities(
         .collect();
     let skill_registry =
         build_effective_skill_registry(input.base_config.skill_registry.as_deref(), input.opts);
-    let agent_registry = register_task_capability(
-        &input,
-        &tool_executor,
-        Arc::clone(&subagent_tasks),
-        mcp_managers,
-        Arc::clone(&skill_registry),
-    );
-
-    // Register generate_object tool (structured JSON output)
-    crate::tools::register_generate_object(tool_executor.registry(), Arc::clone(&input.llm_client));
+    let agent_registry = if input.opts.disable_builtin_tools {
+        Arc::new(AgentRegistry::new())
+    } else {
+        let agent_registry = register_task_capability(
+            &input,
+            &tool_executor,
+            Arc::clone(&subagent_tasks),
+            mcp_managers,
+            Arc::clone(&skill_registry),
+        );
+        // Register generate_object tool (structured JSON output)
+        crate::tools::register_generate_object(
+            tool_executor.registry(),
+            Arc::clone(&input.llm_client),
+        );
+        agent_registry
+    };
 
     register_mcp_capabilities(&tool_executor, input.mcp_sources);
 

@@ -385,12 +385,14 @@ fn finish_agent_session(
 
     // Register Skill after config is built so it can spawn child loops with
     // the same harness configuration while applying skill-local restrictions.
-    register_skill_capability(
-        Arc::clone(&tool_executor),
-        Arc::clone(&llm_client),
-        Arc::clone(&effective_registry),
-        config.clone(),
-    );
+    if !opts.disable_builtin_tools {
+        register_skill_capability(
+            Arc::clone(&tool_executor),
+            Arc::clone(&llm_client),
+            Arc::clone(&effective_registry),
+            config.clone(),
+        );
+    }
 
     let command_queue = runtime.command_queue;
     let tool_context = runtime.tool_context;

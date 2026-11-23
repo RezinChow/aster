@@ -218,6 +218,14 @@ impl SessionOptions {
         self
     }
 
+    /// Control whether Aster registers its built-in tools for this session.
+    /// Defaults to `true`. Setting `false` gives the embedding host exclusive
+    /// ownership of the tool catalog via `register_dynamic_tool`.
+    pub fn with_builtin_tools(mut self, enabled: bool) -> Self {
+        self.disable_builtin_tools = !enabled;
+        self
+    }
+
     /// Bind this session to one exact Aster Use package generation.
     ///
     /// The supplied runtime value contains a serializable immutable binding

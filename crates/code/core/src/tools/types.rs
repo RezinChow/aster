@@ -797,6 +797,13 @@ impl ToolContext {
         self
     }
 
+    /// The authoritative tool call identity when executing inside a Run.
+    pub fn tool_call_id(&self) -> Option<&str> {
+        self.fact_invocation
+            .as_ref()
+            .map(|identity| identity.tool_call_id.as_str())
+    }
+
     pub(crate) fn record_cancelled_command(&self, exit_code: i32) {
         if let (Some(proof), Some(identity)) = (&self.settled_cancellation, &self.fact_invocation) {
             let _ = proof.set((identity.clone(), exit_code));

@@ -293,13 +293,15 @@ fn assemble_pinned_agent_loop(
     // The Skill built-in captures a registry and executor.
     // Rebind them inside the Run snapshot so nested Skill execution cannot
     // resolve through the mutable Session-latest compatibility registries.
-    crate::tools::register_skill(
-        tool_executor.registry(),
-        Arc::clone(&inputs.client),
-        Arc::clone(&skill_registry),
-        Arc::clone(&tool_executor),
-        config.clone(),
-    );
+    if tool_executor.registry().contains("skill") {
+        crate::tools::register_skill(
+            tool_executor.registry(),
+            Arc::clone(&inputs.client),
+            Arc::clone(&skill_registry),
+            Arc::clone(&tool_executor),
+            config.clone(),
+        );
+    }
 
     // Delegation Tools capture an AgentRegistry when they are constructed.
     // Rebind them to this Run-owned snapshot so a later Session registration

@@ -11,7 +11,10 @@ import tomllib
 import unittest
 from pathlib import Path
 
-from musl_linker_flags import program_headers
+try:
+    from .musl_linker_flags import program_headers
+except ImportError:  # executed directly as `python3 tests/acp_musl.py`
+    from musl_linker_flags import program_headers
 
 ROOT = Path(__file__).resolve().parents[1]
 MACHINES = {"x86_64": 62, "aarch64": 183}

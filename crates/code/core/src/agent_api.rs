@@ -281,6 +281,10 @@ pub struct SessionOptions {
     pub context_providers: Vec<Arc<dyn crate::context::ContextProvider>>,
     /// Exclude skills, discovered instructions and persistent memory from this session.
     pub isolated_context: bool,
+    /// When true, skip registering Aster's built-in tools (`read`, `bash`, `task`,
+    /// `skill`, `batch`, `program`, `generate_object`, etc.) so an embedding host
+    /// can own the entire tool catalog via `register_dynamic_tool`.
+    pub disable_builtin_tools: bool,
     /// One exact-generation package supplied by the embedding host.
     ///
     /// This is separate from general-purpose RAG providers: Code persists the

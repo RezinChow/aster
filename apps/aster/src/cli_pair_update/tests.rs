@@ -1,4 +1,4 @@
-use super::{Version, asset_name_for, channel_for, parse_manifest};
+use super::{Version, asset_name_for, channel_for, channel_for_env, parse_manifest};
 
 #[test]
 fn download_progress_reports_bytes_and_never_invents_an_unknown_percentage() {
@@ -76,6 +76,22 @@ fn standard_platforms_use_one_canonical_archive_each() {
 }
 
 #[test]
+fn musl_binaries_stay_on_the_static_channel() {
+    for (os, arch, platform) in [
+        ("linux", "x86_64", "linux-musl"),
+        ("linux", "aarch64", "linux-musl-arm64"),
+        ("macos", "aarch64", "macos"),
+    ] {
+        assert_eq!(channel_for_env(os, arch, true), platform);
+        assert_eq!(
+            asset_name_for(Version(0, 1, 3), platform),
+            format!("aster-cli-v0.1.3-{platform}.tar.gz")
+        );
+    }
+    assert_eq!(channel_for_env("linux", "riscv64", true), "unsupported");
+}
+
+#[test]
 fn updater_accepts_known_platforms_and_ignores_unknown_channel_keys() {
     let mut manifest = serde_json::json!({
         "version": "0.1.3",
@@ -86,6 +102,8 @@ fn updater_accepts_known_platforms_and_ignores_unknown_channel_keys() {
         ("macos", "tar.gz"),
         ("linux", "tar.gz"),
         ("linux-arm64", "tar.gz"),
+        ("linux-musl", "tar.gz"),
+        ("linux-musl-arm64", "tar.gz"),
         ("windows", "zip"),
     ] {
         manifest
@@ -102,7 +120,7 @@ fn updater_accepts_known_platforms_and_ignores_unknown_channel_keys() {
             );
     }
     let parsed = parse_manifest(&serde_json::to_vec(&manifest).unwrap(), "").unwrap();
-    assert_eq!(parsed.assets.len(), 4);
+    assert_eq!(parsed.assets.len(), 6);
     manifest
         .get_mut("assets")
         .unwrap()
@@ -116,7 +134,7 @@ fn updater_accepts_known_platforms_and_ignores_unknown_channel_keys() {
             }),
         );
     let parsed = parse_manifest(&serde_json::to_vec(&manifest).unwrap(), "").unwrap();
-    assert_eq!(parsed.assets.len(), 4);
+    assert_eq!(parsed.assets.len(), 6);
     assert!(
         parsed
             .assets

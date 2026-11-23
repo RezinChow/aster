@@ -91,8 +91,10 @@ jobs:
           python3 tests/cli_pair_identity.py
       - name: Release tag and channel governance
         run: python3 tests/release_governance.py
-      - name: Linux CLI glibc baseline and installer
-        run: python3 tests/aster_cli_linux.py
+      - name: Linux CLI glibc baseline, static musl pair, and installer
+        run: |
+          python3 tests/aster_cli_linux.py
+          python3 tests/cli_musl.py
       - name: Kylin input method launcher
         run: |
           python3 tests/kylin_input_method.py

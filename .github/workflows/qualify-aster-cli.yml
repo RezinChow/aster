@@ -11,12 +11,15 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
+      - ".cargo/config.toml"
       - "scripts/package-aster-cli.sh"
       - "scripts/publish-aster-cli.sh"
       - ".github/workflows/qualify-aster-cli.yml"
       - ".github/workflows/release-aster-cli.yml"
+      - "tests/acp_musl.py"
       - "tests/aster_cli_linux.py"
       - "tests/cli_*.py"
+      - "tests/musl_linker_flags.py"
       - "tests/release_governance.py"
       - "tests/studio_checkout.py"
       - "tests/workspace_dependencies.py"
@@ -30,12 +33,15 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
+      - ".cargo/config.toml"
       - "scripts/package-aster-cli.sh"
       - "scripts/publish-aster-cli.sh"
       - ".github/workflows/qualify-aster-cli.yml"
       - ".github/workflows/release-aster-cli.yml"
+      - "tests/acp_musl.py"
       - "tests/aster_cli_linux.py"
       - "tests/cli_*.py"
+      - "tests/musl_linker_flags.py"
       - "tests/release_governance.py"
       - "tests/studio_checkout.py"
       - "tests/workspace_dependencies.py"
@@ -84,6 +90,7 @@ jobs:
           python3 tests/cli_pair_delivery.py
           python3 tests/cli_pair_identity.py
           python3 tests/aster_cli_linux.py
+          python3 tests/cli_musl.py
           python3 tests/cli_release_workflow.py
           python3 tests/release_governance.py
       - name: Build the CLI and ACP companion pair

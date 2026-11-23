@@ -50,14 +50,22 @@ jobs:
           assets = manifest.get("assets")
           if not isinstance(assets, dict):
               raise SystemExit("channel manifest platform set mismatch")
-          # A named distro channel is optional: older releases publish only the
-          # four canonical platforms, and old updaters must ignore unknown keys.
-          required = {"macos", "linux", "linux-arm64", "windows"}
+          # Every new CLI release publishes the static musl pair alongside the
+          # canonical glibc archives. The named distro channel stays optional;
+          # old updaters ignore unknown keys.
+          required = {
+              "macos", "linux", "linux-arm64", "linux-musl",
+              "linux-musl-arm64", "windows",
+          }
           optional = {"kylin-x86_64"}
           platforms = set(assets)
           if not required <= platforms or platforms - required - optional:
               raise SystemExit("channel manifest platform set mismatch")
-          checks = [("macos", "tar.gz"), ("linux", "tar.gz"), ("linux-arm64", "tar.gz"), ("windows", "zip")]
+          checks = [
+              ("macos", "tar.gz"), ("linux", "tar.gz"), ("linux-arm64", "tar.gz"),
+              ("linux-musl", "tar.gz"), ("linux-musl-arm64", "tar.gz"),
+              ("windows", "zip"),
+          ]
           if "kylin-x86_64" in platforms:
               checks.append(("kylin-x86_64", "tar.gz"))
           for platform, extension in checks:

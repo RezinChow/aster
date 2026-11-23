@@ -153,6 +153,7 @@ pub fn register_batch(registry: &Arc<ToolRegistry>) {
 }
 
 /// Register the programmatic tool calling wrapper.
+#[cfg(feature = "ptc")]
 pub fn register_program(registry: &Arc<ToolRegistry>) {
     register_program_with_catalog(
         registry,
@@ -161,6 +162,7 @@ pub fn register_program(registry: &Arc<ToolRegistry>) {
 }
 
 /// Register the programmatic tool calling wrapper with a custom catalog.
+#[cfg(feature = "ptc")]
 pub fn register_program_with_catalog(
     registry: &Arc<ToolRegistry>,
     catalog: crate::program::ProgramCatalog,

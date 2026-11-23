@@ -29,6 +29,8 @@ def manifest(version=VERSION, kylin=None, extra=None):
         ("macos", "tar.gz"),
         ("linux", "tar.gz"),
         ("linux-arm64", "tar.gz"),
+        ("linux-musl", "tar.gz"),
+        ("linux-musl-arm64", "tar.gz"),
         ("windows", "zip"),
     ):
         name = f"aster-cli-v{version}-{platform}.{extension}"
@@ -156,6 +158,16 @@ esac
         self.assertIn("platform set mismatch", result.stderr)
         self.assertEqual(mutations, [])
 
+    def test_static_musl_pair_is_required_in_a_new_channel_manifest(self):
+        for missing in ("linux-musl", "linux-musl-arm64"):
+            with self.subTest(missing=missing):
+                body = manifest()
+                del body["assets"][missing]
+                result, mutations = self.publish(manifest_body=body)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("platform set mismatch", result.stderr)
+                self.assertEqual(mutations, [])
+
     def test_malformed_kylin_channel_name_is_refused(self):
         linux_sha = hashlib.sha256(f"aster-cli-v{VERSION}-linux.tar.gz".encode()).hexdigest()
         body = manifest(kylin=linux_sha)
@@ -238,6 +250,13 @@ class ReleaseContracts(unittest.TestCase):
         self.assertIn("字节级复制", text)
         self.assertIn("回退 `linux`", text)
         self.assertIn("不要为具名通道改动更新器的平台映射", text)
+
+    def test_governance_documents_the_static_musl_pair(self):
+        text = (ROOT / "docs/release-governance.md").read_text()
+        self.assertIn("`linux-musl`", text)
+        self.assertIn("`linux-musl-arm64`", text)
+        self.assertIn("`tests/cli_musl.py`", text)
+        self.assertIn("优先选择 musl 归档", text)
 
     def test_ci_and_cli_preflight_run_release_governance(self):
         for name in (".github/workflows/ci.yml", ".github/workflows/release-aster-cli.yml"):
