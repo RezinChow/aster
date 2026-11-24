@@ -92,7 +92,7 @@
       <nav class="desktop-nav" aria-label="主导航">
         <a href="#product">产品</a><a href="#features">功能</a><a href="#platforms">下载</a
         ><a
-          href="https://github.com/aster-ai-lab/aster#开始使用"
+          href="https://github.com/aster-ai-lab/aster#快速开始"
           target="_blank"
           rel="noopener noreferrer"
           >文档</a
@@ -122,7 +122,7 @@
       </div>
       <nav class="mobile-nav" id="mobile-nav" aria-label="移动端导航" hidden>
         <a href="#product">产品</a><a href="#features">功能</a><a href="#platforms">下载</a
-        ><a href="#cli">CLI</a><a href="https://github.com/aster-ai-lab/aster#开始使用">文档</a
+        ><a href="#cli">CLI</a><a href="https://github.com/aster-ai-lab/aster#快速开始">文档</a
         ><a href="https://github.com/aster-ai-lab/aster/releases">更新日志</a>
       </nav>
     </header>
@@ -679,12 +679,20 @@
                 >macOS</a
               ><a
                 class="quiet-button"
+                href="{{download.cli.linux-musl.url}}"
+                >Linux x86_64 (musl)</a
+              ><a
+                class="quiet-button"
+                href="{{download.cli.linux-musl-arm64.url}}"
+                >Linux arm64 (musl)</a
+              ><a
+                class="quiet-button"
                 href="{{download.cli.linux.url}}"
-                >Linux x86_64</a
+                >Linux x86_64 (glibc)</a
               ><a
                 class="quiet-button"
                 href="{{download.cli.linux-arm64.url}}"
-                >Linux arm64</a
+                >Linux arm64 (glibc)</a
               ><a
                 class="quiet-button"
                 href="{{download.cli.windows.url}}"
@@ -695,7 +703,7 @@
               <li>CLI v{{download.cli.linux.version}} 公开归档，未签名</li>
               <li>Linux 优先静态 musl 包（不依赖 glibc）；回退归档基线 glibc 2.31。解压后将两个程序保留在同一目录</li>
               <li>
-                <a href="https://github.com/aster-ai-lab/aster#开始使用">查看安装与模型配置说明</a>
+                <a href="https://github.com/aster-ai-lab/aster#快速开始">查看安装与模型配置说明</a>
               </li>
             </ul>
           </article>
@@ -709,7 +717,7 @@
             <p>把智能体执行内核嵌入应用，组合工具、权限和上下文。</p>
             <a
               class="quiet-button"
-              href="https://github.com/aster-ai-lab/aster#运行机制"
+              href="https://github.com/aster-ai-lab/aster#执行与恢复"
               target="_blank"
               rel="noopener noreferrer"
               >查看文档<svg aria-hidden="true" class="icon small-icon"><use href="#i-arrow" /></svg
@@ -806,7 +814,7 @@
             </summary>
             <p>
               当前公开桌面安装包提供 macOS Apple Silicon 与 Windows x64；Linux 桌面版敬请期待。CLI
-              提供 macOS、Linux x86_64 / arm64 和 Windows
+              提供 macOS、Linux x86_64 / arm64（静态无 glibc 的 musl 与 glibc 2.31）和 Windows
               归档。请在下载弹层中核对版本与架构，其他平台的支持以实际发行说明为准。
             </p>
           </details>
@@ -828,7 +836,7 @@
               截图展示当前开发版本的界面。下载弹层标明当前公开稳定安装包的版本与架构，可能早于截图。请查看<a
                 href="https://github.com/aster-ai-lab/aster/releases"
                 >发行说明</a
-              >确认具体变化，并按<a href="https://github.com/aster-ai-lab/aster#开始使用"
+              >确认具体变化，并按<a href="https://github.com/aster-ai-lab/aster#快速开始"
                 >开始使用文档</a
               >配置模型。
             </p>
@@ -875,7 +883,7 @@
           </div>
           <div>
             <h3>资源</h3>
-            <a href="https://github.com/aster-ai-lab/aster#开始使用">开始使用</a
+            <a href="https://github.com/aster-ai-lab/aster#快速开始">开始使用</a
             ><a href="https://github.com/aster-ai-lab/aster/releases">更新日志</a
             ><a href="./fonts/Ubuntu-LICENSE.txt">Ubuntu 字体许可</a>
           </div>
@@ -948,14 +956,24 @@
           ><span><strong>macOS CLI</strong><small>v{{download.cli.macos.version}} · {{download.cli.macos.format}}</small></span
           ><svg aria-hidden="true" class="icon"><use href="#i-download" /></svg></a
         ><a
+          href="{{download.cli.linux-musl.url}}"
+          ><svg aria-hidden="true" class="icon"><use href="#i-terminal" /></svg
+          ><span><strong>Linux x86_64（静态 musl）</strong><small>无 glibc · v{{download.cli.linux-musl.version}} · {{download.cli.linux-musl.format}}</small></span
+          ><svg aria-hidden="true" class="icon"><use href="#i-download" /></svg></a
+        ><a
+          href="{{download.cli.linux-musl-arm64.url}}"
+          ><svg aria-hidden="true" class="icon"><use href="#i-terminal" /></svg
+          ><span><strong>Linux arm64（静态 musl）</strong><small>无 glibc · v{{download.cli.linux-musl-arm64.version}} · {{download.cli.linux-musl-arm64.format}}</small></span
+          ><svg aria-hidden="true" class="icon"><use href="#i-download" /></svg></a
+        ><a
           href="{{download.cli.linux.url}}"
           ><svg aria-hidden="true" class="icon"><use href="#i-terminal" /></svg
-          ><span><strong>Linux x86_64</strong><small>v{{download.cli.linux.version}} · {{download.cli.linux.format}}</small></span
+          ><span><strong>Linux x86_64（glibc）</strong><small>v{{download.cli.linux.version}} · {{download.cli.linux.format}}</small></span
           ><svg aria-hidden="true" class="icon"><use href="#i-download" /></svg></a
         ><a
           href="{{download.cli.linux-arm64.url}}"
           ><svg aria-hidden="true" class="icon"><use href="#i-terminal" /></svg
-          ><span><strong>Linux arm64</strong><small>v{{download.cli.linux-arm64.version}} · {{download.cli.linux-arm64.format}}</small></span
+          ><span><strong>Linux arm64（glibc）</strong><small>v{{download.cli.linux-arm64.version}} · {{download.cli.linux-arm64.format}}</small></span
           ><svg aria-hidden="true" class="icon"><use href="#i-download" /></svg></a
         ><a
           href="{{download.cli.windows.url}}"

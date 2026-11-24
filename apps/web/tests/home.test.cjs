@@ -113,8 +113,8 @@ test('homepage assets resolve under project Pages and no-JS content stays availa
   const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
   assert.equal(ids.length, new Set(ids).size);
   const releaseLinks = [...document.querySelectorAll('a[href*="/releases/download/"]')];
-  assert.equal(releaseLinks.length, 10);
-  assert.equal(new Set(releaseLinks.map((link) => link.href)).size, 6);
+  assert.equal(releaseLinks.length, 12);
+  assert.equal(new Set(releaseLinks.map((link) => link.href)).size, 8);
   assert.deepEqual(
     [...document.querySelectorAll('.desktop-nav a')].map((link) => link.textContent.trim()),
     ['首页', '场景', '能力', '安全', '文档']

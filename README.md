@@ -74,9 +74,9 @@ $env:Path = "$bin;$env:Path"
 aster --version
 ```
 
-安装器校验归档成员、`BUILD_ID` 和 `SHA256SUMS`，安装配套的 `aster`、`aster-acp` 与 `embedding/`。
+安装器校验归档成员、`BUILD_ID` 和 `SHA256SUMS`，安装配套的 `aster`、`aster-acp` 与 `embedding/`（当前稳定发布：`aster-cli v0.4.0` / Core & ACP `9.3.0`）。
 两个可执行文件需要保持配套。另指定 ACP 路径时使用 `ASTER_ACP_AGENT_BIN`。
-Linux 归档分 x86_64 与 arm64，安装器优先选择不依赖 glibc 的静态 musl 配对包（linux-musl / linux-musl-arm64）；旧版 glibc 归档基线为 2.31。解压后将两个程序保留在同一目录。
+Linux 归档分 x86_64 与 arm64，安装器优先选择不依赖宿主机 glibc 的静态 musl 配对包（`linux-musl` / `linux-musl-arm64`）；glibc 兼容归档基线为 2.31（`linux` / `linux-arm64`，另有与 `linux` 字节一致的 `kylin-x86_64` 具名通道）。独立发布的 `aster-acp` 同样提供 `linux-musl` / `linux-musl-arm64` 静态包。解压后将两个程序与 `embedding/` 保留在同一目录。
 
 | 需求 | 参数 |
 | --- | --- |
@@ -142,7 +142,7 @@ aster update
 aster update --version X.Y.Z
 ```
 
-旧更新器无法处理新增归档成员时，重新运行安装器以安装完整的 pair 与资源目录。
+`aster update` 会保持当前运行二进制所在的分发通道（静态 musl 继续更新 musl 通道，glibc 继续更新 glibc 通道）。旧更新器无法处理新增归档成员时，重新运行安装器以安装完整的 pair 与资源目录。
 
 macOS / Linux 卸载默认安装：
 
@@ -351,7 +351,7 @@ macOS 清理限于进程组，`setsid()` 脱离的后代不在回收范围。
 
 构建特性只决定代码是否可用，运行配置与宿主绑定决定是否启用：
 
-- ACP 显式依赖 Core 的 `local-code`。浏览器搜索使用 ACP 的 `headless-search` 特性。
+- ACP 显式依赖 Core 的 `local-code`。浏览器搜索使用 ACP 的 `headless-search` 特性；Core 的 QuickJS 程序化工具调用由 `ptc` 特性开关控制（默认关闭，嵌入宿主也可通过 `disable_builtin_tools` 自行接管完整工具集）。
 - ACP 默认构建包含 SVG 图像处理、账号导入代码和嵌入资产；账号导入仍需显式选择。
 - CLI 发行构建从同目录 `embedding/` 加载资产，Studio / 本地默认构建保留内嵌资产。
 - ACP 工作区语义检索需要启用 `workspace_retrieval.local_cpu`；嵌入资产存在不代表语义索引已经启用。

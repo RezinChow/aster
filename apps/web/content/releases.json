@@ -28,44 +28,66 @@
       "product": "cli",
       "platform": "macos",
       "arch": "release archive",
-      "version": "0.3.9",
+      "version": "0.4.0",
       "format": "TAR.GZ",
-      "tag": "aster-cli-v0.3.9",
-      "asset": "aster-cli-v0.3.9-macos.tar.gz",
-      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.3.9/aster-cli-v0.3.9-macos.tar.gz"
+      "tag": "aster-cli-v0.4.0",
+      "asset": "aster-cli-v0.4.0-macos.tar.gz",
+      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.4.0/aster-cli-v0.4.0-macos.tar.gz"
+    },
+    {
+      "key": "cli.linux-musl",
+      "product": "cli",
+      "platform": "linux-musl",
+      "arch": "x86_64 static musl",
+      "version": "0.4.0",
+      "format": "TAR.GZ",
+      "tag": "aster-cli-v0.4.0",
+      "asset": "aster-cli-v0.4.0-linux-musl.tar.gz",
+      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.4.0/aster-cli-v0.4.0-linux-musl.tar.gz"
+    },
+    {
+      "key": "cli.linux-musl-arm64",
+      "product": "cli",
+      "platform": "linux-musl-arm64",
+      "arch": "aarch64 static musl",
+      "version": "0.4.0",
+      "format": "TAR.GZ",
+      "tag": "aster-cli-v0.4.0",
+      "asset": "aster-cli-v0.4.0-linux-musl-arm64.tar.gz",
+      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.4.0/aster-cli-v0.4.0-linux-musl-arm64.tar.gz"
     },
     {
       "key": "cli.linux",
       "product": "cli",
       "platform": "linux",
       "arch": "x86_64",
-      "version": "0.3.9",
+      "version": "0.4.0",
       "format": "TAR.GZ",
-      "tag": "aster-cli-v0.3.9",
-      "asset": "aster-cli-v0.3.9-linux.tar.gz",
-      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.3.9/aster-cli-v0.3.9-linux.tar.gz"
+      "tag": "aster-cli-v0.4.0",
+      "asset": "aster-cli-v0.4.0-linux.tar.gz",
+      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.4.0/aster-cli-v0.4.0-linux.tar.gz"
     },
     {
       "key": "cli.linux-arm64",
       "product": "cli",
       "platform": "linux-arm64",
       "arch": "aarch64",
-      "version": "0.3.9",
+      "version": "0.4.0",
       "format": "TAR.GZ",
-      "tag": "aster-cli-v0.3.9",
-      "asset": "aster-cli-v0.3.9-linux-arm64.tar.gz",
-      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.3.9/aster-cli-v0.3.9-linux-arm64.tar.gz"
+      "tag": "aster-cli-v0.4.0",
+      "asset": "aster-cli-v0.4.0-linux-arm64.tar.gz",
+      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.4.0/aster-cli-v0.4.0-linux-arm64.tar.gz"
     },
     {
       "key": "cli.windows",
       "product": "cli",
       "platform": "windows",
       "arch": "release archive",
-      "version": "0.3.9",
+      "version": "0.4.0",
       "format": "ZIP",
-      "tag": "aster-cli-v0.3.9",
-      "asset": "aster-cli-v0.3.9-windows.zip",
-      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.3.9/aster-cli-v0.3.9-windows.zip"
+      "tag": "aster-cli-v0.4.0",
+      "asset": "aster-cli-v0.4.0-windows.zip",
+      "url": "https://github.com/aster-ai-lab/aster/releases/download/aster-cli-v0.4.0/aster-cli-v0.4.0-windows.zip"
     }
   ]
 }

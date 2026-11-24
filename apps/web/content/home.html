@@ -543,14 +543,24 @@
                 <span><strong>macOS CLI</strong><small>{{download.cli.macos.format}} / v{{download.cli.macos.version}}</small></span>
                 <svg aria-hidden="true" class="icon icon-small"><use href="#i-download" /></svg>
               </a>
+              <a href="{{download.cli.linux-musl.url}}">
+                <svg aria-hidden="true" class="icon"><use href="#i-terminal" /></svg>
+                <span><strong>Linux x86_64（静态 musl）</strong><small>无 glibc · {{download.cli.linux-musl.format}} / v{{download.cli.linux-musl.version}}</small></span>
+                <svg aria-hidden="true" class="icon icon-small"><use href="#i-download" /></svg>
+              </a>
+              <a href="{{download.cli.linux-musl-arm64.url}}">
+                <svg aria-hidden="true" class="icon"><use href="#i-terminal" /></svg>
+                <span><strong>Linux arm64（静态 musl）</strong><small>无 glibc · {{download.cli.linux-musl-arm64.format}} / v{{download.cli.linux-musl-arm64.version}}</small></span>
+                <svg aria-hidden="true" class="icon icon-small"><use href="#i-download" /></svg>
+              </a>
               <a href="{{download.cli.linux.url}}">
                 <svg aria-hidden="true" class="icon"><use href="#i-terminal" /></svg>
-                <span><strong>Linux x86_64</strong><small>{{download.cli.linux.format}} / v{{download.cli.linux.version}}</small></span>
+                <span><strong>Linux x86_64（glibc）</strong><small>{{download.cli.linux.format}} / v{{download.cli.linux.version}}</small></span>
                 <svg aria-hidden="true" class="icon icon-small"><use href="#i-download" /></svg>
               </a>
               <a href="{{download.cli.linux-arm64.url}}">
                 <svg aria-hidden="true" class="icon"><use href="#i-terminal" /></svg>
-                <span><strong>Linux arm64</strong><small>{{download.cli.linux-arm64.format}} / v{{download.cli.linux-arm64.version}}</small></span>
+                <span><strong>Linux arm64（glibc）</strong><small>{{download.cli.linux-arm64.format}} / v{{download.cli.linux-arm64.version}}</small></span>
                 <svg aria-hidden="true" class="icon icon-small"><use href="#i-download" /></svg>
               </a>
               <a href="{{download.cli.windows.url}}">
@@ -569,7 +579,7 @@
                 <span>复制命令</span>
               </button>
             </div>
-            <p class="cli-note">CLI 发布包包含 <code>aster</code> 与 <code>aster-acp</code>，请放在同一目录并成对更新。</p>
+            <p class="cli-note">CLI 发布包包含 <code>aster</code>、<code>aster-acp</code> 与离线 <code>embedding/</code>，Linux 推荐不依赖 glibc 的静态 musl 包；请放在同一目录并成对更新。</p>
           </div>
 
           <div class="download-footer-cta">

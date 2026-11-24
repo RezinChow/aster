@@ -38,7 +38,7 @@ node apps/web/scripts/build_releases.mjs --refresh
 npm --prefix apps/web run check
 ```
 
-刷新命令只更新 `content/releases.json` 并验证模板，不写旧静态产物。选择逻辑排除草稿、预发布和未完成上传的资产，并保持桌面与 CLI 目标的顺序和版本一致（含 Linux x86_64 / arm64）。首页与下载页将桌面端和 CLI 分开展示；已发布的 macOS Apple Silicon 与 Windows x64 桌面版提供直链，尚未发布的 Linux 桌面版显示「敬请期待」，不再用 CLI 包顶替。
+刷新命令只更新 `content/releases.json` 并验证模板，不写旧静态产物。选择逻辑排除草稿、预发布和未完成上传的资产，并保持桌面与 CLI 目标的顺序和版本一致（含 Linux 静态无 glibc 的 `linux-musl` / `linux-musl-arm64` 以及 glibc 2.31 的 `linux` / `linux-arm64`）。首页与下载页将桌面端和 CLI 分开展示；已发布的 macOS Apple Silicon 与 Windows x64 桌面版提供直链，尚未发布的 Linux 桌面版显示「敬请期待」，不再用 CLI 包顶替。
 
 ## 文档站
 

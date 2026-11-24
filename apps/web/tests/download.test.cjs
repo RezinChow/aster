@@ -139,8 +139,8 @@ test('no-JS release links and real Studio/TUI screenshots remain; simulated app 
     const fragment = decodeURIComponent(anchor.getAttribute('href').slice(1));
     if (fragment) assert.ok(document.getElementById(fragment), `Missing #${fragment}`);
   }
-  assert.equal(document.querySelectorAll('a[href*="/releases/download/"]').length, 14);
-  assert.equal(new Set([...document.querySelectorAll('a[href*="/releases/download/"]')].map((anchor) => anchor.href)).size, 6);
+  assert.equal(document.querySelectorAll('a[href*="/releases/download/"]').length, 18);
+  assert.equal(new Set([...document.querySelectorAll('a[href*="/releases/download/"]')].map((anchor) => anchor.href)).size, 8);
   assert.match(document.querySelector('#download-dialog').textContent, /敬请期待/);
   assert.equal(document.querySelectorAll('#download-dialog .download-option-soon').length, 1);
   assert.equal(document.querySelectorAll('.platform-switcher [role="tab"]').length, 3);
