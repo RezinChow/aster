@@ -176,7 +176,23 @@ impl RunCompletionSignal {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Sanitize a URL for `Debug` and diagnostic messages by stripping userinfo,
+/// query parameters, and fragments while keeping scheme, host, port, and path.
+/// Unparseable strings fail closed as `"[REDACTED]"`.
+pub(crate) fn redact_url_for_debug(raw: &str) -> String {
+    match url::Url::parse(raw) {
+        Ok(mut parsed) => {
+            let _ = parsed.set_username("");
+            let _ = parsed.set_password(None);
+            parsed.set_query(None);
+            parsed.set_fragment(None);
+            parsed.to_string()
+        }
+        Err(_) => "[REDACTED]".to_string(),
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CodeConfig {
     /// Host-selected finite cross-Run bounds; absence disables automatic work.
@@ -338,4 +354,50 @@ pub struct CodeConfig {
     /// MCP server configurations
     #[serde(default, alias = "mcp_servers")]
     pub mcp_servers: Vec<crate::mcp::McpServerConfig>,
+}
+
+impl std::fmt::Debug for CodeConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CodeConfig")
+            .field("goal_control", &self.goal_control)
+            .field("verification_contracts", &self.verification_contracts)
+            .field("default_model", &self.default_model)
+            .field("reasoning_effort", &self.reasoning_effort)
+            .field("providers", &self.providers)
+            .field("import_accounts", &self.import_accounts)
+            .field("workspace_retrieval", &self.workspace_retrieval)
+            .field("tool_presentation_profile", &self.tool_presentation_profile)
+            .field("notifications", &self.notifications)
+            .field("storage_backend", &self.storage_backend)
+            .field("sessions_dir", &self.sessions_dir)
+            .field("memory_dir", &self.memory_dir)
+            .field(
+                "storage_url",
+                &self.storage_url.as_deref().map(redact_url_for_debug),
+            )
+            .field("skill_dirs", &self.skill_dirs)
+            .field("agent_dirs", &self.agent_dirs)
+            .field("user_instructions_dir", &self.user_instructions_dir)
+            .field("project_doc_max_bytes", &self.project_doc_max_bytes)
+            .field(
+                "project_doc_fallback_filenames",
+                &self.project_doc_fallback_filenames,
+            )
+            .field("max_tool_rounds", &self.max_tool_rounds)
+            .field("max_parallel_tasks", &self.max_parallel_tasks)
+            .field("task_scheduler", &self.task_scheduler)
+            .field("auto_delegation", &self.auto_delegation)
+            .field("auto_parallel", &self.auto_parallel)
+            .field("thinking_budget", &self.thinking_budget)
+            .field("llm_api_timeout_ms", &self.llm_api_timeout_ms)
+            .field("memory", &self.memory)
+            .field("queue", &self.queue)
+            .field("search", &self.search)
+            .field("sandbox_network", &self.sandbox_network)
+            .field("sandbox_network_allow", &self.sandbox_network_allow)
+            .field("os", &self.os)
+            .field("document_parser", &self.document_parser)
+            .field("mcp_servers", &self.mcp_servers)
+            .finish()
+    }
 }

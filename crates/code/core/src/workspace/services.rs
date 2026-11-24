@@ -575,12 +575,14 @@ impl WorkspaceServices {
             Arc::new(super::read_overlay::OverlayFileSystem {
                 overlay: Arc::clone(&overlay),
                 inner: Arc::clone(&self.file_system),
+                direct_file_guard: self.direct_file_guard.clone(),
             });
         let text_reader: Arc<dyn WorkspaceTextReader> =
             Arc::new(super::read_overlay::OverlayTextReader {
                 overlay,
                 inner: self.text_reader.clone(),
                 fs: Arc::clone(&self.file_system),
+                direct_file_guard: self.direct_file_guard.clone(),
             });
         Arc::new(Self {
             workspace_ref: self.workspace_ref.clone(),

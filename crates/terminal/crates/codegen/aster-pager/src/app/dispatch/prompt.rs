@@ -889,10 +889,14 @@ pub(super) fn dispatch_send_prompt_submission(
                     }
                 } else if is_aster_from_app {
                     CommandResult::Message(if backend_unavailable {
-                        format!(
-                            "TUI command /{} is unavailable with the Code backend. Use /help for available commands.",
-                            invocation.token
-                        )
+                        if invocation.token.eq_ignore_ascii_case("dashboard") {
+                            "TUI command /dashboard is unavailable with the Code backend. Use /help for available commands. To open another working directory, start Aster with `aster --cwd <path>`.".into()
+                        } else {
+                            format!(
+                                "TUI command /{} is unavailable with the Code backend. Use /help for available commands.",
+                                invocation.token
+                            )
+                        }
                     } else {
                         format!(
                             "Unknown TUI command: /{}. Use /help for available commands.",

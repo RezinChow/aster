@@ -2,6 +2,23 @@
 
 ## User-visible changes
 
+- Static glibc-free Linux musl binaries (`linux-musl` x86_64 and
+  `linux-musl-arm64` aarch64) ship alongside the canonical glibc 2.31, macOS,
+  and Windows archives for both `aster-cli v0.4.0` and `aster-acp v9.3.0`.
+- Core/ACP stability & issue fixes (`#316`–`#322`):
+  - `#316`: transactional `TurnStart` rollback on retryable LLM failures and
+    provisional stream discard in `aster-pager` without changing the ACP wire
+    surface.
+  - `#321`: unified single-file `include` glob matching across local and
+    manifest workspace backends.
+  - `#317`, `#318`, `#319`, `#320`, `#322`: pager settings/cancel-rewind
+    semantics, empty thinking block cleanup, `/dashboard` refusal guidance,
+    dynamic version display in `aster-pager-minimal`, and `timeout_ms` bounds
+    validation.
+  - Core/ACP deep review fixes, Kimi fixed-temperature compatibility,
+    embedding-host tool controls (`disable_builtin_tools` / `host_owned_tools`),
+    and Linux `execute_owned_process` `BrokenPipe` tolerance when a child closes
+    stdin early.
 - Meta Harness knives since 9.2.7 / 0.3.9: P7 Experimental call-site hard refuse
   (`feature_switch_call_site_allowed`); dynamic registration refuses Experimental
   and Removed feature-switch tools; ACP `PROTOCOL.md` documents Stable vs

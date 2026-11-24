@@ -365,12 +365,37 @@ fn load_rules_in(store: &Path, workspace: &Path) -> Vec<String> {
 }
 
 /// Whether a tool call matches a rule the user chose "don't ask again" for.
+///
+/// Learned approvals apply only to default sandboxed `bash` execution. Host
+/// escalation (`require_escalated`) and network grants (`request_network_grant`)
+/// remain scoped per-call approvals and never auto-approve from a learned rule.
 pub fn is_previously_approved(workspace: &Path, tool_name: &str, args: &serde_json::Value) -> bool {
-    if tool_name != "bash" {
+    if tool_name != "bash" || !uses_default_sandbox(args) {
         return false;
     }
     warn_legacy_store_once(workspace);
     command_rule(args).is_some_and(|rule| load_rules(workspace).contains(&rule))
+}
+
+fn uses_default_sandbox(args: &serde_json::Value) -> bool {
+    match args.get("sandbox_permissions") {
+        None | Some(serde_json::Value::Null) => true,
+        Some(serde_json::Value::String(value)) => value == "use_default",
+        Some(_) => false,
+    }
+}
+
+#[cfg(test)]
+fn is_previously_approved_in(
+    store: &Path,
+    workspace: &Path,
+    tool_name: &str,
+    args: &serde_json::Value,
+) -> bool {
+    if tool_name != "bash" || !uses_default_sandbox(args) {
+        return false;
+    }
+    command_rule(args).is_some_and(|rule| load_rules_in(store, workspace).contains(&rule))
 }
 
 fn command_rule(args: &serde_json::Value) -> Option<String> {

@@ -411,10 +411,7 @@ impl ToolRegistry {
             use std::hash::Hasher;
             writer.hasher.finish()
         };
-        let cached = self
-            .argument_validators
-            .read()
-            .unwrap()
+        let cached = read_or_recover(&self.argument_validators)
             .get(name)
             .filter(|entry| entry.schema_fingerprint == schema_fingerprint)
             .cloned();

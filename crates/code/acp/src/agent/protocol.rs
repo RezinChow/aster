@@ -592,18 +592,22 @@ impl acp::Agent for AsterCodeAgent {
             }
             None => None,
         };
+        if output_schema.is_some()
+            && (self.unattended.is_some()
+                || crate::goal::parse_goal_command(&prompt).is_some()
+                || inspection_commands::parse(&prompt).is_some())
+        {
+            return Err(acp::Error::invalid_params()
+                .data("outputSchema is supported only for ordinary model turns"));
+        }
         if let Err(message) = configured_model_id(&self.model_id.lock().await) {
             return Err(acp::Error::invalid_params().data(message));
         }
-        if send_now {
-            self.cancel(acp::CancelNotification::new(args.session_id.clone()))
-                .await?;
-        }
-        // Queue behind an active turn instead of failing: the pager's
-        // send-now / queue-reissue expect the agent to accept and serialize.
-        // Owned so a cancelled turn can move the guard into a detached join.
-        let turn_permit = match turn_queue.acquire_owned().await {
-            Some(permit) => permit,
+        // Reserve the queue slot before cancelling an active turn for `sendNow`,
+        // so a prompt rejected by MAX_QUEUED_PROMPTS never disrupts the running turn.
+        // Owned permit so a cancelled turn can move the guard into a detached join.
+        let slot = match turn_queue.reserve() {
+            Some(slot) => slot,
             None => {
                 return Err(acp::Error::invalid_params().data(format!(
                     "prompt queue is full ({MAX_QUEUED_PROMPTS} waiting behind the active \
@@ -611,6 +615,11 @@ impl acp::Agent for AsterCodeAgent {
                 )));
             }
         };
+        if send_now {
+            self.cancel(acp::CancelNotification::new(args.session_id.clone()))
+                .await?;
+        }
+        let turn_permit = turn_queue.lock_reserved(slot).await;
         let session = {
             let mut sessions = self.sessions.lock().await;
             let live = sessions
@@ -647,7 +656,7 @@ impl acp::Agent for AsterCodeAgent {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(turn_started_ms);
         }
-        {
+        let notify_result: acp::Result<()> = async {
             let client = self.client.borrow().clone();
             if let (Some(prompt_id), Some(client)) = (client_prompt_id.as_deref(), client) {
                 // The pager adopts a queued turn from the running queue identity
@@ -666,6 +675,20 @@ impl acp::Agent for AsterCodeAgent {
                     ))
                     .await?;
             }
+            Ok(())
+        }
+        .await;
+        if let Err(error) = notify_result {
+            let result = self
+                .finish_prompt(
+                    &session_key,
+                    generation,
+                    client_prompt_id.as_deref(),
+                    Err(error),
+                )
+                .await;
+            drop(turn_permit);
+            return result;
         }
         // After queue identity: unlock Thinking / streamStartMs before hooks/LLM.
         // Must not precede `_aster/queue/changed` (ACP `queue-running-identity`).
@@ -673,14 +696,6 @@ impl acp::Agent for AsterCodeAgent {
         if let Some(posture) = requested_posture {
             self.emit_permission_mode(args.session_id.clone(), posture)
                 .await;
-        }
-        if output_schema.is_some()
-            && (self.unattended.is_some()
-                || crate::goal::parse_goal_command(&prompt).is_some()
-                || inspection_commands::parse(&prompt).is_some())
-        {
-            return Err(acp::Error::invalid_params()
-                .data("outputSchema is supported only for ordinary model turns"));
         }
         if let Some(unattended) = &self.unattended {
             // A task that starts with `/goal` is task text, not a goal command.
@@ -705,17 +720,21 @@ impl acp::Agent for AsterCodeAgent {
         }
         let turn = crate::host_context::turn_context_from_meta(args.meta.as_ref());
         let observation = crate::run_observation::Binding::from_meta(args.meta.as_ref());
-        let mut response = if let Some(op) = crate::goal::parse_goal_command(&prompt) {
+        let (mut response, held_permit) = if let Some(op) = crate::goal::parse_goal_command(&prompt)
+        {
             tracing::info!(target: "perf_probe", "goal_command_branch");
-            self.handle_goal(
-                &args.session_id,
-                &session,
-                op,
-                generation,
-                turn_permit,
-                observation.as_ref(),
+            (
+                self.handle_goal(
+                    &args.session_id,
+                    &session,
+                    op,
+                    generation,
+                    turn_permit,
+                    observation.as_ref(),
+                )
+                .await,
+                None,
             )
-            .await
         } else if let Some(command) = inspection_commands::parse(&prompt) {
             let result = self.handle_inspection_command(&session, command).await;
             let response = match result {
@@ -725,59 +744,68 @@ impl acp::Agent for AsterCodeAgent {
                 }
                 Err(error) => Err(error),
             };
-            drop(turn_permit);
-            response
+            (response, Some(turn_permit))
         } else {
-            let goal = if session
-                .goal_definition()
-                .map_err(|error| acp::Error::invalid_params().data(error.to_string()))?
-                .is_some()
-            {
-                None
-            } else {
-                crate::goal::apply_session_goal(&session, crate::goal::GoalOp::Status)
-                    .await
+            let prepared: acp::Result<(String, Option<ResearchGate>)> = async {
+                let goal = if session
+                    .goal_definition()
                     .map_err(|error| acp::Error::invalid_params().data(error.to_string()))?
-                    .next
-            };
-            {
-                let mut goals = self.goals.lock().await;
-                if let Some(goal) = &goal {
-                    goals.insert(session_key.clone(), goal.clone());
+                    .is_some()
+                {
+                    None
                 } else {
-                    goals.remove(&session_key);
+                    crate::goal::apply_session_goal(&session, crate::goal::GoalOp::Status)
+                        .await
+                        .map_err(|error| acp::Error::invalid_params().data(error.to_string()))?
+                        .next
+                };
+                {
+                    let mut goals = self.goals.lock().await;
+                    if let Some(goal) = &goal {
+                        goals.insert(session_key.clone(), goal.clone());
+                    } else {
+                        goals.remove(&session_key);
+                    }
                 }
+                let prompt = crate::goal::standing_goal_prompt(goal.as_ref(), &prompt);
+                let prompt = crate::host_context::apply_turn_directives(&prompt, &turn);
+                let gate = if turn.research || turn.plan_first {
+                    let sessions = self.sessions.lock().await;
+                    let live = sessions
+                        .get(&session_key)
+                        .ok_or_else(|| acp::Error::invalid_params().data("unknown session id"))?;
+                    Some(ResearchGate::enter(live)?)
+                } else {
+                    None
+                };
+                Ok((prompt, gate))
             }
-            let prompt = crate::goal::standing_goal_prompt(goal.as_ref(), &prompt);
-            let prompt = crate::host_context::apply_turn_directives(&prompt, &turn);
-            let gate = if turn.research || turn.plan_first {
-                let sessions = self.sessions.lock().await;
-                let live = sessions
-                    .get(&session_key)
-                    .ok_or_else(|| acp::Error::invalid_params().data("unknown session id"))?;
-                Some(ResearchGate::enter(live)?)
-            } else {
-                None
-            };
-            let (retry_observer, retry_forwarder) = self.provider_retry_forwarder(&args.session_id);
-            let response = aster_core::llm::with_retry_observer(
-                retry_observer,
-                self.stream_turn(
-                    &args.session_id,
-                    &session,
-                    &prompt,
-                    &attachments,
-                    generation,
-                    turn_permit,
-                    observation.as_ref(),
-                    gate,
-                    requested_posture,
-                    output_schema.as_ref(),
-                ),
-            )
             .await;
-            let _ = retry_forwarder.await;
-            response
+            match prepared {
+                Ok((prompt, gate)) => {
+                    let (retry_observer, retry_forwarder) =
+                        self.provider_retry_forwarder(&args.session_id);
+                    let (response, returned_permit) = aster_core::llm::with_retry_observer(
+                        retry_observer,
+                        self.stream_turn(
+                            &args.session_id,
+                            &session,
+                            &prompt,
+                            &attachments,
+                            generation,
+                            turn_permit,
+                            observation.as_ref(),
+                            gate,
+                            requested_posture,
+                            output_schema.as_ref(),
+                        ),
+                    )
+                    .await;
+                    let _ = retry_forwarder.await;
+                    (response, returned_permit)
+                }
+                Err(error) => (Err(error), Some(turn_permit)),
+            }
         };
         if generate_title && output_schema.is_none() {
             match &mut response {
@@ -801,13 +829,16 @@ impl acp::Agent for AsterCodeAgent {
         )
         .await;
         tracing::info!(target: "perf_probe", "prompt_return");
-        self.finish_prompt(
-            &session_key,
-            generation,
-            client_prompt_id.as_deref(),
-            response,
-        )
-        .await
+        let finished = self
+            .finish_prompt(
+                &session_key,
+                generation,
+                client_prompt_id.as_deref(),
+                response,
+            )
+            .await;
+        drop(held_permit);
+        finished
     }
 
     async fn ext_method(&self, args: acp::ExtRequest) -> acp::Result<acp::ExtResponse> {

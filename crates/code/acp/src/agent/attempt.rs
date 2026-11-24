@@ -62,6 +62,8 @@ impl AsterCodeAgent {
         loop {
             // Register before the map read. `notify_waiters` stores no permit.
             let notified = self.turn_cancel.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
             if self.turn_was_cancelled(&session_key, generation).await {
                 // The run must stop even while registry cleanup is waiting.
                 if let Some(run) = &run {
@@ -81,7 +83,7 @@ impl AsterCodeAgent {
             }
             tokio::select! {
                 biased;
-                _ = notified => continue,
+                _ = &mut notified => continue,
                 _ = async {
                     match deadline.as_mut() {
                         Some(deadline) => deadline.await,
@@ -118,6 +120,8 @@ impl AsterCodeAgent {
         } else {
             loop {
                 let notified = self.turn_cancel.notified();
+                tokio::pin!(notified);
+                notified.as_mut().enable();
                 if self.turn_was_cancelled(&session_key, generation).await {
                     if let Some(run) = &run {
                         run.cancel().await;
@@ -136,7 +140,7 @@ impl AsterCodeAgent {
                 }
                 tokio::select! {
                     biased;
-                    _ = notified => continue,
+                    _ = &mut notified => continue,
                     result = &mut join => break result,
                 }
             }

@@ -606,10 +606,36 @@ impl Tool for DocumentReadTool {
             let input: Input = Input::deserialize(args)?;
             anyhow::ensure!(!input.file_path.is_empty() && input.file_path.len() <= 4096 && !input.file_path.contains('\0'), "invalid document path");
             let retain_for_run = input.retain_for_run;
-            let input = PathBuf::from(input.file_path);
+            let raw_input_path = input.file_path;
+            let input = PathBuf::from(&raw_input_path);
             anyhow::ensure!(!input.components().any(|part| part == Component::ParentDir), "document not found");
             let path = if input.is_absolute() { input } else { self.workspace.root().join(input) };
             anyhow::ensure!(path.starts_with(self.workspace.root()), "document not found");
+            match std::fs::symlink_metadata(&path) {
+                Ok(_) => {
+                    let pre_canonical = std::fs::canonicalize(&path).context("document not found")?;
+                    anyhow::ensure!(pre_canonical.starts_with(self.workspace.root()), "document not found");
+                    let pre_file = std::fs::File::open(&pre_canonical).context("document not found")?;
+                    anyhow::ensure!(pre_file.metadata().is_ok_and(|meta| meta.is_file()), "document not found");
+                    if ctx.workspace_services.local_root().is_some() {
+                        let workspace_path = ctx.resolve_workspace_path(&raw_input_path).context("document not found")?;
+                        ctx.workspace_services.refuse_direct_read(&workspace_path, &pre_file).context("document not found")?;
+                    }
+                    drop(pre_file);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    let mut ancestor = path.parent();
+                    while let Some(dir) = ancestor {
+                        if dir.exists() {
+                            let canonical_dir = std::fs::canonicalize(dir).context("document not found")?;
+                            anyhow::ensure!(canonical_dir.starts_with(self.workspace.root()), "document not found");
+                            break;
+                        }
+                        ancestor = dir.parent();
+                    }
+                }
+                Err(_) => anyhow::bail!("document not found"),
+            }
             let path = path.to_str().context("invalid document path")?;
             // A replaced root must stop this Turn before another model observes its result.
             ctx.register_capability_effect(self.workspace.clone())?;

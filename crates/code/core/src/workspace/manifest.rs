@@ -934,6 +934,9 @@ impl DirectFileGuard for ManifestWorkspaceBackend {
     fn refuse_direct_read(&self, path: &WorkspacePath, file: &std::fs::File) -> anyhow::Result<()> {
         self.local.refuse_direct_read(path, file)
     }
+    fn refuse_overlay_read(&self, path: &WorkspacePath) -> anyhow::Result<()> {
+        self.local.refuse_overlay_read(path)
+    }
 }
 
 impl WorkspacePathResolver for ManifestWorkspaceBackend {
@@ -1039,7 +1042,7 @@ impl WorkspaceSearch for ManifestWorkspaceBackend {
             let Some(relative_to_base) = relative_to_base(&file.path, &request.base) else {
                 continue;
             };
-            if glob_matches(&pattern, relative_to_base) {
+            if glob_matches(&pattern, glob_match_target(relative_to_base, &file.path)) {
                 matches.push(WorkspacePath::from_normalized(file.path.clone()));
             }
         }
@@ -1177,7 +1180,7 @@ fn grep_manifest_snapshot(
             continue;
         };
         if let Some(glob) = &glob {
-            if !glob_matches(glob, relative_to_base) {
+            if !glob_matches(glob, glob_match_target(relative_to_base, &file.path)) {
                 continue;
             }
         }
@@ -1587,6 +1590,14 @@ fn relative_to_base<'a>(path: &'a str, base: &WorkspacePath) -> Option<&'a str> 
         path.strip_prefix(base)
             .and_then(|tail| tail.strip_prefix('/'))
             .filter(|tail| !tail.is_empty())
+    }
+}
+
+fn glob_match_target<'a>(relative_to_base: &'a str, full_path: &'a str) -> &'a str {
+    if relative_to_base.is_empty() {
+        full_path
+    } else {
+        relative_to_base
     }
 }
 

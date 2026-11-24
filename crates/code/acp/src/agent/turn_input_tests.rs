@@ -229,3 +229,106 @@ fn ordinary_text_and_unrelated_metadata_preserve_exact_user_bytes() {
     assert_eq!(actual, text);
     assert!(attachments.is_empty());
 }
+
+#[tokio::test]
+async fn send_now_rejected_by_full_queue_does_not_cancel_active_turn() {
+    let root = tempfile::tempdir().unwrap();
+    let mut launch = tests::test_launch(Some(root.path().join("sessions")));
+    launch.workspace = root.path().to_owned();
+    let agent = AsterCodeAgent::new(launch);
+    let id = agent
+        .new_session(acp::NewSessionRequest::new(root.path()))
+        .await
+        .unwrap()
+        .session_id;
+    agent.turn_generation.lock().await.insert(
+        id.0.to_string(),
+        TurnGeneration {
+            number: 7,
+            ..Default::default()
+        },
+    );
+    let (queue, session) = {
+        let sessions = agent.sessions.lock().await;
+        let live = sessions.get(id.0.as_ref()).unwrap();
+        (Arc::clone(&live.turn_queue), Arc::clone(&live.session))
+    };
+    let _active = queue.acquire_owned().await.unwrap();
+    let mut held_slots = Vec::with_capacity(MAX_QUEUED_PROMPTS);
+    for _ in 0..MAX_QUEUED_PROMPTS {
+        held_slots.push(queue.reserve().expect("slot within cap"));
+    }
+
+    let request = acp::PromptRequest::new(
+        id.clone(),
+        vec![acp::ContentBlock::Text(acp::TextContent::new("overflow"))],
+    )
+    .meta(serde_json::json!({"sendNow": true}).as_object().cloned());
+    let err = agent.prompt(request).await.unwrap_err();
+    assert!(
+        err.data
+            .as_ref()
+            .and_then(|v| v.as_str())
+            .is_some_and(|text| text.contains("prompt queue is full")),
+        "unexpected error: {err:?}"
+    );
+    assert!(
+        agent.cancelled_generation.lock().await.is_empty(),
+        "a rejected sendNow prompt must not cancel the active turn"
+    );
+
+    drop(held_slots);
+    session.close().await;
+}
+
+#[tokio::test]
+async fn output_schema_on_inspection_command_fails_before_cancelling_or_bumping_generation() {
+    let root = tempfile::tempdir().unwrap();
+    let mut launch = tests::test_launch(Some(root.path().join("sessions")));
+    launch.workspace = root.path().to_owned();
+    let agent = AsterCodeAgent::new(launch);
+    let id = agent
+        .new_session(acp::NewSessionRequest::new(root.path()))
+        .await
+        .unwrap()
+        .session_id;
+    agent.turn_generation.lock().await.insert(
+        id.0.to_string(),
+        TurnGeneration {
+            number: 3,
+            ..Default::default()
+        },
+    );
+
+    let request = acp::PromptRequest::new(
+        id.clone(),
+        vec![acp::ContentBlock::Text(acp::TextContent::new("/tasks"))],
+    )
+    .meta(
+        serde_json::json!({
+            "sendNow": true,
+            "outputSchema": {"type": "object", "properties": {}}
+        })
+        .as_object()
+        .cloned(),
+    );
+    let err = agent.prompt(request).await.unwrap_err();
+    assert!(
+        err.data
+            .as_ref()
+            .and_then(|v| v.as_str())
+            .is_some_and(|text| text.contains("ordinary model turns")),
+        "unexpected error: {err:?}"
+    );
+    assert!(agent.cancelled_generation.lock().await.is_empty());
+    assert_eq!(
+        agent
+            .turn_generation
+            .lock()
+            .await
+            .get(id.0.as_ref())
+            .unwrap()
+            .number,
+        3
+    );
+}

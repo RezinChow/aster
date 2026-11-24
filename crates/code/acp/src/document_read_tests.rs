@@ -718,3 +718,62 @@ async fn actual_harness_accepts_bound_advisory_diagnostics_and_refuses_forged_pu
         }
     }).await;
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn studio_document_read_refuses_credential_files_and_escaping_symlinks_before_host_rpc() {
+    use aster_core::workspace::{
+        LocalWorkspaceAccessPolicy, ManifestWorkspaceBackend, WorkspaceServices,
+    };
+    use std::os::unix::fs::symlink;
+
+    let parent = tempfile::tempdir().unwrap();
+    let workspace = parent.path().join("ws");
+    std::fs::create_dir(&workspace).unwrap();
+    let root = std::fs::canonicalize(&workspace).unwrap();
+
+    std::fs::write(root.join(".env"), "SECRET=canary\n").unwrap();
+    let outside = parent.path().join("outside.txt");
+    std::fs::write(&outside, "OUTSIDE=canary\n").unwrap();
+    symlink(&outside, root.join("escape.txt")).unwrap();
+
+    // Unattached DocumentBridge returns an RPC error if called; our guard must
+    // reject before touching the bridge at all.
+    let tool = DocumentBridge::new().tool(&root, "guard-session").unwrap();
+    let backend = ManifestWorkspaceBackend::new_with_access_policy(
+        root.clone(),
+        LocalWorkspaceAccessPolicy::CredentialBoundary,
+    );
+    let services = WorkspaceServices::local_with_manifest_backend(backend);
+    let ctx = aster_core::tools::ToolContext::new(root).with_workspace_services(services);
+
+    let env_result = tool
+        .execute(&json!({"file_path": ".env"}), &ctx)
+        .await
+        .unwrap();
+    assert!(
+        !env_result.success,
+        "credential file must be refused: {}",
+        env_result.content
+    );
+    assert!(
+        !env_result.content.contains("bridge"),
+        "guard should fail before RPC: {}",
+        env_result.content
+    );
+
+    let escape_result = tool
+        .execute(&json!({"file_path": "escape.txt"}), &ctx)
+        .await
+        .unwrap();
+    assert!(
+        !escape_result.success,
+        "escaping symlink must be refused: {}",
+        escape_result.content
+    );
+    assert!(
+        !escape_result.content.contains("bridge"),
+        "guard should fail before RPC: {}",
+        escape_result.content
+    );
+}

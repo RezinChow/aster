@@ -47,7 +47,7 @@ pub struct ModelModalities {
 }
 
 /// Model configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelConfig {
     /// Model ID (e.g., "claude-sonnet-4-20250514")
@@ -97,6 +97,32 @@ pub struct ModelConfig {
     /// Token limits
     #[serde(default)]
     pub limit: ModelLimit,
+}
+
+impl std::fmt::Debug for ModelConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ModelConfig")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("family", &self.family)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "base_url",
+                &self.base_url.as_deref().map(super::redact_url_for_debug),
+            )
+            .field("headers", &self.headers.keys().collect::<Vec<_>>())
+            .field("session_id_header", &self.session_id_header)
+            .field("attachment", &self.attachment)
+            .field("reasoning", &self.reasoning)
+            .field("reasoning_control", &self.reasoning_control)
+            .field("tool_call", &self.tool_call)
+            .field("temperature", &self.temperature)
+            .field("release_date", &self.release_date)
+            .field("modalities", &self.modalities)
+            .field("cost", &self.cost)
+            .field("limit", &self.limit)
+            .finish()
+    }
 }
 
 pub(crate) fn default_true() -> bool {
@@ -204,7 +230,7 @@ fn base_url_looks_like_anthropic_messages(base_url: Option<&str>) -> bool {
 }
 
 /// Provider configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderConfig {
     /// Provider name (e.g., "anthropic", "openai")
@@ -227,6 +253,23 @@ pub struct ProviderConfig {
     /// Available models
     #[serde(default)]
     pub models: Vec<ModelConfig>,
+}
+
+impl std::fmt::Debug for ProviderConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderConfig")
+            .field("name", &self.name)
+            .field("protocol", &self.protocol)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "base_url",
+                &self.base_url.as_deref().map(super::redact_url_for_debug),
+            )
+            .field("headers", &self.headers.keys().collect::<Vec<_>>())
+            .field("session_id_header", &self.session_id_header)
+            .field("models", &self.models)
+            .finish()
+    }
 }
 
 /// Apply model capability flags to an LlmConfig.

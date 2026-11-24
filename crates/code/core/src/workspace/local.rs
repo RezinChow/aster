@@ -178,6 +178,30 @@ impl LocalWorkspaceBackend {
         )
     }
 
+    pub(crate) fn refuse_overlay_read(&self, path: &WorkspacePath) -> Result<()> {
+        let candidate = self.root.join(path.as_str());
+        match std::fs::symlink_metadata(&candidate) {
+            Ok(_) => {
+                let resolved = self.local_path_for_read(path)?;
+                let metadata = std::fs::metadata(&resolved).ok();
+                let hard_links = metadata
+                    .as_ref()
+                    .filter(|meta| meta.is_file())
+                    .and_then(|meta| {
+                        std::fs::File::open(&resolved)
+                            .ok()
+                            .map(|file| hard_link_count_for_open_file(&file, meta))
+                    });
+                self.ensure_access(path, Some(&resolved), metadata.as_ref(), hard_links, "read")
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                refuse_existing_symlink_on_write_path(&self.root, path.as_str())?;
+                self.ensure_access(path, None, None, None, "read")
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
     fn ensure_access(
         &self,
         path: &WorkspacePath,
@@ -302,6 +326,9 @@ impl DirectFileGuard for LocalWorkspaceBackend {
     }
     fn refuse_direct_read(&self, path: &WorkspacePath, file: &std::fs::File) -> Result<()> {
         LocalWorkspaceBackend::refuse_direct_read(self, path, file)
+    }
+    fn refuse_overlay_read(&self, path: &WorkspacePath) -> Result<()> {
+        LocalWorkspaceBackend::refuse_overlay_read(self, path)
     }
 }
 
@@ -1488,6 +1515,29 @@ fn read_search_file_at(
     Some(content)
 }
 
+fn grep_glob_match_target<'a>(path: &'a str, base: &WorkspacePath) -> Option<&'a str> {
+    if base.is_root() {
+        return Some(path);
+    }
+    let base = base.as_str().trim_end_matches('/');
+    if path == base {
+        Some(path)
+    } else {
+        path.strip_prefix(base)
+            .and_then(|tail| tail.strip_prefix('/'))
+            .filter(|tail| !tail.is_empty())
+    }
+}
+
+fn grep_glob_matches(pattern: &BraceGlob, path: &str) -> bool {
+    let path = Path::new(path);
+    pattern.matches_path(path)
+        || path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| pattern.matches(name))
+}
+
 fn grep_walk(
     root: &Path,
     boundary: Option<&LocalWorkspaceAccessBoundary>,
@@ -1508,12 +1558,23 @@ fn grep_walk(
         .git_global(true)
         .follow_links(false);
 
+    let glob = request
+        .glob
+        .as_deref()
+        .map(|pattern| {
+            BraceGlob::new(pattern)
+                .map_err(|error| anyhow!("Invalid grep glob filter '{pattern}': {error}"))
+        })
+        .transpose()?;
+
     if let Some(ref glob_pat) = request.glob {
-        let mut types = ignore::types::TypesBuilder::new();
-        types.add("custom", glob_pat).ok();
-        types.select("custom");
-        if let Ok(built) = types.build() {
-            builder.types(built);
+        if !search_path.is_file() && !glob_pat.contains('/') && !glob_pat.contains('{') {
+            let mut types = ignore::types::TypesBuilder::new();
+            types.add("custom", glob_pat).ok();
+            types.select("custom");
+            if let Ok(built) = types.build() {
+                builder.types(built);
+            }
         }
     }
 
@@ -1544,6 +1605,15 @@ fn grep_walk(
         let file_path = entry.path();
         let workspace_path =
             pathbuf_to_workspace_path(file_path.strip_prefix(root).unwrap_or(file_path));
+        if let Some(glob) = &glob {
+            let Some(match_target) = grep_glob_match_target(workspace_path.as_str(), &request.base)
+            else {
+                continue;
+            };
+            if !grep_glob_matches(glob, match_target) {
+                continue;
+            }
+        }
         let Some(content) = read_search_file_at(root, boundary, &workspace_path) else {
             if search_file_is_oversize_at(root, &workspace_path) {
                 skipped_oversize.push(workspace_path);

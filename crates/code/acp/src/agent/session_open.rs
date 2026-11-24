@@ -674,6 +674,16 @@ impl AsterCodeAgent {
         servers: &[acp::McpServer],
     ) -> acp::Result<()> {
         self.ensure_core_agent().await?;
+        // Snapshot live sessions before locking `core_agent` to preserve a
+        // single global lock order (`sessions` -> `core_agent`) and prevent
+        // AB-BA deadlocks with concurrent `load_session`.
+        let live: Vec<(String, Vec<aster_core::mcp::McpServerConfig>)> = {
+            let sessions = self.sessions.lock().await;
+            sessions
+                .iter()
+                .map(|(key, live)| (key.clone(), live.mcp_servers.clone()))
+                .collect()
+        };
         let guard = self.core_agent.lock().await;
         let agent = guard
             .as_ref()
@@ -684,13 +694,6 @@ impl AsterCodeAgent {
                 *cached = Some(agent.global_mcp_configs().await);
             }
             cached.clone().unwrap_or_default()
-        };
-        let live: Vec<(String, Vec<aster_core::mcp::McpServerConfig>)> = {
-            let sessions = self.sessions.lock().await;
-            sessions
-                .iter()
-                .map(|(key, live)| (key.clone(), live.mcp_servers.clone()))
-                .collect()
         };
         let desired = union_mcp_desired(baseline, &live, for_session, servers)
             .map_err(|conflict| acp::Error::invalid_params().data(conflict))?;

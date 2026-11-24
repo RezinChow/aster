@@ -100,6 +100,20 @@ fn queued_prompt_rpc_error_does_not_kill_running_turn() {
         scrollback_before,
         "no TurnFailed block may be pushed for a non-running prompt's error"
     );
+    let has_turn_failed = |app: &AppView, needle: &str| {
+        let sb = &get_agent(app, id).scrollback;
+        (0..sb.len()).any(|idx| {
+            matches!(
+                sb.entry(idx).map(|e| &e.block),
+                Some(RenderBlock::SessionEvent(ev))
+                    if matches!(&ev.event, SessionEvent::TurnFailed { error, .. } if error.contains(needle))
+            )
+        })
+    };
+    assert!(
+        !has_turn_failed(&app, ""),
+        "queued prompt error must not emit any TurnFailed block"
+    );
 
     // Sanity: an error for the ACTUAL running prompt is NOT discarded; it ends the turn and renders the failure
     let _ = dispatch(
@@ -116,8 +130,16 @@ fn queued_prompt_rpc_error_does_not_kill_running_turn() {
         "the running turn's own error must end the turn"
     );
     assert!(
-        get_agent(&app, id).scrollback.len() > scrollback_before,
-        "the running turn's own error must render a failure block"
+        has_turn_failed(&app, "upstream boom"),
+        "the running turn's own error must render a TurnFailed block containing the error message"
+    );
+    let sb = &get_agent(&app, id).scrollback;
+    assert!(
+        !(0..sb.len()).any(|idx| matches!(
+            sb.entry(idx).map(|e| &e.block),
+            Some(RenderBlock::Thinking(t)) if t.text().is_empty()
+        )),
+        "finish_turn must clean up the pre-created empty Thinking placeholder"
     );
 }
 

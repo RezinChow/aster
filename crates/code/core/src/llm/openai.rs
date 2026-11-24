@@ -472,7 +472,9 @@ impl OpenAiClient {
         }
 
         if let Some(temp) = self.temperature {
-            request["temperature"] = serde_json::json!(temp);
+            if !super::effort::is_kimi_fixed_temperature_model(&self.model) {
+                request["temperature"] = serde_json::json!(temp);
+            }
         }
         if super::effort::is_deepseek_model(&self.model) {
             // DeepSeek owns the output window for each effort. Forcing the

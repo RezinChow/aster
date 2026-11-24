@@ -627,7 +627,9 @@ pub(super) async fn decision_from_response(
     } else {
         structured
     };
-    if calls.iter().all(|call| call.1 == "ask_user") {
+    let host_owned_tools =
+        surface.is_some_and(|surface| surface.agent.tool_executor_handle().host_owned_tools());
+    if !host_owned_tools && calls.iter().all(|call| call.1 == "ask_user") {
         if let Some((id, name, args)) = calls.first() {
             return question_from_call(&crate::llm::ToolCall {
                 id: id.clone(),
@@ -651,15 +653,17 @@ pub(super) async fn decision_from_response(
     let mut tools = Vec::new();
     let mut approval_ids = std::collections::HashMap::new();
     for (id, name, args) in calls {
-        if name == "ask_user" {
+        if !host_owned_tools && name == "ask_user" {
             continue;
         }
         let needs_confirmation = confirmation_parked(policy, surface, &name, &args).await;
         // A provider can reuse IDs; host consent must name one original invocation.
-        let id = if surface.is_some_and(|surface| {
-            surface.confirmation.is_some()
-                && (surface.run_id.is_some() || surface.agent.is_child_run())
-        }) {
+        // Hosts that own the entire tool surface preserve canonical provider call IDs.
+        let id = if !host_owned_tools
+            && surface.is_some_and(|surface| {
+                surface.confirmation.is_some()
+                    && (surface.run_id.is_some() || surface.agent.is_child_run())
+            }) {
             approval_ids
                 .entry(id)
                 .or_insert_with(|| format!("call_{}", uuid::Uuid::new_v4().simple()))

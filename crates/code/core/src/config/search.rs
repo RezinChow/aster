@@ -71,7 +71,7 @@ pub enum BrowserBackend {
 /// Moli is the default backend. When it is selected and no executable is
 /// configured or packaged, Aster Code downloads the pinned, digest-verified
 /// runtime into the user cache on first use.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HeadlessConfig {
     /// Browser backend to use.
@@ -126,6 +126,29 @@ pub struct HeadlessConfig {
     /// Proxy URL for the browser to use.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy_url: Option<String>,
+}
+
+impl std::fmt::Debug for HeadlessConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HeadlessConfig")
+            .field("backend", &self.backend)
+            .field("max_tabs", &self.max_tabs)
+            .field("browser_path", &self.browser_path)
+            .field("auto_download_moli", &self.auto_download_moli)
+            .field("moli_version", &self.moli_version)
+            .field("moli_sha256", &self.moli_sha256)
+            .field("moli_cache_dir", &self.moli_cache_dir)
+            .field(
+                "moli_download_timeout_secs",
+                &self.moli_download_timeout_secs,
+            )
+            .field("launch_args", &self.launch_args)
+            .field(
+                "proxy_url",
+                &self.proxy_url.as_deref().map(super::redact_url_for_debug),
+            )
+            .finish()
+    }
 }
 
 impl BrowserBackend {
@@ -234,7 +257,7 @@ pub struct SearchHealthConfig {
 }
 
 /// Per-engine search configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchEngineConfig {
     /// Whether the engine is enabled
@@ -274,6 +297,24 @@ pub struct SearchEngineConfig {
     /// Doubao only: let Doubao rewrite conversational questions into queries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query_rewrite: Option<bool>,
+}
+
+impl std::fmt::Debug for SearchEngineConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SearchEngineConfig")
+            .field("enabled", &self.enabled)
+            .field("weight", &self.weight)
+            .field("timeout", &self.timeout)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field("project", &self.project)
+            .field(
+                "endpoint",
+                &self.endpoint.as_deref().map(super::redact_url_for_debug),
+            )
+            .field("authoritative_only", &self.authoritative_only)
+            .field("query_rewrite", &self.query_rewrite)
+            .finish()
+    }
 }
 
 pub(crate) fn default_search_timeout() -> u64 {

@@ -1884,6 +1884,7 @@ pub(super) fn apply_retry_state(
             reason,
             error_type,
         } => {
+            session.discard_provisional_stream(scrollback);
             session.set_retry_activity(Some(TurnActivity::Retrying {
                 attempt: *attempt,
                 max_retries: *max_retries,

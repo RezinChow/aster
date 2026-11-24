@@ -1251,14 +1251,20 @@ async fn post_system_one(url: &str, key: &str, body: &Value) -> Result<Vec<u8>, 
     if !status.is_success() {
         return Err(format!("unavailable: HTTP {}", status.as_u16()));
     }
-    let bytes = response
-        .bytes()
+    const MAX_GATEWAY_RESPONSE_BYTES: usize = 65_536;
+    let mut response = response;
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|_| "unavailable: empty gateway response".to_owned())?;
-    if bytes.len() > 65_536 {
-        return Err("unavailable: gateway response is too large".to_owned());
+        .map_err(|_| "unavailable: empty gateway response".to_owned())?
+    {
+        if bytes.len().saturating_add(chunk.len()) > MAX_GATEWAY_RESPONSE_BYTES {
+            return Err("unavailable: gateway response is too large".to_owned());
+        }
+        bytes.extend_from_slice(&chunk);
     }
-    Ok(bytes.to_vec())
+    Ok(bytes)
 }
 
 #[cfg(test)]

@@ -1775,6 +1775,24 @@ async fn file_store_writer_lease_takeover_fences_stale_holder() {
 }
 
 #[tokio::test]
+async fn file_store_concurrent_writer_leases_across_instances_mint_distinct_epochs() {
+    let dir = tempdir().unwrap();
+    let first = FileSessionStore::new(dir.path()).await.unwrap();
+    let second = FileSessionStore::new(dir.path()).await.unwrap();
+    let (lease_a, lease_b) = tokio::join!(
+        first.acquire_writer_lease("worker-a"),
+        second.acquire_writer_lease("worker-b"),
+    );
+    let mut epochs = vec![lease_a.unwrap().epoch, lease_b.unwrap().epoch];
+    epochs.sort_unstable();
+    assert_eq!(
+        epochs,
+        vec![1, 2],
+        "cross-instance lease acquisitions must serialize under the file lock"
+    );
+}
+
+#[tokio::test]
 async fn file_and_memory_store_cas_match_writes_and_mismatch_skips() {
     let dir = tempdir().unwrap();
     let file = FileSessionStore::new(dir.path()).await.unwrap();

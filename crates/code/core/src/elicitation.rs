@@ -9,8 +9,33 @@
 //! Concurrent pending requests are keyed by id so two in-flight elicitations
 //! do not cross-deliver results. Cancel removes the pending entry.
 
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
+const MAX_TERMINAL_RECORDS: usize = 1024;
+
+#[derive(Default)]
+struct ElicitationTable {
+    records: HashMap<String, ElicitationRecord>,
+    terminal_order: VecDeque<String>,
+}
+
+impl ElicitationTable {
+    fn record_terminal(&mut self, id: &str) {
+        self.terminal_order.push_back(id.to_string());
+        while self.terminal_order.len() > MAX_TERMINAL_RECORDS {
+            if let Some(oldest) = self.terminal_order.pop_front() {
+                let should_remove = self
+                    .records
+                    .get(&oldest)
+                    .is_some_and(|record| record.phase != ElicitationPhase::Pending);
+                if should_remove {
+                    self.records.remove(&oldest);
+                }
+            }
+        }
+    }
+}
 
 /// Host channel that can pause a run for user input.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,9 +69,12 @@ pub enum ElicitationError {
     AlreadyTerminal,
 }
 
-fn table() -> &'static Mutex<HashMap<String, ElicitationRecord>> {
-    static TABLE: OnceLock<Mutex<HashMap<String, ElicitationRecord>>> = OnceLock::new();
-    TABLE.get_or_init(|| Mutex::new(HashMap::new()))
+fn lock_table() -> MutexGuard<'static, ElicitationTable> {
+    static TABLE: OnceLock<Mutex<ElicitationTable>> = OnceLock::new();
+    TABLE
+        .get_or_init(|| Mutex::new(ElicitationTable::default()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Stable ledger id for an ACP `session/request_permission` tool ask.
@@ -61,8 +89,8 @@ pub fn begin(
     channel: ElicitationChannel,
 ) -> Result<ElicitationRecord, ElicitationError> {
     let id = id.into();
-    let mut guard = table().lock().expect("elicitation table");
-    if let Some(existing) = guard.get(&id) {
+    let mut guard = lock_table();
+    if let Some(existing) = guard.records.get(&id) {
         if existing.phase == ElicitationPhase::Pending {
             return Err(ElicitationError::DuplicateId);
         }
@@ -73,14 +101,14 @@ pub fn begin(
         phase: ElicitationPhase::Pending,
         answer: None,
     };
-    guard.insert(id, record.clone());
+    guard.records.insert(id, record.clone());
     Ok(record)
 }
 
 /// Resolve a pending elicitation with an answer.
 pub fn resolve(id: &str, answer: impl Into<String>) -> Result<ElicitationRecord, ElicitationError> {
-    let mut guard = table().lock().expect("elicitation table");
-    let Some(record) = guard.get_mut(id) else {
+    let mut guard = lock_table();
+    let Some(record) = guard.records.get_mut(id) else {
         return Err(ElicitationError::NotFound);
     };
     if record.phase != ElicitationPhase::Pending {
@@ -88,25 +116,29 @@ pub fn resolve(id: &str, answer: impl Into<String>) -> Result<ElicitationRecord,
     }
     record.phase = ElicitationPhase::Resolved;
     record.answer = Some(answer.into());
-    Ok(record.clone())
+    let cloned = record.clone();
+    guard.record_terminal(id);
+    Ok(cloned)
 }
 
 /// Cancel a pending elicitation.
 pub fn cancel(id: &str) -> Result<ElicitationRecord, ElicitationError> {
-    let mut guard = table().lock().expect("elicitation table");
-    let Some(record) = guard.get_mut(id) else {
+    let mut guard = lock_table();
+    let Some(record) = guard.records.get_mut(id) else {
         return Err(ElicitationError::NotFound);
     };
     if record.phase != ElicitationPhase::Pending {
         return Err(ElicitationError::AlreadyTerminal);
     }
     record.phase = ElicitationPhase::Cancelled;
-    Ok(record.clone())
+    let cloned = record.clone();
+    guard.record_terminal(id);
+    Ok(cloned)
 }
 
 /// Snapshot one record.
 pub fn get(id: &str) -> Option<ElicitationRecord> {
-    table().lock().expect("elicitation table").get(id).cloned()
+    lock_table().records.get(id).cloned()
 }
 
 #[cfg(test)]
@@ -177,5 +209,21 @@ mod tests {
         assert_eq!(reopened.phase, ElicitationPhase::Pending);
         assert_eq!(reopened.answer, None);
         assert!(begin(&id, ElicitationChannel::Permission).is_err());
+    }
+
+    #[test]
+    fn terminal_records_are_evicted_to_stay_bounded() {
+        let first_id = unique("evict-first");
+        begin(&first_id, ElicitationChannel::Permission).unwrap();
+        resolve(&first_id, "ok").unwrap();
+        for _ in 0..=MAX_TERMINAL_RECORDS {
+            let id = unique("evict-fill");
+            begin(&id, ElicitationChannel::Permission).unwrap();
+            cancel(&id).unwrap();
+        }
+        assert!(
+            get(&first_id).is_none(),
+            "oldest terminal record must be evicted once MAX_TERMINAL_RECORDS is exceeded"
+        );
     }
 }

@@ -871,6 +871,8 @@ impl AgentMemory {
         let wait_until_idle = async {
             loop {
                 let notified = self.extraction_queue.idle.notified();
+                tokio::pin!(notified);
+                notified.as_mut().enable();
                 if self.extraction_queue.pending.load(Ordering::Acquire) == 0 {
                     return;
                 }

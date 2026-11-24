@@ -56,7 +56,7 @@ pub(crate) fn print_welcome_card(
     terminal.clear()?;
 
     let theme = Theme::current();
-    let version = aster_version::VERSION;
+    let version = welcome_version_label();
     let (cwd, model) = match &app.active_view {
         ActiveView::Agent(id) => {
             let agent = app.agents.get(id);
@@ -79,7 +79,7 @@ pub(crate) fn print_welcome_card(
                 .fg(theme.accent_user)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(format!("  v{version}"), theme.muted()),
+        Span::styled(format!("  {version}"), theme.muted()),
     ]));
     if !cwd.is_empty() {
         info.push(Line::from(Span::styled(cwd, theme.muted())));
@@ -136,4 +136,22 @@ pub(crate) fn print_welcome_card(
     // A trailing gap, matching every committed block, separates the first conversation block from the card
     super::commit::insert_gap(terminal);
     Ok(())
+}
+
+/// Match the fullscreen welcome badge and `--version` by reading the runtime-injected
+/// binary version rather than the fallback `aster-version` crate package version.
+fn welcome_version_label() -> &'static str {
+    aster_version::full_version()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn welcome_version_label_uses_injected_full_version() {
+        aster_version::set_full_version("0.4.0 (a5d8e5f12345)");
+        assert_eq!(welcome_version_label(), "0.4.0 (a5d8e5f12345)");
+        assert_ne!(welcome_version_label(), aster_version::VERSION);
+    }
 }

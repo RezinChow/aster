@@ -133,7 +133,7 @@ pub fn answer(question_id: &str, text: &str) -> bool {
     }
     pending_answers()
         .lock()
-        .expect("ask-user answers")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(question_id.to_string(), text.to_string());
     let _ = crate::elicitation::resolve(question_id, text);
     answer_notify().notify_waiters();
@@ -147,9 +147,11 @@ pub async fn wait_for_answer(
 ) -> Option<String> {
     loop {
         let notified = answer_notify().notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
         if let Some(text) = pending_answers()
             .lock()
-            .expect("ask-user answers")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .remove(question_id)
         {
             return Some(text);
@@ -159,7 +161,7 @@ pub async fn wait_for_answer(
             return None;
         }
         tokio::select! {
-            _ = notified => {}
+            _ = &mut notified => {}
             _ = cancel.cancelled() => {
                 let _ = crate::elicitation::cancel(question_id);
                 return None;
@@ -285,6 +287,27 @@ mod tests {
         .expect("host answer")
         .expect("stored answer");
         assert_eq!(text, "host-token");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn wait_for_answer_never_misses_concurrent_answers() {
+        for iter in 0..100 {
+            let cancel = tokio_util::sync::CancellationToken::new();
+            let question_id = format!("wait-race-{}-{iter}", std::process::id());
+            let id = question_id.clone();
+            let poster = tokio::spawn(async move {
+                assert!(!answer(&id, "ok"));
+            });
+            let text = tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                wait_for_answer(&question_id, &cancel),
+            )
+            .await
+            .expect("wait_for_answer must not miss concurrent notify_waiters")
+            .expect("stored answer");
+            poster.await.unwrap();
+            assert_eq!(text, "ok");
+        }
     }
 
     #[test]

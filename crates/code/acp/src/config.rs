@@ -508,10 +508,21 @@ fn migrate_legacy_toml_if_missing(os_home: &Path, aster_home: &Path) -> Result<(
     Ok(())
 }
 
+#[derive(Debug)]
+struct MissingAclConfig;
+
+impl std::fmt::Display for MissingAclConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            "Aster ACL configuration was not found; pass --config or create ~/.aster/config.acl",
+        )
+    }
+}
+
+impl std::error::Error for MissingAclConfig {}
+
 fn is_missing_acl(error: &anyhow::Error) -> bool {
-    error
-        .to_string()
-        .contains("Aster ACL configuration was not found")
+    error.downcast_ref::<MissingAclConfig>().is_some()
 }
 
 fn layer_sources(workspace: &Path, explicit: Option<&Path>) -> Result<Vec<LayerSource>> {
@@ -536,9 +547,7 @@ fn layer_sources(workspace: &Path, explicit: Option<&Path>) -> Result<Vec<LayerS
         }
     }
     if layers.is_empty() {
-        return Err(anyhow!(
-            "Aster ACL configuration was not found; pass --config or create ~/.aster/config.acl"
-        ));
+        return Err(anyhow::Error::new(MissingAclConfig));
     }
     Ok(layers)
 }
@@ -1599,5 +1608,33 @@ default_model = "mock/m1"
             .unwrap();
             assert_eq!(launch.model_id, "cursor/composer-2.5");
         });
+    }
+
+    #[test]
+    fn launch_config_debug_redacts_secrets_and_missing_acl_uses_typed_error() {
+        let canary = "CANARY_LAUNCH_API_KEY_888";
+        let mut config = CodeConfig::default();
+        config.providers.push(aster_core::ProviderConfig {
+            name: "demo".into(),
+            protocol: None,
+            api_key: Some(canary.into()),
+            base_url: None,
+            headers: std::collections::HashMap::from([("Authorization".into(), canary.into())]),
+            session_id_header: None,
+            models: Vec::new(),
+        });
+        let launch = LaunchConfig {
+            workspace: PathBuf::from("/tmp/ws"),
+            model_id: "demo/m".into(),
+            config,
+        };
+        let rendered = format!("{launch:?}");
+        assert!(!rendered.contains(canary), "{rendered}");
+        assert!(rendered.contains("[REDACTED]"), "{rendered}");
+
+        assert!(is_missing_acl(&anyhow::Error::new(MissingAclConfig)));
+        assert!(!is_missing_acl(&anyhow::anyhow!(
+            "Aster ACL configuration was not found"
+        )));
     }
 }

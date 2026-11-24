@@ -223,6 +223,8 @@ impl RunAdmission {
         let idle = async {
             loop {
                 let notified = self.idle.notified();
+                tokio::pin!(notified);
+                notified.as_mut().enable();
                 if !self.active.load(Ordering::Acquire) {
                     return;
                 }

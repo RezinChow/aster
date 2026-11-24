@@ -41,6 +41,7 @@ pub(crate) use local_access::LocalWorkspaceAccessBoundary;
 pub(crate) trait DirectFileGuard: Send + Sync {
     fn refuse_direct_write(&self, path: &WorkspacePath) -> Result<()>;
     fn refuse_direct_read(&self, path: &WorkspacePath, file: &std::fs::File) -> Result<()>;
+    fn refuse_overlay_read(&self, path: &WorkspacePath) -> Result<()>;
 }
 pub use local_access::LocalWorkspaceAccessPolicy;
 pub use manifest::{

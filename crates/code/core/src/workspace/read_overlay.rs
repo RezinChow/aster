@@ -184,11 +184,15 @@ impl WorkspaceTextRange {
 pub(super) struct OverlayFileSystem {
     pub(super) overlay: Arc<dyn WorkspaceReadOverlay>,
     pub(super) inner: Arc<dyn WorkspaceFileSystem>,
+    pub(super) direct_file_guard: Option<Arc<dyn super::DirectFileGuard>>,
 }
 
 #[async_trait]
 impl WorkspaceFileSystem for OverlayFileSystem {
     async fn read_text(&self, path: &WorkspacePath) -> WorkspaceResult<String> {
+        if let Some(guard) = &self.direct_file_guard {
+            guard.refuse_overlay_read(path)?;
+        }
         match self.overlay.read_text_result(path).await {
             Ok(Some(content)) => Ok(content),
             Ok(None) => self.inner.read_text(path).await,
@@ -216,6 +220,7 @@ pub(super) struct OverlayTextReader {
     pub(super) overlay: Arc<dyn WorkspaceReadOverlay>,
     pub(super) inner: Option<Arc<dyn WorkspaceTextReader>>,
     pub(super) fs: Arc<dyn WorkspaceFileSystem>,
+    pub(super) direct_file_guard: Option<Arc<dyn super::DirectFileGuard>>,
 }
 
 #[async_trait]
@@ -226,6 +231,9 @@ impl WorkspaceTextReader for OverlayTextReader {
         offset: usize,
         limit: usize,
     ) -> WorkspaceResult<WorkspaceTextRange> {
+        if let Some(guard) = &self.direct_file_guard {
+            guard.refuse_overlay_read(path)?;
+        }
         match self.overlay.read_text_result(path).await {
             Ok(Some(content)) => Ok(WorkspaceTextRange::from_text(&content, offset, limit)),
             Ok(None) => self.read_backend_range(path, offset, limit).await,
@@ -242,6 +250,9 @@ impl WorkspaceTextReader for OverlayTextReader {
         offset: usize,
         limit: usize,
     ) -> WorkspaceResult<Option<WorkspaceTextRange>> {
+        if let Some(guard) = &self.direct_file_guard {
+            guard.refuse_overlay_read(path)?;
+        }
         match self.overlay.read_text_result(path).await {
             Ok(Some(content)) => Ok(Some(WorkspaceTextRange::from_text_with_terminators(
                 &content, offset, limit,

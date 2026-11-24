@@ -1195,6 +1195,30 @@ async fn program_deadline_settles_an_active_child_before_returning() {
 }
 
 #[tokio::test]
+async fn program_stack_overflow_is_not_misclassified_as_timeout() {
+    let root = tempfile::tempdir().unwrap();
+    let registry = Arc::new(ToolRegistry::new(root.path().to_owned()));
+    let output = ProgramTool::new(registry)
+        .execute(
+            &serde_json::json!({
+                "type": "script",
+                "allowed_tools": [],
+                "limits": {"timeoutMs": 5_000},
+                "source": "async function run() { function recurse(n) { return recurse(n + 1); } return recurse(0); }"
+            }),
+            &ToolContext::new(root.path().to_owned()),
+        )
+        .await
+        .unwrap();
+    assert!(!output.success, "{}", output.content);
+    assert!(
+        !output.content.contains("timed out"),
+        "QuickJS stack overflow must not be misclassified as timeout: {}",
+        output.content
+    );
+}
+
+#[tokio::test]
 async fn program_dependent_write_then_read_observes_saved_bytes() {
     let root = tempfile::tempdir().unwrap();
     let executor = crate::tools::ToolExecutor::new(root.path().to_string_lossy().to_string());

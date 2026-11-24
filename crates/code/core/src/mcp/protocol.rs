@@ -425,7 +425,7 @@ impl McpNotification {
 // ============================================================================
 
 /// MCP server configuration
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct McpServerConfig {
     /// Server name (used for tool prefix)
     pub name: String,
@@ -443,6 +443,19 @@ pub struct McpServerConfig {
     /// Per-tool execution timeout in seconds (default: 60)
     #[serde(default = "default_tool_timeout")]
     pub tool_timeout_secs: u64,
+}
+
+impl std::fmt::Debug for McpServerConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("McpServerConfig")
+            .field("name", &self.name)
+            .field("transport", &self.transport)
+            .field("enabled", &self.enabled)
+            .field("env", &self.env.keys().collect::<Vec<_>>())
+            .field("oauth", &self.oauth)
+            .field("tool_timeout_secs", &self.tool_timeout_secs)
+            .finish()
+    }
 }
 
 impl<'de> Deserialize<'de> for McpServerConfig {
@@ -551,7 +564,7 @@ fn default_true() -> bool {
 }
 
 /// Transport configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum McpTransportConfig {
     /// Local process (stdio)
@@ -577,8 +590,30 @@ pub enum McpTransportConfig {
     },
 }
 
+impl std::fmt::Debug for McpTransportConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Stdio { command, args } => f
+                .debug_struct("Stdio")
+                .field("command", command)
+                .field("args", args)
+                .finish(),
+            Self::Http { url, headers } => f
+                .debug_struct("Http")
+                .field("url", &crate::config::redact_url_for_debug(url))
+                .field("headers", &headers.keys().collect::<Vec<_>>())
+                .finish(),
+            Self::StreamableHttp { url, headers } => f
+                .debug_struct("StreamableHttp")
+                .field("url", &crate::config::redact_url_for_debug(url))
+                .field("headers", &headers.keys().collect::<Vec<_>>())
+                .finish(),
+        }
+    }
+}
+
 /// OAuth configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct OAuthConfig {
     pub auth_url: String,
     pub token_url: String,
@@ -592,6 +627,32 @@ pub struct OAuthConfig {
     /// Useful for long-lived tokens or service accounts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub access_token: Option<String>,
+}
+
+impl std::fmt::Debug for OAuthConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuthConfig")
+            .field(
+                "auth_url",
+                &crate::config::redact_url_for_debug(&self.auth_url),
+            )
+            .field(
+                "token_url",
+                &crate::config::redact_url_for_debug(&self.token_url),
+            )
+            .field("client_id", &self.client_id)
+            .field(
+                "client_secret",
+                &self.client_secret.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("scopes", &self.scopes)
+            .field("redirect_uri", &self.redirect_uri)
+            .field(
+                "access_token",
+                &self.access_token.as_ref().map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
 }
 
 #[cfg(test)]

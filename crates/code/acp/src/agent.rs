@@ -149,14 +149,21 @@ impl TurnQueue {
         })
     }
 
+    /// Queue for the turn lock after reserving a slot. The slot is held while
+    /// waiting (so a cancelled future returns it) and released the moment the
+    /// permit is granted — the running turn is not a waiter.
+    async fn lock_reserved(self: &Arc<Self>, slot: WaitingSlot<'_>) -> OwnedMutexGuard<()> {
+        let permit = Arc::clone(&self.lock).lock_owned().await;
+        drop(slot);
+        permit
+    }
+
     /// Queue for the turn lock. The slot is held while waiting (so a
     /// cancelled future returns it) and released the moment the permit is
     /// granted — the running turn is not a waiter.
     async fn acquire_owned(self: &Arc<Self>) -> Option<OwnedMutexGuard<()>> {
         let slot = self.reserve()?;
-        let permit = Arc::clone(&self.lock).lock_owned().await;
-        drop(slot);
-        Some(permit)
+        Some(self.lock_reserved(slot).await)
     }
 }
 
@@ -1054,6 +1061,10 @@ struct TurnState {
     reconciliation: Option<aster_core::harness_loop::ToolEffectUnresolved>,
     saw_text: bool,
     delta_text: String,
+    active_turn: Option<usize>,
+    turn_retry_attempt: u32,
+    turn_delta_start: usize,
+    turn_saw_text_start: bool,
     end_text: Option<String>,
     /// The completion-gate terminal from the run's End event, forwarded to
     /// the client as an `aster/turn/outcome` notification just before the

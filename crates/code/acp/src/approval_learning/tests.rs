@@ -131,6 +131,53 @@ fn a_learned_rule_does_not_cover_a_different_subcommand_or_a_chain() {
 }
 
 #[test]
+fn learned_sandboxed_rule_never_auto_approves_escalated_or_network_grant() {
+    let fixture = fixture();
+    record_in(&fixture.store, &fixture.workspace, "cat README.md").unwrap();
+    assert!(is_previously_approved_in(
+        &fixture.store,
+        &fixture.workspace,
+        "bash",
+        &serde_json::json!({"command": "cat README.md"})
+    ));
+    assert!(is_previously_approved_in(
+        &fixture.store,
+        &fixture.workspace,
+        "bash",
+        &serde_json::json!({"command": "cat README.md", "sandbox_permissions": "use_default"})
+    ));
+    assert!(!is_previously_approved_in(
+        &fixture.store,
+        &fixture.workspace,
+        "bash",
+        &serde_json::json!({
+            "command": "cat /etc/passwd",
+            "sandbox_permissions": "require_escalated",
+            "justification": "host read"
+        })
+    ));
+    assert!(!is_previously_approved_in(
+        &fixture.store,
+        &fixture.workspace,
+        "bash",
+        &serde_json::json!({
+            "command": "cat README.md",
+            "sandbox_permissions": "request_network_grant",
+            "network_grant": {"host": "example.com", "port": 443}
+        })
+    ));
+    assert!(!is_previously_approved_in(
+        &fixture.store,
+        &fixture.workspace,
+        "bash",
+        &serde_json::json!({
+            "command": "cat README.md",
+            "sandbox_permissions": "unexpected"
+        })
+    ));
+}
+
+#[test]
 fn rules_are_keyed_by_workspace_and_round_trip_through_acl() {
     let fixture = fixture();
     record_in(&fixture.store, &fixture.workspace, "cargo test").unwrap();

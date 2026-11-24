@@ -88,6 +88,101 @@ async fn text_chunks_distinguish_model_generation_from_controller_output() {
 }
 
 #[tokio::test]
+async fn repeated_turn_start_rolls_back_provisional_delta_and_emits_ordered_retry_state() {
+    use tokio::io::AsyncBufReadExt;
+    use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let root = tempfile::tempdir().unwrap();
+            let agent = AsterCodeAgent::new(tests::test_launch(Some(root.path().join("sessions"))));
+            let opened = acp::Agent::new_session(&agent, acp::NewSessionRequest::new(root.path()))
+                .await
+                .unwrap();
+            let session = agent.sessions.lock().await[opened.session_id.0.as_ref()]
+                .session
+                .clone();
+            let (client_end, agent_end) = tokio::io::duplex(64 * 1024);
+            let (read, write) = tokio::io::split(agent_end);
+            let (connection, io) = acp::AgentSideConnection::new(
+                AsterCodeAgent::new(tests::test_launch(None)),
+                write.compat_write(),
+                read.compat(),
+                |future| {
+                    tokio::task::spawn_local(future);
+                },
+            );
+            let transport = tokio::task::spawn_local(io);
+            agent.set_client(Rc::new(connection));
+
+            let mut state = TurnState::default();
+            let publish = async {
+                for event in [
+                    AgentEvent::TurnStart { turn: 1 },
+                    AgentEvent::TextDelta {
+                        text: "本地长流已开始。".into(),
+                    },
+                    // In-place retry of turn 1 after premature stream EOF.
+                    AgentEvent::TurnStart { turn: 1 },
+                    AgentEvent::TextDelta {
+                        text: "本地长流已开始。".into(),
+                    },
+                    AgentEvent::TextDelta {
+                        text: "完成".into(),
+                    },
+                    AgentEvent::TurnEnd {
+                        turn: 1,
+                        usage: aster_core::llm::TokenUsage::default(),
+                    },
+                ] {
+                    agent
+                        .handle_event(&opened.session_id, &session, &mut state, event)
+                        .await;
+                }
+                state
+            };
+
+            let observe = async {
+                let mut reader = tokio::io::BufReader::new(client_end);
+                let mut updates = Vec::new();
+                while updates.len() < 4 {
+                    let mut line = String::new();
+                    assert_ne!(reader.read_line(&mut line).await.unwrap(), 0);
+                    let value: serde_json::Value = serde_json::from_str(&line).unwrap();
+                    let update = &value["params"]["update"];
+                    if matches!(
+                        update["sessionUpdate"].as_str(),
+                        Some("agent_message_chunk" | "retry_state")
+                    ) {
+                        updates.push(update.clone());
+                    }
+                }
+                updates
+            };
+
+            let (state, updates) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                tokio::join!(publish, observe)
+            })
+            .await
+            .unwrap();
+
+            assert_eq!(updates[0]["sessionUpdate"], "agent_message_chunk");
+            assert_eq!(updates[0]["content"]["text"], "本地长流已开始。");
+            assert_eq!(updates[1]["sessionUpdate"], "retry_state");
+            assert_eq!(updates[1]["type"], "retrying");
+            assert_eq!(updates[1]["attempt"], 1);
+            assert_eq!(updates[2]["sessionUpdate"], "agent_message_chunk");
+            assert_eq!(updates[2]["content"]["text"], "本地长流已开始。");
+            assert_eq!(updates[3]["sessionUpdate"], "agent_message_chunk");
+            assert_eq!(updates[3]["content"]["text"], "完成");
+            assert_eq!(state.delta_text, "本地长流已开始。完成");
+            assert!(state.saw_text);
+            transport.abort();
+        })
+        .await;
+}
+
+#[tokio::test]
 async fn permission_denial_closes_each_tool_row_once() {
     use tokio::io::AsyncBufReadExt;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};

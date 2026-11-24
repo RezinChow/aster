@@ -208,8 +208,19 @@ pub async fn execute_owned_process(
             .take()
             .ok_or_else(|| io::Error::other("child stdin was not piped"))?;
         let write = async move {
-            stdin.write_all(input).await?;
-            stdin.shutdown().await?;
+            // A child that exits or closes stdin without reading all input
+            // produces `BrokenPipe`; let `read_captured_output` return the
+            // child's actual stdout, stderr, and exit status instead.
+            match stdin.write_all(input).await {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::BrokenPipe => return Ok(()),
+                Err(error) => return Err(error),
+            }
+            match stdin.shutdown().await {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::BrokenPipe => {}
+                Err(error) => return Err(error),
+            }
             drop(stdin);
             Ok::<_, io::Error>(())
         };
@@ -873,5 +884,27 @@ mod tests {
             !leaked.exists(),
             "a timed-out capture must stop a Windows descendant before its later write"
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn execute_owned_process_tolerates_child_closing_stdin_early() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "printf '%s\\n' '{\"message\":\"package ready\"}'"]);
+        // Larger than Unix pipe buffer so write_all deterministically hits EPIPE
+        // when the child exits without reading stdin.
+        let payload = vec![b'a'; 256 * 1024];
+        let cancel = CancellationToken::new();
+        let output = execute_owned_process(
+            &mut command,
+            &payload,
+            std::time::Duration::from_secs(5),
+            &cancel,
+        )
+        .await
+        .expect("child exiting without reading stdin must not fail with BrokenPipe");
+        assert_eq!(output.termination, OwnedProcessTermination::Completed);
+        assert!(output.status.is_some_and(|status| status.success()));
+        assert!(output.stdout.contains("package ready"));
     }
 }

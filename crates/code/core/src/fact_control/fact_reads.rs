@@ -222,15 +222,16 @@ pub(super) fn message_from_fact(fact: &aster_effect::Fact) -> Option<Message> {
 }
 
 pub(super) fn exit_to_error(error: Exit<ActorError>) -> anyhow::Error {
-    let message = match error {
-        Exit::Die(message) => message,
-        Exit::Interrupt => "cancelled".to_string(),
-        Exit::Fail(ActorError::Handler { message, .. }) => message,
-        Exit::Fail(ActorError::Defect(message)) => message,
-        Exit::Fail(error @ ActorError::StepLimit { .. }) => format!("StepLimit: {error}"),
-        Exit::Fail(other) => other.to_string(),
-    };
-    anyhow::anyhow!(message)
+    match error {
+        Exit::Die(message) => anyhow::anyhow!(message),
+        Exit::Interrupt => anyhow::anyhow!("cancelled"),
+        Exit::Fail(ActorError::Handler { message, .. }) => anyhow::anyhow!(message),
+        Exit::Fail(ActorError::Defect(message)) => anyhow::anyhow!(message),
+        Exit::Fail(error @ ActorError::StepLimit { .. }) => {
+            anyhow::Error::new(error).context("StepLimit")
+        }
+        Exit::Fail(other) => anyhow::Error::new(other),
+    }
 }
 
 pub fn phase_name(phase: CodingPhase) -> &'static str {

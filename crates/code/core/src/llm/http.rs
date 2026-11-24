@@ -904,14 +904,24 @@ fn reqwest_client_builder(
     if let Some(http_proxy) = proxy_config.http.as_deref() {
         builder = builder.proxy(
             reqwest::Proxy::http(http_proxy)
-                .with_context(|| format!("Invalid HTTP proxy URL: {http_proxy}"))?
+                .with_context(|| {
+                    format!(
+                        "Invalid HTTP proxy URL: {}",
+                        crate::config::redact_url_for_debug(http_proxy)
+                    )
+                })?
                 .no_proxy(no_proxy.clone()),
         );
     }
     if let Some(https_proxy) = proxy_config.https.as_deref() {
         builder = builder.proxy(
             reqwest::Proxy::https(https_proxy)
-                .with_context(|| format!("Invalid HTTPS proxy URL: {https_proxy}"))?
+                .with_context(|| {
+                    format!(
+                        "Invalid HTTPS proxy URL: {}",
+                        crate::config::redact_url_for_debug(https_proxy)
+                    )
+                })?
                 .no_proxy(no_proxy),
         );
     }

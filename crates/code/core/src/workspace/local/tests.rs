@@ -1338,3 +1338,59 @@ async fn grep_skips_oversize_and_nonregular_files_and_still_matches_the_rest() {
     assert!(grep.output.contains("hit.txt:1"));
     assert!(!grep.output.contains("big.log"));
 }
+
+#[tokio::test]
+async fn local_grep_single_file_base_matches_filename_and_path_include_globs() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path().join("lexical")).unwrap();
+    std::fs::write(
+        temp.path().join("lexical/a.txt"),
+        "alpha needle\nbeta needle\n",
+    )
+    .unwrap();
+    std::fs::write(temp.path().join("lexical/b.md"), "needle in markdown\n").unwrap();
+
+    let services = WorkspaceServices::local(temp.path());
+    let search = services.search().expect("local backend supports search");
+
+    let run = |base: &'static str, glob: Option<&'static str>| {
+        let search = Arc::clone(&search);
+        async move {
+            search
+                .grep(WorkspaceGrepRequest {
+                    base: WorkspacePath::from_normalized(base),
+                    pattern: "needle".to_string(),
+                    glob: glob.map(str::to_string),
+                    context_lines: 0,
+                    case_insensitive: false,
+                    max_output_size: 4096,
+                })
+                .await
+                .unwrap()
+        }
+    };
+
+    let by_ext = run("lexical/a.txt", Some("*.txt")).await;
+    assert_eq!(by_ext.match_count, 2);
+    assert_eq!(by_ext.file_count, 1);
+
+    let by_name = run("lexical/a.txt", Some("a.txt")).await;
+    assert_eq!(by_name.match_count, 2);
+    assert_eq!(by_name.file_count, 1);
+
+    let by_path = run("lexical/a.txt", Some("lexical/*.txt")).await;
+    assert_eq!(by_path.match_count, 2);
+    assert_eq!(by_path.file_count, 1);
+
+    let mismatch = run("lexical/a.txt", Some("*.md")).await;
+    assert_eq!(mismatch.match_count, 0);
+    assert_eq!(mismatch.file_count, 0);
+
+    let no_include = run("lexical/a.txt", None).await;
+    assert_eq!(no_include.match_count, 2);
+    assert_eq!(no_include.file_count, 1);
+
+    let dir_scoped = run("lexical", Some("a.txt")).await;
+    assert_eq!(dir_scoped.match_count, 2);
+    assert_eq!(dir_scoped.file_count, 1);
+}

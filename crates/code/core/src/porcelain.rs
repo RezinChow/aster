@@ -1828,6 +1828,7 @@ pub(crate) async fn await_workspace_child(
         }
         let notified = slot.notify.notified();
         tokio::pin!(notified);
+        notified.as_mut().enable();
         if let Some(paths) = take_settled_workspace_child(task_id) {
             return Some(paths);
         }

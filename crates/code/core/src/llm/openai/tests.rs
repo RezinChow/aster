@@ -1495,3 +1495,17 @@ fn a_text_only_model_receives_a_note_instead_of_image_parts() {
     let vision = serde_json::to_string(&make_client().convert_messages(&messages)).unwrap();
     assert!(vision.contains("image_url"), "{vision}");
 }
+
+#[test]
+fn kimi_fixed_temperature_models_omit_explicit_temperature() {
+    let kimi = OpenAiClient::new("test-key".into(), "k3.1-pro".into()).with_temperature(0.0);
+    let kimi_body = kimi.build_chat_request(&[Message::user("hi")], None, &[], None);
+    assert!(
+        kimi_body.get("temperature").is_none(),
+        "k3.1-pro must omit non-1 temperature to avoid HTTP 400: {kimi_body}"
+    );
+
+    let standard = make_client().with_temperature(0.0);
+    let standard_body = standard.build_chat_request(&[Message::user("hi")], None, &[], None);
+    assert_eq!(standard_body["temperature"], serde_json::json!(0.0));
+}

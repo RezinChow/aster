@@ -981,6 +981,8 @@ pub(crate) fn read_image_file(
     args: &serde_json::Value,
     ctx: &ToolContext,
 ) -> ToolOutput {
+    use std::io::Read as _;
+
     if args.get("offset").is_some() || args.get("limit").is_some() {
         return ToolOutput::error(
             "offset and limit apply to text files only; omit them when reading an image",
@@ -997,23 +999,64 @@ pub(crate) fn read_image_file(
             "image read requires a local workspace backend; text files still work on remote backends",
         );
     };
-    let host_path = root.join(workspace_path.as_str());
-    let attachment = match Attachment::from_file(&host_path) {
-        Ok(attachment) => attachment,
+    let display = ctx.workspace_services.display_path(&workspace_path);
+    let resolved = match aster_common::tools::resolve_path(root, workspace_path.as_str()) {
+        Ok(path) => path,
         Err(error) => {
-            return ToolOutput::error(format!(
-                "Failed to read image {}: {error}",
-                ctx.workspace_services.display_path(&workspace_path)
-            ));
+            return ToolOutput::error(format!("Failed to resolve path: {error}"));
         }
     };
-    if !attachment.media_type.starts_with("image/") {
+    let pre_meta = match std::fs::metadata(&resolved) {
+        Ok(meta) => meta,
+        Err(error) => {
+            return ToolOutput::error(format!("Failed to read image {display}: {error}"));
+        }
+    };
+    if !pre_meta.is_file() {
         return ToolOutput::error(format!(
-            "Failed to read image {}: unsupported media type {}",
-            ctx.workspace_services.display_path(&workspace_path),
-            attachment.media_type
+            "Failed to read image {display}: not a regular file"
         ));
     }
+    if pre_meta.len() > crate::llm::MAX_ATTACHMENT_BYTES as u64 {
+        return ToolOutput::error(format!(
+            "Failed to read image {display}: attachment exceeds the {}-byte limit",
+            crate::llm::MAX_ATTACHMENT_BYTES
+        ));
+    }
+    let file = match std::fs::File::open(&resolved) {
+        Ok(file) => file,
+        Err(error) => {
+            return ToolOutput::error(format!("Failed to read image {display}: {error}"));
+        }
+    };
+    if let Err(error) = ctx
+        .workspace_services
+        .refuse_direct_read(&workspace_path, &file)
+    {
+        return ToolOutput::error(format!("Failed to read image {display}: {error}"));
+    }
+    let limit = crate::llm::MAX_ATTACHMENT_BYTES;
+    let mut data = Vec::new();
+    if let Err(error) = (&file).take(limit as u64 + 1).read_to_end(&mut data) {
+        return ToolOutput::error(format!("Failed to read image {display}: {error}"));
+    }
+    if data.len() > limit {
+        return ToolOutput::error(format!(
+            "Failed to read image {display}: attachment exceeds the {limit}-byte limit"
+        ));
+    }
+    if let Err(error) = ctx
+        .workspace_services
+        .refuse_direct_read(&workspace_path, &file)
+    {
+        return ToolOutput::error(format!("Failed to read image {display}: {error}"));
+    }
+    let Some(media_type) = image_media_type(Path::new(workspace_path.as_str())) else {
+        return ToolOutput::error(format!(
+            "Failed to read image {display}: unsupported media type"
+        ));
+    };
+    let attachment = Attachment::new(data, media_type.to_string());
     let metadata = serde_json::json!({
         "source_anchors": [workspace_path.as_str()],
         "media_type": attachment.media_type,
@@ -1335,6 +1378,52 @@ mod tests {
             .unwrap();
         assert!(!result.success);
         assert!(result.content.contains("offset and limit"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_read_image_refuses_symlink_escape_and_credential_hardlink() {
+        use std::os::unix::fs::symlink;
+
+        let parent = tempfile::tempdir().unwrap();
+        let workspace = parent.path().join("ws");
+        std::fs::create_dir(&workspace).unwrap();
+        let outside = parent.path().join("id_rsa");
+        std::fs::write(&outside, b"PRIVATE-KEY-CANARY").unwrap();
+        symlink(&outside, workspace.join("leak.png")).unwrap();
+
+        let env_secret = workspace.join(".env");
+        std::fs::write(&env_secret, b"API_KEY=SECRET_CANARY").unwrap();
+        std::fs::hard_link(&env_secret, workspace.join("alias.png")).unwrap();
+
+        let backend = crate::workspace::ManifestWorkspaceBackend::new_with_access_policy(
+            workspace.clone(),
+            crate::workspace::LocalWorkspaceAccessPolicy::CredentialBoundary,
+        );
+        let services = crate::workspace::WorkspaceServices::local_with_manifest_backend(backend);
+        let ctx = ToolContext::new(workspace).with_workspace_services(services);
+
+        let escaped = ReadTool
+            .execute(&serde_json::json!({"file_path": "leak.png"}), &ctx)
+            .await
+            .unwrap();
+        assert!(
+            !escaped.success,
+            "symlink escape must be refused: {}",
+            escaped.content
+        );
+        assert!(escaped.images.is_empty());
+
+        let credential = ReadTool
+            .execute(&serde_json::json!({"file_path": "alias.png"}), &ctx)
+            .await
+            .unwrap();
+        assert!(
+            !credential.success,
+            "credential hardlink alias must be refused: {}",
+            credential.content
+        );
+        assert!(credential.images.is_empty());
     }
 
     #[tokio::test]

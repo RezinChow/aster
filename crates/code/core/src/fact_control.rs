@@ -808,7 +808,7 @@ impl Completion for LiveCompletion {
                 .as_ref()
                 .and_then(|surface| surface.agent.max_execution_time());
             let time_left = execution_time_left(started_at, execution_limit)?;
-            let turn = model_turns.fetch_add(1, Ordering::SeqCst).saturating_add(1);
+            let turn = model_turns.load(Ordering::SeqCst).saturating_add(1);
             if let Some(surface) = &surface {
                 record_run_event(surface, crate::agent::AgentEvent::TurnStart { turn }).await;
             }
@@ -857,6 +857,7 @@ impl Completion for LiveCompletion {
             crate::telemetry::gen_ai::record_chat_outcome(&chat, &response);
             let response = match response {
                 Ok(response) => {
+                    model_turns.fetch_add(1, Ordering::SeqCst);
                     if let Some(surface) = &surface {
                         record_run_event(
                             surface,
@@ -870,15 +871,21 @@ impl Completion for LiveCompletion {
                     response
                 }
                 Err(error) => {
-                    if let Some(surface) = &surface {
-                        record_run_event(
-                            surface,
-                            crate::agent::AgentEvent::TurnEnd {
-                                turn,
-                                usage: crate::llm::TokenUsage::default(),
-                            },
-                        )
-                        .await;
+                    // Leave `model_turns` unchanged and omit `TurnEnd` on retryable
+                    // handler failures so the fold's retry re-emits the same
+                    // `TurnStart { turn }`, preserving the rollback boundary for
+                    // stream consumers.
+                    if matches!(error, ActorError::Defect(_)) {
+                        if let Some(surface) = &surface {
+                            record_run_event(
+                                surface,
+                                crate::agent::AgentEvent::TurnEnd {
+                                    turn,
+                                    usage: crate::llm::TokenUsage::default(),
+                                },
+                            )
+                            .await;
+                        }
                     }
                     return Err(error);
                 }
@@ -1461,7 +1468,9 @@ impl FactRun {
         if let Some(after_tokens) = agent.fact_compact_after_tokens() {
             config = config.with_token_compact(after_tokens, agent.fact_compact_keep_tokens());
         }
-        config = config.with_duplicate_threshold(agent.duplicate_tool_threshold());
+        if !agent.tool_executor_handle().host_owned_tools() {
+            config = config.with_duplicate_threshold(agent.duplicate_tool_threshold());
+        }
         let budget = limits
             .and_then(|options| options.tool_budget)
             .or(config.tool_budget_limit());
@@ -1786,8 +1795,12 @@ impl FactRun {
                 settled.log.len()
             }
             Err(error) => {
-                let rendered = format!("{error:#}");
-                if rendered.contains("StepLimit") {
+                if error
+                    .downcast_ref::<aster_effect::ActorError>()
+                    .is_some_and(|cause| {
+                        matches!(cause, aster_effect::ActorError::StepLimit { .. })
+                    })
+                {
                     return Ok(false);
                 }
                 return Err(error);

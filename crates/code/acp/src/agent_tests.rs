@@ -2217,6 +2217,7 @@ async fn tui_turn_renders_every_pager_event() {
         last_turn_usage: None,
         end_usage: None,
         model_calls: 0,
+        ..TurnState::default()
     };
     let sid = created.session_id.clone();
     let events = vec![
@@ -2987,6 +2988,7 @@ async fn user_question_with_form_round_trips_the_submitted_values() {
         last_turn_usage: None,
         end_usage: None,
         model_calls: 0,
+                ..TurnState::default()
             };
             let spec = r#"<Card title="Leave request"><Input name="reason" label="Reason" /><Button action="submit" label="Submit" /></Card>"#;
             let event = AgentEvent::UserQuestion {
@@ -3115,6 +3117,7 @@ async fn user_question_choices_round_trip_typed_and_selected_answers() {
                 last_turn_usage: None,
                 end_usage: None,
                 model_calls: 0,
+                ..TurnState::default()
             };
             let session_id = created.session_id.clone();
             tokio::task::spawn_local(async move {

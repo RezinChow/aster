@@ -208,7 +208,17 @@ fn cancel_before_first_activity_resets_state_and_discards_orphan_response() {
     let id = AgentId(0);
     dispatch(Action::SendPrompt("rewind me".into()), &mut app);
     assert!(expect_agent(&app, id).session.state.is_turn_running());
-    assert_eq!(expect_agent(&app, id).scrollback.len(), 1);
+    // `start_turn` pushes the user prompt and (when thinking blocks are enabled)
+    // a pre-created empty Thinking… placeholder; both must be removed on rewind.
+    let expected_pre_cancel_len = if crate::appearance::cache::load_show_thinking_blocks() {
+        2
+    } else {
+        1
+    };
+    assert_eq!(
+        expect_agent(&app, id).scrollback.len(),
+        expected_pre_cancel_len
+    );
     assert!(expect_agent(&app, id).turn_started_at.is_some());
     let cancelled_pid = expect_agent(&app, id).session.current_prompt_id.clone();
     assert!(cancelled_pid.is_some());

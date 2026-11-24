@@ -69,6 +69,14 @@ pub(crate) fn is_deepseek_model(model: &str) -> bool {
     matches!(model, "deepseek-flash" | "deepseek-v4-pro")
 }
 
+/// Documented Kimi reasoning models whose API rejects any `temperature != 1`.
+pub(crate) fn is_kimi_fixed_temperature_model(model: &str) -> bool {
+    matches!(
+        model,
+        "k3.1-pro" | "k3.1-pro-highspeed" | "k3" | "k3-256k" | "kimi-for-coding" | "kimi-k2.5"
+    )
+}
+
 /// Legacy ID-only SDK view. Custom accounts must supply model capabilities.
 pub fn native_effort_menu(model_id: &str) -> &'static [&'static str] {
     let Some((provider, model)) = model_id.split_once('/') else {

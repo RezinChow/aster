@@ -230,7 +230,8 @@ impl AsterCodeAgent {
                     None,
                     None,
                 )
-                .await;
+                .await
+                .0;
         }
         drop(turn_permit);
         Ok(acp::PromptResponse::new(acp::StopReason::EndTurn))

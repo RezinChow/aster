@@ -3227,3 +3227,23 @@ async fn silent_command_is_stopped_by_the_idle_watchdog() {
     .await;
     assert!(result.is_err(), "a silent command must not run forever");
 }
+
+#[tokio::test]
+async fn bash_without_workspace_command_runner_returns_error_instead_of_panicking() {
+    let temp = tempfile::tempdir().unwrap();
+    let base = crate::workspace::WorkspaceServices::local(temp.path());
+    let services =
+        crate::workspace::WorkspaceServicesBuilder::new(base.workspace_ref().clone(), base.fs())
+            .build();
+    let ctx = ToolContext::new(temp.path().to_path_buf()).with_workspace_services(services);
+    let result = BashTool
+        .execute(&escalated_args("echo hi"), &ctx)
+        .await
+        .expect("missing command runner should return a tool error, not panic");
+    assert!(!result.success);
+    assert!(
+        result.content.contains("command runner"),
+        "{}",
+        result.content
+    );
+}

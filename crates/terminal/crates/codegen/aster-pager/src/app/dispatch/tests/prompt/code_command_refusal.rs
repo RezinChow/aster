@@ -28,6 +28,13 @@ fn code_backend_unavailable_commands_never_become_model_prompts() {
             AgentId(0),
             "is unavailable with the Code backend. Use /help for available commands."
         ));
+        if input == "/dashboard" {
+            assert!(scrollback_has_system_text(
+                &app,
+                AgentId(0),
+                "aster --cwd <path>"
+            ));
+        }
     }
 
     let mut app = code_app();

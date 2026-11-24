@@ -305,6 +305,7 @@ impl AsterCodeAgent {
             );
             return false;
         }
+        let mut elicitation_guard = ElicitationCancelGuard::new(elicitation_id.clone());
         let ask = client.request_permission(request);
         let response = match tokio::time::timeout(ask_deadline(), ask).await {
             Ok(result) => result,
@@ -317,6 +318,7 @@ impl AsterCodeAgent {
                     "permission ask timed out unanswered; denying"
                 );
                 let _ = aster_core::elicitation::cancel(&elicitation_id);
+                elicitation_guard.disarm();
                 return false;
             }
         };
@@ -334,7 +336,15 @@ impl AsterCodeAgent {
                 } else {
                     let _ = aster_core::elicitation::cancel(&elicitation_id);
                 }
-                if approved && permission_response_always(&response) && tool_name == "bash" {
+                elicitation_guard.disarm();
+                if approved
+                    && permission_response_always(&response)
+                    && tool_name == "bash"
+                    && matches!(
+                        ExecutionBoundary::from_tool(tool_name, args),
+                        ExecutionBoundary::SandboxedDefault
+                    )
+                {
                     let command = args
                         .get("command")
                         .and_then(serde_json::Value::as_str)
@@ -355,6 +365,7 @@ impl AsterCodeAgent {
             }
             Err(_) => {
                 let _ = aster_core::elicitation::cancel(&elicitation_id);
+                elicitation_guard.disarm();
                 false
             }
         }
@@ -402,6 +413,31 @@ impl AsterCodeAgent {
             return Some(text.to_string());
         }
         answer_from_permission_outcome(&response.outcome, options)
+    }
+}
+
+/// Cancels an open permission elicitation if the awaiting future is dropped
+/// before resolving or explicitly cancelling (e.g., turn cancellation).
+struct ElicitationCancelGuard {
+    id: String,
+    armed: bool,
+}
+
+impl ElicitationCancelGuard {
+    fn new(id: String) -> Self {
+        Self { id, armed: true }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for ElicitationCancelGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = aster_core::elicitation::cancel(&self.id);
+        }
     }
 }
 
@@ -604,6 +640,35 @@ mod execution_boundary_tests {
             ExecutionBoundary::from_tool("write", &json!({"path": "a.rs"})),
             ExecutionBoundary::Other
         );
+    }
+
+    #[test]
+    fn dropping_elicitation_cancel_guard_releases_pending_id() {
+        let id = aster_core::elicitation::permission_id("drop-guard-session", "drop-guard-tool");
+        aster_core::elicitation::begin(
+            &id,
+            aster_core::elicitation::ElicitationChannel::Permission,
+        )
+        .expect("begin elicitation");
+        {
+            let _guard = ElicitationCancelGuard::new(id.clone());
+        }
+        let record = aster_core::elicitation::get(&id).expect("record present");
+        assert_eq!(
+            record.phase,
+            aster_core::elicitation::ElicitationPhase::Cancelled
+        );
+        // Re-opening the same id must succeed once the dropped ask is cancelled.
+        let reopened = aster_core::elicitation::begin(
+            &id,
+            aster_core::elicitation::ElicitationChannel::Permission,
+        )
+        .expect("reopen after guard drop");
+        assert_eq!(
+            reopened.phase,
+            aster_core::elicitation::ElicitationPhase::Pending
+        );
+        let _ = aster_core::elicitation::cancel(&id);
     }
 
     #[test]

@@ -607,7 +607,7 @@ async fn run_quickjs_script(
             });
             ToolOutput::success(output)
         }
-        Ok(Err(err)) if is_quickjs_timeout(&err) => {
+        Ok(Err(err)) if err.downcast_ref::<ProgramScriptTimedOut>().is_some() => {
             ToolOutput::error(format!("program script timed out after {timeout_ms} ms"))
         }
         Ok(Err(err)) => ToolOutput::error(format!("program script error:\n{err}")),
@@ -685,11 +685,19 @@ async fn run_embedded_script(
     let runtime = AsyncRuntime::new()?;
     let started = Instant::now();
     let deadline = tokio::time::Instant::from_std(started) + Duration::from_millis(timeout_ms);
+    let timed_out = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let interrupt_cancellation = cancellation.clone();
+    let interrupt_timed_out = Arc::clone(&timed_out);
     runtime
         .set_interrupt_handler(Some(Box::new(move || {
-            interrupt_cancellation.is_cancelled()
-                || started.elapsed() >= Duration::from_millis(timeout_ms)
+            if interrupt_cancellation.is_cancelled() {
+                return true;
+            }
+            if started.elapsed() >= Duration::from_millis(timeout_ms) {
+                interrupt_timed_out.store(true, Ordering::Release);
+                return true;
+            }
+            false
         })))
         .await;
     runtime.set_memory_limit(64 * 1024 * 1024).await;
@@ -699,6 +707,8 @@ async fn run_embedded_script(
     let inputs_json = serde_json::to_string(&inputs)?;
     let script = format!("{}\n{}", embedded_script_bootstrap(&inputs_json), source);
     let stop_cancellation = cancellation.clone();
+    let run_timed_out = Arc::clone(&timed_out);
+    let drain_timed_out = Arc::clone(&timed_out);
     let host_calls = Arc::new(ScriptHostCalls::default());
     let queued_host_calls = Arc::clone(&host_calls);
     let result_json = async_with!(context => |ctx| {
@@ -731,6 +741,7 @@ async fn run_embedded_script(
             result = promise.into_future::<String>() => result.catch(&ctx).map_err(|err| err.to_string()),
             _ = stop_cancellation.cancelled() => Err("program VM interrupted by cancellation".to_string()),
             _ = tokio::time::sleep_until(deadline) => {
+                run_timed_out.store(true, Ordering::Release);
                 stop_cancellation.cancel();
                 Err("program VM interrupted by deadline".to_string())
             }
@@ -743,10 +754,17 @@ async fn run_embedded_script(
     async_with!(context => |_ctx| {
         let mut stopped = cancellation.is_cancelled();
         while host_calls.pending.load(Ordering::SeqCst) != 0 {
+            let settled = host_calls.settled.notified();
+            tokio::pin!(settled);
+            settled.as_mut().enable();
+            if host_calls.pending.load(Ordering::SeqCst) == 0 {
+                break;
+            }
             tokio::select! {
-                _ = host_calls.settled.notified() => {},
+                _ = &mut settled => {},
                 _ = cancellation.cancelled(), if !stopped => stopped = true,
                 _ = tokio::time::sleep_until(deadline), if !stopped => {
+                    drain_timed_out.store(true, Ordering::Release);
                     cancellation.cancel();
                     stopped = true;
                 }
@@ -754,7 +772,13 @@ async fn run_embedded_script(
         }
     })
     .await;
-    let result_json = result_json.map_err(anyhow::Error::msg)?;
+    let result_json = match result_json {
+        Ok(json) => json,
+        Err(_) if timed_out.load(Ordering::Acquire) => {
+            return Err(anyhow::Error::new(ProgramScriptTimedOut));
+        }
+        Err(err) => return Err(anyhow::Error::msg(err)),
+    };
 
     serde_json::from_str(&result_json)
         .map_err(|err| anyhow!("program script returned invalid JSON: {err}"))
@@ -1042,10 +1066,16 @@ fn script_tool_is_allowed(
             .is_some_and(|mode| allowed_tools.contains(mode))
 }
 
-fn is_quickjs_timeout(err: &anyhow::Error) -> bool {
-    let text = err.to_string();
-    text.contains("interrupted") || text.contains("InternalError")
+#[derive(Debug)]
+struct ProgramScriptTimedOut;
+
+impl std::fmt::Display for ProgramScriptTimedOut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("program script timed out")
+    }
 }
+
+impl std::error::Error for ProgramScriptTimedOut {}
 
 fn script_record_to_value(record: &ScriptCallRecord) -> serde_json::Value {
     serde_json::json!({

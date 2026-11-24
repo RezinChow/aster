@@ -238,3 +238,75 @@ fn text_range_from_text_matches_streaming_semantics() {
     assert_eq!(range.next_offset, Some(2));
     assert!(!range.eof);
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn overlay_reads_enforce_credential_boundary_and_symlink_containment_before_host_overlay() {
+    use std::os::unix::fs::symlink;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct SpyOverlay {
+        calls: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl WorkspaceReadOverlay for SpyOverlay {
+        async fn read_text(&self, path: &WorkspacePath) -> Option<String> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Some(format!("overlay-content-for:{}", path.as_str()))
+        }
+    }
+
+    let parent = tempfile::tempdir().unwrap();
+    let workspace = parent.path().join("ws");
+    std::fs::create_dir(&workspace).unwrap();
+
+    let env_file = workspace.join(".env");
+    std::fs::write(&env_file, "SECRET=canary\n").unwrap();
+    std::fs::hard_link(&env_file, workspace.join("alias.txt")).unwrap();
+
+    let outside = parent.path().join("outside.txt");
+    std::fs::write(&outside, "OUTSIDE=canary\n").unwrap();
+    symlink(&outside, workspace.join("escape.txt")).unwrap();
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let backend = super::super::ManifestWorkspaceBackend::new_with_access_policy(
+        workspace.clone(),
+        super::super::LocalWorkspaceAccessPolicy::CredentialBoundary,
+    );
+    let services = WorkspaceServices::local_with_manifest_backend(backend).with_read_overlay(
+        Arc::new(SpyOverlay {
+            calls: Arc::clone(&calls),
+        }),
+    );
+
+    for blocked in [".env", "alias.txt", "escape.txt"] {
+        let path = WorkspacePath::from_normalized(blocked);
+        assert!(
+            services.fs().read_text(&path).await.is_err(),
+            "fs().read_text must refuse {blocked} before calling overlay"
+        );
+        assert!(
+            services
+                .text_reader()
+                .unwrap()
+                .read_text_range(&path, 0, 10)
+                .await
+                .is_err(),
+            "text_reader().read_text_range must refuse {blocked} before calling overlay"
+        );
+    }
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "host overlay must never be invoked for blocked paths"
+    );
+
+    // Unsaved new buffer inside workspace remains readable via overlay.
+    let unsaved = WorkspacePath::from_normalized("unsaved-new.txt");
+    assert_eq!(
+        services.fs().read_text(&unsaved).await.unwrap(),
+        "overlay-content-for:unsaved-new.txt"
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}

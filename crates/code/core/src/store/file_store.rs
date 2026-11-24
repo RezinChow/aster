@@ -963,6 +963,7 @@ impl SessionStore for FileSessionStore {
 
     async fn acquire_writer_lease(&self, holder_id: &str) -> Result<SessionStoreWriterLeaseV1> {
         let _guard = self.write_lock.lock().await;
+        let _wal_lock = self.acquire_wal_file_lock().await?;
         self.acquire_writer_lease_under_lock(holder_id).await
     }
 
@@ -992,6 +993,8 @@ impl SessionStore for FileSessionStore {
     }
 
     async fn delete(&self, id: &str) -> Result<()> {
+        let _guard = self.write_lock.lock().await;
+        let _wal_lock = self.acquire_wal_file_lock().await?;
         // Only touch a legacy path when the document stored there proves that
         // it belongs to the requested id. Historical sanitization was lossy,
         // so path equality alone is not ownership evidence.

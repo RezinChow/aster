@@ -941,6 +941,12 @@ impl AgentSession {
     pub fn set_retry_activity(&mut self, activity: Option<TurnActivity>) {
         self.tracker.set_retry_activity(activity);
     }
+    /// Discard uncommitted streaming assistant/thinking blocks when a failed model
+    /// stream attempt is retried so replacement chunks are not concatenated onto
+    /// partial output from the aborted attempt.
+    pub fn discard_provisional_stream(&mut self, scrollback: &mut ScrollbackState) {
+        self.tracker.discard_provisional_stream(scrollback);
+    }
     /// Start a slash command (e.g., /compact).
     pub fn start_command(&mut self, command: AgentCommand) {
         self.state = AgentState::CommandRunning {

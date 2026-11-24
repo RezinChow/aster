@@ -1443,3 +1443,121 @@ fn host_authoritative_block_detection_is_structural() {
     // fail-closed default rather than guessing.
     assert_eq!(host_authoritative_block("}}}}"), None);
 }
+
+#[test]
+fn debug_formatting_redacts_secrets_across_leaf_and_container_configs() {
+    use crate::mcp::{McpServerConfig, McpTransportConfig, OAuthConfig};
+
+    let canaries = [
+        "CANARY_PROVIDER_KEY_991",
+        "CANARY_PROVIDER_HDR_992",
+        "CANARY_MODEL_KEY_993",
+        "CANARY_MODEL_HDR_994",
+        "CANARY_STORAGE_PASS_995",
+        "CANARY_PROXY_PASS_996",
+        "CANARY_SEARCH_KEY_997",
+        "CANARY_MCP_ENV_998",
+        "CANARY_MCP_HDR_999",
+        "CANARY_MCP_URL_TOKEN_1000",
+        "CANARY_OAUTH_SECRET_1001",
+        "CANARY_OAUTH_ACCESS_1002",
+    ];
+
+    let model = ModelConfig {
+        id: "demo".into(),
+        name: "Demo".into(),
+        family: "demo".into(),
+        api_key: Some(canaries[2].into()),
+        base_url: Some("https://api.example.com/v1?token=CANARY_MODEL_KEY_993".into()),
+        headers: HashMap::from([("X-Model-Auth".into(), canaries[3].into())]),
+        session_id_header: None,
+        attachment: false,
+        reasoning: false,
+        reasoning_control: None,
+        tool_call: true,
+        temperature: true,
+        release_date: None,
+        modalities: ModelModalities::default(),
+        cost: ModelCost::default(),
+        limit: ModelLimit::default(),
+    };
+    let provider = ProviderConfig {
+        name: "demo".into(),
+        protocol: None,
+        api_key: Some(canaries[0].into()),
+        base_url: Some("https://user:CANARY_PROVIDER_KEY_991@api.example.com/v1".into()),
+        headers: HashMap::from([("Authorization".into(), canaries[1].into())]),
+        session_id_header: None,
+        models: vec![model.clone()],
+    };
+    let headless = HeadlessConfig {
+        proxy_url: Some(format!(
+            "http://proxyuser:{}@proxy.internal:8080",
+            canaries[5]
+        )),
+        ..HeadlessConfig::default()
+    };
+    let search_engine = SearchEngineConfig {
+        enabled: true,
+        weight: 1.0,
+        timeout: None,
+        api_key: Some(canaries[6].into()),
+        project: None,
+        endpoint: Some("https://search.example.com/api?key=CANARY_SEARCH_KEY_997".into()),
+        authoritative_only: None,
+        query_rewrite: None,
+    };
+    let oauth = OAuthConfig {
+        auth_url: "https://auth.example.com/authorize?secret=CANARY_OAUTH_SECRET_1001".into(),
+        token_url: "https://auth.example.com/token?secret=CANARY_OAUTH_SECRET_1001".into(),
+        client_id: "cid".into(),
+        client_secret: Some(canaries[10].into()),
+        scopes: vec!["read".into()],
+        redirect_uri: "http://localhost/cb".into(),
+        access_token: Some(canaries[11].into()),
+    };
+    let mcp = McpServerConfig {
+        name: "srv".into(),
+        transport: McpTransportConfig::StreamableHttp {
+            url: format!("https://mcp.example.com/rpc?api_key={}", canaries[9]),
+            headers: HashMap::from([("Authorization".into(), canaries[8].into())]),
+        },
+        enabled: true,
+        env: HashMap::from([("API_TOKEN".into(), canaries[7].into())]),
+        oauth: Some(oauth.clone()),
+        tool_timeout_secs: 60,
+    };
+    let config = CodeConfig {
+        providers: vec![provider.clone()],
+        storage_url: Some(format!(
+            "postgres://dbuser:{}@db.internal/aster",
+            canaries[4]
+        )),
+        search: Some(SearchConfig {
+            timeout: 20,
+            health: None,
+            cascade_order: None,
+            engines: HashMap::from([("tavily".into(), search_engine.clone())]),
+            headless: Some(headless.clone()),
+        }),
+        mcp_servers: vec![mcp.clone()],
+        ..CodeConfig::default()
+    };
+
+    for (label, rendered) in [
+        ("ModelConfig", format!("{model:?}")),
+        ("ProviderConfig", format!("{provider:?}")),
+        ("HeadlessConfig", format!("{headless:?}")),
+        ("SearchEngineConfig", format!("{search_engine:?}")),
+        ("OAuthConfig", format!("{oauth:?}")),
+        ("McpServerConfig", format!("{mcp:?}")),
+        ("CodeConfig", format!("{config:?}")),
+    ] {
+        for canary in canaries {
+            assert!(
+                !rendered.contains(canary),
+                "{label} Debug output leaked secret canary {canary}: {rendered}"
+            );
+        }
+    }
+}

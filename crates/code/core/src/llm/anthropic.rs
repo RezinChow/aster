@@ -401,7 +401,13 @@ impl AnthropicClient {
             let parsed: AnthropicResponse =
                 serde_json::from_str(&response).context("Failed to parse Anthropic response")?;
 
-            tracing::debug!("Anthropic response: {:?}", parsed);
+            tracing::debug!(
+                stop_reason = ?parsed.stop_reason,
+                content_blocks = parsed.content.len(),
+                input_tokens = parsed.usage.input_tokens,
+                output_tokens = parsed.usage.output_tokens,
+                "Anthropic response received"
+            );
 
             let content: Vec<ContentBlock> = parsed
                 .content

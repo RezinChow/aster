@@ -625,6 +625,10 @@ fn render_assignment(name: &str, value: Value) -> String {
     })
 }
 
+/// Largest integer millisecond value representable losslessly in ACL `f64`
+/// numbers and formatted safely by `milliseconds_to_seconds`.
+const MAX_TIMEOUT_MS: u64 = (1u64 << 53) - 1;
+
 fn parse_timeout_ms(text: &str) -> Result<u64, String> {
     let seconds: f64 = text
         .parse()
@@ -632,7 +636,15 @@ fn parse_timeout_ms(text: &str) -> Result<u64, String> {
     if !(seconds.is_finite() && seconds > 0.0) {
         return Err("Timeout must be greater than 0 seconds".to_string());
     }
-    Ok((seconds * 1000.0).round() as u64)
+    let scaled = seconds * 1000.0;
+    if !scaled.is_finite() || scaled > (MAX_TIMEOUT_MS as f64) {
+        return Err("Timeout is too large".to_string());
+    }
+    let ms = scaled.round() as u64;
+    if ms == 0 {
+        return Err("Timeout must be at least 0.001 seconds (1 ms)".to_string());
+    }
+    Ok(ms)
 }
 
 fn milliseconds_to_seconds(ms: f64) -> String {
@@ -1180,5 +1192,53 @@ providers "openai" {
             Some(std::ffi::OsStr::new(r"C:\Users\ada")),
         );
         assert_eq!(explicit.as_deref(), Some(std::ffi::OsStr::new("/home/ada")));
+    }
+
+    #[test]
+    fn timeout_rejects_submillisecond_zero_rounding_and_roundtrips_valid_values() {
+        for too_small in ["0.0001", "0.0004", "0.00049"] {
+            let err = parse_timeout_ms(too_small).expect_err("must reject values rounding to 0 ms");
+            assert!(
+                err.contains("0.001"),
+                "expected 0.001s minimum guidance for {too_small}, got: {err}"
+            );
+            let mut draft =
+                ConfigDraft::from_source(PathBuf::from("config.acl"), SAMPLE.to_string());
+            draft.timeout_seconds = too_small.to_string();
+            assert!(
+                validate(&draft).is_err(),
+                "validate() must reject {too_small} before saving"
+            );
+            assert!(
+                rewrite(&draft.source, &draft).is_err(),
+                "rewrite() must reject {too_small}"
+            );
+        }
+
+        assert!(parse_timeout_ms("0").is_err());
+        assert!(parse_timeout_ms("-1").is_err());
+        assert!(parse_timeout_ms("1e20").is_err());
+
+        for (input, expected_ms, expected_reload) in [
+            ("0.0005", 1u64, "0.001"),
+            ("0.001", 1u64, "0.001"),
+            ("0.25", 250u64, "0.25"),
+            ("30", 30_000u64, "30"),
+        ] {
+            assert_eq!(parse_timeout_ms(input), Ok(expected_ms));
+            let mut draft =
+                ConfigDraft::from_source(PathBuf::from("config.acl"), SAMPLE.to_string());
+            draft.timeout_seconds = input.to_string();
+            validate(&draft).expect("valid timeout must pass validate");
+            let saved = rewrite(&draft.source, &draft).expect("valid timeout must rewrite");
+            assert!(
+                saved.contains(&format!("llm_api_timeout_ms = {expected_ms}")),
+                "expected llm_api_timeout_ms = {expected_ms} in:\n{saved}"
+            );
+            let reloaded = ConfigDraft::from_source(PathBuf::from("config.acl"), saved);
+            assert_eq!(reloaded.timeout_seconds, expected_reload);
+            validate(&reloaded).expect("reloaded timeout must remain valid on subsequent save");
+            assert_eq!(parse_timeout_ms(&reloaded.timeout_seconds), Ok(expected_ms));
+        }
     }
 }

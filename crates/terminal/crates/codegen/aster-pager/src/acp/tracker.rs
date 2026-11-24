@@ -643,6 +643,33 @@ impl AcpUpdateTracker {
     pub fn set_retry_activity(&mut self, activity: Option<TurnActivity>) {
         self.retry_activity = activity;
     }
+    /// Discard uncommitted streaming output from a model attempt that failed mid-stream
+    /// and is about to be retried, so replacement chunks from the next attempt do not
+    /// concatenate onto partial text or reasoning from the failed attempt.
+    ///
+    /// Keeps any pre-created empty `Thinking…` placeholder intact so pre-stream retries
+    /// (such as HTTP 429 before the first token) preserve existing spinner behavior.
+    pub fn discard_provisional_stream(&mut self, scrollback: &mut ScrollbackState) {
+        if let Some(msg_id) = self.current_agent_msg.take()
+            && !scrollback.is_committed(msg_id)
+        {
+            scrollback.remove_entry(msg_id);
+        }
+        if let Some(thinking_id) = self.current_thinking {
+            let has_text = scrollback.get_by_id(thinking_id).is_some_and(
+                |e| matches!(&e.block, RenderBlock::Thinking(t) if !t.text().is_empty()),
+            );
+            if has_text {
+                self.current_thinking = None;
+                self.last_thinking_elapsed_ms = None;
+                if !scrollback.is_committed(thinking_id) {
+                    scrollback.remove_entry(thinking_id);
+                }
+            }
+        }
+        self.writing_tool_call = None;
+        self.writing_tool_names.clear();
+    }
     /// Record the awaited batch from `HookRunStarted`; the spinner shows it after [`HOOK_REVEAL_DELAY`].
     pub fn set_hooks_running(
         &mut self,

@@ -74,6 +74,28 @@ impl AsterCodeAgent {
             .and_then(|observer| observer.event(&event));
         self.emit_run_observation(observation).await;
         match event {
+            AgentEvent::TurnStart { turn } => {
+                if state.active_turn == Some(turn) {
+                    // Repeated TurnStart with the same turn number marks an
+                    // in-place retry of an interrupted model stream. Roll back
+                    // provisional output from the failed attempt and notify
+                    // the client in stream order before replacement deltas arrive.
+                    state.turn_retry_attempt = state.turn_retry_attempt.saturating_add(1);
+                    state.delta_text.truncate(state.turn_delta_start);
+                    state.saw_text = state.turn_saw_text_start;
+                    let update = super::emit::provider_retry_update(aster_core::llm::RetryNotice {
+                        attempt: state.turn_retry_attempt,
+                        max_attempts: state.turn_retry_attempt.max(1),
+                        reason: "Response stream ended early; retrying".into(),
+                    });
+                    self.emit_xai_session_update(session_id, update).await;
+                } else {
+                    state.active_turn = Some(turn);
+                    state.turn_retry_attempt = 0;
+                    state.turn_delta_start = state.delta_text.len();
+                    state.turn_saw_text_start = state.saw_text;
+                }
+            }
             AgentEvent::TextDelta { text } => {
                 if !text.is_empty() {
                     state.saw_text = true;
@@ -274,6 +296,8 @@ impl AsterCodeAgent {
                 state.subagent_parent_tool.remove(&task_id);
             }
             AgentEvent::TurnEnd { usage, .. } => {
+                state.active_turn = None;
+                state.turn_retry_attempt = 0;
                 state.model_calls = state.model_calls.saturating_add(1);
                 state.last_turn_usage = Some(usage);
             }
@@ -487,15 +511,23 @@ impl AsterCodeAgent {
         mut research_gate: Option<ResearchGate>,
         requested_posture: Option<PermissionPosture>,
         output_schema: Option<&serde_json::Value>,
-    ) -> acp::Result<acp::PromptResponse> {
+    ) -> (
+        acp::Result<acp::PromptResponse>,
+        Option<OwnedMutexGuard<()>>,
+    ) {
         let governing_goal = self.goals.lock().await.get(session_id.0.as_ref()).cloned();
         // Keep a mode update from overtaking the policy captured for this prompt.
         let mut sessions = self.sessions.lock().await;
         if let Some(posture) = requested_posture {
-            sessions
-                .get_mut(session_id.0.as_ref())
-                .ok_or_else(|| acp::Error::invalid_params().data("unknown session id"))?
-                .set_posture(posture, Vec::new())?;
+            let Some(live) = sessions.get_mut(session_id.0.as_ref()) else {
+                return (
+                    Err(acp::Error::invalid_params().data("unknown session id")),
+                    Some(turn_permit),
+                );
+            };
+            if let Err(error) = live.set_posture(posture, Vec::new()) {
+                return (Err(error), Some(turn_permit));
+            }
         }
         let prompt = output_schema.map_or_else(
             || prompt.to_string(),
@@ -516,7 +548,9 @@ impl AsterCodeAgent {
         // The run owns its frozen policy now. Restore before draining events
         // or releasing the turn permit so the next queued turn sees its mode.
         if let Some(gate) = research_gate.as_mut() {
-            gate.restore()?;
+            if let Err(error) = gate.restore() {
+                return (Err(error), Some(turn_permit));
+            }
         }
         if let Some(posture) = requested_posture {
             self.emit_permission_mode(session_id.clone(), posture).await;
@@ -524,8 +558,10 @@ impl AsterCodeAgent {
         let stream = match admitted {
             Ok(parts) => parts,
             Err(error) => {
-                drop(turn_permit);
-                return Err(acp::Error::internal_error().data(error.to_string()));
+                return (
+                    Err(acp::Error::internal_error().data(error.to_string())),
+                    Some(turn_permit),
+                );
             }
         };
         self.drain_turn_with_output(
@@ -566,6 +602,7 @@ impl AsterCodeAgent {
             None,
         )
         .await
+        .0
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -580,7 +617,10 @@ impl AsterCodeAgent {
         observation: Option<&crate::run_observation::Binding>,
         prompt: &str,
         output_schema: Option<&serde_json::Value>,
-    ) -> acp::Result<acp::PromptResponse> {
+    ) -> (
+        acp::Result<acp::PromptResponse>,
+        Option<OwnedMutexGuard<()>>,
+    ) {
         let attempt::AttemptCompletion {
             mut state,
             turn_permit,
@@ -601,7 +641,7 @@ impl AsterCodeAgent {
             .await
         {
             attempt::AttemptDrive::Ended(completion) => completion,
-            attempt::AttemptDrive::Cancelled(response) => return response,
+            attempt::AttemptDrive::Cancelled(response) => return (response, None),
         };
         tracing::info!(
             target: "perf_probe",
@@ -645,11 +685,12 @@ impl AsterCodeAgent {
             "stream_turn_tail"
         );
         if let Some(message) = state.turn_failure {
-            drop(turn_permit);
-            if let Some(error) = state.reconciliation {
-                return Err(reconciliation_error(&error));
-            }
-            return Err(agent_failure_error(&message));
+            let error = if let Some(error) = state.reconciliation {
+                reconciliation_error(&error)
+            } else {
+                agent_failure_error(&message)
+            };
+            return (Err(error), Some(turn_permit));
         }
         let mut response =
             acp::PromptResponse::new(state.stop_reason.unwrap_or(acp::StopReason::EndTurn));
@@ -693,8 +734,7 @@ impl AsterCodeAgent {
             }
             response.meta = Some(meta);
         }
-        drop(turn_permit);
-        Ok(response)
+        (Ok(response), Some(turn_permit))
     }
 
     pub(super) async fn turn_was_cancelled(&self, session_key: &str, generation: u64) -> bool {
@@ -710,6 +750,8 @@ impl AsterCodeAgent {
     pub(super) async fn wait_for_turn_cancel(&self, session_key: &str, generation: u64) {
         loop {
             let notified = self.turn_cancel.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
             if self.turn_was_cancelled(session_key, generation).await {
                 return;
             }

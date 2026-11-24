@@ -545,6 +545,7 @@ pub struct ToolExecutor {
     registry: Arc<ToolRegistry>,
     command_env: Option<Arc<HashMap<String, String>>>,
     use_generation: std::sync::Mutex<Option<crate::use_harness::UseHarnessGeneration>>,
+    host_owned_tools: bool,
 }
 
 /// Build a log line for a tool invocation that excludes argument *values*.
@@ -767,6 +768,7 @@ impl ToolExecutor {
             registry,
             command_env,
             use_generation: std::sync::Mutex::new(None),
+            host_owned_tools: !register_builtins,
         }
     }
 
@@ -825,6 +827,10 @@ impl ToolExecutor {
         &self.registry
     }
 
+    pub(crate) fn host_owned_tools(&self) -> bool {
+        self.host_owned_tools
+    }
+
     pub(crate) fn snapshot_with_external_tools(
         &self,
         external: impl IntoIterator<Item = Arc<dyn Tool>>,
@@ -834,6 +840,7 @@ impl ToolExecutor {
             registry: Arc::new(self.registry.snapshot_with_external_tools(external)?),
             command_env: self.command_env.clone(),
             use_generation: std::sync::Mutex::new(self.use_generation()),
+            host_owned_tools: self.host_owned_tools,
         })
     }
 
@@ -938,8 +945,10 @@ impl ToolExecutor {
     /// through their scoped tool invocation gateway.
     pub async fn execute(&self, name: &str, args: &serde_json::Value) -> Result<ToolResult> {
         let ctx = self.registry.context();
-        if let Err(e) = Self::check_workspace_boundary(name, args, &ctx) {
-            return Ok(ToolResult::error(name, e.to_string()));
+        if !self.host_owned_tools {
+            if let Err(e) = Self::check_workspace_boundary(name, args, &ctx) {
+                return Ok(ToolResult::error(name, e.to_string()));
+            }
         }
 
         log_tool_invocation(name, args);
@@ -970,8 +979,10 @@ impl ToolExecutor {
         // external operation, which then refused every later mutation and
         // session completion. A known pre-execution refusal is a failed
         // tool result with no effects, matching `ToolExecutor::execute`.
-        if let Err(error) = Self::check_workspace_boundary(name, args, ctx) {
-            return Ok(ToolResult::error(name, error.to_string()));
+        if !self.host_owned_tools {
+            if let Err(error) = Self::check_workspace_boundary(name, args, ctx) {
+                return Ok(ToolResult::error(name, error.to_string()));
+            }
         }
         log_tool_invocation(name, args);
         let mut result = self.registry.execute_with_context(name, args, ctx).await;

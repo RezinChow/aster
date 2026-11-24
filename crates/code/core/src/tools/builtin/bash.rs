@@ -1012,11 +1012,13 @@ impl Tool for BashTool {
                     // ceiling; output progress, not wall clock, decides stalls.
                     PROGRESS_HARD_CEILING_MS
                 };
+                let idle_timed_out = Arc::new(std::sync::atomic::AtomicBool::new(false));
                 let watchdog = if timeout_declared {
                     None
                 } else {
                     let observer = Arc::clone(&event_observer);
                     let token = command_cancellation.clone();
+                    let idle_flag = Arc::clone(&idle_timed_out);
                     Some(tokio::spawn(async move {
                         loop {
                             tokio::time::sleep(Duration::from_millis(1_000)).await;
@@ -1024,6 +1026,7 @@ impl Tool for BashTool {
                                 return;
                             }
                             if observer.progress.idle_remaining_ms(IDLE_TIMEOUT_MS) == 0 {
+                                idle_flag.store(true, std::sync::atomic::Ordering::Release);
                                 token.cancel();
                                 return;
                             }
@@ -1080,7 +1083,10 @@ impl Tool for BashTool {
                     Ok(result) => result
                         .map_err(|e| anyhow::anyhow!("Sandbox bash execution failed: {}", e))?,
                     Err(_) => {
-                        let capture_summary = *event_observer.summary.lock().unwrap();
+                        let capture_summary = *event_observer
+                            .summary
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                         let capture_metadata =
                             capture_summary.map(|summary| capture_output_metadata(summary, true));
                         let mut timed_out = ToolOutput::error(format!(
@@ -1115,10 +1121,17 @@ impl Tool for BashTool {
                     output.push_str(&result.stderr);
                 }
 
-                let capture_summary = *event_observer.summary.lock().unwrap();
+                let capture_summary = *event_observer
+                    .summary
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let capture_metadata = capture_summary
                     .map(|summary| capture_output_metadata(summary, summary.timed_out));
-                if termination == crate::tools::OwnedProcessTermination::Cancelled {
+                let watchdog_stalled = idle_timed_out.load(std::sync::atomic::Ordering::Acquire)
+                    && !ctx.cancellation_token().is_cancelled();
+                if termination == crate::tools::OwnedProcessTermination::Cancelled
+                    && !watchdog_stalled
+                {
                     return Ok(cancelled_command(
                         ctx,
                         span,
@@ -1132,18 +1145,23 @@ impl Tool for BashTool {
                     )
                     .await);
                 }
-                if result.timed_out {
+                if result.timed_out || watchdog_stalled {
+                    let reported_timeout_ms = if watchdog_stalled {
+                        IDLE_TIMEOUT_MS
+                    } else {
+                        effective_timeout_ms
+                    };
                     let mut timed_out = ToolOutput::error(format!(
                         "{}\n\n[Command timed out after {}ms]\n{}\n[progress {}]",
                         output,
-                        effective_timeout_ms,
+                        reported_timeout_ms,
                         timeout_retry_hint(declared_timeout_ms),
                         event_observer.progress.snapshot(),
                     ));
                     timed_out.metadata = Some(with_changed_paths(
                         serde_json::json!({
                             "exit_code": result.exit_code,
-                            "timeout_ms": effective_timeout_ms,
+                            "timeout_ms": reported_timeout_ms,
                             "requested_timeout_ms": requested_timeout_ms,
                             "sandboxed": isolated,
                             "output": capture_metadata,
@@ -1154,7 +1172,7 @@ impl Tool for BashTool {
                     ));
                     timed_out.error_kind = Some(ToolErrorKind::Timeout {
                         op: "bash".to_string(),
-                        duration_ms: effective_timeout_ms,
+                        duration_ms: reported_timeout_ms,
                     });
                     return Ok(timed_out);
                 }
@@ -1197,12 +1215,11 @@ impl Tool for BashTool {
             }
         }
 
-        // Capability gating guarantees that `bash` is only registered when the
-        // workspace backend provides a command runner, so this unwrap is sound.
-        let runner = ctx
-            .workspace_services
-            .command_runner()
-            .expect("bash registered without workspace command runner");
+        let Some(runner) = ctx.workspace_services.command_runner() else {
+            return Ok(ToolOutput::error(
+                "Workspace backend does not provide a command runner for bash execution",
+            ));
+        };
         let span = CommandSpan::begin(ctx.workspace.as_path()).await;
         let command_env = span.env(ctx.command_env.clone());
         let cancellation = ctx.cancellation_token();

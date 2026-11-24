@@ -291,9 +291,13 @@ pub fn research_policy(posture: &str, denies: &[String]) -> PermissionPolicy {
         .deny_all(&[
             "write",
             "edit",
+            "patch",
             "download",
             "office_file",
             "bash",
+            "background",
+            "program",
+            "git",
             "task",
             "parallel_task",
         ])
@@ -656,6 +660,23 @@ mod tests {
             yolo.check("write", &serde_json::json!({})),
             PermissionDecision::Deny
         );
+        for tool in ["patch", "background", "program", "git"] {
+            assert_eq!(
+                policy.check(tool, &serde_json::json!({})),
+                PermissionDecision::Deny,
+                "default research policy must deny {tool}"
+            );
+            assert_eq!(
+                yolo.check(tool, &serde_json::json!({})),
+                PermissionDecision::Deny,
+                "yolo research policy must deny {tool}"
+            );
+            assert_eq!(
+                research_policy("auto", &[]).check(tool, &serde_json::json!({})),
+                PermissionDecision::Deny,
+                "auto research policy must deny {tool}"
+            );
+        }
 
         let plan = research_policy("plan", &[]);
         assert_eq!(

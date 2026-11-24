@@ -457,6 +457,56 @@
     }
 
     #[test]
+    fn apply_retry_state_retrying_discards_provisional_stream_so_retry_does_not_duplicate() {
+        let mut session = make_session(Some("s1"));
+        let mut scrollback = ScrollbackState::new();
+        let meta = crate::acp::meta::NotificationMeta::default();
+
+        // Simulate a prior completed user turn so we verify retry only rolls back
+        // the uncommitted streaming blocks from the failed model attempt.
+        scrollback.push_block(RenderBlock::user_prompt("test prompt"));
+
+        session.handle_update(
+            acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
+                acp::ContentBlock::Text(acp::TextContent::new("本地长流已开始。")),
+            )),
+            &meta,
+            &mut scrollback,
+        );
+
+        let retry = RetryState::Retrying {
+            attempt: 1,
+            max_retries: 1,
+            reason: "Response stream ended early; retrying".into(),
+            error_type: None,
+        };
+        apply_retry_state(&retry, &mut session, &mut scrollback, false);
+
+        // Provisional assistant message block from attempt 1 must be gone; user block stays.
+        assert_eq!(scrollback.len(), 1);
+        assert!(matches!(
+            scrollback.entry(0).map(|e| &e.block),
+            Some(RenderBlock::UserPrompt(_))
+        ));
+
+        // Attempt 2 streams the same opening fragment; scrollback must show it only once.
+        session.handle_update(
+            acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
+                acp::ContentBlock::Text(acp::TextContent::new("本地长流已开始。")),
+            )),
+            &meta,
+            &mut scrollback,
+        );
+        let agent_texts: Vec<String> = (0..scrollback.len())
+            .filter_map(|idx| match scrollback.entry(idx).map(|e| &e.block) {
+                Some(RenderBlock::AgentMessage(msg)) => Some(msg.text().to_string()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(agent_texts, vec!["本地长流已开始。".to_string()]);
+    }
+
+    #[test]
     fn retry_exhausted_rate_limited_sets_flag() {
         let mut session = make_session(Some("s1"));
         let mut scrollback = ScrollbackState::new();

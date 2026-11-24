@@ -655,7 +655,7 @@ impl AsterCodeAgent {
     }
 }
 
-fn provider_retry_update(notice: aster_core::llm::RetryNotice) -> serde_json::Value {
+pub(super) fn provider_retry_update(notice: aster_core::llm::RetryNotice) -> serde_json::Value {
     serde_json::json!({
         "sessionUpdate": "retry_state",
         "type": "retrying",

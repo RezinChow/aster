@@ -282,6 +282,48 @@ fn canonicalize_workspace(workspace: impl Into<PathBuf>) -> Result<PathBuf> {
     Ok(workspace)
 }
 
+/// Refuse symlinks or out-of-workspace targets for an Aster control-plane
+/// directory before `create_dir_all` or adding a `write_exceptions` rule.
+fn validate_control_plane_dir(workspace: &Path, path: &Path, label: &str) -> Result<bool> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() {
+                bail!(
+                    "refusing native sandbox policy: {label} ({}) must not be a symlink",
+                    path.display()
+                );
+            }
+            if !metadata.is_dir() {
+                bail!(
+                    "refusing native sandbox policy: {label} ({}) must be a directory",
+                    path.display()
+                );
+            }
+            let canonical = path.canonicalize().with_context(|| {
+                format!(
+                    "failed to canonicalize Aster control-plane directory {}",
+                    path.display()
+                )
+            })?;
+            if !canonical.starts_with(workspace) {
+                bail!(
+                    "refusing native sandbox policy: {label} ({}) escapes workspace {}",
+                    canonical.display(),
+                    workspace.display()
+                );
+            }
+            Ok(true)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error).with_context(|| {
+            format!(
+                "failed to inspect Aster control-plane directory {}",
+                path.display()
+            )
+        }),
+    }
+}
+
 /// Aster control-plane overlay on the ksandbox baseline.
 ///
 /// ksandbox protects `.kbox`; Aster's durable control plane is `.aster`.
@@ -291,20 +333,26 @@ fn aster_bash_policy(workspace: &Path) -> Result<SandboxPolicy> {
     let mut policy = SandboxPolicy::kbash_baseline();
     let aster = workspace.join(".aster");
     let loops = aster.join("loops");
+    let mut aster_exists = validate_control_plane_dir(workspace, &aster, ".aster")?;
     let local_state = crate::state_root::state_root_override().is_none();
     if local_state {
+        if aster_exists {
+            validate_control_plane_dir(workspace, &loops, ".aster/loops")?;
+        }
         std::fs::create_dir_all(&loops).with_context(|| {
             format!(
                 "failed to create Aster control-plane carve-out {}",
                 loops.display()
             )
         })?;
+        aster_exists = validate_control_plane_dir(workspace, &aster, ".aster")?;
+        validate_control_plane_dir(workspace, &loops, ".aster/loops")?;
         policy
             .filesystem
             .write_exceptions
             .push(PathRule::Exact(".aster/loops".into()));
     }
-    if aster.exists() {
+    if aster_exists {
         policy
             .filesystem
             .deny_write
@@ -458,5 +506,34 @@ mod tests {
         let error = native_process_lifetime_unqualified();
         assert!(is_native_process_lifetime_unqualified(&error));
         assert_eq!(error.to_string(), NATIVE_PROCESS_LIFETIME_UNQUALIFIED);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_symlink_aster_control_plane_directories() {
+        use std::os::unix::fs::symlink;
+
+        let outside = tempfile::tempdir().unwrap();
+
+        let ws_aster = tempfile::tempdir().unwrap();
+        symlink(outside.path(), ws_aster.path().join(".aster")).unwrap();
+        let err = NativeBashSandbox::new(ws_aster.path()).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("symlink"),
+            "expected symlink refusal for .aster: {err:#}"
+        );
+        assert!(
+            !outside.path().join("loops").exists(),
+            ".aster symlink must not cause create_dir_all outside workspace"
+        );
+
+        let ws_loops = tempfile::tempdir().unwrap();
+        std::fs::create_dir(ws_loops.path().join(".aster")).unwrap();
+        symlink(outside.path(), ws_loops.path().join(".aster").join("loops")).unwrap();
+        let err = NativeBashSandbox::new(ws_loops.path()).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("symlink"),
+            "expected symlink refusal for .aster/loops: {err:#}"
+        );
     }
 }

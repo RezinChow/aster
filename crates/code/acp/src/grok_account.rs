@@ -25,6 +25,36 @@ pub const PROVIDER_NAME: &str = "grok";
 const DEFAULT_BASE_URL: &str = "https://cli-chat-proxy.grok.com/v1";
 const TOKEN_AUTH_HEADER: &str = "aster-cli";
 const MIN_CLIENT_VERSION: &str = "0.1.202";
+const MAX_GROK_AUTH_BYTES: usize = 256 * 1024;
+const MAX_GROK_CACHE_BYTES: usize = 4 * 1024 * 1024;
+const MAX_GROK_CONFIG_BYTES: usize = 256 * 1024;
+
+fn read_bounded_utf8(path: &Path, limit: usize) -> Result<String> {
+    use std::io::Read;
+    let meta = std::fs::symlink_metadata(path)
+        .with_context(|| format!("could not stat {}", path.display()))?;
+    if meta.file_type().is_symlink() {
+        anyhow::bail!("refusing symlink at {}", path.display());
+    }
+    if meta.len() > limit as u64 {
+        anyhow::bail!(
+            "{} exceeds the {} byte limit ({} bytes)",
+            path.display(),
+            limit,
+            meta.len()
+        );
+    }
+    let file =
+        std::fs::File::open(path).with_context(|| format!("could not open {}", path.display()))?;
+    let mut bytes = Vec::new();
+    file.take((limit as u64).saturating_add(1))
+        .read_to_end(&mut bytes)
+        .with_context(|| format!("could not read {}", path.display()))?;
+    if bytes.len() > limit {
+        anyhow::bail!("{} exceeds the {} byte limit", path.display(), limit);
+    }
+    String::from_utf8(bytes).with_context(|| format!("{} is not valid UTF-8", path.display()))
+}
 
 /// Result of reading a logged-in Grok account.
 #[derive(Debug, Clone)]
@@ -128,8 +158,8 @@ fn resolve_grok_home() -> Option<PathBuf> {
 }
 
 fn load_from_home(home: &Path) -> Result<Option<GrokAccountImport>> {
-    let auth_raw = std::fs::read_to_string(home.join("auth.json"))
-        .with_context(|| format!("could not read {}", home.join("auth.json").display()))?;
+    let auth_path = home.join("auth.json");
+    let auth_raw = read_bounded_utf8(&auth_path, MAX_GROK_AUTH_BYTES)?;
     let auth_store: Value =
         serde_json::from_str(&auth_raw).context("Grok auth.json is not valid JSON")?;
     let Some(credential) = pick_credential(&auth_store) else {
@@ -138,8 +168,7 @@ fn load_from_home(home: &Path) -> Result<Option<GrokAccountImport>> {
 
     let cache_path = home.join("models_cache.json");
     let cache = if cache_path.is_file() {
-        let raw = std::fs::read_to_string(&cache_path)
-            .with_context(|| format!("could not read {}", cache_path.display()))?;
+        let raw = read_bounded_utf8(&cache_path, MAX_GROK_CACHE_BYTES)?;
         serde_json::from_str(&raw).context("Grok models_cache.json is not valid JSON")?
     } else {
         Value::Null
@@ -153,12 +182,23 @@ fn load_from_home(home: &Path) -> Result<Option<GrokAccountImport>> {
     )?))
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct GrokCredential {
     key: String,
     user_id: Option<String>,
     email: Option<String>,
     auth_mode: Option<String>,
+}
+
+impl std::fmt::Debug for GrokCredential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GrokCredential")
+            .field("key", &"[REDACTED]")
+            .field("user_id", &self.user_id)
+            .field("email", &self.email)
+            .field("auth_mode", &self.auth_mode)
+            .finish()
+    }
 }
 
 fn pick_credential(store: &Value) -> Option<GrokCredential> {
@@ -249,7 +289,7 @@ fn civil_from_days(z: i64) -> (i32, u32, u32) {
 
 fn read_config_default_model(home: &Path) -> Option<String> {
     let path = home.join("config.toml");
-    let raw = std::fs::read_to_string(path).ok()?;
+    let raw = read_bounded_utf8(&path, MAX_GROK_CONFIG_BYTES).ok()?;
     // Minimal scan: look for `default = "…"` under a `[models]` section.
     let mut in_models = false;
     for line in raw.lines() {
@@ -490,6 +530,25 @@ mod tests {
         config.providers.push(import.provider);
         config.default_model = Some(format!("{PROVIDER_NAME}/{}", import.default_model_id));
         assert_eq!(config.default_model.as_deref(), Some("grok/grok-4.7"));
+    }
+
+    #[test]
+    fn debug_redacts_grok_credential_and_import_and_bounds_auth_read() {
+        let canary = "CANARY_GROK_BEARER_777";
+        let credential = cred(canary);
+        let cred_debug = format!("{credential:?}");
+        assert!(!cred_debug.contains(canary), "{cred_debug}");
+        assert!(cred_debug.contains("[REDACTED]"), "{cred_debug}");
+
+        let import = provider_from_parts(&credential, &Value::Null, None).unwrap();
+        let import_debug = format!("{import:?}");
+        assert!(!import_debug.contains(canary), "{import_debug}");
+
+        let dir = tempfile::tempdir().unwrap();
+        let oversized = vec![b'a'; MAX_GROK_AUTH_BYTES + 1];
+        std::fs::write(dir.path().join("auth.json"), oversized).unwrap();
+        let err = load_from_home(dir.path()).unwrap_err();
+        assert!(err.to_string().contains("exceeds"), "{err:#}");
     }
 }
 

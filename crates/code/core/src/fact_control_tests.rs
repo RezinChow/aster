@@ -3367,3 +3367,112 @@ async fn parked_skill_ask_is_not_rewritten_as_unapproved() {
         .to_string()
         .contains("tool_effect_effective_arguments_unapproved"));
 }
+
+#[tokio::test]
+async fn premature_stream_eof_retry_reemits_same_turn_start_without_intermediate_turn_end() {
+    use crate::llm::{LlmClient, LlmResponse, StreamEvent};
+
+    struct PrematureThenCompleteStream {
+        calls: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl LlmClient for PrematureThenCompleteStream {
+        async fn complete(
+            &self,
+            _messages: &[Message],
+            _system: Option<&str>,
+            _tools: &[ToolDefinition],
+        ) -> anyhow::Result<LlmResponse> {
+            anyhow::bail!("unexpected non-streaming fallback")
+        }
+
+        async fn complete_streaming(
+            &self,
+            _messages: &[Message],
+            _system: Option<&str>,
+            _tools: &[ToolDefinition],
+            _cancel_token: tokio_util::sync::CancellationToken,
+        ) -> anyhow::Result<tokio::sync::mpsc::Receiver<StreamEvent>> {
+            let attempt = self.calls.fetch_add(1, Ordering::SeqCst);
+            let (tx, rx) = tokio::sync::mpsc::channel(8);
+            tokio::spawn(async move {
+                if attempt == 0 {
+                    let _ = tx
+                        .send(StreamEvent::TextDelta("本地长流已开始。".into()))
+                        .await;
+                    // Drop without StreamEvent::Done to simulate premature SSE EOF.
+                } else {
+                    let _ = tx
+                        .send(StreamEvent::TextDelta("本地长流已开始。完成".into()))
+                        .await;
+                    let _ = tx
+                        .send(StreamEvent::Done(LlmResponse {
+                            message: Message::assistant("本地长流已开始。完成"),
+                            usage: crate::llm::TokenUsage {
+                                prompt_tokens: 10,
+                                completion_tokens: 8,
+                                total_tokens: 18,
+                                ..Default::default()
+                            },
+                            stop_reason: Some("stop".into()),
+                            token_logprobs: Vec::new(),
+                            meta: None,
+                        }))
+                        .await;
+                }
+            });
+            Ok(rx)
+        }
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let client: Arc<dyn LlmClient> = Arc::new(PrematureThenCompleteStream {
+        calls: AtomicUsize::new(0),
+    });
+    let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+    let mut surface = bash_confirmation_surface(dir.path(), Arc::new(AdmitSpawn));
+    surface.events = Some(tx);
+
+    let mut config = session_harness_config_with(2, 1_000_000, Vec::new(), None, Some(2)).unwrap();
+    config = config.with_model_retry_delay(std::time::Duration::ZERO);
+    let (model, _calls) = LiveCompletion::new(client, PermissionPolicy::default(), Vec::new());
+    let model = Arc::new(model.with_surface(surface));
+    let fact = FactRun::open(
+        dir.path(),
+        model,
+        Arc::new(ScriptTools {
+            calls: Arc::new(AtomicUsize::new(0)),
+            fail_first: AtomicUsize::new(0),
+        }),
+        config,
+        "run-premature-retry",
+    )
+    .unwrap();
+    let settled = fact.user_text("hello").await.unwrap();
+    assert!(settled.log.iter().any(|f| f.kind == "model.turn"));
+
+    let mut events = Vec::new();
+    while let Ok(ev) = rx.try_recv() {
+        events.push(ev);
+    }
+    let summary: Vec<String> = events
+        .iter()
+        .filter_map(|ev| match ev {
+            crate::agent::AgentEvent::TurnStart { turn } => Some(format!("TurnStart({turn})")),
+            crate::agent::AgentEvent::TextDelta { text } => Some(format!("TextDelta({text})")),
+            crate::agent::AgentEvent::TurnEnd { turn, .. } => Some(format!("TurnEnd({turn})")),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        summary,
+        vec![
+            "TurnStart(1)",
+            "TextDelta(本地长流已开始。)",
+            "TurnStart(1)",
+            "TextDelta(本地长流已开始。完成)",
+            "TurnEnd(1)",
+        ]
+    );
+}

@@ -344,7 +344,7 @@ impl SlashCommand for CostCommand {
         let head = format!(
             "Session: {}\n\
              Model:   {}",
-            &ctx.session_id[..ctx.session_id.len().min(8)],
+            crate::text::truncate_utf8(&ctx.session_id, 8),
             ctx.model,
         );
         CommandOutput::text(match &ctx.context_report {
@@ -418,7 +418,7 @@ impl SlashCommand for HistoryCommand {
              Session:  {}",
             ctx.history_len,
             ctx.total_tokens,
-            &ctx.session_id[..ctx.session_id.len().min(8)],
+            crate::text::truncate_utf8(&ctx.session_id, 8),
         ))
     }
 }
@@ -738,5 +738,16 @@ mod tests {
         ctx.mcp_servers = vec![];
         let out = reg.dispatch("/mcp", &ctx).unwrap();
         assert!(out.text.contains("No MCP servers connected"));
+    }
+
+    #[test]
+    fn test_cost_and_history_handle_multibyte_utf8_session_id() {
+        let reg = CommandRegistry::new();
+        let mut ctx = test_ctx();
+        ctx.session_id = "会话-测试-123456789".to_string();
+        let cost = reg.dispatch("/cost", &ctx).unwrap();
+        assert!(cost.text.contains("Session: 会话"));
+        let history = reg.dispatch("/history", &ctx).unwrap();
+        assert!(history.text.contains("Session:  会话"));
     }
 }

@@ -272,3 +272,57 @@ fn attempt_settlement_preserves_specific_errors_and_recognizes_a_terminal() {
     attempt::settle_attempt_state(&mut terminal, None);
     assert!(terminal.turn_failure.is_none());
 }
+
+#[tokio::test]
+async fn sync_session_mcp_servers_never_acquires_sessions_under_core_agent_lock() {
+    let fixture = Fixture::new().await;
+    // Hold `sessions` first (matching `load_session -> replace_core_session`),
+    // start `sync_session_mcp_servers`, yield so it reaches its first lock,
+    // then acquire `core_agent`. Under the old AB-BA lock order
+    // (`core_agent` -> `sessions`), this deadlocked immediately.
+    let sessions_guard = fixture.agent.sessions.lock().await;
+    let sync = fixture.agent.sync_session_mcp_servers(None, &[]);
+    tokio::pin!(sync);
+    let polled = tokio::time::timeout(std::time::Duration::from_millis(50), &mut sync).await;
+    assert!(
+        polled.is_err(),
+        "sync_session_mcp_servers should wait on sessions before locking core_agent"
+    );
+    let core_guard = tokio::time::timeout(
+        std::time::Duration::from_millis(200),
+        fixture.agent.core_agent.lock(),
+    )
+    .await
+    .expect("core_agent must remain acquirable while sessions is held");
+    drop(core_guard);
+    drop(sessions_guard);
+    tokio::time::timeout(std::time::Duration::from_secs(5), sync)
+        .await
+        .expect("sync_session_mcp_servers should complete once locks are released")
+        .expect("sync_session_mcp_servers should succeed");
+}
+
+#[tokio::test]
+async fn wait_for_turn_cancel_never_misses_concurrent_cancellation() {
+    let fixture = Fixture::new().await;
+    let key = fixture.session_id.0.to_string();
+    for generation in 1..=100u64 {
+        let cancel_key = key.clone();
+        let waiter = fixture.agent.wait_for_turn_cancel(&key, generation);
+        let canceller = async {
+            tokio::task::yield_now().await;
+            fixture
+                .agent
+                .cancelled_generation
+                .lock()
+                .await
+                .insert(cancel_key, generation);
+            fixture.agent.turn_cancel.notify_waiters();
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            tokio::join!(waiter, canceller);
+        })
+        .await
+        .expect("wait_for_turn_cancel must not miss concurrent notify_waiters");
+    }
+}

@@ -48,9 +48,12 @@ struct Session {
     jobs: HashMap<String, Job>,
 }
 
-fn sessions() -> &'static Mutex<HashMap<String, Session>> {
+fn lock_sessions() -> std::sync::MutexGuard<'static, HashMap<String, Session>> {
     static SESSIONS: OnceLock<Mutex<HashMap<String, Session>>> = OnceLock::new();
-    SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+    SESSIONS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 pub fn bind_session(session_id: &str, cwd: &Path) {
@@ -64,21 +67,32 @@ pub fn bind_session_rooted(session_id: &str, cwd: &Path, root: &Path) {
 }
 
 fn bind_session_with_root(session_id: &str, cwd: &Path, root: Option<PathBuf>) {
-    sessions().lock().expect("shell sessions").insert(
-        session_id.to_string(),
-        Session {
-            cwd: cwd.to_path_buf(),
-            root,
-            env: HashMap::new(),
-            jobs: HashMap::new(),
-        },
-    );
+    let previous_jobs = lock_sessions()
+        .insert(
+            session_id.to_string(),
+            Session {
+                cwd: cwd.to_path_buf(),
+                root,
+                env: HashMap::new(),
+                jobs: HashMap::new(),
+            },
+        )
+        .map(|mut previous| {
+            previous
+                .jobs
+                .drain()
+                .map(|(_, job)| job)
+                .collect::<Vec<_>>()
+        });
+    if let Some(jobs) = previous_jobs {
+        for mut job in jobs {
+            let _ = kill_child(&mut job.child);
+        }
+    }
 }
 
 pub fn drop_session(session_id: &str) {
-    let jobs = sessions()
-        .lock()
-        .expect("shell sessions")
+    let jobs = lock_sessions()
         .remove(session_id)
         .map(|mut session| session.jobs.drain().map(|(_, job)| job).collect::<Vec<_>>());
     if let Some(jobs) = jobs {
@@ -90,24 +104,20 @@ pub fn drop_session(session_id: &str) {
 
 #[cfg(test)]
 fn job_count(session_id: &str) -> usize {
-    sessions()
-        .lock()
-        .expect("shell sessions")
+    lock_sessions()
         .get(session_id)
         .map(|session| session.jobs.len())
         .unwrap_or(0)
 }
 
 pub fn cwd(session_id: &str) -> Option<PathBuf> {
-    sessions()
-        .lock()
-        .expect("shell sessions")
+    lock_sessions()
         .get(session_id)
         .map(|session| session.cwd.clone())
 }
 
 pub fn set_env(session_id: &str, key: &str, value: &str) -> Result<()> {
-    let mut guard = sessions().lock().expect("shell sessions");
+    let mut guard = lock_sessions();
     let session = guard
         .get_mut(session_id)
         .ok_or_else(|| anyhow!("shell session {session_id} is not bound"))?;
@@ -117,9 +127,7 @@ pub fn set_env(session_id: &str, key: &str, value: &str) -> Result<()> {
 
 /// Model-visible env overlay. Secret-shaped keys are omitted, not redacted in place.
 pub fn transcript_env(session_id: &str) -> Vec<(String, String)> {
-    sessions()
-        .lock()
-        .expect("shell sessions")
+    lock_sessions()
         .get(session_id)
         .map(|session| {
             session
@@ -138,7 +146,7 @@ pub fn admit(
     command: &str,
     admission: CommandAdmission,
 ) -> Result<AdmittedCommand> {
-    let mut guard = sessions().lock().expect("shell sessions");
+    let mut guard = lock_sessions();
     let session = guard
         .get_mut(session_id)
         .ok_or_else(|| anyhow!("shell session {session_id} is not bound"))?;
@@ -174,20 +182,20 @@ pub fn detach(session_id: &str, command: &str, admission: CommandAdmission) -> R
     if admitted.command.starts_with("cd ") {
         return Err(anyhow!("cd is not a detachable job"));
     }
-    let child = spawn(session_id, &admitted)?;
+    let mut child = spawn(session_id, &admitted)?;
     let id = format!("job-{}", child.id());
-    sessions()
-        .lock()
-        .expect("shell sessions")
-        .get_mut(session_id)
-        .ok_or_else(|| anyhow!("shell session {session_id} is not bound"))?
-        .jobs
-        .insert(id.clone(), Job { child });
+    let mut guard = lock_sessions();
+    let Some(session) = guard.get_mut(session_id) else {
+        drop(guard);
+        let _ = kill_child(&mut child);
+        return Err(anyhow!("shell session {session_id} is not bound"));
+    };
+    session.jobs.insert(id.clone(), Job { child });
     Ok(id)
 }
 
 pub fn poll(session_id: &str, job_id: &str) -> Result<String> {
-    let mut guard = sessions().lock().expect("shell sessions");
+    let mut guard = lock_sessions();
     let job = guard
         .get_mut(session_id)
         .and_then(|session| session.jobs.get_mut(job_id))
@@ -199,9 +207,7 @@ pub fn poll(session_id: &str, job_id: &str) -> Result<String> {
 }
 
 pub fn kill(session_id: &str, job_id: &str) -> Result<()> {
-    let mut job = sessions()
-        .lock()
-        .expect("shell sessions")
+    let mut job = lock_sessions()
         .get_mut(session_id)
         .and_then(|session| session.jobs.remove(job_id))
         .ok_or_else(|| anyhow!("unknown job {job_id}"))?;
@@ -211,9 +217,7 @@ pub fn kill(session_id: &str, job_id: &str) -> Result<()> {
 /// Kill every detached job in the session. Used when the run is cancelled
 /// so a timeout-independent cancel still reaps the process group.
 pub fn kill_session(session_id: &str) {
-    let jobs = sessions()
-        .lock()
-        .expect("shell sessions")
+    let jobs = lock_sessions()
         .get_mut(session_id)
         .map(|session| session.jobs.drain().map(|(_, job)| job).collect::<Vec<_>>())
         .unwrap_or_default();
@@ -252,15 +256,20 @@ fn spawn(session_id: &str, admitted: &AdmittedCommand) -> Result<Child> {
     };
     #[cfg(windows)]
     let mut command = windows_detached_command(admitted, &overlay)?;
+    // Neither stdout nor stderr is read by `shell_session`; redirect both to
+    // null so verbose commands cannot block on an unread OS pipe buffer.
     command
         .current_dir(&admitted.cwd)
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     for (key, value) in &overlay {
         command.env(key, value);
     }
     #[cfg(unix)]
+    // SAFETY: `pre_exec` runs between `fork` and `exec` in the child process and
+    // invokes only the async-signal-safe POSIX `setpgid(0, 0)` syscall, with no
+    // heap allocation or lock acquisition.
     unsafe {
         command.pre_exec(|| {
             if libc::setpgid(0, 0) != 0 {
@@ -363,10 +372,21 @@ fn kill_child(child: &mut Child) -> Result<()> {
     // Job Object at spawn; ending this process makes that job terminate the
     // remaining descendants.
     #[cfg(unix)]
-    let pid = child.id();
+    let pgid = {
+        let pid = child.id();
+        if pid == 0 || pid > i32::MAX as u32 {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(anyhow!("invalid child pid {pid} for process-group kill"));
+        }
+        pid as libc::pid_t
+    };
     #[cfg(unix)]
+    // SAFETY: `pgid` was validated to be in `1..=i32::MAX`, so `-pgid` targets
+    // only the child's dedicated process group created via `setpgid(0, 0)` (never
+    // `0` or `-1`), and `libc::kill` has no Rust memory-aliasing preconditions.
     unsafe {
-        libc::kill(-(pid as i32), libc::SIGKILL);
+        libc::kill(-pgid, libc::SIGKILL);
     }
     #[cfg(not(unix))]
     {
@@ -374,10 +394,12 @@ fn kill_child(child: &mut Child) -> Result<()> {
     }
     let _ = child.wait();
     #[cfg(unix)]
+    // SAFETY: Signal `0` is a POSIX liveness probe against the validated `pgid`
+    // with no side effects or memory preconditions.
     unsafe {
-        let gone = libc::kill(pid as i32, 0) != 0;
+        let gone = libc::kill(pgid, 0) != 0;
         if !gone {
-            return Err(anyhow!("child {pid} survived process-group kill"));
+            return Err(anyhow!("child {pgid} survived process-group kill"));
         }
     }
     Ok(())
@@ -385,9 +407,7 @@ fn kill_child(child: &mut Child) -> Result<()> {
 
 /// Env overlay for the named session only. A shared cwd is not an identity.
 fn overlay_env(session_id: &str) -> HashMap<String, String> {
-    sessions()
-        .lock()
-        .expect("shell sessions")
+    lock_sessions()
         .get(session_id)
         .map(|session| session.env.clone())
         .unwrap_or_default()
@@ -630,6 +650,45 @@ mod tests {
         assert!(visible.iter().any(|(key, _)| key == "PATH"));
         assert!(visible.iter().all(|(key, _)| key != "OPENAI_API_KEY"));
         drop_session("env");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_bounded_does_not_deadlock_on_large_output() {
+        let root = tempfile::tempdir().unwrap();
+        let session = format!("large-out-{}", std::process::id());
+        bind_session(&session, root.path());
+        // Emit >128 KiB to both stdout and stderr, exceeding the OS pipe buffer.
+        let status = run_bounded(
+            &session,
+            "dd if=/dev/zero bs=1024 count=256 2>/dev/null | tr '\\0' 'x'; dd if=/dev/zero bs=1024 count=256 2>/dev/null | tr '\\0' 'y' >&2",
+            Duration::from_secs(5),
+        )
+        .expect("verbose command must not deadlock on unread pipes");
+        assert_eq!(status, "exited");
+        drop_session(&session);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rebinding_session_kills_previous_detached_jobs() {
+        let root = tempfile::tempdir().unwrap();
+        let session = format!("rebind-{}", std::process::id());
+        let leaked = root.path().join("should-not-exist.txt");
+        bind_session(&session, root.path());
+        let cmd = format!("sleep 0.5 && touch '{}'", leaked.display());
+        let job_id = detach(&session, &cmd, CommandAdmission::Allow).unwrap();
+        assert_eq!(job_count(&session), 1);
+        assert!(job_id.starts_with("job-"));
+        // Re-binding the same session id must reap the previous detached job.
+        bind_session(&session, root.path());
+        assert_eq!(job_count(&session), 0);
+        std::thread::sleep(Duration::from_millis(800));
+        assert!(
+            !leaked.exists(),
+            "re-binding a session must kill its prior detached jobs"
+        );
+        drop_session(&session);
     }
 
     /// S-WT-01: one rooted session, 100 commands, including escapes.

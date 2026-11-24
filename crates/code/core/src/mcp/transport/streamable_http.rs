@@ -22,6 +22,7 @@ use super::notifications::{NotificationReceiver, NotificationSender};
 use super::McpTransport;
 use crate::llm::http::build_reqwest_client;
 use crate::mcp::protocol::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, McpNotification};
+use crate::sse::{take_sse_events_scanned, SseEventScan, Utf8StreamDecoder};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -34,6 +35,9 @@ use tokio::sync::{mpsc, RwLock};
 const DEFAULT_TIMEOUT_SECS: u64 = 60;
 const SSE_RECONNECT_BASE_MS: u64 = 500;
 const SSE_RECONNECT_MAX_MS: u64 = 30_000;
+const MAX_SSE_FRAME_BYTES: usize = 8 * 1024 * 1024;
+const MAX_JSON_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_ERROR_BODY_BYTES: usize = 4 * 1024;
 
 /// Streamable HTTP transport (MCP 2025-03-26)
 pub struct StreamableHttpTransport {
@@ -66,23 +70,28 @@ impl StreamableHttpTransport {
             "application/json".parse().unwrap(),
         );
         for (k, v) in &headers {
-            if let (Ok(name), Ok(val)) = (
+            if let (Ok(name), Ok(mut val)) = (
                 reqwest::header::HeaderName::from_bytes(k.as_bytes()),
                 reqwest::header::HeaderValue::from_str(v),
             ) {
+                val.set_sensitive(true);
                 header_map.insert(name, val);
             }
         }
 
-        let client =
-            build_reqwest_client(Some(Duration::from_secs(timeout_secs)), Some(header_map))
-                .context("Failed to build HTTP client")?;
+        let client = build_reqwest_client(
+            Some(Duration::from_secs(timeout_secs)),
+            Some(header_map.clone()),
+        )
+        .context("Failed to build HTTP client")?;
+        // Long-lived GET SSE streams must not share the per-RPC total timeout.
+        let sse_client = build_reqwest_client(None, Some(header_map))
+            .context("Failed to build SSE HTTP client")?;
 
         let (notification_tx, notification_rx) = NotificationReceiver::channel(256);
         let connected = Arc::new(AtomicBool::new(true));
 
         // Spawn SSE listener for server-initiated notifications (GET endpoint)
-        let sse_client = client.clone();
         let sse_url = url.clone();
         let sse_connected = Arc::clone(&connected);
         let sse_handle = tokio::spawn(async move {
@@ -124,6 +133,27 @@ impl StreamableHttpTransport {
         }
     }
 
+    async fn read_bounded_bytes(
+        mut response: reqwest::Response,
+        limit: usize,
+    ) -> Result<(Vec<u8>, bool)> {
+        let mut body = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(reqwest::Error::without_url)
+            .context("Failed to read Streamable HTTP response body")?
+        {
+            if body.len().saturating_add(chunk.len()) > limit {
+                let remaining = limit.saturating_sub(body.len());
+                body.extend_from_slice(&chunk[..remaining]);
+                return Ok((body, true));
+            }
+            body.extend_from_slice(&chunk);
+        }
+        Ok((body, false))
+    }
+
     /// Parse a JSON-RPC response from either plain JSON or SSE stream body.
     async fn parse_response(response: reqwest::Response) -> Result<JsonRpcResponse> {
         let content_type = response
@@ -137,15 +167,21 @@ impl StreamableHttpTransport {
             // Read SSE stream and return first JSON-RPC response event
             Self::parse_sse_response(response).await
         } else {
-            // Plain JSON response
-            response
-                .json::<JsonRpcResponse>()
-                .await
+            // Plain JSON response (bounded)
+            let (bytes, truncated) =
+                Self::read_bounded_bytes(response, MAX_JSON_RESPONSE_BYTES).await?;
+            if truncated {
+                return Err(anyhow!(
+                    "JSON-RPC response exceeded the {MAX_JSON_RESPONSE_BYTES} byte limit"
+                ));
+            }
+            serde_json::from_slice::<JsonRpcResponse>(&bytes)
                 .context("Failed to parse JSON-RPC response")
         }
     }
 
     /// The first JSON-RPC response among complete SSE events in `buffer`.
+    #[cfg(test)]
     fn response_from_sse_events(buffer: &mut String, eof: bool) -> Option<JsonRpcResponse> {
         for event_text in crate::sse::take_sse_events(buffer, eof) {
             if let Some(response) = Self::extract_json_rpc_response(&event_text) {
@@ -160,19 +196,40 @@ impl StreamableHttpTransport {
         use futures::StreamExt;
 
         let mut stream = response.bytes_stream();
+        let mut decoder = Utf8StreamDecoder::default();
+        let mut scan = SseEventScan::default();
         let mut buffer = String::new();
 
         while let Some(chunk) = stream.next().await {
-            let bytes = chunk.context("SSE stream error")?;
-            buffer.push_str(&String::from_utf8_lossy(&bytes));
+            let bytes = chunk
+                .map_err(reqwest::Error::without_url)
+                .context("SSE stream error")?;
+            if buffer
+                .len()
+                .saturating_add(decoder.pending_bytes())
+                .saturating_add(bytes.len())
+                > MAX_SSE_FRAME_BYTES
+            {
+                return Err(anyhow!("Streamable HTTP SSE frame exceeded size limit"));
+            }
+            decoder
+                .push_to(&bytes, &mut buffer)
+                .context("Invalid Streamable HTTP SSE UTF-8")?;
 
-            if let Some(response) = Self::response_from_sse_events(&mut buffer, false) {
-                return Ok(response);
+            for event_text in take_sse_events_scanned(&mut buffer, &mut scan, false) {
+                if let Some(response) = Self::extract_json_rpc_response(&event_text) {
+                    return Ok(response);
+                }
             }
         }
 
-        if let Some(response) = Self::response_from_sse_events(&mut buffer, true) {
-            return Ok(response);
+        decoder
+            .finish()
+            .context("Incomplete Streamable HTTP SSE UTF-8")?;
+        for event_text in take_sse_events_scanned(&mut buffer, &mut scan, true) {
+            if let Some(response) = Self::extract_json_rpc_response(&event_text) {
+                return Ok(response);
+            }
         }
 
         Err(anyhow!("SSE stream ended without a JSON-RPC response"))
@@ -239,7 +296,10 @@ impl StreamableHttpTransport {
                     delay = SSE_RECONNECT_BASE_MS;
                     use futures::StreamExt;
                     let mut stream = resp.bytes_stream();
+                    let mut decoder = Utf8StreamDecoder::default();
+                    let mut scan = SseEventScan::default();
                     let mut buffer = String::new();
+                    let mut stream_aborted = false;
 
                     while let Some(chunk) = stream.next().await {
                         if !connected.load(Ordering::SeqCst) {
@@ -247,22 +307,43 @@ impl StreamableHttpTransport {
                         }
                         match chunk {
                             Ok(bytes) => {
-                                buffer.push_str(&String::from_utf8_lossy(&bytes));
-                                for event in crate::sse::take_sse_events(&mut buffer, false) {
+                                if buffer
+                                    .len()
+                                    .saturating_add(decoder.pending_bytes())
+                                    .saturating_add(bytes.len())
+                                    > MAX_SSE_FRAME_BYTES
+                                {
+                                    tracing::warn!(
+                                        "Streamable HTTP SSE frame exceeded size limit; reconnecting"
+                                    );
+                                    stream_aborted = true;
+                                    break;
+                                }
+                                if let Err(error) = decoder.push_to(&bytes, &mut buffer) {
+                                    tracing::warn!(%error, "Streamable HTTP SSE invalid UTF-8");
+                                    stream_aborted = true;
+                                    break;
+                                }
+                                for event in take_sse_events_scanned(&mut buffer, &mut scan, false)
+                                {
                                     if let Some(n) = Self::extract_notification(&event) {
                                         tx.send(n).await;
                                     }
                                 }
                             }
                             Err(e) => {
+                                let e = e.without_url();
                                 tracing::warn!(error = %e, "Streamable HTTP SSE stream error");
+                                stream_aborted = true;
                                 break;
                             }
                         }
                     }
-                    for event in crate::sse::take_sse_events(&mut buffer, true) {
-                        if let Some(notification) = Self::extract_notification(&event) {
-                            tx.send(notification).await;
+                    if !stream_aborted && decoder.finish().is_ok() {
+                        for event in take_sse_events_scanned(&mut buffer, &mut scan, true) {
+                            if let Some(notification) = Self::extract_notification(&event) {
+                                tx.send(notification).await;
+                            }
                         }
                     }
                 }
@@ -276,6 +357,7 @@ impl StreamableHttpTransport {
                     return;
                 }
                 Err(e) => {
+                    let e = e.without_url();
                     tracing::debug!(error = %e, "Streamable HTTP SSE GET failed");
                 }
             }
@@ -300,6 +382,7 @@ impl McpTransport for StreamableHttpTransport {
         let extra_headers = self.request_headers().await;
         let body = serde_json::to_string(&request)?;
 
+        let safe_url = crate::config::redact_url_for_debug(&self.url);
         let response = self
             .client
             .post(&self.url)
@@ -307,12 +390,17 @@ impl McpTransport for StreamableHttpTransport {
             .body(body)
             .send()
             .await
-            .with_context(|| format!("Streamable HTTP POST to {} failed", self.url))?;
+            .map_err(reqwest::Error::without_url)
+            .with_context(|| format!("Streamable HTTP POST to {safe_url} failed"))?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(anyhow!("MCP server returned HTTP {}: {}", status, body));
+            let (bytes, truncated) = Self::read_bounded_bytes(response, MAX_ERROR_BODY_BYTES)
+                .await
+                .unwrap_or_default();
+            let body = String::from_utf8_lossy(&bytes);
+            let suffix = if truncated { " [truncated]" } else { "" };
+            return Err(anyhow!("MCP server returned HTTP {status}: {body}{suffix}"));
         }
 
         self.capture_session_id(response.headers()).await;
@@ -327,6 +415,7 @@ impl McpTransport for StreamableHttpTransport {
         let extra_headers = self.request_headers().await;
         let body = serde_json::to_string(&notification)?;
 
+        let safe_url = crate::config::redact_url_for_debug(&self.url);
         let response = self
             .client
             .post(&self.url)
@@ -334,7 +423,8 @@ impl McpTransport for StreamableHttpTransport {
             .body(body)
             .send()
             .await
-            .with_context(|| format!("Streamable HTTP notification to {} failed", self.url))?;
+            .map_err(reqwest::Error::without_url)
+            .with_context(|| format!("Streamable HTTP notification to {safe_url} failed"))?;
 
         if !response.status().is_success() {
             tracing::warn!(
@@ -399,7 +489,7 @@ impl Drop for StreamableHttpTransport {
 impl std::fmt::Debug for StreamableHttpTransport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StreamableHttpTransport")
-            .field("url", &self.url)
+            .field("url", &crate::config::redact_url_for_debug(&self.url))
             .field("connected", &self.connected.load(Ordering::Relaxed))
             .finish()
     }
@@ -559,11 +649,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_debug_format() {
-        let transport = StreamableHttpTransport::connect("http://127.0.0.1:1", HashMap::new())
-            .await
-            .unwrap();
+        let transport = StreamableHttpTransport::connect(
+            "http://user:CANARY_PASS@127.0.0.1:1/mcp?token=CANARY_QUERY",
+            HashMap::new(),
+        )
+        .await
+        .unwrap();
         let s = format!("{:?}", transport);
         assert!(s.contains("StreamableHttpTransport"));
+        assert!(!s.contains("CANARY_PASS"), "{s}");
+        assert!(!s.contains("CANARY_QUERY"), "{s}");
         transport.close().await.unwrap();
     }
 }
