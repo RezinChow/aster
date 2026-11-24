@@ -330,14 +330,15 @@ fn validate_control_plane_dir(workspace: &Path, path: &Path, label: &str) -> Res
 /// Existing Aster protected directories are write-denied when present; `.aster`
 /// is materialised only when harness state belongs inside the workspace.
 fn aster_bash_policy(workspace: &Path) -> Result<SandboxPolicy> {
+    let workspace = canonicalize_workspace(workspace)?;
     let mut policy = SandboxPolicy::kbash_baseline();
     let aster = workspace.join(".aster");
     let loops = aster.join("loops");
-    let mut aster_exists = validate_control_plane_dir(workspace, &aster, ".aster")?;
+    let mut aster_exists = validate_control_plane_dir(&workspace, &aster, ".aster")?;
     let local_state = crate::state_root::state_root_override().is_none();
     if local_state {
         if aster_exists {
-            validate_control_plane_dir(workspace, &loops, ".aster/loops")?;
+            validate_control_plane_dir(&workspace, &loops, ".aster/loops")?;
         }
         std::fs::create_dir_all(&loops).with_context(|| {
             format!(
@@ -345,8 +346,8 @@ fn aster_bash_policy(workspace: &Path) -> Result<SandboxPolicy> {
                 loops.display()
             )
         })?;
-        aster_exists = validate_control_plane_dir(workspace, &aster, ".aster")?;
-        validate_control_plane_dir(workspace, &loops, ".aster/loops")?;
+        aster_exists = validate_control_plane_dir(&workspace, &aster, ".aster")?;
+        validate_control_plane_dir(&workspace, &loops, ".aster/loops")?;
         policy
             .filesystem
             .write_exceptions

@@ -95,6 +95,17 @@
 - **Updated `aster-cli-stable` channel**: `Publish aster-cli channel` run `45356409967` -> **success**; verified `aster-cli-stable/latest.json` points to `aster-cli-v0.4.0` with all 7 platforms (including `linux-musl` and `linux-musl-arm64`), and verified repository `Latest` remains Aster Desktop `v0.2.4`.
 - **GitHub Issues**: Closed `#316`–`#322` with commit SHA and release links; kept `#311` open pending Windows Studio NSIS verification.
 
-## 4. Explicitly Not Claimed
+## 4. Post-Release `main` Hygiene & Wrap-up
+- **`fe8466bf5bdc2a1caa971ef6c556c056ead6db89` (`exit_to_error` Display fix)**:
+  - `Cross-platform text` (`45356785480`): **success**
+  - `Qualify aster-cli` (`45356785475`): **success**
+  - `Qualify aster` (`45356785545`, `windows-latest`, `ubuntu-latest`, `macos-latest`): **success**
+  - `Rust` (`45356785421`): `Static ACP (x86_64 musl)` **success**, `desktop-frontend (aster)` **success**, `check (ubuntu-latest)` **success**; `check (macos-latest)` passed steps 1–38 and failed on step 39 (`sandbox::native::lifetime_tests::resolves_policy_timeout`) because `aster_bash_policy` compared canonicalized `.aster` (`/private/var/...`) against an uncanonicalized macOS `/var/...` workspace path.
+- **Follow-up fix in `crates/code/core/src/sandbox/native.rs`**: Canonicalizes `workspace` via `canonicalize_workspace(workspace)?` at entry to `aster_bash_policy`. Verified natively on macOS arm64: `cargo test --locked -p aster-core --lib sandbox::native` -> **9 passed; 0 failed** (including `lifetime_tests::resolves_policy_timeout` and `refuses_symlink_aster_control_plane_directories`), `cargo fmt --all -- --check` -> **0 diffs**.
+- **Public release & local cleanup verification**:
+  - HTTP `HEAD` verified `200` on `aster-cli-stable/latest.json`, `aster-cli-v0.4.0` (`linux-musl` + `linux-musl-arm64`), and `aster-acp-v9.3.0` (`linux-musl` + `linux-musl-arm64`); verified `v0.2.4` compatibility `latest.json` points to `aster-cli-v0.4.0`.
+  - Removed 2 leftover local `act` OrbStack containers and their 4 ephemeral container volumes (`docker ps -a` empty).
+
+## 5. Explicitly Not Claimed
 - **`aster-studio` native macOS Rust compilation & Windows NSIS boot (`#311`)**: `apps/studio/src-tauri/src/tenant.rs` was kept out of this CLI/ACP release (consistent with `RELEASE_9.3.0.md`). Running `cargo test --locked -p aster-studio` on this host failed in `crates/capture/build.rs:217` because only Xcode CommandLineTools is installed (missing full Xcode's `SwiftUIMacros` plugin), and Windows NSIS/WiX runtime boot cannot be verified on macOS arm64.
-- **`exit_to_error` outer `Display` format in `aster-cli-v0.4.0` / `aster-acp-v9.3.0`**: The immutable `75abf7aa1872f823b29a907663e8bee0da9e0264` release renders `StepLimit` outer `Display` as `"StepLimit"` (while `{error:#}` and `downcast_ref::<ActorError>()` retain full details); the `main` follow-up commit restores `"StepLimit: settled after N transitions"` on outer `Display` as well.
+- **Post-release `main` fixes vs. immutable `75abf7aa1` release tags**: `aster-cli-v0.4.0` and `aster-acp-v9.3.0` are immutable releases built from `75abf7aa1872f823b29a907663e8bee0da9e0264`. Both follow-up fixes on `main` (`exit_to_error` outer `Display` format in `fe8466bf5` and `aster_bash_policy` canonicalization for direct uncanonicalized-path callers — note `NativeBashSandbox::new` already canonicalized `workspace` in `75abf7aa1`) will ship in the next patch release; the newly triggered remote CI run for the `sandbox::native` commit is in progress at wrap-up time.
