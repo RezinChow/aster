@@ -228,7 +228,8 @@ pub(super) fn exit_to_error(error: Exit<ActorError>) -> anyhow::Error {
         Exit::Fail(ActorError::Handler { message, .. }) => anyhow::anyhow!(message),
         Exit::Fail(ActorError::Defect(message)) => anyhow::anyhow!(message),
         Exit::Fail(error @ ActorError::StepLimit { .. }) => {
-            anyhow::Error::new(error).context("StepLimit")
+            let label = format!("StepLimit: {error}");
+            anyhow::Error::new(error).context(label)
         }
         Exit::Fail(other) => anyhow::Error::new(other),
     }
