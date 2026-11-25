@@ -87,6 +87,10 @@ impl ZhipuClient {
 
 #[async_trait]
 impl LlmClient for ZhipuClient {
+    fn context_output_reserve(&self) -> usize {
+        self.0.context_output_reserve()
+    }
+
     fn with_output_cap(&self, max_tokens: u32) -> Option<std::sync::Arc<dyn LlmClient>> {
         self.0.with_output_cap(max_tokens)
     }

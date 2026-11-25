@@ -65,6 +65,60 @@ mod file_references;
 use driver::LiveTui;
 
 #[test]
+#[ignore = "requires the built Aster/ACP pair and operator kimi-01/k3.1-pro"]
+fn kimi_01_tui_compacts_and_plans_then_reopens_the_same_goal() {
+    let model = "kimi-01/k3.1-pro";
+    let mut tui = LiveTui::new_with_model("kimi-01-operation-lifecycle", Some(model));
+    tui.launch(&["--fullscreen", "--trust", "--model", model]);
+    tui.wait_for("Aster", 45);
+    tui.wait_for("kimi-01/", 45);
+    let session = tui.session_id();
+    tui.dismiss();
+    let marker = format!("EMBER-{}", uuid::Uuid::new_v4());
+    let first = tui.turn(
+        &format!("Remember the synthetic marker {marker}. Repeat the complete marker verbatim. Do not use tools."),
+        None,
+    );
+    assert!(tui.assistant_text(&first).contains(&marker));
+    let before = tui.facts().len();
+    tui.command("/compact");
+    tui.wait_fact("compaction.done", before);
+    tui.wait_for("Compaction completed", 30);
+    let reply = tui.turn(
+        "Repeat the full synthetic marker you were asked to remember. Do not use tools.",
+        None,
+    );
+    assert!(tui.assistant_text(&reply).contains(&marker));
+
+    let objective = "Ask the user for a verification token and wait. Do not call tools.";
+    let before = tui.facts().len();
+    tui.command(&format!("/goal {objective}"));
+    let goal = tui.wait_fact("aster.goal.created", before);
+    assert_eq!(goal["payload"]["body"]["goal"]["description"], objective);
+    tui.wait_fact("aster.goal.plan.accepted", before);
+    tui.wait_for("Goal", 90);
+    tui.record(
+        "goal-plan",
+        "model proposal accepted for the exact objective",
+    );
+    tui.quit();
+
+    tui.launch(&["--fullscreen", "--model", model, "--resume", &session]);
+    tui.wait_for("kimi-01/", 45);
+    assert_eq!(tui.session_id(), session);
+    tui.dismiss();
+    let before = tui.facts().len();
+    tui.command("/goal pause");
+    tui.wait_fact("aster.goal.paused", before);
+    tui.record(
+        "kimi-01",
+        "paired TUI and ACP preserved recall across compaction and reopened the accepted Goal",
+    );
+    tui.quit();
+    tui.finish();
+}
+
+#[test]
 #[ignore = "requires built Aster/ACP and the explicitly selected live kimi/k3.1-pro ACL"]
 fn kimi_tui_offered_commands_have_observable_effects() {
     surface::tour();

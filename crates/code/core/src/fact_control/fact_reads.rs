@@ -9,6 +9,45 @@ pub fn read_workspace_facts(workspace: &Path, thread: &str) -> Result<Vec<aster_
     log.read(thread).map_err(|error| anyhow::anyhow!(error))
 }
 
+/// Read the original facts that carry the conversation into Goal planning.
+/// A compaction summary supersedes the earlier conversation. Tool decisions
+/// contribute scope only when they also contain public assistant prose.
+///
+/// # Errors
+/// Returns an error if the fact log or an assistant decision cannot be read.
+pub fn goal_scope_sequences(workspace: &Path, thread: &str) -> Result<Vec<u64>> {
+    let facts = read_workspace_facts(workspace, thread)?;
+    goal_scope_sequences_from_facts(&facts)
+}
+
+pub(crate) fn goal_scope_sequences_from_facts(facts: &[aster_effect::Fact]) -> Result<Vec<u64>> {
+    let start = facts
+        .iter()
+        .rposition(|fact| fact.kind == "compaction.done")
+        .unwrap_or(0);
+    let mut sequences = Vec::new();
+    for fact in &facts[start..] {
+        let carries_conversation = match fact.kind.as_str() {
+            "user.message" | "question.answered" | "compaction.done" => true,
+            "model.turn" => match ModelDecision::deserialize(&fact.payload)? {
+                ModelDecision::Text { .. } | ModelDecision::Question { .. } => true,
+                ModelDecision::Tool { call, also } => {
+                    std::iter::once(&call).chain(&also).any(|call| {
+                        call.text
+                            .as_deref()
+                            .is_some_and(|text| !text.trim().is_empty())
+                    })
+                }
+            },
+            _ => false,
+        };
+        if carries_conversation {
+            sequences.push(fact.seq);
+        }
+    }
+    Ok(sequences)
+}
+
 /// One tool result as the model received it, for the session context view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ToolResultWeight {
@@ -137,7 +176,10 @@ pub(crate) fn append_compaction_done(
     let fact = NewFact {
         kind: "compaction.done".into(),
         key: format!("compaction:{}", existing.len()),
-        payload: serde_json::json!({ "summary": summary }),
+        payload: match source {
+            Some(source) => serde_json::json!({ "summary": summary, "goalScopeSource": source }),
+            None => serde_json::json!({ "summary": summary }),
+        },
     };
     log.append(&thread, &[fact], None)
         .map_err(|error| anyhow::anyhow!(error))?;

@@ -4,11 +4,19 @@
 //! planning on or off with [`AgentSession::set_planning_mode`]. It does not
 //! start a second planner, classifier, or background workflow.
 
+use std::ops::AsyncFnMut;
+
 use aster_core::goal_control::{
     DurableGoalDefinitionV1, GoalCommandKindV1, GoalControlCommandV1, GoalControlError,
     GoalRefusal, GoalState, GoalTickDecisionV1,
 };
 use aster_core::PlanningMode;
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum GoalSetupPhase {
+    Compacting,
+    Planning,
+}
 
 /// One user-set objective for an ACP session.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -331,6 +339,7 @@ pub(crate) async fn apply_bound_goal(
     session: &aster_core::AgentSession,
     op: &GoalOp,
     language: GoalLanguage,
+    mut report_progress: impl AsyncFnMut(GoalSetupPhase),
 ) -> anyhow::Result<Option<BoundGoalReply>> {
     let created = if let GoalOp::Set(task) = op {
         if session.goal_definition()?.is_none()
@@ -338,7 +347,7 @@ pub(crate) async fn apply_bound_goal(
                 .await?
                 .is_none()
         {
-            bind_task_goal(session, task).await?;
+            bind_task_goal(session, task, &mut report_progress).await?;
             true
         } else {
             false
@@ -366,7 +375,7 @@ pub(crate) async fn apply_bound_goal(
             }
             tick = !matches!(current.state, GoalState::Completed | GoalState::Cancelled);
             if tick && current.import_source.is_none() && current.plan.is_none() {
-                bind_task_goal(session, &current.goal.description).await?;
+                bind_task_goal(session, &current.goal.description, &mut report_progress).await?;
                 current = session
                     .goal_definition()?
                     .ok_or_else(|| anyhow::anyhow!("goal.not_found"))?;
@@ -561,6 +570,7 @@ pub(crate) async fn bound_goal_step(
 pub(crate) async fn bind_task_goal(
     session: &aster_core::AgentSession,
     task: &str,
+    mut report_progress: impl AsyncFnMut(GoalSetupPhase),
 ) -> anyhow::Result<GoalControlCommandV1> {
     use aster_core::goal_control::{GoalDefinitionCommandV1, GoalPlanCommandV1};
     use aster_core::planning::AgentGoal;
@@ -579,29 +589,13 @@ pub(crate) async fn bind_task_goal(
         let source_sequences = || {
             let workspace = session.workspace().to_path_buf();
             let thread = thread.clone();
-            tokio_util::task::AbortOnDropHandle::new(tokio::task::spawn_blocking(
-                move || -> anyhow::Result<Vec<u64>> {
-                    let facts =
-                        aster_core::fact_control::read_workspace_facts(&workspace, &thread)?;
-                    let active = facts
-                        .iter()
-                        .rposition(|fact| fact.kind == "compaction.done")
-                        .unwrap_or(0);
-                    Ok(facts[active..]
-                        .iter()
-                        .filter(|fact| {
-                            matches!(
-                                fact.kind.as_str(),
-                                "user.message" | "model.turn" | "compaction.done"
-                            )
-                        })
-                        .map(|fact| fact.seq)
-                        .collect())
-                },
-            ))
+            tokio_util::task::AbortOnDropHandle::new(tokio::task::spawn_blocking(move || {
+                aster_core::fact_control::goal_scope_sequences(&workspace, &thread)
+            }))
         };
         let mut scope_fact_sequences = source_sequences().await??;
         if scope_fact_sequences.len() > 32 {
+            report_progress(GoalSetupPhase::Compacting).await;
             session.compact_conversation(Some("Preserve the authorized plan, original requirements, constraints, unfinished work and failures. Checklist completion is not accepted Goal progress.")).await?;
             scope_fact_sequences = source_sequences().await??;
         }
@@ -609,7 +603,7 @@ pub(crate) async fn bind_task_goal(
             scope_fact_sequences.len() <= 32,
             "goal.scope_too_large: compact the conversation before binding its plan"
         );
-        session.apply_goal_definition(GoalDefinitionCommandV1 {
+        session.apply_goal_definition_for_planning(GoalDefinitionCommandV1 {
             kind: GoalCommandKindV1::Create,
             import_source: None,
             operation_id: "unattended-create".into(),
@@ -643,6 +637,7 @@ pub(crate) async fn bind_task_goal(
     let proposed = if definition.plan.is_some() {
         definition
     } else {
+        report_progress(GoalSetupPhase::Planning).await;
         proposal.plan = Some(session.generate_goal_plan().await?);
         session.apply_goal_plan(proposal.clone())?
     };

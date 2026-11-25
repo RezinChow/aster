@@ -27,21 +27,13 @@ impl DetectionStatus {
 pub(super) struct DetectedModel {
     pub(super) data: Option<ModelDiscovery>,
     pub(super) status: DetectionStatus,
+    in_flight: Arc<tokio::sync::Mutex<()>>,
+    completed_queries: u64,
 }
 
 impl AsterCodeAgent {
     pub(super) async fn refresh_model(&self, id: &str, force: bool) {
         if !self.client_model_discovery.get() {
-            return;
-        }
-        if !force
-            && self
-                .detected_models
-                .read()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .get(id)
-                .is_some_and(|model| matches!(model.status, DetectionStatus::Ready))
-        {
             return;
         }
         let Some((provider, model)) = id.split_once('/') else {
@@ -50,12 +42,31 @@ impl AsterCodeAgent {
         let Some(config) = self.launch.config.llm_config(provider, model) else {
             return;
         };
-        self.detected_models
-            .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .entry(id.into())
-            .or_default()
-            .status = DetectionStatus::Loading;
+        // The launch ACL is immutable. This entry is shared only by callers
+        // using the same model, endpoint and account configuration.
+        let (in_flight, observed) = {
+            let mut models = self
+                .detected_models
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let model = models.entry(id.to_owned()).or_default();
+            if !force && model.data.is_some() {
+                return;
+            }
+            (Arc::clone(&model.in_flight), model.completed_queries)
+        };
+        let _query = in_flight.lock().await;
+        {
+            let mut models = self
+                .detected_models
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let model = models.entry(id.to_owned()).or_default();
+            if model.completed_queries != observed || (!force && model.data.is_some()) {
+                return;
+            }
+            model.status = DetectionStatus::Loading;
+        }
         self.emit_model_catalog().await;
         let result = aster_core::llm::model_discovery::discover(&config).await;
         {
@@ -64,6 +75,7 @@ impl AsterCodeAgent {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             let found = models.entry(id.into()).or_default();
+            found.completed_queries = found.completed_queries.wrapping_add(1);
             match result {
                 Ok(data) => {
                     found.status = if data.context_tokens.is_some() || data.reasoning.is_some() {

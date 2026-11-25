@@ -6,9 +6,8 @@ set -euo pipefail
 ARTIFACT_RUN_ID="${ARTIFACT_RUN_ID:-}"
 shopt -s nullglob
 files=(dist/*)
-# Four canonical archives are always required. Older qualification runs ship
-# only those (plus an optional byte-identical Kylin alias); current runs also
-# ship the static musl pair. The exact count is checked once the tag is known.
+# Four canonical archives are always required. Since 0.4.0 the two static
+# musl archives are required as well. Kylin is an optional alias.
 if [[ ${#files[@]} -lt 4 || ${#files[@]} -gt 7 ]]; then
   echo "expected 4 to 7 release archives, found ${#files[@]}" >&2
   printf '%s\n' "${files[@]:-}" >&2
@@ -65,14 +64,15 @@ done
 kylin_asset="dist/${tag}-kylin-x86_64.tar.gz"
 musl_x86="dist/${tag}-linux-musl.tar.gz"
 musl_arm64="dist/${tag}-linux-musl-arm64.tar.gz"
-if [[ -f "$musl_x86" || -f "$musl_arm64" ]]; then
+IFS=. read -r cli_major cli_minor _ <<< "$version"
+has_musl=0
+if (( 10#$cli_major > 0 || 10#$cli_minor >= 4 )) ||
+  [[ -f "$musl_x86" || -f "$musl_arm64" ]]; then
   if [[ ! -f "$musl_x86" || ! -f "$musl_arm64" ]]; then
     echo "error: the static musl pair needs both x86_64 and arm64 archives" >&2
     exit 1
   fi
   has_musl=1
-else
-  has_musl=0
 fi
 expected_count=4
 if [[ -f "$kylin_asset" ]]; then expected_count=$((expected_count + 1)); fi

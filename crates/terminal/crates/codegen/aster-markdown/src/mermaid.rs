@@ -25,6 +25,18 @@ pub(crate) struct MermaidArt {
     pub plain_lines: Vec<String>,
 }
 
+/// Treatment of completed Mermaid fences in a streaming Markdown renderer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MermaidPreview {
+    /// Preserve the default renderer and its existing diagram types.
+    #[default]
+    Default,
+    /// Render bounded flowcharts that fit the configured display width.
+    Flowchart,
+    /// Render the original Markdown code block.
+    Source,
+}
+
 const MAX_LABEL: usize = 28;
 const PAD: usize = 1;
 const GAP_X: usize = 3;
@@ -43,6 +55,11 @@ const MAX_EDGES: usize = 512;
 const MAX_GROUPS: usize = 24;
 const MAX_GROUP_DEPTH: usize = 6;
 const MAX_CANVAS_CELLS: usize = 1 << 21;
+const PREVIEW_SOURCE_BYTES: usize = 8 * 1024;
+const PREVIEW_NODES: usize = 24;
+const PREVIEW_EDGES: usize = 32;
+const PREVIEW_LABEL_COLS: usize = 48;
+const PREVIEW_MAX_WIDTH: usize = 240;
 
 fn char_width(c: char) -> usize {
     UnicodeWidthChar::width(c).unwrap_or(0)
@@ -87,6 +104,118 @@ pub(crate) fn render(
         Some(Err(Oversize::Cells)) | None => false,
     };
     Some(fallback(src, styles, max_width, too_wide))
+}
+
+pub(crate) fn render_flowchart_preview(
+    source: &str,
+    styles: &MermaidStyles,
+    width: usize,
+) -> Option<MermaidArt> {
+    if source.len() > PREVIEW_SOURCE_BYTES
+        || source
+            .chars()
+            .any(|ch| ch.is_control() && !matches!(ch, '\r' | '\n' | '\t'))
+    {
+        return None;
+    }
+    let mut statements = Vec::new();
+    for line in source.lines() {
+        if line.trim_start().starts_with("%%{") {
+            return None;
+        }
+        split_statements(line, &mut statements);
+    }
+    let (header, statements) = statements.split_first()?;
+    let mut tokens = header.split_whitespace();
+    if !matches!(tokens.next(), Some("flowchart" | "graph")) {
+        return None;
+    }
+    let direction = match tokens.next() {
+        Some("LR") => Dir::Right,
+        None | Some("TB" | "TD") => Dir::Down,
+        _ => return None,
+    };
+    if tokens.next().is_some() {
+        return None;
+    }
+
+    let mut graph = Graph::new(direction);
+    for statement in statements {
+        let (mut node, mut rest) = preview_node(statement, &mut graph)?;
+        while !rest.trim_start().is_empty() {
+            if graph.edges.len() == PREVIEW_EDGES {
+                return None;
+            }
+            let (next, tail) = preview_node(rest.trim_start().strip_prefix("-->")?, &mut graph)?;
+            graph.edges.push(Edge {
+                from: node,
+                to: next,
+                label: None,
+                head_to: Head::Arrow,
+                head_from: Head::None,
+                line: LineKind::Solid,
+            });
+            node = next;
+            rest = tail;
+        }
+    }
+    let art = layout_flowchart(&graph, styles, Some(width.min(PREVIEW_MAX_WIDTH))).ok()?;
+    art.styled_lines
+        .iter()
+        .all(|line| line.width() <= width)
+        .then_some(art)
+}
+
+fn preview_node<'a>(input: &'a str, graph: &mut Graph) -> Option<(usize, &'a str)> {
+    let input = input.trim_start();
+    let id_end = input.find(|ch| !is_id_char(ch)).unwrap_or(input.len());
+    let (id, rest) = input.split_at(id_end);
+    if id.is_empty()
+        || matches!(
+            id,
+            "subgraph"
+                | "end"
+                | "classDef"
+                | "class"
+                | "style"
+                | "linkStyle"
+                | "click"
+                | "direction"
+        )
+    {
+        return None;
+    }
+    let (label, shape, tail) = match rest.as_bytes().first() {
+        Some(b'[') => (Some(']'), Shape::Rect, &rest[1..]),
+        Some(b'(') => (Some(')'), Shape::Round, &rest[1..]),
+        Some(b'{') => (Some('}'), Shape::Diamond, &rest[1..]),
+        _ => (None, Shape::Rect, rest),
+    };
+    let (label, tail) = if let Some(closer) = label {
+        if let Some(quoted) = tail.strip_prefix('"') {
+            let (text, closing) = quoted.split_once('"')?;
+            (Some(text), closing.strip_prefix(closer)?)
+        } else {
+            let (text, tail) = tail.split_once(closer)?;
+            (Some(text.trim()), tail)
+        }
+    } else {
+        (None, tail)
+    };
+    let text = label.unwrap_or(id);
+    // The canvas places glyphs by scalar width. Sequences that combine into
+    // fewer terminal cells would otherwise shift the remaining box cells.
+    if text.is_empty()
+        || text.width() > PREVIEW_LABEL_COLS
+        || text
+            .chars()
+            .any(|ch| char_width(ch) == 0 || "[](){}<>&`\"".contains(ch))
+        || text.chars().map(char_width).sum::<usize>() != text.width()
+    {
+        return None;
+    }
+    let node = graph.node_index(id, label, shape)?;
+    (graph.nodes.len() <= PREVIEW_NODES).then_some((node, tail))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -154,6 +283,19 @@ struct Graph {
 }
 
 impl Graph {
+    fn new(dir: Dir) -> Self {
+        Self {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            index: HashMap::new(),
+            groups: Vec::new(),
+            node_group: Vec::new(),
+            cur_group: None,
+            over_cap: false,
+            dir,
+        }
+    }
+
     fn node_index(&mut self, id: &str, label: Option<&str>, shape: Shape) -> Option<usize> {
         if let Some(&i) = self.index.get(id) {
             if let Some(label) = label
@@ -210,16 +352,7 @@ fn parse_graph(src: &str) -> Option<Graph> {
         _ => Dir::Down,
     };
 
-    let mut graph = Graph {
-        nodes: Vec::new(),
-        edges: Vec::new(),
-        index: HashMap::new(),
-        groups: Vec::new(),
-        node_group: Vec::new(),
-        cur_group: None,
-        over_cap: false,
-        dir,
-    };
+    let mut graph = Graph::new(dir);
 
     let mut stack: Vec<usize> = Vec::new();
     for st in statements.iter().skip(1) {

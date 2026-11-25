@@ -54,11 +54,11 @@ async fn opted_in_agent_registers_reader_on_open_and_replacement_only() {
                     components: &components,
                     mcp_servers: Vec::new(),
                 },
+                async |live| agent.finish_plugin_tools(live, vec![]).await,
             )
             .await
             .unwrap();
         drop(sessions);
-        let replaced = agent.finish_plugin_tools(replaced, vec![]).await.unwrap();
         assert_eq!(
             replaced
                 .session

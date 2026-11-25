@@ -258,11 +258,13 @@ impl Drop for SessionReservation {
 
 pub(super) async fn refresh_mcp_tools(agent: &Agent) -> Result<()> {
     if let Some(mcp) = &agent.global_mcp {
-        let fresh = mcp.get_all_tools().await;
-        *agent
-            .global_mcp_tools
-            .lock()
-            .unwrap_or_else(|poison| poison.into_inner()) = fresh;
+        mcp.with_all_tools(|fresh| {
+            *agent
+                .global_mcp_tools
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner()) = fresh;
+        })
+        .await;
     }
     Ok(())
 }
@@ -277,6 +279,20 @@ pub(super) async fn sync_global_mcp_servers(
     agent: &Agent,
     servers: Vec<crate::mcp::McpServerConfig>,
 ) -> Result<()> {
+    let names = servers
+        .iter()
+        .filter(|server| server.enabled)
+        .map(|server| server.name.clone())
+        .collect();
+    let retired = reconcile_global_mcp_servers(agent, servers).await?;
+    close_retired_mcp_servers(retired).await;
+    connect_global_mcp_servers(agent, names).await
+}
+
+pub(super) async fn reconcile_global_mcp_servers(
+    agent: &Agent,
+    servers: Vec<crate::mcp::McpServerConfig>,
+) -> Result<Vec<(String, Arc<crate::mcp::McpClient>)>> {
     bail_if_agent_closed(agent)?;
     let Some(manager) = agent.global_mcp.as_ref() else {
         return Err(crate::error::CodeError::Config(
@@ -291,14 +307,14 @@ pub(super) async fn sync_global_mcp_servers(
         .collect();
 
     let current = manager.all_configs().await;
+    let mut retired = Vec::new();
     for existing in &current {
-        if !desired.contains_key(&existing.name) {
-            if let Err(error) = manager.remove_server(&existing.name).await {
-                tracing::warn!(
-                    server = %existing.name,
-                    error = %error,
-                    "Failed to remove MCP server during global sync"
-                );
+        if desired
+            .get(&existing.name)
+            .is_none_or(|config| !mcp_server_config_eq(existing, config))
+        {
+            if let (_, Some(client)) = manager.detach_server(&existing.name).await {
+                retired.push((existing.name.clone(), client));
             }
         }
     }
@@ -307,38 +323,38 @@ pub(super) async fn sync_global_mcp_servers(
         let existing = current.iter().find(|item| item.name == *name);
         let config_changed = existing.is_none_or(|item| !mcp_server_config_eq(item, config));
         if config_changed {
-            if existing.is_some() {
-                if let Err(error) = manager.remove_server(name).await {
-                    tracing::warn!(
-                        server = %name,
-                        error = %error,
-                        "Failed to replace MCP server during global sync"
-                    );
-                }
-            }
             manager.register_server(config.clone()).await;
         }
+    }
+    refresh_mcp_tools(agent).await?;
+    Ok(retired)
+}
 
-        let needs_connect = config_changed || !manager.is_connected(name).await;
-        if !needs_connect {
-            continue;
-        }
-        // User-initiated connector sync can wait longer than Agent bootstrap:
-        // the host already paid for the mutation round-trip and needs a real
-        // connect attempt, not a silent 3s skip. Timeouts still record status.
-        const MCP_SYNC_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-        if let Err(error) = manager
-            .connect_with_timeout(name, MCP_SYNC_CONNECT_TIMEOUT)
-            .await
-        {
-            tracing::warn!(
-                server = %name,
-                error = %error,
-                "Failed to connect MCP server during global sync"
-            );
+pub(super) async fn close_retired_mcp_servers(retired: Vec<(String, Arc<crate::mcp::McpClient>)>) {
+    for (name, client) in retired {
+        if let Err(error) = client.close().await {
+            tracing::warn!(server = %name, %error, "Failed to close retired MCP server");
         }
     }
+}
 
+pub(super) async fn connect_global_mcp_servers(agent: &Agent, names: Vec<String>) -> Result<()> {
+    use futures::{stream, StreamExt as _};
+
+    bail_if_agent_closed(agent)?;
+    let Some(manager) = agent.global_mcp.as_ref() else {
+        return Ok(());
+    };
+    const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+    stream::iter(names).map(|name| async move {
+        if let Err(error) = manager.ensure_connected_with_timeout(&name, CONNECT_TIMEOUT).await {
+            tracing::warn!(server = %name, %error, "Failed to connect MCP server during global sync");
+        }
+    })
+    .buffer_unordered(super::agent_bootstrap::MCP_BOOTSTRAP_CONCURRENCY)
+    .for_each(|()| async {})
+    .await;
+    bail_if_agent_closed(agent)?;
     refresh_mcp_tools(agent).await
 }
 
@@ -718,10 +734,10 @@ pub(super) async fn close_agent(agent: &Agent) {
 
     // Tear down global MCP connections so background workers exit.
     if let Some(mcp) = &agent.global_mcp {
-        for name in mcp.list_connected().await {
-            if let Err(e) = mcp.disconnect(&name).await {
+        for server in mcp.all_configs().await {
+            if let Err(e) = mcp.remove_server(&server.name).await {
                 tracing::warn!(
-                    server = %name,
+                    server = %server.name,
                     error = %e,
                     "Failed to disconnect MCP server during Agent::close"
                 );
@@ -861,6 +877,44 @@ pub(super) async fn replace_session_async(
     current: &AgentSession,
     options: SessionOptions,
 ) -> Result<AgentSession> {
+    let (replacement, reservation) =
+        build_session_replacement(agent, current, options, false).await?;
+    if let Err(error) = reservation.finalize(&replacement.close_handle).await {
+        replacement.close().await;
+        return Err(error);
+    }
+    Ok(replacement)
+}
+
+pub(super) async fn replace_session_after<T, E>(
+    agent: &Agent,
+    current: &AgentSession,
+    options: SessionOptions,
+    prepare: impl AsyncFnOnce(Arc<AgentSession>) -> std::result::Result<T, E>,
+) -> Result<std::result::Result<T, E>> {
+    let (replacement, reservation) =
+        build_session_replacement(agent, current, options, true).await?;
+    let replacement = Arc::new(replacement);
+    let prepared = match prepare(Arc::clone(&replacement)).await {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            replacement.close().await;
+            return Ok(Err(error));
+        }
+    };
+    if let Err(error) = reservation.finalize(&replacement.close_handle).await {
+        replacement.close().await;
+        return Err(error);
+    }
+    Ok(Ok(prepared))
+}
+
+async fn build_session_replacement(
+    agent: &Agent,
+    current: &AgentSession,
+    options: SessionOptions,
+    allow_ephemeral: bool,
+) -> Result<(AgentSession, SessionReplacementReservation)> {
     bail_if_agent_closed(agent)?;
     if current.is_closed() {
         return Err(CodeError::SessionClosed {
@@ -868,21 +922,32 @@ pub(super) async fn replace_session_async(
         });
     }
 
-    let session_id = current.session_id().to_string();
+    let session_id = current.session_id();
     let reservation = reserve_session_replacement(agent, current)?;
-    // Public `save()` takes its own admission lease. This reservation
-    // already holds the exclusive idle fence, so that second admit
-    // returns SessionBusy and the replacement never lands.
+    let options = options.with_session_id(session_id);
+    if allow_ephemeral && current.session_store().is_none() {
+        let workspace = current.workspace();
+        let options = session_builder::prepare_session_options(agent, options);
+        let resolved =
+            session_config::ResolvedSessionConfig::resolve(agent, workspace, options).await?;
+        let session = session_builder::build_agent_session(
+            agent,
+            workspace.to_string_lossy().into_owned(),
+            resolved,
+        )
+        .await?;
+        if let Err(error) = session.admit_configured_policy() {
+            session.close().await;
+            return Err(error);
+        }
+        return Ok((session, reservation));
+    }
+    // This reservation already holds exclusive admission for the original.
     super::session_persistence::SessionPersistenceContext::from_session(current)
         .save()
         .await?;
-    let options = options.with_session_id(&session_id);
-    let replacement = Box::pin(build_resumed_session(agent, &session_id, options, None)).await?;
-    if let Err(error) = reservation.finalize(&replacement.close_handle).await {
-        replacement.close().await;
-        return Err(error);
-    }
-    Ok(replacement)
+    let replacement = Box::pin(build_resumed_session(agent, session_id, options, None)).await?;
+    Ok((replacement, reservation))
 }
 
 // Callers box this pipeline to bound the stack used by composed resume futures.

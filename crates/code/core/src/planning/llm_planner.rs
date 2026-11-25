@@ -248,20 +248,25 @@ impl LlmPlanner {
         .await
     }
 
-    pub(crate) async fn pre_analyze_goal(
-        llm: &Arc<dyn LlmClient>,
+    pub(crate) fn goal_pre_analysis_request(
         prompt: &str,
         language: Option<&str>,
-    ) -> Result<PreAnalysis> {
-        Self::pre_analyze_with_step_limit(
-            llm,
+    ) -> StructuredRequest {
+        Self::pre_analysis_request(
             prompt,
             language,
             64,
             include_str!("../../prompts/planning/goal_pre_analysis_system.md"),
             true,
         )
-        .await
+    }
+
+    pub(crate) async fn pre_analyze_goal(
+        llm: &Arc<dyn LlmClient>,
+        request: &StructuredRequest,
+        prompt: &str,
+    ) -> Result<PreAnalysis> {
+        Self::run_pre_analysis(llm, request, prompt, true).await
     }
 
     async fn pre_analyze_with_step_limit(
@@ -272,6 +277,18 @@ impl LlmPlanner {
         system_prompt: &str,
         goal_stages: bool,
     ) -> Result<PreAnalysis> {
+        let request =
+            Self::pre_analysis_request(prompt, language, step_limit, system_prompt, goal_stages);
+        Self::run_pre_analysis(llm, &request, prompt, goal_stages).await
+    }
+
+    fn pre_analysis_request(
+        prompt: &str,
+        language: Option<&str>,
+        step_limit: usize,
+        system_prompt: &str,
+        goal_stages: bool,
+    ) -> StructuredRequest {
         let system = planning_system_prompt(system_prompt, language);
         let mut schema = Self::pre_analysis_schema();
         if goal_stages {
@@ -300,7 +317,7 @@ impl LlmPlanner {
         } else {
             "execution steps"
         };
-        let req = StructuredRequest {
+        StructuredRequest {
             prompt: format!(
                 "Analyze this user request and return a compact pre-analysis object. \
                  Use at most {step_limit} {unit}. Preserve authorized stage order.\n\nUser request:\n{prompt}"
@@ -313,9 +330,16 @@ impl LlmPlanner {
             ),
             mode: StructuredMode::Auto,
             max_repair_attempts: 2,
-        };
+        }
+    }
 
-        let mut result = generate_blocking(&**llm, &req)
+    async fn run_pre_analysis(
+        llm: &Arc<dyn LlmClient>,
+        request: &StructuredRequest,
+        prompt: &str,
+        goal_stages: bool,
+    ) -> Result<PreAnalysis> {
+        let mut result = generate_blocking(&**llm, request)
             .await
             .context("LLM pre-analysis structured generation failed")?;
 

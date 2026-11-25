@@ -3,7 +3,15 @@ use crate::scrollback::types::{AccentStyle, BlockContext, BlockOutput};
 
 use super::markdown_content::MarkdownContent;
 use super::mermaid_content::{self, MermaidContent};
-use crate::appearance::AppearanceConfig;
+use crate::appearance::{AppearanceConfig, RenderMermaid};
+use aster_markdown::MermaidPreview;
+
+fn inline_mermaid() -> MermaidPreview {
+    match crate::appearance::cache::load_render_mermaid() {
+        RenderMermaid::Auto | RenderMermaid::On => MermaidPreview::Flowchart,
+        RenderMermaid::Off => MermaidPreview::Source,
+    }
+}
 
 /// Block displaying an agent message with streaming markdown support. When text arrives in chunks, call
 /// `push_chunk()` to append without re-rendering everything.
@@ -24,7 +32,7 @@ impl AgentMessageBlock {
         let text = text.into();
         let image_refs = crate::prompt_images::extract_image_refs(&text);
         let video_refs = crate::prompt_images::extract_video_refs(&text);
-        let content = MarkdownContent::new(text);
+        let content = MarkdownContent::new_agent_message(text, inline_mermaid());
         let mermaid = content.mermaid_content();
         Self {
             content,
@@ -37,7 +45,7 @@ impl AgentMessageBlock {
     /// Create an empty block for streaming.
     pub fn streaming() -> Self {
         Self {
-            content: MarkdownContent::streaming(),
+            content: MarkdownContent::streaming_with_mermaid_preview(inline_mermaid()),
             image_refs: Vec::new(),
             video_refs: Vec::new(),
             mermaid: MermaidContent::default(),
@@ -110,7 +118,7 @@ impl AgentMessageBlock {
     /// Resolve the diagram display mode from the user setting without building `output()`; cheap enough to gate the per-frame affordance path.
     fn mermaid_display_mode(&self) -> mermaid_content::MermaidDisplay {
         // Minimal mode commits static text with no draw loop to paint the clickable affordance row, so suppress it there
-        // The diagram art still renders; its source stays natively selectable
+        // Preview and source are ordinary text in native scrollback
         // The inline-overlay force-off flag is set iff minimal
         mermaid_content::mermaid_display_static(
             crate::appearance::cache::load_render_mermaid(),
@@ -125,6 +133,7 @@ impl AgentMessageBlock {
         &self,
         ctx: &BlockContext,
     ) -> (BlockOutput, Vec<mermaid_content::DiagramAffordance>) {
+        self.content.set_mermaid_preview(inline_mermaid());
         let mut out = self.content.output(ctx.width as usize);
         // Diagram pre-wrap ranges in document order
         // The fence count and order are width-invariant, so range index `idx` pairs with the diagram's source (`self.mermaid.source(idx)`)
@@ -147,6 +156,11 @@ impl BlockContent for AgentMessageBlock {
     fn output(&self, ctx: &BlockContext) -> BlockOutput {
         // Common path: no diagrams (or raw mode) renders plain markdown, with no affordance machinery and no extra output rebuild
         if ctx.raw || self.mermaid.is_empty() {
+            self.content.set_mermaid_preview(if ctx.raw {
+                MermaidPreview::Source
+            } else {
+                inline_mermaid()
+            });
             return self.content.output(ctx.width as usize);
         }
         self.rendered_output(ctx).0
@@ -203,12 +217,16 @@ impl BlockContent for AgentMessageBlock {
 }
 
 #[cfg(test)]
+#[path = "agent_mermaid_tests.rs"]
+mod mermaid_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::appearance::{AppearanceConfig, RenderMermaid};
     use crate::scrollback::types::Selectable;
 
-    fn ctx(width: u16, raw: bool) -> BlockContext {
+    pub(super) fn ctx(width: u16, raw: bool) -> BlockContext {
         BlockContext {
             mode: crate::scrollback::DisplayMode::Expanded,
             is_running: false,
@@ -285,10 +303,9 @@ mod tests {
         // The row is blank in `output()`; the draw loop paints its `◇ mermaid [Open Image] [Copy Image Path] [Copy Source]` buttons
         crate::appearance::cache::set_render_mermaid(RenderMermaid::Auto);
         let auto = AgentMessageBlock::new(MERMAID_MD).output(&ctx(40, false));
-        assert_eq!(
-            auto.lines.len(),
-            off.lines.len() + 1,
-            "auto mode adds one treatment row"
+        assert!(
+            auto.lines.len() > off.lines.len(),
+            "the preview expands the source"
         );
         assert_eq!(non_selectable(&auto), 1);
 

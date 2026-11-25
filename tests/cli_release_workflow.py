@@ -243,6 +243,13 @@ print(hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() + " *" + name)
         for entry in manifest["assets"].values():
             self.assertIn("dist/" + entry["name"], args)
 
+    def test_current_release_requires_both_musl_archives(self):
+        result, manifest, args = self.assemble(version="0.4.1", musl=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("static musl pair needs both", result.stderr)
+        self.assertIsNone(manifest)
+        self.assertIsNone(args)
+
     def test_partial_musl_pair_is_refused(self):
         result, manifest, args = self.assemble(partial_musl=True)
         self.assertNotEqual(result.returncode, 0)

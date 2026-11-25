@@ -15,7 +15,7 @@ use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::timeout;
 
 pub use crate::mcp::result::tool_result_to_string;
@@ -41,11 +41,22 @@ pub type SamplingHandlerFactory = std::sync::Arc<
     dyn Fn(&str) -> std::sync::Arc<dyn crate::mcp::transport::SamplingHandler> + Send + Sync,
 >;
 
+struct RegisteredServer {
+    config: McpServerConfig,
+    handshake: Mutex<()>,
+}
+
+struct McpScope {
+    owner: Arc<McpManager>,
+    registrations: HashMap<String, Arc<RegisteredServer>>,
+}
+
 pub struct McpManager {
+    scope: Option<McpScope>,
     /// Connected clients
     clients: RwLock<HashMap<String, Arc<McpClient>>>,
     /// Server configurations
-    configs: RwLock<HashMap<String, McpServerConfig>>,
+    configs: RwLock<HashMap<String, Arc<RegisteredServer>>>,
     /// Last connection error per server, cleared on successful connect
     connect_errors: RwLock<HashMap<String, String>>,
     /// Last-used timestamp per connected server (Unix epoch ms).
@@ -63,12 +74,54 @@ impl McpManager {
     /// Create a new MCP manager
     pub fn new() -> Self {
         Self {
+            scope: None,
             clients: RwLock::new(HashMap::new()),
             configs: RwLock::new(HashMap::new()),
             connect_errors: RwLock::new(HashMap::new()),
             last_used_at_ms: RwLock::new(HashMap::new()),
             sampling_factory: RwLock::new(None),
         }
+    }
+
+    /// Bind a session to the exact registrations it was admitted to use.
+    /// Reconnects reuse the registered identity. A removed registration cannot
+    /// route a published tool to a new server with the same name.
+    pub(crate) async fn scoped(
+        self: &Arc<Self>,
+        names: &std::collections::BTreeSet<String>,
+    ) -> Arc<Self> {
+        let configs = self.configs.read().await;
+        let registrations = names
+            .iter()
+            .filter_map(|name| {
+                configs
+                    .get(name)
+                    .map(|config| (name.clone(), Arc::clone(config)))
+            })
+            .collect();
+        Arc::new(Self {
+            scope: Some(McpScope {
+                owner: Arc::clone(self),
+                registrations,
+            }),
+            ..Self::new()
+        })
+    }
+
+    fn owner(&self) -> &Self {
+        self.scope
+            .as_ref()
+            .map_or(self, |scope| scope.owner.as_ref())
+    }
+
+    fn allows(&self, name: &str, registration: Option<&Arc<RegisteredServer>>) -> bool {
+        self.scope.as_ref().is_none_or(|scope| {
+            scope
+                .registrations
+                .get(name)
+                .zip(registration)
+                .is_some_and(|(admitted, current)| Arc::ptr_eq(admitted, current))
+        })
     }
 
     /// Arm server-initiated sampling for every client this manager
@@ -90,7 +143,13 @@ impl McpManager {
     pub async fn register_server(&self, config: McpServerConfig) {
         let name = config.name.clone();
         let mut configs = self.configs.write().await;
-        configs.insert(name.clone(), config);
+        configs.insert(
+            name.clone(),
+            Arc::new(RegisteredServer {
+                config,
+                handshake: Mutex::new(()),
+            }),
+        );
         tracing::info!("Registered MCP server: {}", name);
     }
 
@@ -99,18 +158,10 @@ impl McpManager {
     /// On success the stored error (if any) is cleared; on failure the error
     /// message is stored and visible via [`McpManager::get_status`].
     pub async fn connect(&self, name: &str) -> Result<()> {
-        let result = self.do_connect(name).await;
-        match &result {
-            Ok(_) => {
-                self.connect_errors.write().await.remove(name);
-            }
-            Err(e) => {
-                self.connect_errors
-                    .write()
-                    .await
-                    .insert(name.to_string(), e.to_string());
-            }
-        }
+        let registration = self.registration(name).await?;
+        let result = self.do_connect(name, &registration, false).await;
+        self.record_connection_result(name, &registration, &result, false)
+            .await;
         result
     }
 
@@ -121,43 +172,109 @@ impl McpManager {
     /// record the connect error, leaving status as "enabled, disconnected, no
     /// error". Record the timeout here so hosts and settings UIs stay truthful.
     pub async fn connect_with_timeout(&self, name: &str, budget: Duration) -> Result<()> {
-        match timeout(budget, self.connect(name)).await {
+        self.connect_bounded(name, budget, false).await
+    }
+
+    pub(crate) async fn ensure_connected_with_timeout(
+        &self,
+        name: &str,
+        budget: Duration,
+    ) -> Result<()> {
+        self.connect_bounded(name, budget, true).await
+    }
+
+    async fn connect_bounded(&self, name: &str, budget: Duration, reuse: bool) -> Result<()> {
+        let registration = self.registration(name).await?;
+        let result = match timeout(budget, self.do_connect(name, &registration, reuse)).await {
             Ok(result) => result,
             Err(_) => {
                 let message = format!("MCP connect timed out after {}s", budget.as_secs().max(1));
-                self.connect_errors
-                    .write()
-                    .await
-                    .insert(name.to_string(), message.clone());
                 Err(anyhow!(message))
+            }
+        };
+        self.record_connection_result(name, &registration, &result, reuse)
+            .await;
+        result
+    }
+
+    async fn registration(&self, name: &str) -> Result<Arc<RegisteredServer>> {
+        self.configs
+            .read()
+            .await
+            .get(name)
+            .cloned()
+            .ok_or_else(|| anyhow!("MCP server not found: {name}"))
+    }
+
+    async fn record_connection_result(
+        &self,
+        name: &str,
+        registration: &Arc<RegisteredServer>,
+        result: &Result<()>,
+        reuse: bool,
+    ) {
+        let configs = self.configs.read().await;
+        if configs
+            .get(name)
+            .is_some_and(|current| Arc::ptr_eq(current, registration))
+        {
+            let reuse_connected = reuse && self.is_connected(name).await;
+            let mut errors = self.connect_errors.write().await;
+            match result {
+                Ok(()) => {
+                    errors.remove(name);
+                }
+                Err(error) if !reuse_connected => {
+                    errors.insert(name.to_owned(), error.to_string());
+                }
+                Err(_) => {}
             }
         }
     }
 
-    async fn do_connect(&self, name: &str) -> Result<()> {
-        // Get config
-        let config = {
+    async fn do_connect(
+        &self,
+        name: &str,
+        registration: &Arc<RegisteredServer>,
+        reuse: bool,
+    ) -> Result<()> {
+        let _handshake = registration.handshake.lock().await;
+        {
             let configs = self.configs.read().await;
-            configs
+            if !configs
                 .get(name)
-                .cloned()
-                .ok_or_else(|| anyhow!("MCP server not found: {}", name))?
-        };
+                .is_some_and(|current| Arc::ptr_eq(current, registration))
+            {
+                return Err(anyhow!("MCP server registration changed: {name}"));
+            }
+            if reuse && self.is_connected(name).await {
+                return Ok(());
+            }
+        }
 
         let sampling = self.sampling_factory.read().await.clone();
-        let (client, tools) = connect_ready_client(&config, sampling.as_ref()).await?;
-        tracing::info!("MCP server '{}' connected with {} tools", name, tools.len());
+        let (client, tools) = connect_ready_client(&registration.config, sampling.as_ref()).await?;
 
         // Store client + stamp initial last-used time so idle reapers
         // see freshly-connected servers as active.
+        let configs = self.configs.read().await;
+        if !configs
+            .get(name)
+            .is_some_and(|current| Arc::ptr_eq(current, registration))
         {
-            let mut clients = self.clients.write().await;
-            clients.insert(name.to_string(), client);
+            drop(configs);
+            let _ = client.close().await;
+            return Err(anyhow!("MCP server registration changed: {name}"));
         }
-        self.last_used_at_ms
-            .write()
-            .await
-            .insert(name.to_string(), now_epoch_ms());
+        let mut clients = self.clients.write().await;
+        let mut last_used = self.last_used_at_ms.write().await;
+        clients.insert(name.to_owned(), client);
+        last_used.insert(name.to_owned(), now_epoch_ms());
+        tracing::info!(
+            server = name,
+            tool_count = tools.len(),
+            "MCP server connected"
+        );
 
         Ok(())
     }
@@ -185,14 +302,7 @@ impl McpManager {
     /// uses this method so a removed local source no longer shadows an inherited
     /// server with the same name in status and capability views.
     pub async fn remove_server(&self, name: &str) -> Result<bool> {
-        // Commit the logical removal before awaiting fallible transport
-        // cleanup. A close error must not leave a configuration that claims a
-        // half-removed server still belongs to the manager.
-        let client = self.clients.write().await.remove(name);
-        let had_error = self.connect_errors.write().await.remove(name).is_some();
-        let had_timestamp = self.last_used_at_ms.write().await.remove(name).is_some();
-        let had_config = self.configs.write().await.remove(name).is_some();
-        let removed = client.is_some() || had_error || had_timestamp || had_config;
+        let (removed, client) = self.detach_server(name).await;
 
         if let Some(client) = client {
             client.close().await?;
@@ -202,9 +312,23 @@ impl McpManager {
         Ok(removed)
     }
 
+    pub(crate) async fn detach_server(&self, name: &str) -> (bool, Option<Arc<McpClient>>) {
+        let mut configs = self.configs.write().await;
+        let had_config = configs.remove(name).is_some();
+        let client = self.clients.write().await.remove(name);
+        let had_error = self.connect_errors.write().await.remove(name).is_some();
+        let had_timestamp = self.last_used_at_ms.write().await.remove(name).is_some();
+        (
+            client.is_some() || had_error || had_timestamp || had_config,
+            client,
+        )
+    }
+
     /// Return whether a server configuration is registered.
     pub async fn contains_server(&self, name: &str) -> bool {
-        self.configs.read().await.contains_key(name)
+        let configs = self.owner().configs.read().await;
+        let registration = configs.get(name);
+        registration.is_some() && self.allows(name, registration)
     }
 
     #[cfg(test)]
@@ -219,7 +343,10 @@ impl McpManager {
     /// Return the last-used timestamp (Unix epoch ms) for a connected
     /// server, or `None` if the server is unknown / not connected.
     pub async fn last_used_at_ms(&self, name: &str) -> Option<u64> {
-        self.last_used_at_ms.read().await.get(name).copied()
+        if self.scope.is_some() && !self.contains_server(name).await {
+            return None;
+        }
+        self.owner().last_used_at_ms.read().await.get(name).copied()
     }
 
     /// Mark a server as active right now. The framework calls this
@@ -228,10 +355,13 @@ impl McpManager {
     /// to keep a server "warm" out of band (e.g. when a tool result
     /// comes back via a different channel).
     pub async fn touch(&self, name: &str) {
-        self.last_used_at_ms
-            .write()
-            .await
-            .insert(name.to_string(), now_epoch_ms());
+        if self.scope.is_none() || self.contains_server(name).await {
+            self.owner()
+                .last_used_at_ms
+                .write()
+                .await
+                .insert(name.to_string(), now_epoch_ms());
+        }
     }
 
     /// Disconnect every connected server whose last-used timestamp is
@@ -296,7 +426,14 @@ impl McpManager {
 
     /// Get all registered server configurations
     pub async fn all_configs(&self) -> Vec<McpServerConfig> {
-        self.configs.read().await.values().cloned().collect()
+        self.owner()
+            .configs
+            .read()
+            .await
+            .iter()
+            .filter(|(name, server)| self.allows(name, Some(server)))
+            .map(|(_, server)| server.config.clone())
+            .collect()
     }
 
     /// Get all MCP tools, grouped by server name.
@@ -305,17 +442,37 @@ impl McpManager {
     /// constructing the `mcp__<server>__<tool>` prefix (e.g. via
     /// [`create_mcp_tools`](crate::mcp::create_mcp_tools)).
     pub async fn get_all_tools(&self) -> Vec<(String, McpTool)> {
-        let clients = self.clients.read().await;
+        self.with_all_tools(|tools| tools).await
+    }
+
+    pub(crate) async fn with_all_tools<R>(
+        &self,
+        publish: impl FnOnce(Vec<(String, McpTool)>) -> R,
+    ) -> R {
+        let owner = self.owner();
+        let configs = match &self.scope {
+            Some(_) => Some(owner.configs.read().await),
+            None => None,
+        };
+        let clients = owner.clients.read().await;
         let mut all_tools = Vec::new();
 
         for (server_name, client) in clients.iter() {
+            if !self.allows(
+                server_name,
+                configs
+                    .as_ref()
+                    .and_then(|configs| configs.get(server_name)),
+            ) {
+                continue;
+            }
             let tools = client.get_cached_tools().await;
             for tool in tools {
                 all_tools.push((server_name.clone(), tool));
             }
         }
 
-        all_tools
+        publish(all_tools)
     }
 
     /// Call an MCP tool by full name
@@ -326,13 +483,14 @@ impl McpManager {
         full_name: &str,
         arguments: Option<serde_json::Value>,
     ) -> Result<CallToolResult> {
-        let servers = self
-            .configs
-            .read()
-            .await
-            .keys()
-            .cloned()
-            .collect::<Vec<_>>();
+        let servers = {
+            let configs = self.owner().configs.read().await;
+            configs
+                .iter()
+                .filter(|(name, config)| self.allows(name, Some(config)))
+                .map(|(name, _)| name.clone())
+                .collect::<Vec<_>>()
+        };
         let (server_name, tool_name) = Self::resolve_published_name(full_name, &servers)?;
         self.call_server_tool(&server_name, &tool_name, arguments)
             .await
@@ -348,22 +506,11 @@ impl McpManager {
         tool_name: &str,
         arguments: Option<serde_json::Value>,
     ) -> Result<CallToolResult> {
-        let client = {
-            let clients = self.clients.read().await;
-            clients
-                .get(server_name)
-                .cloned()
-                .ok_or_else(|| anyhow!("MCP server not connected: {}", server_name))?
-        };
-
-        // Refresh the activity timestamp before the await so an idle
-        // sweep running concurrently sees this server as recently used.
-        self.last_used_at_ms
-            .write()
+        let client = self
+            .get_client(server_name)
             .await
-            .insert(server_name.to_string(), now_epoch_ms());
-
-        // Call tool
+            .ok_or_else(|| anyhow!("MCP server not connected: {server_name}"))?;
+        self.touch(server_name).await;
         client.call_tool(tool_name, arguments).await
     }
 
@@ -441,12 +588,16 @@ impl McpManager {
 
     /// Get status of all servers
     pub async fn get_status(&self) -> HashMap<String, McpServerStatus> {
-        let configs = self.configs.read().await;
-        let clients = self.clients.read().await;
-        let errors = self.connect_errors.read().await;
+        let owner = self.owner();
+        let configs = owner.configs.read().await;
+        let clients = owner.clients.read().await;
+        let errors = owner.connect_errors.read().await;
         let mut status = HashMap::new();
 
         for (name, config) in configs.iter() {
+            if !self.allows(name, Some(config)) {
+                continue;
+            }
             let client = clients.get(name);
             let (connected, tool_count) = if let Some(c) = client {
                 (c.is_connected(), c.get_cached_tools().await.len())
@@ -459,7 +610,7 @@ impl McpManager {
                 McpServerStatus {
                     name: name.clone(),
                     connected,
-                    enabled: config.enabled,
+                    enabled: config.config.enabled,
                     tool_count,
                     error: errors.get(name).cloned(),
                 },
@@ -471,26 +622,41 @@ impl McpManager {
 
     /// Get a specific client
     pub async fn get_client(&self, name: &str) -> Option<Arc<McpClient>> {
-        let clients = self.clients.read().await;
-        clients.get(name).cloned()
+        let owner = self.owner();
+        if self.scope.is_some() {
+            let configs = owner.configs.read().await;
+            if !self.allows(name, configs.get(name)) {
+                return None;
+            }
+            return owner.clients.read().await.get(name).cloned();
+        }
+        owner.clients.read().await.get(name).cloned()
     }
 
     /// Check if a server is connected
     pub async fn is_connected(&self, name: &str) -> bool {
-        let clients = self.clients.read().await;
-        clients.get(name).map(|c| c.is_connected()).unwrap_or(false)
+        self.get_client(name)
+            .await
+            .is_some_and(|client| client.is_connected())
     }
 
     /// List connected server names
     pub async fn list_connected(&self) -> Vec<String> {
-        let clients = self.clients.read().await;
-        clients.keys().cloned().collect()
+        if self.scope.is_some() {
+            return self
+                .get_status()
+                .await
+                .into_values()
+                .filter(|status| status.connected)
+                .map(|status| status.name)
+                .collect();
+        }
+        self.clients.read().await.keys().cloned().collect()
     }
 
     /// Get cached tools for a specific connected server.
     pub async fn get_server_tools(&self, name: &str) -> Vec<McpTool> {
-        let clients = self.clients.read().await;
-        match clients.get(name) {
+        match self.get_client(name).await {
             Some(client) => client.get_cached_tools().await,
             None => Vec::new(),
         }

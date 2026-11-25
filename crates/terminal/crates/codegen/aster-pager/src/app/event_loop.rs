@@ -1651,6 +1651,7 @@ pub(crate) async fn run(
     let mut leader_status_rx = connection.leader_status_rx;
     let mut tasks: JoinSet<TaskResult> = JoinSet::new();
     let mut session_load_barrier = SessionLoadBarrier::new();
+    let mut ordered_prompt_response: Option<(TaskResult, usize)> = None;
     let mut acp_peek: Option<AcpClientMessage> = None;
     let (progress_tx, mut progress_rx) =
         tokio::sync::mpsc::unbounded_channel::<effects::RestoreProgressMsg>();
@@ -2153,6 +2154,11 @@ pub(crate) async fn run(
                 None => std::future::pending().await,
             }
         };
+        let acp_batch_limit = ordered_prompt_response
+            .as_ref()
+            .map_or(ACP_DRAIN_BATCH_MAX, |(_, remaining)| {
+                (*remaining).min(ACP_DRAIN_BATCH_MAX)
+            });
         tokio::select! {
             biased;
 
@@ -2226,7 +2232,7 @@ pub(crate) async fn run(
                     Some(msg) => Some(msg),
                     None => acp_rx.recv().await,
                 }
-            }, if input_rx.is_empty() => {
+            }, if input_rx.is_empty() && acp_batch_limit > 0 => {
                 let Some(msg) = msg else {
                     let mut result = finish_run_with_stall_flush(&mut app, &mut stall_rollup);
                     result.connection_closed = true;
@@ -2244,7 +2250,7 @@ pub(crate) async fn run(
                 // During streaming, dozens of messages queue per frame
                 // Bounded, and cut short the moment input arrives, so wheel/key events wait at most one batch, never a whole token flood
                 let mut drained = 1;
-                while drained < ACP_DRAIN_BATCH_MAX && input_rx.is_empty() {
+                while drained < acp_batch_limit && input_rx.is_empty() {
                     let Ok(msg) = acp_rx.try_recv() else { break };
                     drained += 1;
                     state_changed |= acp_handler::handle(msg, &mut app);
@@ -2254,6 +2260,9 @@ pub(crate) async fn run(
                             return Ok(finish_run_with_stall_flush(&mut app, &mut stall_rollup));
                         }
                     }
+                }
+                if let Some((_, remaining)) = &mut ordered_prompt_response {
+                    *remaining -= drained;
                 }
                 super::workspace_sync::request(&mut app);
 
@@ -2273,9 +2282,25 @@ pub(crate) async fn run(
                 }
             }
 
-            Some(join_result) = tasks.join_next() => {
+            Some((join_result, deferred)) = async {
+                match &ordered_prompt_response {
+                    Some((_, 0)) => ordered_prompt_response.take().map(|(result, _)| (Ok(result), true)),
+                    Some(_) => std::future::pending().await,
+                    None => tasks.join_next().await.map(|result| (result, false)),
+                }
+            } => {
                 match join_result {
                     Ok(result) => {
+                        // The stdio bridge enqueues wire notifications before delivering
+                        // the response. Input can temporarily disable the ACP arm, so
+                        // finish only after applying the prefix already in the queue.
+                        if app.is_aster && !deferred && matches!(&result, TaskResult::PromptResponse { .. }) {
+                            let queued = acp_rx.len() + usize::from(acp_peek.is_some());
+                            if queued > 0 {
+                                ordered_prompt_response = Some((result, queued));
+                                continue;
+                            }
+                        }
                         let agent_loading = session_load_agent_id(&result)
                             .is_some_and(|id| {
                                 app.agents

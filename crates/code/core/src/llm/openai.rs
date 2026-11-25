@@ -688,6 +688,10 @@ impl OpenAiClient {
 
 #[async_trait]
 impl LlmClient for OpenAiClient {
+    fn context_output_reserve(&self) -> usize {
+        self.request_max_tokens().unwrap_or_default()
+    }
+
     fn with_output_cap(&self, max_tokens: u32) -> Option<std::sync::Arc<dyn LlmClient>> {
         // The generation-enforced cap for sampling bridges (SEC-SAMPLE1);
         // the request body's max_tokens is set when configured.
@@ -890,7 +894,9 @@ pub(crate) struct OpenAiStreamChunk {
     pub(crate) object: Option<String>,
     #[serde(default)]
     pub(crate) model: Option<String>,
+    #[serde(default)]
     pub(crate) choices: Vec<OpenAiStreamChoice>,
+    pub(crate) error: Option<serde::de::IgnoredAny>,
     pub(crate) usage: Option<OpenAiUsage>,
 }
 

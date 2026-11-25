@@ -6,7 +6,6 @@ use super::*;
 pub(super) struct AttemptCompletion {
     pub(super) state: TurnState,
     pub(super) join_failure: Option<String>,
-    pub(super) deadline_exceeded: bool,
     pub(super) turn_permit: OwnedMutexGuard<()>,
     pub(super) events_drained: std::time::Duration,
     pub(super) drain_started: std::time::Instant,
@@ -15,6 +14,7 @@ pub(super) struct AttemptCompletion {
 pub(super) enum AttemptDrive {
     Ended(AttemptCompletion),
     Cancelled(acp::Result<acp::PromptResponse>),
+    DeadlineExceeded,
 }
 
 impl AsterCodeAgent {
@@ -36,114 +36,86 @@ impl AsterCodeAgent {
         F: FnMut(&AgentEvent),
     {
         let run = stream.run;
-        let mut observer = run.clone().and_then(|run| {
-            observation.map(|binding| {
-                crate::run_observation::Observer::new(run, session_id.0.to_string(), binding)
-            })
-        });
-        self.emit_run_observation(observer.as_mut().and_then(|observer| observer.opened()))
-            .await;
         let mut state = TurnState {
-            observer,
+            observer: run.clone().and_then(|run| {
+                observation.map(|binding| {
+                    crate::run_observation::Observer::new(run, session_id.0.to_string(), binding)
+                })
+            }),
             ..TurnState::default()
         };
         let mut rx = stream.events;
         let mut join = stream.worker;
         let session_key = session_id.0.to_string();
         let drain_started = std::time::Instant::now();
-        let immediate_deadline = remaining.is_some_and(|duration| duration.is_zero());
-        let mut deadline = remaining.map(|duration| Box::pin(tokio::time::sleep(duration)));
-        let mut deadline_exceeded = immediate_deadline;
-        let mut worker_result = None;
-        if immediate_deadline {
-            tracing::warn!("run deadline reached before event delivery; cancelling the core run");
-            session.cancel().await;
-        }
-        loop {
-            // Register before the map read. `notify_waiters` stores no permit.
-            let notified = self.turn_cancel.notified();
-            tokio::pin!(notified);
-            notified.as_mut().enable();
-            if self.turn_was_cancelled(&session_key, generation).await {
-                // The run must stop even while registry cleanup is waiting.
-                if let Some(run) = &run {
-                    run.cancel().await;
-                }
-                return AttemptDrive::Cancelled(
-                    self.leave_cancelled_turn(
-                        session_id,
-                        session,
-                        &mut state,
-                        rx,
-                        join,
-                        turn_permit,
-                    )
-                    .await,
-                );
-            }
-            tokio::select! {
-                biased;
-                _ = &mut notified => continue,
-                _ = async {
-                    match deadline.as_mut() {
-                        Some(deadline) => deadline.await,
-                        None => std::future::pending::<()>().await,
-                    }
-                }, if deadline.is_some() && !deadline_exceeded => {
-                    deadline_exceeded = true;
-                    tracing::warn!("run deadline reached mid-attempt; cancelling the core run");
-                    session.cancel().await;
-                }
-                event = rx.recv() => {
-                    match event {
-                        Some(event) => {
-                            note_event(&event);
-                            tokio::select! {
-                                biased;
-                                _ = self.wait_for_turn_cancel(&session_key, generation) => {},
-                                _ = self.handle_event(session_id, session, &mut state, event) => {},
-                            }
-                        }
-                        None => break,
-                    }
-                }
-                result = &mut join => {
-                    worker_result = Some(result);
-                    break;
-                }
-            }
-        }
-        let events_drained = drain_started.elapsed();
-        // Background children can retain event senders after the original worker exits.
-        let joined = if let Some(result) = worker_result {
-            result
-        } else {
+        let deadline = remaining.map(|duration| tokio::time::Instant::now() + duration);
+        let drain = async {
+            self.emit_run_observation(
+                state
+                    .observer
+                    .as_mut()
+                    .and_then(|observer| observer.opened()),
+            )
+            .await;
             loop {
-                let notified = self.turn_cancel.notified();
-                tokio::pin!(notified);
-                notified.as_mut().enable();
-                if self.turn_was_cancelled(&session_key, generation).await {
-                    if let Some(run) = &run {
-                        run.cancel().await;
-                    }
-                    return AttemptDrive::Cancelled(
-                        self.leave_cancelled_turn(
-                            session_id,
-                            session,
-                            &mut state,
-                            rx,
-                            join,
-                            turn_permit,
-                        )
-                        .await,
-                    );
-                }
                 tokio::select! {
                     biased;
-                    _ = &mut notified => continue,
-                    result = &mut join => break result,
+                    event = rx.recv() => match event {
+                        Some(event) => {
+                            note_event(&event);
+                            self.handle_event(session_id, session, &mut state, event).await;
+                            // A question handler can cancel this generation
+                            // before this drain yields back to select.
+                            if self.turn_was_cancelled(&session_key, generation).await {
+                                return None;
+                            }
+                        }
+                        None => {
+                            let events_drained = drain_started.elapsed();
+                            return Some(((&mut join).await, events_drained));
+                        }
+                    },
+                    result = &mut join => return Some((result, drain_started.elapsed())),
                 }
             }
+        };
+        let result = tokio::select! {
+            biased;
+            _ = self.wait_for_turn_cancel(&session_key, generation) => None,
+            _ = async {
+                match deadline {
+                    Some(deadline) if deadline > tokio::time::Instant::now() => {
+                        tokio::time::sleep_until(deadline).await;
+                    }
+                    Some(_) => {}
+                    None => std::future::pending::<()>().await,
+                }
+            } => {
+                tracing::warn!("unattended deadline reached; cancelling the original run");
+                if let Some(run) = run.clone() {
+                    // The exact Run can finish its cooperative cleanup after the
+                    // host publishes the deadline, with the turn permit still held.
+                    tokio::spawn(async move { run.cancel().await });
+                } else {
+                    let _ = tokio::time::timeout(
+                        crate::turn_cancel::CANCEL_ABORT_GRACE,
+                        session.cancel(),
+                    )
+                    .await;
+                }
+                self.settle_public_join(join, turn_permit).await;
+                return AttemptDrive::DeadlineExceeded;
+            }
+            result = drain => result,
+        };
+        let Some((joined, events_drained)) = result else {
+            if let Some(run) = &run {
+                run.cancel().await;
+            }
+            return AttemptDrive::Cancelled(
+                self.leave_cancelled_turn(session_id, session, &mut state, rx, join, turn_permit)
+                    .await,
+            );
         };
         let join_failure = joined.err().map(worker_join_failure);
         if let (Some(message), None) = (&join_failure, &state.turn_failure) {
@@ -174,7 +146,6 @@ impl AsterCodeAgent {
         AttemptDrive::Ended(AttemptCompletion {
             state,
             join_failure,
-            deadline_exceeded,
             turn_permit,
             events_drained,
             drain_started,

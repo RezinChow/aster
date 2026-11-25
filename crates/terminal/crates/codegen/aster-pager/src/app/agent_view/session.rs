@@ -423,6 +423,8 @@ impl AgentView {
             rewind_suppress_deadline: None,
             minimal_cancel_hint_turn: None,
             pending_first_prompt: None,
+            pending_model_switch_target: None,
+            pending_reasoning_effort: None,
             pending_fork_banner: None,
             loading_placeholder_id: None,
             pending_recap_entry: None,
@@ -681,6 +683,8 @@ impl AgentView {
             self.scrollback.remove_entry(rid);
         }
         self.session.model_switch_pending = false;
+        self.pending_model_switch_target = None;
+        self.pending_reasoning_effort = None;
         self.release_hook_block_hold();
         self.pending_adoption_updates.clear();
         let stash = self.take_replay_rebuilt_state();
@@ -700,6 +704,12 @@ impl AgentView {
         ));
         self.scrollback.begin_batch();
         self.begin_replay_window();
+    }
+
+    pub(crate) fn begin_model_switch(&mut self, model_id: &agent_client_protocol::ModelId) {
+        self.session.model_switch_pending = true;
+        self.pending_model_switch_target = Some(model_id.clone());
+        self.pending_reasoning_effort = None;
     }
     /// Record that an `isReplay` update applied while a reload window is open. No-op otherwise.
     pub(crate) fn mark_reload_replay_seen(&mut self) {
@@ -726,6 +736,16 @@ impl AgentView {
     /// Start a locally-tracked turn: enter TurnRunning with the turn-scoped bookkeeping every real turn start must apply, so no caller can miss it.
     /// Deliberately NOT used by server-initiated synthetic turns (auto-wake / actor runs): they never call `start_turn`.
     pub(crate) fn start_turn_boundary(&mut self, starting_prompt_id: Option<&str>) {
+        self.reset_turn_boundary(starting_prompt_id);
+        self.session.start_turn(&mut self.scrollback);
+    }
+
+    pub(crate) fn start_adopted_turn_boundary(&mut self, prompt_id: &str) {
+        self.reset_turn_boundary(Some(prompt_id));
+        self.session.start_adopted_turn(&mut self.scrollback);
+    }
+
+    fn reset_turn_boundary(&mut self, starting_prompt_id: Option<&str>) {
         if self
             .expect_send_now_cancel
             .as_deref()
@@ -744,7 +764,6 @@ impl AgentView {
         self.pending_cancel_resend = None;
         self.prompt_ack = None;
         self.cancel_latency = None;
-        self.session.start_turn(&mut self.scrollback);
     }
     /// Locally originated prompt or ExecutePlan turn. `note_self` is idempotent.
     pub(crate) fn begin_local_turn(&mut self, prompt_id: &str) {
@@ -758,7 +777,7 @@ impl AgentView {
     /// Enters TurnRunning and matches subsequent live deltas.
     /// No user-prompt block is pushed; the turn's prompt and prior chunks arrived via the replay.
     pub(crate) fn adopt_running_prompt(&mut self, prompt_id: String) {
-        self.start_turn_boundary(Some(&prompt_id));
+        self.start_adopted_turn_boundary(&prompt_id);
         self.session.tracker.clear_user_echo_skip();
         self.front_message_committed = true;
         self.session.current_prompt_id = Some(prompt_id.clone());

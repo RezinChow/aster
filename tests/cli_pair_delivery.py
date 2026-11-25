@@ -27,12 +27,13 @@ class PairDelivery(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="aster-pair-")
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.bins = self.root / "bins"
         self.assets = self.root / "assets"
         self.prefix = self.root / "installed"
         self.commands = self.root / "commands"
-        for path in (self.bins, self.assets, self.prefix, self.commands):
+        self.home = self.root / "home"
+        for path in (self.bins, self.assets, self.prefix, self.commands, self.home):
             path.mkdir()
         (self.commands / "uname").write_text("#!/bin/sh\nprintf 'Darwin\\n'\n")
         (self.commands / "uname").chmod(0o755)
@@ -63,13 +64,30 @@ class PairDelivery(unittest.TestCase):
                 f'"windows":{{"name":"aster-cli-v0.1.2-windows.zip","sha256":"{digest}"}}}}}}\n')
         (self.assets / "latest.json").write_text(body)
 
-    def install(self):
-        env = dict(os.environ, ASTER_RELEASE_BASE=str(self.assets),
-            PATH=str(self.commands) + os.pathsep + os.environ["PATH"])
-        env.pop("ASTER_INSTALL_URL", None)
-        env.pop("GROK_INSTALL_URL", None)
-        return subprocess.run(["bash", str(ROOT / "scripts/install.sh"), "--prefix", str(self.prefix)],
-            env=env, capture_output=True, text=True, timeout=10)
+    def install_environment(self, shell):
+        return {
+            "HOME": str(self.home),
+            "SHELL": shell,
+            "PATH": str(self.commands) + ":/usr/bin:/bin:/usr/sbin:/sbin",
+            "ASTER_RELEASE_BASE": str(self.assets),
+        }
+
+    def install(self, *args, shell="/bin/bash", default_prefix=False, **environment):
+        command = ["bash", str(ROOT / "scripts/install.sh")]
+        if not default_prefix:
+            command.extend(["--prefix", str(self.prefix)])
+        env = self.install_environment(shell)
+        env.update(environment)
+        return subprocess.run(command + list(args), cwd=self.root, env=env,
+            capture_output=True, text=True, timeout=10)
+
+    def assert_new_shell_finds_pair(self, shell, mode, prefix, **environment):
+        env = self.install_environment(shell)
+        env.update(environment)
+        result = subprocess.run([shell, mode, 'command -v aster && command -v aster-acp && aster --build-id'],
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [*(str(prefix / name) for name in NAMES), IDENTITY])
 
     def assert_old(self):
         for name in NAMES:
@@ -113,6 +131,55 @@ class PairDelivery(unittest.TestCase):
         for name in NAMES:
             self.assertEqual((self.prefix / name).read_bytes(), (self.bins / name).read_bytes())
 
+    @unittest.skipUnless(shutil.which("zsh"), "zsh is required to start a fresh zsh")
+    def test_default_install_works_in_zsh_and_reinstall_preserves_startup_file(self):
+        self.assertEqual(self.package().returncode, 0)
+        shell = shutil.which("zsh")
+        prefix = self.home / ".local" / "bin"
+        profile = self.home / ".zshenv"
+        existing = b"# Existing zsh settings with no trailing newline"
+        profile.write_bytes(existing)
+        install_path = f'{prefix}:{self.install_environment(shell)["PATH"]}'
+        result = self.install(shell=shell, default_prefix=True, PATH=install_path)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_new_shell_finds_pair(shell, "-c", prefix)
+        self.assert_new_shell_finds_pair(shell, "-lic", prefix)
+        configured = profile.read_bytes()
+        self.assertTrue(configured.startswith(existing + b"\n"))
+        result = self.install(shell=shell, default_prefix=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(profile.read_bytes(), configured)
+
+    @unittest.skipUnless(shutil.which("zsh"), "zsh is required to start a fresh zsh")
+    def test_zsh_uses_zdotdir_for_custom_prefix(self):
+        self.assertEqual(self.package().returncode, 0)
+        shell = shutil.which("zsh")
+        config = self.home / "zsh 配置"
+        self.prefix = Path("tools/工作 台's $(pwd)")
+        result = self.install(shell=shell, ZDOTDIR=str(config))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_new_shell_finds_pair(shell, "-ic", self.root / self.prefix, ZDOTDIR=str(config))
+        self.assertFalse((self.home / ".zshenv").exists())
+
+    def test_bash_install_loads_in_login_and_nonlogin_shells(self):
+        self.assertEqual(self.package().returncode, 0)
+        profile = self.home / ".bash_login"
+        profile.write_text("# Existing login configuration\n", encoding="utf-8")
+        self.prefix = self.root / "tools 工作台's [$HOME]"
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_new_shell_finds_pair("/bin/bash", "-ic", self.prefix)
+        self.assert_new_shell_finds_pair("/bin/bash", "-lic", self.prefix)
+        self.assertTrue(profile.read_text(encoding="utf-8").startswith("# Existing login configuration\n"))
+        self.assertFalse((self.home / ".bash_profile").exists())
+
+    def test_install_can_leave_startup_files_alone(self):
+        self.assertEqual(self.package().returncode, 0)
+        result = self.install("--no-modify-path")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(list(self.home.iterdir()), [])
+        self.assertTrue((self.prefix / "aster").exists())
+
     def test_local_release_directory_name_does_not_classify_provenance(self):
         for name in ("local releases", "local upstream notes"):
             with self.subTest(directory=name):
@@ -153,6 +220,7 @@ class PairDelivery(unittest.TestCase):
         self.fault("mv", "new-acp")
         self.assertEqual(self.install().returncode, 73)
         self.assertFalse(any((self.prefix / name).exists() for name in NAMES))
+        self.assertEqual(list(self.home.iterdir()), [])
 
     def test_rollback_preserves_original_symlink(self):
         self.assertEqual(self.package().returncode, 0)

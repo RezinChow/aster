@@ -3728,6 +3728,67 @@ fn switch_model_holds_prompt_until_complete() {
 }
 
 #[test]
+fn effort_during_model_switch_uses_the_confirmed_catalog_before_draining_prompts() {
+    use aster_shell::sampling::types::ReasoningEffort;
+
+    let mut app = test_app_with_agent();
+    let id = AgentId(0);
+    let original = acp::ModelId::new("fixture/old");
+    let selected = acp::ModelId::new("fixture/new");
+    test_agent_mut(&mut app, id)
+        .session
+        .models
+        .set_current(original, None);
+    dispatch(
+        Action::SwitchModel {
+            model_id: selected.clone(),
+            effort: None,
+        },
+        &mut app,
+    );
+    assert!(dispatch(Action::SendPrompt("/effort deep".into()), &mut app).is_empty());
+    assert!(dispatch(Action::SendPrompt("follow-up".into()), &mut app).is_empty());
+    let available = &mut test_agent_mut(&mut app, id).session.models.available;
+    available.insert(
+        selected.clone(),
+        acp::ModelInfo::new(selected.clone(), "New").meta(
+            serde_json::json!({
+                "supportsReasoningEffort": true,
+                "reasoningEfforts": [{ "id": "deep", "value": "xhigh", "label": "Deep" }],
+            })
+            .as_object()
+            .cloned(),
+        ),
+    );
+    let complete = |effort| {
+        Action::TaskComplete(TaskResult::SwitchModelComplete {
+            agent_id: id,
+            model_id: selected.clone(),
+            effort,
+            result: Ok(()),
+            prev_model_id: None,
+        })
+    };
+    let effects = dispatch(complete(None), &mut app);
+    assert!(effects.iter().any(|effect| matches!(effect,
+        Effect::SwitchModel { model_id, effort: Some(ReasoningEffort::Xhigh), .. } if model_id == &selected
+    )));
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::SendPrompt { .. }))
+    );
+    assert_eq!(agent_ref(&app, id).session.queue_len(), 1);
+    let effects = dispatch(complete(Some(ReasoningEffort::Xhigh)), &mut app);
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::SendPrompt { .. }))
+    );
+    assert_eq!(agent_ref(&app, id).session.queue_len(), 0);
+}
+
+#[test]
 fn slash_compact_enqueues_command() {
     let mut app = test_app_with_agent();
     let id = AgentId(0);

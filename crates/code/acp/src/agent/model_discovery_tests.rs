@@ -103,9 +103,27 @@ async fn selected_catalog_updates_the_menu_and_execution() {
         pending[0].meta.as_ref().unwrap()["capabilitiesStatus"],
         "loading"
     );
-    tokio::task::yield_now().await;
+    let parallel = host.new_session(acp::NewSessionRequest::new(root.path()));
+    tokio::pin!(parallel);
+    tokio::select! {
+        result = &mut parallel => panic!("parallel session bypassed the catalog: {result:?}"),
+        _ = tokio::time::sleep(std::time::Duration::from_millis(30)) => {},
+    }
     release.notify_one();
-    let opened = opened.await.unwrap();
+    let (opened, parallel) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        tokio::join!(opened, parallel)
+    })
+    .await
+    .expect("concurrent sessions must share one HTTP catalog query");
+    let parallel = parallel.unwrap();
+    assert_eq!(
+        parallel.models.unwrap().available_models[0]
+            .meta
+            .as_ref()
+            .unwrap()["totalContextTokens"],
+        131072
+    );
+    let opened = opened.unwrap();
     let id = opened.session_id;
     let model = opened.models.unwrap().available_models.remove(0);
     let meta = model.meta.unwrap();
@@ -117,6 +135,18 @@ async fn selected_catalog_updates_the_menu_and_execution() {
         .session
         .clone();
     assert_eq!(session.context_window_tokens(), 131072);
+    let warm = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        host.new_session(acp::NewSessionRequest::new(root.path())),
+    )
+    .await
+    .expect("warm session must not wait for another catalog response")
+    .unwrap();
+    let warm = host.sessions.lock().await[&warm.session_id.0.to_string()]
+        .session
+        .clone();
+    assert_eq!(warm.context_window_tokens(), 131072);
+    warm.close().await;
     session.send("Reply READY", None).await.unwrap();
     host.set_session_model(
         acp::SetSessionModelRequest::new(id.clone(), model.model_id.clone()).meta(Some(

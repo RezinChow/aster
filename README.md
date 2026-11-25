@@ -56,12 +56,12 @@ macOS / Linux：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh \
-  | bash -s -- --prefix "$HOME/.local/bin"
-export PATH="$HOME/.local/bin:$PATH"
-aster --version
+  | bash
 ```
 
-将 `export PATH="$HOME/.local/bin:$PATH"` 加入所用 Shell 的启动文件后，新终端会保留该设置。
+安装器会将安装目录加入 zsh 或 Bash 的启动配置。打开新终端后运行 `aster --version`。
+如果要在当前终端使用，可执行安装器输出的 `export PATH` 命令。
+自动化安装可用 `bash -s -- --no-modify-path` 跳过修改启动配置。
 
 Windows（PowerShell）：
 

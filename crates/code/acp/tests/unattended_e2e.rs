@@ -18,6 +18,8 @@ mod artifact;
 mod candidate;
 #[path = "unattended_e2e/convergence.rs"]
 mod convergence;
+#[path = "unattended_e2e/fresh_review.rs"]
+mod fresh_review;
 #[path = "unattended_e2e/goal_feedback.rs"]
 mod goal_feedback;
 #[path = "unattended_e2e/permission_modes.rs"]
@@ -32,6 +34,7 @@ const MODEL_ID: &str = "mock/gpt";
 #[derive(Default)]
 struct Script {
     convergence: convergence::ObservationScript,
+    fresh_review: fresh_review::FreshReviewScript,
     bodies: Vec<String>,
     asked: bool,
     feedback_required: bool,
@@ -123,6 +126,14 @@ fn spawn_mock() -> (SocketAddr, Arc<Mutex<Script>>) {
             std::thread::spawn(move || {
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(20)));
                 if let Some(body) = read_http_body(&mut stream) {
+                    let hold_fresh_review = body
+                        .contains("Drop claims that a check already proved the task.")
+                        .then(|| shared.lock().unwrap().fresh_review.held.take())
+                        .flatten();
+                    if let Some(held) = hold_fresh_review {
+                        held.send(stream).unwrap();
+                        return;
+                    }
                     let response = {
                         let mut guard = shared.lock().expect("mock");
                         guard.bodies.push(body.clone());
@@ -250,6 +261,9 @@ fn decide(raw: &str, script: &mut Script) -> String {
         return body;
     }
     let streaming = parsed["stream"].as_bool().unwrap_or(false);
+    if let Some(response) = fresh_review::reply(&parsed, &mut script.fresh_review, streaming) {
+        return response;
+    }
     if raw.contains("context-compaction engine") {
         if script.convergence.source.is_some() {
             script.convergence.compactions += 1;

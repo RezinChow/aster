@@ -950,7 +950,7 @@ pub(crate) fn apply_turn_start_shim(
     );
     let send_now_paint = agent.send_now_painted_blocks.contains_key(&prompt_id)
         || agent.send_now_echo_pending.contains_key(&prompt_id);
-    agent.start_turn_boundary(Some(&prompt_id));
+    agent.start_adopted_turn_boundary(&prompt_id);
     if send_now_paint {
         agent.session.tracker.clear_user_echo_skip();
     }

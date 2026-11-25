@@ -126,6 +126,7 @@ pub struct StreamingMarkdownRenderer {
 
     /// Maximum width for rendered tables (in display columns).
     max_table_width: Option<usize>,
+    mermaid_preview: crate::MermaidPreview,
 
     /// Whether CommonMark soft breaks collapse to a space (default `true`).
     /// Set `false` for source-faithful rendering (plan preview).
@@ -160,6 +161,7 @@ impl Clone for StreamingMarkdownRenderer {
         // We must propagate `max_table_width` BEFORE pushing/rendering so the clone produces identical output to the original
         let mut new = Self::new(self.style, self.pretty);
         new.set_max_table_width(self.max_table_width);
+        new.set_mermaid_preview(self.mermaid_preview);
         new.set_collapse_soft_breaks(self.collapse_soft_breaks);
         // `self.source` is already normalized, so append it verbatim rather than re-running the normalizer
         // A re-run could hold back a trailing ambiguous suffix and make the clone's source diverge
@@ -182,6 +184,7 @@ impl StreamingMarkdownRenderer {
             style,
             pretty,
             max_table_width: None,
+            mermaid_preview: crate::MermaidPreview::default(),
             collapse_soft_breaks: true,
             open_code: None,
             normalizer: LatexDelimiterNormalizer::new(),
@@ -210,6 +213,19 @@ impl StreamingMarkdownRenderer {
             self.output.clear();
             self.open_code = None;
         }
+    }
+
+    /// Change the Mermaid treatment and invalidate the rendered prefix when it changes.
+    /// Returns whether the caller needs to rebuild its layout cache.
+    pub fn set_mermaid_preview(&mut self, preview: crate::MermaidPreview) -> bool {
+        if self.mermaid_preview == preview {
+            return false;
+        }
+        self.mermaid_preview = preview;
+        self.frozen = FrozenState::default();
+        self.output.clear();
+        self.open_code = None;
+        true
     }
 
     /// Set whether CommonMark soft breaks collapse to a space.
@@ -302,6 +318,7 @@ impl StreamingMarkdownRenderer {
             self.max_table_width,
             self.frozen.next_link_id,
             self.collapse_soft_breaks,
+            self.mermaid_preview,
             open_code,
         );
 
@@ -447,6 +464,7 @@ impl StreamingMarkdownRenderer {
             // The full render restarts link IDs at 0, so our counter must also reset to the post-render value
             0,
             self.collapse_soft_breaks,
+            self.mermaid_preview,
             // finish() is a full batch re-render: never use the incremental cache.
             None,
         );

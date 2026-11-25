@@ -20,7 +20,7 @@ official_releases="https://github.com/aster-ai-lab/aster/releases"
 latest_manifest="${official_releases}/download/aster-cli-stable/latest.json"
 
 usage() {
-  echo "Usage: install.sh [--prefix DIR] [--version X.Y.Z] [ARCHIVE-URL]" >&2
+  echo "Usage: install.sh [--prefix DIR] [--version X.Y.Z] [--no-modify-path] [ARCHIVE-URL]" >&2
   echo "https://raw.githubusercontent.com/aster-ai-lab/aster/main/scripts/install.sh" >&2
   echo "${latest_manifest}" >&2
   exit 2
@@ -38,6 +38,7 @@ fi
 prefix=""
 want_version=""
 direct_url=""
+modify_path=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefix)
@@ -55,6 +56,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --version=*)
       want_version="${1#--version=}"
+      ;;
+    --no-modify-path)
+      modify_path=0
       ;;
     -h|--help)
       usage
@@ -424,16 +428,66 @@ echo "aster=${dest_aster}"
 echo "aster-acp=${dest_acp}"
 echo "embedding=${prefix}/embedding"
 
-# Tell the user how to put the pair on PATH when the prefix is not already searched.
-case ":${PATH}:" in
-  *":${prefix}:"*)
-    echo "PATH already includes ${prefix}"
-    ;;
-  *)
-    echo "Add ${prefix} to PATH, then open a new shell:"
-    echo "  echo 'export PATH=\"${prefix}:\$PATH\"' >> ~/.zshrc   # bash: ~/.bashrc"
-    echo "  export PATH=\"${prefix}:\$PATH\""
-    ;;
-esac
+add_path_to_profile() {
+  local profile="$1" entry="$2"
+  if [[ -e "$profile" || -L "$profile" ]]; then
+    [[ -f "$profile" && -r "$profile" ]] || return 1
+    if grep -Fqx -- "$entry" "$profile"; then
+      return 0
+    elif [[ "$?" -ne 1 ]]; then
+      return 1
+    fi
+  fi
+  mkdir -p -- "${profile%/*}" && printf '\n# Aster CLI PATH\n%s\n' "$entry" >> "$profile"
+}
+
+configure_shell_path() {
+  local path_prefix="$1" shell="${SHELL:-}" quoted_prefix path_export entry profile login_profile
+  local profiles=()
+  local escaped_quote="'\\''"
+  [[ "$path_prefix" == /* ]] || path_prefix="$PWD/$path_prefix"
+  # The entry can be read by POSIX shells via .profile. Quote the prefix as data.
+  quoted_prefix="'${path_prefix//\'/$escaped_quote}'"
+  case "$path_prefix" in
+    *:*|*$'\n'*|*$'\r'*)
+      printf 'The install directory cannot be added to PATH. Run directly:\n  %s/%s\n' \
+        "$quoted_prefix" "${dest_aster##*/}"
+      return
+      ;;
+  esac
+  path_export="export PATH=${quoted_prefix}"'${PATH:+":$PATH"}'
+  entry='case ":${PATH-}:" in *:'"${quoted_prefix}"':*) ;; *) '"${path_export}"' ;; esac'
+
+  if [[ "$modify_path" == 1 && "$platform" != windows && -n "${HOME:-}" ]]; then
+    case "${shell##*/}" in
+      zsh) profiles=("${ZDOTDIR:-$HOME}/.zshenv") ;;
+      bash)
+        login_profile="$HOME/.profile"
+        for profile in "$HOME/.bash_profile" "$HOME/.bash_login"; do
+          if [[ -f "$profile" && -r "$profile" ]]; then
+            login_profile="$profile"
+            break
+          fi
+        done
+        profiles=("$HOME/.bashrc" "$login_profile")
+        ;;
+    esac
+  fi
+
+  if [[ ${#profiles[@]} -gt 0 ]]; then
+    for profile in "${profiles[@]}"; do
+      if add_path_to_profile "$profile" "$entry"; then
+        printf 'PATH configured in %s\n' "$profile"
+      else
+        printf 'warning: could not configure PATH in %s\n' "$profile" >&2
+      fi
+    done
+  fi
+  if [[ ":$PATH:" != *":$path_prefix:"* ]]; then
+    printf 'To use Aster in this shell (Bash or zsh), run:\n  %s\n' "$path_export"
+  fi
+}
+
+configure_shell_path "$prefix"
 echo "Next: write ~/.aster/config.acl (default_model + providers), then run:"
 echo "  cd /path/to/project && aster"

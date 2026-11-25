@@ -27,7 +27,7 @@ async fn goal_state_snapshot_previews_tick_without_queueing_or_appending_facts()
         let live = &sessions[id.0.as_ref()];
         (live.session.clone(), live.turn_queue.clone())
     };
-    crate::goal::bind_task_goal(&session, "Read this synthetic workspace.")
+    crate::goal::bind_task_goal(&session, "Read this synthetic workspace.", async |_| {})
         .await
         .unwrap();
     provider.await.unwrap();
@@ -59,6 +59,7 @@ async fn goal_state_snapshot_previews_tick_without_queueing_or_appending_facts()
         &session,
         &crate::goal::GoalOp::Pause,
         crate::goal::GoalLanguage::English,
+        async |_| {},
     )
     .await
     .unwrap();
@@ -75,6 +76,7 @@ async fn goal_state_snapshot_previews_tick_without_queueing_or_appending_facts()
         &session,
         &crate::goal::GoalOp::Clear,
         crate::goal::GoalLanguage::English,
+        async |_| {},
     )
     .await
     .unwrap();
@@ -123,6 +125,7 @@ async fn explicit_new_goals_use_default_bounds_and_trusted_disable_wins() {
             &session,
             &crate::goal::GoalOp::Set("Explicit user outcome".into()),
             crate::goal::GoalLanguage::English,
+            async |_| {},
         )
         .await
         .unwrap()
@@ -168,10 +171,15 @@ async fn chinese_goal_status_is_concise_and_does_not_claim_completion_when_pause
         .clone();
     let objective = "完成 instruction.md 中的全部要求";
     let language = GoalLanguage::from_host(Some("zh-CN"));
-    let created = apply_bound_goal(&session, &GoalOp::Set(objective.into()), language)
-        .await
-        .unwrap()
-        .unwrap();
+    let created = apply_bound_goal(
+        &session,
+        &GoalOp::Set(objective.into()),
+        language,
+        async |_| {},
+    )
+    .await
+    .unwrap()
+    .unwrap();
     provider.await.unwrap();
     let planning_usage = session.recorded_usage_tokens();
     assert_eq!(planning_usage, (11, 7, 18));
@@ -185,7 +193,7 @@ async fn chinese_goal_status_is_concise_and_does_not_claim_completion_when_pause
         objective
     );
 
-    let paused = apply_bound_goal(&session, &GoalOp::Pause, language)
+    let paused = apply_bound_goal(&session, &GoalOp::Pause, language, async |_| {})
         .await
         .unwrap()
         .unwrap();
@@ -194,7 +202,7 @@ async fn chinese_goal_status_is_concise_and_does_not_claim_completion_when_pause
         "目标已暂停\n已完成 0/1 项。\n发送 /goal resume 可继续执行。"
     );
     assert!(!paused.tick);
-    let cleared = apply_bound_goal(&session, &GoalOp::Clear, language)
+    let cleared = apply_bound_goal(&session, &GoalOp::Clear, language, async |_| {})
         .await
         .unwrap()
         .unwrap();

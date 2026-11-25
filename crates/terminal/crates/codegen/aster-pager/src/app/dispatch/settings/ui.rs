@@ -976,7 +976,7 @@ pub(in crate::app::dispatch) fn apply_setting_rollback(
                             && let Some(sid) = session_id
                         {
                             if let Some(agent) = app.agents.get_mut(&aid) {
-                                agent.session.model_switch_pending = true;
+                                agent.begin_model_switch(&id);
                             }
                             companion_effects.push(Effect::SwitchModel {
                                 agent_id: aid,
@@ -1053,7 +1053,7 @@ pub(in crate::app::dispatch) fn apply_setting_rollback(
         // render_mermaid: restore the cache mirror to the canonical value.
         ("render_mermaid", SettingValue::Enum(s)) => {
             if let Some(kind) = crate::appearance::RenderMermaid::from_canonical(s) {
-                set_render_mermaid_inner(kind);
+                set_render_mermaid_inner(app, kind);
             }
         }
         // hunk_tracker_mode: restore the in-memory ui mirror.

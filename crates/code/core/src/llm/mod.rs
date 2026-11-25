@@ -175,6 +175,12 @@ pub trait LlmClient: Send + Sync {
         None
     }
 
+    /// Requested output tokens that share this client's input context window.
+    /// Clients with separate limits or without a known reservation return zero.
+    fn context_output_reserve(&self) -> usize {
+        0
+    }
+
     /// Complete a conversation (non-streaming)
     async fn complete(
         &self,

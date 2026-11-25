@@ -16,7 +16,7 @@ use super::quote_bar::QuoteBarStrip;
 pub(crate) const MARKDOWN_BODY_RANGE: u16 = 0;
 use crate::syntax::get_syntect;
 use crate::theme::{ThemeKind, cache as theme_cache, md_style};
-use aster_markdown::StreamingMarkdownRenderer;
+use aster_markdown::{MermaidPreview, StreamingMarkdownRenderer};
 
 /// Mutable rendering state behind a single `RefCell`.
 /// Groups the renderer and wrap-cache together.
@@ -64,24 +64,30 @@ impl MarkdownContent {
     /// When `max_table_width` is `Some(w)`, tables are constrained to fit within `w` display columns.
     /// Useful for pre-rendering markdown before the final display width is known (e.g., plan preview).
     pub fn new_with_table_width(text: impl Into<String>, max_table_width: Option<usize>) -> Self {
-        Self::new_inner(text, max_table_width, true)
+        Self::new_inner(text, max_table_width, true, MermaidPreview::Default)
     }
 
     /// Create source-faithful content: CommonMark soft breaks are preserved as line breaks instead of collapsing to spaces.
     /// Each source line then maps 1:1 to a rendered line.
     /// Used by the line-numbered plan preview, where rendered lines must map back to file lines (e.g. for commenting on a line range).
     pub fn new_source_faithful(text: impl Into<String>, max_table_width: Option<usize>) -> Self {
-        Self::new_inner(text, max_table_width, false)
+        Self::new_inner(text, max_table_width, false, MermaidPreview::Default)
+    }
+
+    pub(super) fn new_agent_message(text: String, preview: MermaidPreview) -> Self {
+        Self::new_inner(text, None, true, preview)
     }
 
     fn new_inner(
         text: impl Into<String>,
         max_table_width: Option<usize>,
         collapse_soft_breaks: bool,
+        mermaid_preview: MermaidPreview,
     ) -> Self {
         let mut renderer = StreamingMarkdownRenderer::new(md_style::style(), true);
         renderer.set_max_table_width(max_table_width);
         renderer.set_collapse_soft_breaks(collapse_soft_breaks);
+        renderer.set_mermaid_preview(mermaid_preview);
         let text = text.into();
         let expanded = aster_pager_render::appearance::expand_tabs(&text);
         renderer.push(&expanded);
@@ -106,9 +112,15 @@ impl MarkdownContent {
 
     /// Create empty for streaming.
     pub fn streaming() -> Self {
+        Self::streaming_with_mermaid_preview(MermaidPreview::Default)
+    }
+
+    pub(super) fn streaming_with_mermaid_preview(preview: MermaidPreview) -> Self {
+        let mut renderer = StreamingMarkdownRenderer::new(md_style::style(), true);
+        renderer.set_mermaid_preview(preview);
         Self {
             state: RefCell::new(RenderState {
-                renderer: StreamingMarkdownRenderer::new(md_style::style(), true),
+                renderer,
                 cache_width: 0,
                 cache_generation: 0,
                 cache_theme: theme_cache::current_kind(),
@@ -119,6 +131,15 @@ impl MarkdownContent {
             }),
             current_raw: false,
             generation: 0,
+        }
+    }
+
+    pub(super) fn set_mermaid_preview(&self, preview: MermaidPreview) {
+        let mut state = self.state.borrow_mut();
+        if state.renderer.set_mermaid_preview(preview) {
+            state.cache_generation = u64::MAX;
+            state.frozen_pre_wrap_count = 0;
+            state.frozen_wrapped_count = 0;
         }
     }
 

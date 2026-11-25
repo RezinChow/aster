@@ -1453,8 +1453,8 @@ pub(in crate::app::dispatch) fn handle_session_created(
         let deferred_mode = agent.deferred_session_mode.take();
         let deferred_permission = agent.deferred_permission_mode.take();
         let cwd = agent.session.cwd.clone();
-        if deferred.is_some() {
-            agent.session.model_switch_pending = true;
+        if let Some(switch) = &deferred {
+            agent.begin_model_switch(&switch.model_id);
         }
         let mut effects =
             deferred_mode_effects(&session_id_clone, deferred_mode, deferred_permission);
@@ -1602,8 +1602,8 @@ pub(in crate::app::dispatch) fn handle_worktree_session_created(
         let deferred_mode = agent.deferred_session_mode.take();
         let deferred_permission = agent.deferred_permission_mode.take();
         let cwd = agent.session.cwd.clone();
-        if deferred.is_some() {
-            agent.session.model_switch_pending = true;
+        if let Some(switch) = &deferred {
+            agent.begin_model_switch(&switch.model_id);
         }
         let mut effects =
             deferred_mode_effects(&session_id_clone, deferred_mode, deferred_permission);
@@ -2015,7 +2015,20 @@ pub(in crate::app::dispatch) fn handle_switch_model_complete(
     prev_model_id: Option<acp::ModelId>,
 ) -> Vec<Effect> {
     if let Some(agent) = app.agents.get_mut(&agent_id) {
-        agent.session.model_switch_pending = false;
+        let pending_effort = if agent
+            .pending_model_switch_target
+            .as_ref()
+            .is_none_or(|target| target == &model_id)
+        {
+            agent.session.model_switch_pending = false;
+            agent.pending_model_switch_target = None;
+            agent
+                .pending_reasoning_effort
+                .take()
+                .filter(|_| result.is_ok())
+        } else {
+            None
+        };
         let mut effects = match result {
             Ok(()) => {
                 agent.session.user_model_preference = Some(model_id.clone());
@@ -2078,6 +2091,30 @@ pub(in crate::app::dispatch) fn handle_switch_model_complete(
                 vec![]
             }
         };
+        if let (Some(level), Some(session_id)) = (pending_effort, agent.session.session_id.clone())
+        {
+            match crate::slash::commands::effort::EffortCommand::resolve_selection(
+                &agent.session.models,
+                &model_id,
+                &level,
+            ) {
+                Ok(effort) => {
+                    agent.begin_model_switch(&model_id);
+                    effects.push(Effect::SwitchModel {
+                        agent_id,
+                        session_id,
+                        model_id,
+                        effort,
+                        prev_model_id: None,
+                    });
+                }
+                Err(error) => {
+                    agent
+                        .scrollback
+                        .push_block(RenderBlock::system(error.message()));
+                }
+            }
+        }
         let drain = maybe_drain_queue(agent, &mut app.pending_image_notices);
         effects.extend(drain.effects);
         note_peek_page_flip(app, agent_id, drain.page_flip_entry);

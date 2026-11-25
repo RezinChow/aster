@@ -32,6 +32,10 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 const MODEL_ID: &str = "mock/gpt";
 
+#[path = "shipped_tui_e2e/goal_setup.rs"]
+mod goal_setup;
+#[path = "shipped_tui_e2e/operation_liveness.rs"]
+mod operation_liveness;
 #[path = "shipped_tui_e2e/reasoning.rs"]
 mod reasoning;
 #[path = "shipped_tui_e2e/retrieval.rs"]
@@ -143,6 +147,8 @@ struct MockState {
     expand_replies: u64,
     ask_tool_replies: u64,
     queue_release: Option<std::sync::mpsc::Receiver<()>>,
+    held_goal_plan: Option<std::sync::mpsc::Sender<TcpStream>>,
+    held_compaction: Option<std::sync::mpsc::Sender<TcpStream>>,
     write_path: String,
     late_path: String,
 }
@@ -166,6 +172,8 @@ fn spawn_mock_with_catalog(
         expand_replies: 0,
         ask_tool_replies: 0,
         queue_release: None,
+        held_goal_plan: None,
+        held_compaction: None,
         write_path: write_path.display().to_string(),
         late_path: late_path.display().to_string(),
     }));
@@ -184,6 +192,37 @@ fn spawn_mock_with_catalog(
                 let response = {
                     let mut guard = shared.lock().expect("mock");
                     guard.bodies.push(body.clone());
+                    if body.contains("You plan a durable Goal.") {
+                        if let Some(held) = guard.held_goal_plan.take() {
+                            held.send(stream).expect("report held planning request");
+                            continue;
+                        }
+                    }
+                    if body.contains("context-compaction engine") {
+                        if let Some(held) = guard.held_compaction.take() {
+                            held.send(stream).expect("report held compaction request");
+                            continue;
+                        }
+                    }
+                    if body.contains("SSE-FAULT-FIXTURE") {
+                        let attempts = guard
+                            .bodies
+                            .iter()
+                            .filter(|body| body.contains("SSE-FAULT-FIXTURE"))
+                            .count();
+                        if attempts == 1 {
+                            let delta = serde_json::json!({"choices":[{"delta":{"content":"UNCOMMITTED-SSE-PARTIAL"}}]});
+                            let error = serde_json::json!({"error":{"code":"stream_failed","message":"Fixture interruption"}});
+                            let _ = write_http(
+                                &mut stream,
+                                &format!("data: {delta}\n\ndata: {error}\n\ndata: [DONE]\n\n"),
+                            );
+                            continue;
+                        }
+                    }
+                    if operation_liveness::serve_stream(&body, &stream) {
+                        continue;
+                    }
                     let response = decide(&body, &mut guard);
                     if session_controls::hold_provider(
                         &body,
@@ -272,6 +311,9 @@ fn decide(raw: &str, state: &mut MockState) -> String {
             &pre_analysis_object(raw.contains("execution_plan.stages")),
             streaming,
         );
+    }
+    if raw.contains("LARGE-ASSISTANT-FIXTURE") && !raw.contains("compacted context") {
+        return reply_text(&"verbose prior work ".repeat(4000), streaming);
     }
     let tools = has_tools(&parsed);
     if let Some(response) = retrieval::response(&parsed, state, streaming) {

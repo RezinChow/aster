@@ -1,4 +1,22 @@
 use super::*;
+use std::path::Path;
+
+async fn load_legacy_goal_if_needed(
+    session: &AgentSession,
+    workspace: &Path,
+    session_id: &str,
+) -> acp::Result<Option<crate::goal::DurableGoal>> {
+    if session
+        .goal_definition()
+        .map_err(|error| acp::Error::invalid_params().data(error.to_string()))?
+        .is_some()
+    {
+        return Ok(None);
+    }
+    crate::goal::load_goal(workspace, session_id)
+        .await
+        .map_err(|error| acp::Error::invalid_params().data(error.to_string()))
+}
 
 #[async_trait::async_trait(?Send)]
 impl acp::Agent for AsterCodeAgent {
@@ -115,6 +133,9 @@ impl acp::Agent for AsterCodeAgent {
             );
         }
         self.validate_plugin_selection(args.meta.as_ref(), &args.mcp_servers)?;
+        let plugin_tools = crate::plugin_tools::entries_from_meta(args.meta.as_ref());
+        let components = crate::harness_assemble::components_from_meta(args.meta.as_ref())
+            .map_err(|error| acp::Error::invalid_params().data(error))?;
         self.admit_studio_documents(args.meta.as_ref());
         let session_id = uuid::Uuid::new_v4().to_string();
         let workspace = if args.cwd.as_os_str().is_empty() {
@@ -151,14 +172,12 @@ impl acp::Agent for AsterCodeAgent {
         }
         .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
         let session_mcp = session_mcp_configs(&args.mcp_servers);
-        self.sync_session_mcp_servers(Some(session_id.as_ref()), &args.mcp_servers)
+        let mcp_reservation = self
+            .sync_session_mcp_servers(Some(session_id.as_ref()), &args.mcp_servers)
             .await?;
         let model_id = self.model_id.lock().await.clone();
-        self.refresh_model(&model_id, true).await;
+        self.refresh_model(&model_id, false).await;
         let effort = *self.effort.lock().await;
-        let plugin_tools = crate::plugin_tools::entries_from_meta(args.meta.as_ref());
-        let components = crate::harness_assemble::components_from_meta(args.meta.as_ref())
-            .map_err(|error| acp::Error::invalid_params().data(error))?;
         let live = self
             .open_core_session(
                 &session_id,
@@ -208,6 +227,7 @@ impl acp::Agent for AsterCodeAgent {
             return Err(acp::Error::internal_error().data(error.to_string()));
         }
         self.sessions.lock().await.insert(session_id.clone(), live);
+        drop(mcp_reservation);
         if let Some(goal) = goal {
             self.goals.lock().await.insert(session_id.clone(), goal);
         } else {
@@ -268,15 +288,20 @@ impl acp::Agent for AsterCodeAgent {
         }
         let components = crate::harness_assemble::components_from_meta(args.meta.as_ref())
             .map_err(|error| acp::Error::invalid_params().data(error))?;
-        let current = self
-            .sessions
-            .lock()
-            .await
-            .get(&session_id)
-            .map(|live| (live.model_id.clone(), live.effort));
+        let current = self.sessions.lock().await.get(&session_id).map(|live| {
+            (
+                live.model_id.clone(),
+                live.effort,
+                Arc::clone(&live.session),
+            )
+        });
         let restore_selection = current.is_none() && self.unattended.is_none();
-        let (model_id, mut effort) = match current {
-            Some(selection) => selection,
+        let (model_id, mut effort, legacy_goal) = match current {
+            Some((model_id, effort, session)) => (
+                model_id,
+                effort,
+                Some(load_legacy_goal_if_needed(&session, &workspace, &session_id).await?),
+            ),
             None => {
                 let default_model = self.model_id.lock().await.clone();
                 let saved_model = args
@@ -295,14 +320,10 @@ impl acp::Agent for AsterCodeAgent {
                 } else {
                     None
                 };
-                (model_id.to_owned(), effort)
+                (model_id.to_owned(), effort, None)
             }
         };
-        self.admit_studio_documents(args.meta.as_ref());
-        let session_mcp = session_mcp_configs(&args.mcp_servers);
-        self.sync_session_mcp_servers(Some(session_id.as_ref()), &args.mcp_servers)
-            .await?;
-        self.refresh_model(&model_id, true).await;
+        self.refresh_model(&model_id, false).await;
         if restore_selection
             && !self.launch_effort_override
             && args
@@ -316,6 +337,11 @@ impl acp::Agent for AsterCodeAgent {
                 .filter(|saved| self.model_supports_effort(&model_id, saved.token));
         }
         let plugin_tools = crate::plugin_tools::entries_from_meta(args.meta.as_ref());
+        self.admit_studio_documents(args.meta.as_ref());
+        let session_mcp = session_mcp_configs(&args.mcp_servers);
+        let mcp_reservation = self
+            .sync_session_mcp_servers(Some(session_id.as_ref()), &args.mcp_servers)
+            .await?;
         let setup = SessionSetup {
             workspace: workspace.clone(),
             model_id: &model_id,
@@ -324,46 +350,51 @@ impl acp::Agent for AsterCodeAgent {
             components: &components,
             mcp_servers: session_mcp,
         };
-        let live = {
-            let sessions = self.sessions.lock().await;
-            if let Some(current) = sessions.get(&session_id) {
-                self.replace_core_session(current, setup).await?
+        let prepare = async |live| {
+            let mut live = self.finish_plugin_tools(live, plugin_tools).await?;
+            let goal = match legacy_goal {
+                Some(goal) => goal,
+                None => load_legacy_goal_if_needed(&live.session, &workspace, &session_id).await?,
+            };
+            let commands = commands::session_commands(&live.session)?;
+            if let Some(posture) = posture {
+                live.set_posture(posture, Vec::new())?;
+            }
+            Ok((live, goal, commands))
+        };
+        let (modes, models, transcript, goal, available_commands) = {
+            let mut sessions = self.sessions.lock().await;
+            let (live, goal, commands) = if let Some(current) = sessions.get(&session_id) {
+                let prepared = self.replace_core_session(current, setup, prepare).await?;
+                session_open::start_workspace_indexing(&prepared.0);
+                prepared
             } else {
                 drop(sessions);
-                self.open_core_session(&session_id, setup, true).await?
-            }
+                let built = self.open_core_session(&session_id, setup, true).await?;
+                let session = Arc::clone(&built.session);
+                let prepared = match prepare(built).await {
+                    Ok(prepared) => prepared,
+                    Err(error) => {
+                        session.close().await;
+                        return Err(error);
+                    }
+                };
+                sessions = self.sessions.lock().await;
+                prepared
+            };
+            let modes = live
+                .permissions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .posture
+                .modes();
+            let effort_token = live.effort.map(|limits| limits.token);
+            let models = self.model_state_with(&live.model_id, effort_token);
+            let transcript = Arc::clone(&live.session);
+            sessions.insert(session_id.clone(), live);
+            (modes, models, transcript, goal, commands)
         };
-        let mut live = self.finish_plugin_tools(live, plugin_tools).await?;
-        if let Some(posture) = posture {
-            live.set_posture(posture, Vec::new())?;
-        }
-        let modes = live
-            .permissions
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .posture
-            .modes();
-        let effort_token = live.effort.map(|limits| limits.token);
-        let models = self.model_state_with(&live.model_id, effort_token);
-        let transcript = Arc::clone(&live.session);
-        let goal = match live.session.goal_definition() {
-            Ok(Some(_)) => Ok(None),
-            Ok(None) => crate::goal::load_goal(&workspace, &session_id)
-                .await
-                .map_err(|error| acp::Error::invalid_params().data(error.to_string())),
-            Err(error) => Err(acp::Error::invalid_params().data(error.to_string())),
-        };
-        let goal = match goal {
-            Ok(goal) => goal,
-            Err(error) => {
-                live.session.close().await;
-                return Err(error);
-            }
-        };
-        let available_commands = commands::session_commands(&live.session)?;
-        let tooling = session_tooling_projection(&live.session).await;
-        let usage_session = Arc::clone(&live.session);
-        self.sessions.lock().await.insert(session_id.clone(), live);
+        drop(mcp_reservation);
         loading.ready();
         if let Some(goal) = goal {
             self.goals.lock().await.insert(session_id.clone(), goal);
@@ -377,14 +408,12 @@ impl acp::Agent for AsterCodeAgent {
             .replay_loaded_transcript(&args.session_id, &transcript)
             .await
         {
-            self.sessions.lock().await.remove(&session_id);
-            transcript.close().await;
-            return Err(error);
+            tracing::warn!(%session_id, %error, "session committed but transcript replay delivery failed");
         }
         let config_options = Self::model_config_options(&models);
         self.announce_commands(&session_id, available_commands);
-        self.announce_tooling(&session_id, tooling);
-        self.announce_session_usage(&session_id, &usage_session);
+        self.announce_tooling(&session_id, session_tooling_projection(&transcript).await);
+        self.announce_session_usage(&session_id, &transcript);
         Ok(acp::LoadSessionResponse::new()
             .modes(modes)
             .models(models)
@@ -458,11 +487,13 @@ impl acp::Agent for AsterCodeAgent {
                         components: &current.components,
                         mcp_servers: current.mcp_servers.clone(),
                     },
+                    async |live| {
+                        self.finish_plugin_tools(live, current.plugin_tools.clone())
+                            .await
+                    },
                 )
                 .await?;
-            let live = self
-                .finish_plugin_tools(live, current.plugin_tools.clone())
-                .await?;
+            session_open::start_workspace_indexing(&live);
             sessions.insert(session_key.clone(), live);
         }
         self.reapply_active_goal(&session_key).await;
@@ -859,6 +890,12 @@ impl acp::Agent for AsterCodeAgent {
                 );
             }
         };
+        if prompt_id.is_none() {
+            if let Some(compaction) = self.manual_compactions.borrow().get(&session_key) {
+                compaction.cancel();
+                return Ok(());
+            }
+        }
         let generation = {
             let generations = self.turn_generation.lock().await;
             let current = generations.get(&session_key);

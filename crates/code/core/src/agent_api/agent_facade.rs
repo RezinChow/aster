@@ -117,6 +117,27 @@ impl Agent {
         agent_sessions::sync_global_mcp_servers(self, servers).await
     }
 
+    /// Install the desired MCP registrations and retire obsolete transports.
+    /// Transport shutdown runs after logical removal and never republishes a tool.
+    /// Returns an error if the agent is closed or has no MCP manager.
+    pub async fn reconcile_global_mcp_servers(
+        &self,
+        servers: Vec<crate::mcp::McpServerConfig>,
+    ) -> Result<()> {
+        let retired = agent_sessions::reconcile_global_mcp_servers(self, servers).await?;
+        if !retired.is_empty() {
+            tokio::spawn(agent_sessions::close_retired_mcp_servers(retired));
+        }
+        Ok(())
+    }
+
+    /// Connect the named registrations and refresh the tool cache for new sessions.
+    /// Individual transport failures are reported in MCP status. A closed agent
+    /// returns a session lifecycle error.
+    pub async fn connect_global_mcp_servers(&self, names: Vec<String>) -> Result<()> {
+        agent_sessions::connect_global_mcp_servers(self, names).await
+    }
+
     /// Arm server-initiated sampling on this agent's global MCP manager:
     /// the factory is consulted once per server at client construction
     /// (see [`crate::mcp::SamplingHandlerFactory`]). Not setting a
@@ -377,6 +398,19 @@ impl Agent {
         options: SessionOptions,
     ) -> Result<AgentSession> {
         agent_sessions::replace_session_async(self, current, options).await
+    }
+
+    /// Prepare the host's extensions and metadata before committing a live
+    /// session replacement. A preparation refusal preserves the original session.
+    /// The outer result describes Core admission and the inner result is the
+    /// host preparation result. The host must retain the prepared session on success.
+    pub async fn replace_session_after<T, E>(
+        &self,
+        current: &AgentSession,
+        options: SessionOptions,
+        prepare: impl AsyncFnOnce(Arc<AgentSession>) -> std::result::Result<T, E>,
+    ) -> Result<std::result::Result<T, E>> {
+        agent_sessions::replace_session_after(self, current, options, prepare).await
     }
 
     /// Return the IDs of every live session created from this agent.

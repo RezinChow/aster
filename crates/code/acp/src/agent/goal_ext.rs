@@ -1,6 +1,11 @@
 //! Host goal commands: `/goal`, its extension method, and resume.
 
 use super::*;
+use crate::goal::{GoalLanguage, GoalSetupPhase};
+use std::cell::Cell;
+use std::time::{Duration, Instant};
+
+const GOAL_SETUP_TIMEOUT: Duration = Duration::from_secs(120);
 
 impl AsterCodeAgent {
     pub(super) async fn goal_language(
@@ -87,12 +92,44 @@ impl AsterCodeAgent {
             };
             response.data(format!("{error:#}"))
         };
-        let bound = tokio::select! {
+        let phase = Cell::new(None);
+        let started = Instant::now();
+        let setup = crate::goal::apply_bound_goal(session, &op, language, async |stage| {
+            phase.set(Some(stage));
+            tracing::info!(session_id = %key, ?stage, elapsed_ms = started.elapsed().as_millis(), "Goal setup phase started");
+            let message = match (language, stage) {
+                (GoalLanguage::English, GoalSetupPhase::Compacting) => {
+                    "Summarizing conversation context…\n\n"
+                }
+                (GoalLanguage::English, GoalSetupPhase::Planning) => "Preparing the goal plan…\n\n",
+                (GoalLanguage::Chinese, GoalSetupPhase::Compacting) => "正在整理对话上下文…\n\n",
+                (GoalLanguage::Chinese, GoalSetupPhase::Planning) => "正在生成目标计划…\n\n",
+            };
+            self.emit_text(session_id, message, false).await;
+        });
+        let result = tokio::select! {
             biased;
-            _ = self.wait_for_turn_cancel(&key, generation) => {
-                return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
+            _ = self.wait_for_turn_cancel(&key, generation) => None,
+            result = tokio::time::timeout(GOAL_SETUP_TIMEOUT, setup) => Some(result),
+        };
+        let bound = match result {
+            Some(Ok(result)) => result.map_err(goal_error)?,
+            None => return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled)),
+            Some(Err(_)) => {
+                let stage = phase.get();
+                tracing::warn!(session_id = %key, ?stage, elapsed_ms = started.elapsed().as_millis(), "Goal setup timed out");
+                let message = match (language, stage) {
+                    (GoalLanguage::English, Some(GoalSetupPhase::Planning)) => {
+                        "Goal planning timed out. The goal is saved. Run /goal resume to retry."
+                    }
+                    (GoalLanguage::English, _) => "Goal setup timed out. Retry the goal command.",
+                    (GoalLanguage::Chinese, Some(GoalSetupPhase::Planning)) => {
+                        "目标计划生成超时。目标已保存，发送 /goal resume 可重试。"
+                    }
+                    (GoalLanguage::Chinese, _) => "目标初始化超时，请重试目标命令。",
+                };
+                return Err(acp::Error::internal_error().data(message));
             }
-            result = crate::goal::apply_bound_goal(session, &op, language) => result.map_err(goal_error)?,
         };
         if let Some(bound) = bound {
             self.goals.lock().await.remove(&key);

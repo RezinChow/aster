@@ -2,14 +2,31 @@
 //!
 //! Thin wrapper over `Action::SwitchModel` with the session's current model id and the chosen effort (same wire path as `/model <name> <effort>`).
 
+use crate::acp::model_state::{EffortTokenError, ModelState};
 use crate::app::actions::Action;
 use crate::slash::command::{
     AppCtx, ArgItem, CommandExecCtx, CommandResult, SlashCommand, slash_meta,
 };
 use crate::slash::commands::effort_levels::build_effort_arg_items;
+use agent_client_protocol as acp;
+use aster_shell::sampling::types::ReasoningEffort;
 
 /// Set reasoning effort for the active model.
 pub struct EffortCommand;
+
+impl EffortCommand {
+    pub(crate) fn resolve_selection(
+        models: &ModelState,
+        model_id: &acp::ModelId,
+        level: &str,
+    ) -> Result<Option<ReasoningEffort>, EffortTokenError> {
+        if level.eq_ignore_ascii_case("default") {
+            Ok(None)
+        } else {
+            models.resolve_effort_for_model(model_id, level).map(Some)
+        }
+    }
+}
 
 impl SlashCommand for EffortCommand {
     slash_meta! {
@@ -49,13 +66,6 @@ impl SlashCommand for EffortCommand {
             return CommandResult::Error("No active model".into());
         };
 
-        if trimmed.eq_ignore_ascii_case("default") {
-            return CommandResult::Action(Action::SwitchModel {
-                model_id,
-                effort: None,
-            });
-        }
-
         if trimmed.is_empty() {
             let offered: Vec<String> = ctx
                 .models
@@ -76,11 +86,8 @@ impl SlashCommand for EffortCommand {
             return CommandResult::Error(format!("Usage: /effort <{levels}>{current}"));
         }
 
-        match ctx.models.resolve_effort_for_model(&model_id, trimmed) {
-            Ok(effort) => CommandResult::Action(Action::SwitchModel {
-                model_id,
-                effort: Some(effort),
-            }),
+        match Self::resolve_selection(ctx.models, &model_id, trimmed) {
+            Ok(effort) => CommandResult::Action(Action::SwitchModel { model_id, effort }),
             Err(err) => CommandResult::Error(err.message()),
         }
     }
@@ -89,10 +96,7 @@ impl SlashCommand for EffortCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::model_state::ModelState;
     use crate::slash::commands::effort_levels::EFFORT_LEVELS;
-    use agent_client_protocol as acp;
-    use aster_shell::sampling::types::ReasoningEffort;
     use std::sync::Arc;
 
     fn model_with_reasoning(id: &str, name: &str) -> (acp::ModelId, acp::ModelInfo) {

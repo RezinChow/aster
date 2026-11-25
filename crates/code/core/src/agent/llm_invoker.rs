@@ -756,11 +756,18 @@ impl LlmInvoker {
             // provider stream reaches EOF, Done, cancellation, or the caller
             // drops the receiver.
             let _generation_permit = _generation_permit;
+            let idle = crate::llm::http::stream_idle_timeout();
+            let progress = tokio::time::sleep(idle);
+            tokio::pin!(progress);
             loop {
                 let event = tokio::select! {
                     biased;
                     _ = provider_cancellation.cancelled() => break,
                     _ = tx.closed() => break,
+                    _ = &mut progress => {
+                        tracing::warn!(idle_ms = idle.as_millis(), "Model stream stopped making progress");
+                        break;
+                    }
                     event = inner_rx.recv() => event,
                 };
                 let Some(event) = event else {
@@ -792,9 +799,23 @@ impl LlmInvoker {
                         }
                     }
                 }
+                let made_progress = match &event {
+                    StreamEvent::TextDelta(delta)
+                    | StreamEvent::ReasoningDelta(delta)
+                    | StreamEvent::ToolUseInputDelta { delta, .. } => !delta.is_empty(),
+                    StreamEvent::ToolUseStart { .. } | StreamEvent::Done(_) => true,
+                };
                 let finished = matches!(event, StreamEvent::Done(_));
-                if tx.send(event).await.is_err() || finished {
+                let sent = tokio::select! {
+                    biased;
+                    _ = provider_cancellation.cancelled() => break,
+                    result = tx.send(event) => result,
+                };
+                if sent.is_err() || finished {
                     break;
+                }
+                if made_progress {
+                    progress.as_mut().set(tokio::time::sleep(idle));
                 }
             }
             provider_cancellation.cancel();

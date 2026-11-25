@@ -79,6 +79,65 @@ async fn cancellation_joins_a_bridge_waiting_for_a_partial_frame() {
     exercise("printf '{\"jsonrpc\":'; : > ready", false).await;
 }
 
+#[tokio::test]
+async fn prompt_response_follows_buffered_session_updates() {
+    let dir = tempfile::tempdir().unwrap();
+    let bin = dir.path().join("external-agent");
+    let first = r#"{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"stream","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"```mermaid\nflowchart LR\nA-->B\n"}}}}"#;
+    let last = r#"{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"stream","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"```\n\nTrailing prose.\n"}}}}"#;
+    let script = format!(
+        r#"#!/bin/sh
+IFS= read -r request || exit 1
+id=$(printf '%s' "$request" | sed -E 's/.*"id":([0-9]+).*/\1/')
+printf '%s\n%s\n{{"jsonrpc":"2.0","id":%s,"result":{{"stopReason":"end_turn"}}}}\n' '{first}' '{last}' "$id"
+exec /bin/cat
+"#
+    );
+    std::fs::write(&bin, script).unwrap();
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let cancel = CancellationToken::new();
+    let (mut client, channel) = acp_channels();
+    let bridge = spawn_bridge(bin, Vec::new(), cancel.clone(), channel).unwrap();
+    let prompt = acp::PromptRequest::new(acp::SessionId::new("stream"), vec![]);
+    let result = tokio::time::timeout(
+        Duration::from_secs(5),
+        aster_acp_lib::acp_send(prompt, &client.tx),
+    )
+    .await;
+    let queued: Vec<_> = std::iter::from_fn(|| client.rx.try_recv().ok()).collect();
+    cancel.cancel();
+    tokio::task::spawn_blocking(move || bridge.join().unwrap().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(
+        result.unwrap().unwrap().stop_reason,
+        acp::StopReason::EndTurn
+    );
+    assert_eq!(queued.len(), 2, "{queued:?}");
+    let delivered_text: Vec<_> = queued
+        .into_iter()
+        .map(|message| match message {
+            aster_acp_lib::AcpClientMessage::SessionNotification(notification) => {
+                match notification.request.update {
+                    acp::SessionUpdate::AgentMessageChunk(chunk) => match chunk.content {
+                        acp::ContentBlock::Text(content) => content.text,
+                        other => panic!("unexpected content: {other:?}"),
+                    },
+                    other => panic!("unexpected update: {other:?}"),
+                }
+            }
+            other => panic!("unexpected message: {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        delivered_text,
+        [
+            "```mermaid\nflowchart LR\nA-->B\n",
+            "```\n\nTrailing prose.\n"
+        ]
+    );
+}
+
 /// Pager teardown cancels, then drops client channels. A bridge that sees the
 /// transport close in the same wakeup as cancel must still join cleanly.
 #[tokio::test]

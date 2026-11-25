@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-const MCP_BOOTSTRAP_CONCURRENCY: usize = 4;
+pub(super) const MCP_BOOTSTRAP_CONCURRENCY: usize = 4;
 /// Cap each global MCP handshake so one slow/unreachable server cannot stall
 /// Desktop's first-message Agent bootstrap. Failed servers stay best-effort;
 /// timeouts are recorded on the manager so status remains observable.

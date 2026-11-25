@@ -812,6 +812,13 @@ impl SessionOptions {
         self
     }
 
+    /// Limit inherited agent MCP tools to the exact named registrations
+    /// present when this session is built. An empty set inherits no tools.
+    pub fn with_global_mcp_scope(mut self, names: impl IntoIterator<Item = String>) -> Self {
+        self.global_mcp_scope = Some(names.into_iter().collect());
+        self
+    }
+
     pub fn with_temperature(mut self, temperature: f32) -> Self {
         self.temperature = Some(temperature);
         self

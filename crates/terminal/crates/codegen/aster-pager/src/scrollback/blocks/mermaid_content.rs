@@ -1,11 +1,11 @@
 //! Mermaid diagram detection and the on-screen affordance row.
 //!
-//! The markdown renderer draws ` ```mermaid ` blocks inline as Unicode box-drawing art.
+//! The chat Markdown renderer can preview completed ` ```mermaid ` flowcharts as Unicode art.
 //! This module detects those blocks in an agent message via the generic [`CodeBlockSpan`](aster_markdown::CodeBlockSpan) API.
 //! It exposes each diagram's clean source so a full-fidelity PNG can be rendered on demand.
 //! It never renders and tracks no per-diagram render state (rendering is lazy, driven by the affordance row on click).
-//! For `auto`/`on` a clickable affordance row (`◇ mermaid [Open Image] [Copy Image Path] [Copy Source]`) is placed beneath the inline art.
-//! For `off` only the inline art is shown.
+//! For `auto`/`on` a clickable affordance row (`◇ mermaid [Open Image] [Copy Image Path] [Copy Source]`) follows the preview or code block.
+//! For `off` the chat displays the Mermaid code block.
 //! The rendered PNG is never drawn inline; it is reached only through the affordance row's actions.
 
 use std::ops::Range;
@@ -223,13 +223,13 @@ impl MermaidContent {
 }
 
 /// How a detected Mermaid block's affordance row is presented.
-/// The diagram itself is always drawn inline as Unicode art by the markdown renderer.
+/// Markdown rendering independently chooses between an inline preview and the source.
 /// The rendered PNG is never inline (it is reached only through the affordance row).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MermaidDisplay {
-    /// The inline diagram art alone, with no affordance row (`render_mermaid = off`).
+    /// No clickable row, as in `off` or native scrollback.
     SourceOnly,
-    /// The inline diagram art plus the clickable affordance row (`◇ mermaid [Open Image] [Copy Image Path] [Copy Source]`): `auto`/`on`.
+    /// The clickable affordance row (`◇ mermaid [Open Image] [Copy Image Path] [Copy Source]`): `auto`/`on`.
     Affordances,
 }
 
@@ -244,8 +244,7 @@ pub fn mermaid_display(setting: RenderMermaid) -> MermaidDisplay {
 }
 
 /// The clickable affordance row is painted by the interactive draw loop, which minimal never runs. It would commit
-/// as a blank reserved line and its buttons would be inert. Suppressing it keeps the inline diagram art (the source
-/// stays natively selectable) without the dead row.
+/// as a blank reserved line and its buttons would be inert.
 pub fn mermaid_display_static(setting: RenderMermaid, static_commit: bool) -> MermaidDisplay {
     if static_commit {
         MermaidDisplay::SourceOnly

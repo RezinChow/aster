@@ -26,6 +26,8 @@ use futures::{
 /// Prevents unbounded growth if a peer sends data without newlines.
 const MAX_LINE_SIZE: usize = 64 * 1024 * 1024;
 
+type LineFilter = Box<dyn FnMut(&[u8]) -> bool + Send + Sync>;
+
 /// An [`AsyncRead`] that only yields complete `\n`-delimited lines.
 /// `poll_read` returns `Pending` only between lines, so `read_line` inside `select!` is cancel-safe.
 pub struct LineBufferedRead {
@@ -35,6 +37,7 @@ pub struct LineBufferedRead {
     pos: usize,
     /// Receives complete lines (or an IO error) from the reader task.
     rx: mpsc::Receiver<io::Result<Vec<u8>>>,
+    filter: Option<LineFilter>,
 }
 
 impl LineBufferedRead {
@@ -44,6 +47,17 @@ impl LineBufferedRead {
         Self::new(source, |fut| {
             tokio::task::spawn_local(fut);
         })
+    }
+
+    /// Consume selected complete frames in the order seen by the RPC reader.
+    /// Return true from `consume` for a frame already handled by the caller.
+    pub fn spawn_local_filter(
+        source: impl AsyncRead + Unpin + 'static,
+        consume: impl FnMut(&[u8]) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        let mut reader = Self::spawn_local(source);
+        reader.filter = Some(Box::new(consume));
+        reader
     }
 
     /// Wrap an `AsyncRead` source with cancel-safe line buffering.
@@ -77,6 +91,7 @@ impl LineBufferedRead {
             buf: Vec::new(),
             pos: 0,
             rx,
+            filter: None,
         }
     }
 }
@@ -87,6 +102,9 @@ impl AsyncRead for LineBufferedRead {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
         let this = self.get_mut();
 
         // Serve remaining bytes from the current line.
@@ -108,28 +126,37 @@ impl AsyncRead for LineBufferedRead {
             return Poll::Ready(Ok(n));
         }
 
-        // No buffered data — try to receive the next complete line.
-        match this.rx.poll_next_unpin(cx) {
-            Poll::Ready(Some(Ok(line))) => {
-                let n = line.len().min(buf.len());
-                let Some(dst) = buf.get_mut(..n) else {
-                    return Poll::Ready(Ok(0));
-                };
-                let Some(src) = line.get(..n) else {
-                    return Poll::Ready(Ok(0));
-                };
-                dst.copy_from_slice(src);
-                if n < line.len() {
-                    // Stash the remainder for subsequent poll_read calls.
-                    this.buf = line;
-                    this.pos = n;
+        // Filter at the consuming boundary. Running it in the pre-reader would
+        // dispatch a notification ahead of earlier responses still in its queue.
+        for _ in 0..32 {
+            match this.rx.poll_next_unpin(cx) {
+                Poll::Ready(Some(Ok(line))) => {
+                    if this.filter.as_mut().is_some_and(|filter| filter(&line)) {
+                        continue;
+                    }
+                    let n = line.len().min(buf.len());
+                    let Some(dst) = buf.get_mut(..n) else {
+                        return Poll::Ready(Ok(0));
+                    };
+                    let Some(src) = line.get(..n) else {
+                        return Poll::Ready(Ok(0));
+                    };
+                    dst.copy_from_slice(src);
+                    if n < line.len() {
+                        // Stash the remainder for subsequent poll_read calls.
+                        this.buf = line;
+                        this.pos = n;
+                    }
+                    return Poll::Ready(Ok(n));
                 }
-                Poll::Ready(Ok(n))
+                Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
+                Poll::Ready(None) => return Poll::Ready(Ok(0)),
+                Poll::Pending => return Poll::Pending,
             }
-            Poll::Ready(Some(Err(e))) => Poll::Ready(Err(e)),
-            Poll::Ready(None) => Poll::Ready(Ok(0)), // EOF
-            Poll::Pending => Poll::Pending,
         }
+        // A burst of consumed frames must still yield to other bridge work.
+        cx.waker().wake_by_ref();
+        Poll::Pending
     }
 }
 
@@ -201,6 +228,38 @@ mod tests {
             let mut buf = Vec::new();
             reader.read_to_end(&mut buf).await.unwrap();
             assert_eq!(buf, b"hello world\n");
+        });
+    }
+
+    #[test]
+    fn filtered_frame_waits_for_the_preceding_frame_to_be_read() {
+        run(async {
+            use std::sync::{
+                Arc,
+                atomic::{AtomicBool, Ordering},
+            };
+
+            let filtered = Arc::new(AtomicBool::new(false));
+            let seen = Arc::clone(&filtered);
+            let source = Cursor::new(b"first\nnotify\nlast\n");
+            let mut reader = LineBufferedRead::spawn_local_filter(source, move |line| {
+                if line == b"notify\n" {
+                    seen.store(true, Ordering::Relaxed);
+                    true
+                } else {
+                    false
+                }
+            });
+
+            let mut prefix = [0; 6];
+            reader.read_exact(&mut prefix).await.unwrap();
+            assert_eq!(&prefix, b"first\n");
+            assert!(!filtered.load(Ordering::Relaxed));
+
+            let mut suffix = Vec::new();
+            reader.read_to_end(&mut suffix).await.unwrap();
+            assert!(filtered.load(Ordering::Relaxed));
+            assert_eq!(suffix, b"last\n");
         });
     }
 

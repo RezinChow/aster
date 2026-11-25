@@ -145,7 +145,7 @@ async fn fixture_with_options(
         original
     };
     original.close().await;
-    *host.core_agent.lock().await = Some(core);
+    *host.core_agent.lock().await = Some(Arc::new(core));
     Fixture {
         _root: root,
         host,

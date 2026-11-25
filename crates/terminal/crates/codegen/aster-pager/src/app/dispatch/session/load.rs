@@ -1352,7 +1352,7 @@ pub(in crate::app::dispatch) fn handle_session_loaded(
             nonce: Default::default(),
         });
         if let Some(switch) = deferred {
-            agent.session.model_switch_pending = true;
+            agent.begin_model_switch(&switch.model_id);
             effects.push(Effect::SwitchModel {
                 agent_id,
                 session_id: hydrate_sid.clone(),

@@ -885,7 +885,16 @@ pub(super) fn dispatch_send_prompt_submission(
                             .record_command_use(invocation.token, invocation.token);
                         let args = parse_invocation(slash_input.trim())
                             .map_or(invocation.args, |invocation| invocation.args);
-                        command.run(&mut ctx, args)
+                        if is_builtin
+                            && invocation.token.eq_ignore_ascii_case("effort")
+                            && agent.session.model_switch_pending
+                            && !args.trim().is_empty()
+                        {
+                            agent.pending_reasoning_effort = Some(args.trim().to_owned());
+                            CommandResult::Handled
+                        } else {
+                            command.run(&mut ctx, args)
+                        }
                     }
                 } else if is_aster_from_app {
                     CommandResult::Message(if backend_unavailable {

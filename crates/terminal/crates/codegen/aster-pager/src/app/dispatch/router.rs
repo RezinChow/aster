@@ -1004,7 +1004,7 @@ fn dispatch_inner(action: Action, app: &mut AppView) -> Vec<Effect> {
                     }]
                 };
             };
-            agent.session.model_switch_pending = true;
+            agent.begin_model_switch(&model_id);
             vec![Effect::SwitchModel {
                 agent_id: id,
                 session_id,

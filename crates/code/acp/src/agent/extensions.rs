@@ -6,6 +6,20 @@ use super::*;
 const TRANSCRIPT_UPDATE_METHOD: &str = "aster/session/transcript/update";
 const TRANSCRIPT_UPDATE_SCHEMA: &str = "aster.acp.session-transcript-update.v1";
 
+struct ManualCompaction<'a> {
+    agent: &'a AsterCodeAgent,
+    session_id: &'a str,
+}
+
+impl Drop for ManualCompaction<'_> {
+    fn drop(&mut self) {
+        self.agent
+            .manual_compactions
+            .borrow_mut()
+            .remove(self.session_id);
+    }
+}
+
 #[derive(Debug)]
 enum ReplayNotification {
     Acp(acp::SessionNotification),
@@ -219,10 +233,36 @@ impl AsterCodeAgent {
                 .map(|live| Arc::clone(&live.session))
                 .ok_or_else(|| acp::Error::invalid_params().data("unknown session id"))?
         };
-        session
-            .compact_conversation(user_context.as_deref())
-            .await
-            .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+        let cancellation = tokio_util::sync::CancellationToken::new();
+        match self
+            .manual_compactions
+            .borrow_mut()
+            .entry(session_id.to_owned())
+        {
+            std::collections::hash_map::Entry::Occupied(_) => {
+                return Err(
+                    acp::Error::invalid_params().data("session already has an active compaction")
+                );
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(cancellation.clone());
+            }
+        }
+        let guard = ManualCompaction {
+            agent: self,
+            session_id,
+        };
+        let result = session
+            .compact_conversation_with_cancel(user_context.as_deref(), &cancellation)
+            .await;
+        drop(guard);
+        result.map_err(|error| match error {
+            aster_core::CodeError::TaskAdmissionCancelled { .. } => acp::Error::internal_error()
+                .data(
+                    serde_json::json!({"kind":"compact_cancelled","message":"compact cancelled"}),
+                ),
+            error => acp::Error::internal_error().data(error.to_string()),
+        })?;
         self.emit_xai_session_update(
             &acp::SessionId::new(session_id),
             serde_json::json!({

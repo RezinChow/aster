@@ -998,6 +998,25 @@ fn resolve_mode(requested: StructuredMode, support: NativeStructuredSupport) -> 
     }
 }
 
+/// Estimate the first structured provider request with the same wire prompts
+/// and schema placement used by generation.
+pub(crate) fn estimate_initial_prompt_tokens(
+    request: &StructuredRequest,
+    support: NativeStructuredSupport,
+) -> usize {
+    let mode = resolve_mode(request.mode, support);
+    let messages = build_initial_messages(request, mode);
+    let system = build_system_prompt(request, mode);
+    let tools = build_tools(request, mode);
+    let format_tokens = match build_directive(request, mode).response_format {
+        Some(ResponseFormat::JsonSchema { name, schema }) => {
+            (name.len() + schema.to_string().len()).div_ceil(4)
+        }
+        _ => 0,
+    };
+    super::estimate_prompt_tokens(&messages, Some(&system), &tools).saturating_add(format_tokens)
+}
+
 /// Build the provider directive for an already-resolved mode.
 fn build_directive(req: &StructuredRequest, mode: StructuredMode) -> StructuredDirective {
     let response_schema = SchemaEnvelope::for_schema(&req.schema).response_schema(&req.schema);

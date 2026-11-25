@@ -12,6 +12,7 @@ use crate::compaction::CompactionBudget;
 use crate::error::{write_or_recover, CodeError, Result};
 use crate::llm::Message;
 use aster_effect::LogStore;
+use tokio_util::sync::CancellationToken;
 
 impl AgentSession {
     /// Resolved context window for this session, in tokens.
@@ -25,7 +26,28 @@ impl AgentSession {
     /// transcript. A session with fewer than two visible messages returns an
     /// error and leaves the log unchanged.
     pub async fn compact_conversation(&self, focus: Option<&str>) -> Result<()> {
-        let _lease = ExecutionCoordinator::admit(self, "compact").await?;
+        self.compact_conversation_with_cancel(focus, &self.session_cancel)
+            .await
+    }
+
+    /// Compact the conversation with a caller-owned cancellation token.
+    /// Cancellation before commit leaves the transcript unchanged. Once the
+    /// summary is committed, saving the resulting session completes normally.
+    /// Returns the same errors as [`Self::compact_conversation`] and reports
+    /// cancellation as [`CodeError::TaskAdmissionCancelled`].
+    pub async fn compact_conversation_with_cancel(
+        &self,
+        focus: Option<&str>,
+        cancellation: &CancellationToken,
+    ) -> Result<()> {
+        let cancelled = || CodeError::TaskAdmissionCancelled {
+            session_id: self.session_id.clone(),
+        };
+        let _lease = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(cancelled()),
+            lease = ExecutionCoordinator::admit(self, "compact") => lease?,
+        };
         let focus = focus.map(str::trim).filter(|focus| !focus.is_empty());
         let log = self
             .run_admission
@@ -58,46 +80,59 @@ impl AgentSession {
             self.config.auto_compact_threshold,
             0,
         );
-        let cancellation = self.session_cancel.child_token();
+        let provider_cancel = self.session_cancel.child_token();
+        let _provider_guard = provider_cancel.clone().drop_guard();
         let client = super::agent_loop_runtime::build_agent_loop(self).scoped_llm_client_for_parts(
             Some(&self.session_id),
             &None,
-            &cancellation,
+            &provider_cancel,
         );
         let artifacts = self.tool_executor.model_readable_artifact_store();
-        let original = match artifacts.as_ref() {
-            Some(store) => {
-                let text = tokio::task::spawn_blocking(move || {
-                    crate::fact_control::original_public_transcript_from_facts(&facts)
-                })
-                .await
-                .map_err(|error| {
-                    CodeError::Session(format!("compaction source projection failed: {error}"))
-                })?;
-                if text.is_empty() {
-                    crate::compaction::CompactionSource::from_messages(Some(store), &messages).await
-                } else {
-                    crate::compaction::CompactionSource::prepare(Some(store), text).await
+        let summarize = async {
+            let original = match artifacts.as_ref() {
+                Some(store) => {
+                    let text = tokio::task::spawn_blocking(move || {
+                        crate::fact_control::original_public_transcript_from_facts(&facts)
+                    })
+                    .await
+                    .map_err(|error| {
+                        CodeError::Session(format!("compaction source projection failed: {error}"))
+                    })?;
+                    if text.is_empty() {
+                        crate::compaction::CompactionSource::from_messages(Some(store), &messages)
+                            .await
+                    } else {
+                        crate::compaction::CompactionSource::prepare(Some(store), text).await
+                    }
+                    .map_err(|error| CodeError::Session(format!("{error:#}")))?
                 }
-                .map_err(|error| CodeError::Session(format!("{error:#}")))?
-            }
-            None => None,
+                None => None,
+            };
+            crate::compaction::compact_messages(
+                &self.session_id,
+                &messages,
+                &client,
+                budget,
+                focus,
+                source.as_ref(),
+                original,
+            )
+            .await
+            .map_err(|error| CodeError::Session(format!("{error:#}")))
         };
-        let compacted = crate::compaction::compact_messages(
-            &self.session_id,
-            &messages,
-            &client,
-            budget,
-            focus,
-            source.as_ref(),
-            original,
-        )
-        .await
-        .map_err(|error| CodeError::Session(format!("{error:#}")))?;
+        let compacted = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(cancelled()),
+            _ = provider_cancel.cancelled() => return Err(cancelled()),
+            result = summarize => result?,
+        };
         let Some(compacted) = compacted else {
             return Err(CodeError::Session("Nothing to compact yet.".into()));
         };
         self.close_handle.mutate_immediate(|| -> Result<()> {
+            if cancellation.is_cancelled() || provider_cancel.is_cancelled() {
+                return Err(cancelled());
+            }
             crate::fact_control::append_compaction_done(
                 &log,
                 &writer,

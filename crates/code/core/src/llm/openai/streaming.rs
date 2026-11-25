@@ -212,6 +212,12 @@ impl OpenAiClient {
                                 }
 
                                 if let Ok(event) = serde_json::from_str::<OpenAiStreamChunk>(data) {
+                                    if event.error.is_some() {
+                                        tracing::warn!(
+                                            "OpenAI-compatible stream reported a provider error"
+                                        );
+                                        return;
+                                    }
                                     parsed_any_event = true;
                                     if response_id.is_none() {
                                         response_id = event.id.clone();
@@ -464,6 +470,10 @@ impl OpenAiClient {
                 let trailing = buffer.trim();
                 if !trailing.is_empty() {
                     if let Ok(event) = serde_json::from_str::<OpenAiStreamChunk>(trailing) {
+                        if event.error.is_some() {
+                            tracing::warn!("OpenAI-compatible stream reported a provider error");
+                            return;
+                        }
                         parsed_any_event = true;
                         if response_id.is_none() {
                             response_id = event.id.clone();

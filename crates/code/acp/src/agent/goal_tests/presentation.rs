@@ -27,6 +27,7 @@ async fn chinese_goal_request_controls_host_summary_and_planning_language() {
         &session,
         &GoalOp::Set("准备好 agent-desktop 环境".into()),
         GoalLanguage::English,
+        async |_| {},
     )
     .await
     .unwrap()

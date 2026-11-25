@@ -594,7 +594,7 @@ pub struct AsterCodeAgent {
     /// ACP ctor). `Rc`-shared so the sampling consent consumer (spawned on
     /// the same LocalSet) reads the live connection.
     client: Rc<RefCell<Option<Rc<acp::AgentSideConnection>>>>,
-    core_agent: Mutex<Option<Agent>>,
+    core_agent: Mutex<Option<Arc<Agent>>>,
     /// One bounded filesystem inventory at a time; the blocking worker owns
     /// the permit even if its ACP request future is dropped.
     catalog_queries: Arc<tokio::sync::Semaphore>,
@@ -620,10 +620,12 @@ pub struct AsterCodeAgent {
     /// Wakes `stream_turn` after `cancel` records the generation.
     /// `notify_waiters` does not store a permit, so the turn also reads the map.
     turn_cancel: std::sync::Arc<tokio::sync::Notify>,
+    manual_compactions: RefCell<HashMap<String, tokio_util::sync::CancellationToken>>,
     /// MCP servers loaded from the launch config, captured before a session
     /// list is applied. Session servers replace same-named entries; an empty
     /// session list leaves this baseline in place.
     config_mcp: Mutex<Option<Vec<aster_core::mcp::McpServerConfig>>>,
+    opening_session_mcp: RefCell<HashMap<String, Vec<aster_core::mcp::McpServerConfig>>>,
     plugin_selection: Option<crate::PluginSelectionHost>,
     /// Present after a launcher asks in `session/new` `_meta.asterStudioDocuments`,
     /// or after the legacy `--studio-documents` process flag.
@@ -704,7 +706,9 @@ impl AsterCodeAgent {
             turn_generation: Mutex::new(HashMap::new()),
             cancelled_generation: Mutex::new(HashMap::new()),
             turn_cancel: std::sync::Arc::new(tokio::sync::Notify::new()),
+            manual_compactions: RefCell::new(HashMap::new()),
             config_mcp: Mutex::new(None),
+            opening_session_mcp: RefCell::new(HashMap::new()),
             plugin_selection: None,
             documents: RefCell::new(None),
             consent_tx: RefCell::new(Some(consent_tx)),

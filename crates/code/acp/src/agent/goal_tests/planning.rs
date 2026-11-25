@@ -1,4 +1,5 @@
 use super::*;
+use aster_effect::{FileLog, LogStore, NewFact};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
 pub(super) const SIMPLE_PLAN: &str = r#"{"goal":"Explicit task","complexity":"Simple","steps":[{"id":"task","description":"Complete the explicit task","success_criteria":"Every original requirement holds in the workspace"}]}"#;
@@ -96,9 +97,13 @@ async fn model_stages_are_accepted_with_dependencies_and_pending_status() {
         .unwrap()
         .session_id;
     let session = host.sessions.lock().await[id.0.as_ref()].session.clone();
-    crate::goal::bind_task_goal(&session, "Implement the authorized repair plan")
-        .await
-        .unwrap();
+    crate::goal::bind_task_goal(
+        &session,
+        "Implement the authorized repair plan",
+        async |_| {},
+    )
+    .await
+    .unwrap();
     let requests = provider.await.unwrap();
     let request = &requests[0];
     assert!(request["messages"]
@@ -114,9 +119,13 @@ async fn model_stages_are_accepted_with_dependencies_and_pending_status() {
         .iter()
         .all(|step| step.status == aster_core::planning::TaskStatus::Pending));
     let sequence = definition.goal_sequence;
-    crate::goal::bind_task_goal(&session, "Implement the authorized repair plan")
-        .await
-        .unwrap();
+    crate::goal::bind_task_goal(
+        &session,
+        "Implement the authorized repair plan",
+        async |_| {},
+    )
+    .await
+    .unwrap();
     assert_eq!(
         session.goal_definition().unwrap().unwrap().goal_sequence,
         sequence,
@@ -129,6 +138,93 @@ async fn model_stages_are_accepted_with_dependencies_and_pending_status() {
             .unwrap(),
         aster_core::goal_control::GoalTickDecisionV1::Advance
     );
+    session.close().await;
+}
+
+#[tokio::test]
+async fn tool_heavy_history_reaches_the_planner_without_compaction() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut launch, provider) = launch(root.path().join("store"), SIMPLE_PLAN).await;
+    launch.workspace = root.path().into();
+    let host = AsterCodeAgent::new(launch);
+    let id = host
+        .new_session(acp::NewSessionRequest::new(root.path()))
+        .await
+        .unwrap()
+        .session_id;
+    let session = host.sessions.lock().await[id.0.as_ref()].session.clone();
+    let log = FileLog::open(aster_core::session_folder::effect_log_dir(
+        root.path(),
+        session.session_id(),
+    ))
+    .unwrap();
+    let thread = aster_core::fact_control::thread_for_session(session.session_id());
+    let mut facts = vec![NewFact {
+        kind: "user.message".into(),
+        key: "requirements".into(),
+        payload: serde_json::json!({"text":"Keep the original acceptance criteria."}),
+    }];
+    for index in 0..40 {
+        facts.push(NewFact {
+            kind: "model.turn".into(), key: format!("tool-{index}"),
+            payload: serde_json::json!({"kind":"tool","call":{
+                "id":format!("call-{index}"),"name":"ls","args":{"path":format!("catalog-{index}")},
+                "needs_confirmation":false, "text":(index == 39).then_some("Run the original tests after the repair.")
+            }}),
+        });
+    }
+    for (kind, key, payload) in [
+        (
+            "model.turn",
+            "question",
+            serde_json::json!({"kind":"question","question_id":"target","question":"Which target should pass?","allow_free_text":true}),
+        ),
+        (
+            "question.answered",
+            "answer",
+            serde_json::json!({"text":"Use the integration target."}),
+        ),
+    ] {
+        facts.push(NewFact {
+            kind: kind.into(),
+            key: key.into(),
+            payload,
+        });
+    }
+    let stored = log.append(&thread, &facts, None).unwrap();
+    let expected: Vec<_> = stored
+        .iter()
+        .filter(|fact| {
+            matches!(
+                fact.key.as_str(),
+                "requirements" | "tool-39" | "question" | "answer"
+            )
+        })
+        .map(|fact| fact.seq)
+        .collect();
+    crate::goal::bind_task_goal(&session, "Continue the approved work", async |_| {})
+        .await
+        .unwrap();
+    let requests = provider.await.unwrap();
+    assert_eq!(requests.len(), 1);
+    let input = requests[0]["messages"].to_string();
+    for text in [
+        "Keep the original acceptance criteria.",
+        "Run the original tests after the repair.",
+        "Which target should pass?",
+        "Use the integration target.",
+    ] {
+        assert!(input.contains(text), "missing source: {text}");
+    }
+    assert!(!input.contains("catalog-0"));
+    let goal = session.goal_definition().unwrap().unwrap();
+    assert_eq!(goal.binding.scope_fact_sequences, expected);
+    assert!(goal.plan_accepted);
+    assert!(!log
+        .read(&thread)
+        .unwrap()
+        .iter()
+        .any(|fact| fact.kind == "compaction.done"));
     session.close().await;
 }
 
@@ -181,7 +277,7 @@ async fn a_long_scope_is_compacted_without_dropping_its_original_stage_obligatio
         .open(directory.join(format!("{thread}.jsonl")))
         .unwrap();
     std::io::Write::write_all(&mut log, source.as_bytes()).unwrap();
-    crate::goal::bind_task_goal(&session, "Complete the authorized stages")
+    crate::goal::bind_task_goal(&session, "Complete the authorized stages", async |_| {})
         .await
         .unwrap();
     let requests = provider.await.unwrap();

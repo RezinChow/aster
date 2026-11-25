@@ -1,6 +1,7 @@
 //! Spawn the Aster Code ACP agent as a stdio subprocess and bridge it into
 //! the pager's typed ACP channels (same pattern as [`super::leader_bridge`]).
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -15,6 +16,8 @@ use tokio_util::sync::CancellationToken;
 use agent_client_protocol as acp;
 use aster_acp_lib::{AcpGatewayReceiver, AcpGatewaySender, LineBufferedRead, acp_channels};
 use aster_shell::util::grok_home::grok_home;
+use serde::Deserialize;
+use serde_json::value::RawValue;
 
 use super::spawn::{SpawnedAgent, boot_auth_manager};
 use aster_shell::agent::config::Config as AgentConfig;
@@ -151,8 +154,10 @@ fn spawn_bridge(
                 // Apply the frame limit before any unbounded line allocation.
                 // Mirror agent-side RetryTransient*: full pipes must backpressure,
                 // not kill the bridge with -32603 Internal error (EAGAIN).
-                let incoming = LineBufferedRead::spawn_local(
+                let notification_tx = gw_tx.clone();
+                let incoming = LineBufferedRead::spawn_local_filter(
                     aster_acp_lib::RetryTransientRead::new(child_stdout.compat()),
+                    move |line| forward_wire_notification(line, &notification_tx),
                 );
                 let (conn, handle_io) = acp::ClientSideConnection::new(
                     gw_tx,
@@ -206,6 +211,38 @@ fn spawn_bridge(
             })
         })
         .context("failed to start aster ACP bridge thread")
+}
+
+#[derive(Deserialize)]
+struct WireNotification<'a> {
+    id: Option<&'a RawValue>,
+    #[serde(borrow)]
+    method: Cow<'a, str>,
+    params: Option<&'a RawValue>,
+}
+
+fn forward_wire_notification(line: &[u8], gateway: &AcpGatewaySender<acp::AgentSide>) -> bool {
+    // The RPC connection dispatches notifications on spawned callbacks but
+    // resolves responses inline. Enqueue notifications while reading their
+    // frames so a prompt response cannot overtake its own updates.
+    let Ok(WireNotification {
+        id: None,
+        method,
+        params,
+    }) = serde_json::from_slice(line)
+    else {
+        return false;
+    };
+    match <acp::ClientSide as acp::Side>::decode_notification(&method, params) {
+        Ok(acp::AgentNotification::SessionNotification(update)) => {
+            gateway.forward_fire_and_forget(update);
+        }
+        Ok(acp::AgentNotification::ExtNotification(update)) => {
+            gateway.forward_fire_and_forget(update);
+        }
+        _ => return false,
+    }
+    true
 }
 
 const STDERR_TAIL_LIMIT: usize = 2048;

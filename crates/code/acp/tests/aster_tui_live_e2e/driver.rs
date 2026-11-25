@@ -38,6 +38,10 @@ pub(super) struct LiveTui {
 
 impl LiveTui {
     pub fn new(case: &str) -> Self {
+        Self::new_with_model(case, None)
+    }
+
+    pub fn new_with_model(case: &str, selected_model: Option<&str>) -> Self {
         let config = PathBuf::from(
             std::env::var_os("ASTER_CONFIG_FILE")
                 .expect("ASTER_CONFIG_FILE is required; no skipped live observations"),
@@ -45,7 +49,17 @@ impl LiveTui {
         let config = config.canonicalize().expect("explicit host ACL exists");
         let parsed = aster_core::CodeConfig::from_file(&config)
             .unwrap_or_else(|_| panic!("explicit host ACL could not be parsed"));
-        assert_eq!(parsed.default_model.as_deref(), Some("kimi/k3.1-pro"));
+        if let Some(selected) = selected_model {
+            assert!(
+                parsed.providers.iter().any(|provider| provider
+                    .models
+                    .iter()
+                    .any(|model| format!("{}/{}", provider.name, model.id) == selected)),
+                "explicit model is missing from the operator ACL"
+            );
+        } else {
+            assert_eq!(parsed.default_model.as_deref(), Some("kimi/k3.1-pro"));
+        }
         let mut secrets = Vec::new();
         for provider in &parsed.providers {
             secrets.extend(provider.api_key.iter().cloned());
@@ -460,6 +474,7 @@ impl LiveTui {
                     let minimal = row
                         .strip_prefix("> ")
                         .or_else(|| row.strip_prefix("❯ "))
+                        .or_else(|| row.strip_prefix("→ "))
                         .is_some_and(|draft| draft.trim_end() == text);
                     boxed || minimal
                 });

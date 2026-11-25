@@ -114,13 +114,11 @@ impl AsterCodeAgent {
         let mut bound_digests = HashSet::new();
         let mut budget = HostAdmissionBudget::default();
         let mut turn_permit = turn_permit;
+        let started_at = progress.started_at;
+        let budget_time = std::time::Duration::from_millis(unattended.max_execution_ms);
+        let remaining = || budget_time.saturating_sub(started_at.elapsed());
         let mut goal_tick = if unattended.goal_continuation {
-            let remaining = std::time::Duration::from_millis(
-                unattended
-                    .max_execution_ms
-                    .saturating_sub(progress.duration_ms()),
-            );
-            if remaining.is_zero() {
+            if remaining().is_zero() {
                 return Err(ExecutionDeadline.into());
             }
             let tick = tokio::select! {
@@ -128,7 +126,7 @@ impl AsterCodeAgent {
                 _ = self.wait_for_turn_cancel(session_id.0.as_ref(), generation) => {
                     return Ok(Some(Ok(acp::PromptResponse::new(acp::StopReason::Cancelled))));
                 }
-                result = tokio::time::timeout(remaining, crate::goal::bind_task_goal(session, task)) => {
+                result = tokio::time::timeout(remaining(), crate::goal::bind_task_goal(session, task, async |_| {})) => {
                     result.map_err(|_| ExecutionDeadline)?.context("bind the task goal")?
                 }
             };
@@ -137,7 +135,7 @@ impl AsterCodeAgent {
             None
         };
         loop {
-            if progress.duration_ms() >= unattended.max_execution_ms {
+            if remaining().is_zero() {
                 return Err(ExecutionDeadline.into());
             }
             progress.turns += 1;
@@ -145,29 +143,34 @@ impl AsterCodeAgent {
             progress.terminal_event = false;
             // Each attempt is a fresh core run with the full core budget; the
             // run-wide deadline is what remains of the host budget.
-            let remaining = std::time::Duration::from_millis(
-                unattended
-                    .max_execution_ms
-                    .saturating_sub(progress.duration_ms()),
-            );
-            let stream = match goal_tick.take() {
-                Some(tick) => match session
-                    .stream_goal_tick(&tick)
-                    .await
-                    .context("start the goal slice")?
-                {
-                    aster_core::GoalTickStream::Started(stream) => stream,
-                    aster_core::GoalTickStream::Decided(decision) => {
-                        return Err(crate::goal::GoalContinuationStopped(decision).into());
-                    }
-                    aster_core::GoalTickStream::Replayed(snapshot) => {
-                        bail!("the goal slice replayed Run {}", snapshot.id)
-                    }
-                },
-                None => session
-                    .stream_with_run(&prompt, None)
-                    .await
-                    .context("start Aster Code stream")?,
+            let admission = async {
+                Ok::<_, anyhow::Error>(match goal_tick.take() {
+                    Some(tick) => match session
+                        .stream_goal_tick(&tick)
+                        .await
+                        .context("start the goal slice")?
+                    {
+                        aster_core::GoalTickStream::Started(stream) => stream,
+                        aster_core::GoalTickStream::Decided(decision) => {
+                            return Err(crate::goal::GoalContinuationStopped(decision).into());
+                        }
+                        aster_core::GoalTickStream::Replayed(snapshot) => {
+                            bail!("the goal slice replayed Run {}", snapshot.id)
+                        }
+                    },
+                    None => session
+                        .stream_with_run(&prompt, None)
+                        .await
+                        .context("start Aster Code stream")?,
+                })
+            };
+            let stream = tokio::select! {
+                biased;
+                _ = self.wait_for_turn_cancel(session_id.0.as_ref(), generation) => {
+                    return Ok(Some(Ok(acp::PromptResponse::new(acp::StopReason::Cancelled))));
+                }
+                _ = tokio::time::sleep(remaining()) => return Err(ExecutionDeadline.into()),
+                result = admission => result?,
             };
             let attempt = self
                 .unattended_attempt(
@@ -177,7 +180,7 @@ impl AsterCodeAgent {
                     generation,
                     turn_permit,
                     progress,
-                    remaining,
+                    remaining(),
                 )
                 .await?;
             let (permit, facts, join_failure) = match attempt {
@@ -201,16 +204,13 @@ impl AsterCodeAgent {
                 if let Some(detail) = &facts.last_error {
                     prompt = non_terminal_continuation(detail);
                 }
-                let remaining = unattended
-                    .max_execution_ms
-                    .saturating_sub(progress.duration_ms());
                 tokio::select! {
                     biased;
                     _ = self.wait_for_turn_cancel(session_id.0.as_ref(), generation) => {
                         return Ok(Some(Ok(acp::PromptResponse::new(acp::StopReason::Cancelled))));
                     }
-                    _ = tokio::time::sleep(std::time::Duration::from_millis(remaining)) => {
-                        return Err(RetryableExternalFailure(failure).into());
+                    _ = tokio::time::sleep(remaining()) => {
+                        return Err(ExecutionDeadline.into());
                     }
                     _ = tokio::time::sleep(delay) => {}
                 }
@@ -239,10 +239,15 @@ impl AsterCodeAgent {
                 // The next slice is another original Run. A freeform prompt
                 // here would leave the goal unfinished and settle it as
                 // interrupted.
-                match crate::goal::bound_goal_step(session)
-                    .await
-                    .context("next goal slice")?
-                {
+                let next = tokio::select! {
+                    biased;
+                    _ = self.wait_for_turn_cancel(session_id.0.as_ref(), generation) => {
+                        return Ok(Some(Ok(acp::PromptResponse::new(acp::StopReason::Cancelled))));
+                    }
+                    _ = tokio::time::sleep(remaining()) => return Err(ExecutionDeadline.into()),
+                    next = crate::goal::bound_goal_step(session) => next.context("next goal slice")?,
+                };
+                match next {
                     crate::goal::BoundGoalStep::Advance(tick) => {
                         goal_tick = Some(tick);
                         continue;
@@ -286,8 +291,15 @@ impl AsterCodeAgent {
                     prompt = UNPROVEN_STOP_CONTINUATION.to_string();
                 }
                 HostAdmissionStep::FreshContextReview => {
-                    if let Err(error) = session.compact_conversation(Some(FRESH_REVIEW_FOCUS)).await
-                    {
+                    let compacted = tokio::select! {
+                        biased;
+                        _ = self.wait_for_turn_cancel(session_id.0.as_ref(), generation) => {
+                            return Ok(Some(Ok(acp::PromptResponse::new(acp::StopReason::Cancelled))));
+                        }
+                        _ = tokio::time::sleep(remaining()) => return Err(ExecutionDeadline.into()),
+                        result = session.compact_conversation(Some(FRESH_REVIEW_FOCUS)) => result,
+                    };
+                    if let Err(error) = compacted {
                         tracing::warn!("compact before the fresh reading skipped: {error}");
                     }
                     prompt = first_prompt(task);
@@ -371,7 +383,6 @@ impl AsterCodeAgent {
         let attempt::AttemptCompletion {
             mut state,
             join_failure,
-            deadline_exceeded,
             turn_permit,
             ..
         } = match self
@@ -391,6 +402,7 @@ impl AsterCodeAgent {
             attempt::AttemptDrive::Cancelled(response) => {
                 return Ok(Attempt::Cancelled(response));
             }
+            attempt::AttemptDrive::DeadlineExceeded => return Err(ExecutionDeadline.into()),
         };
         if let Some(run_id) = run_id {
             facts.provider_failure = session.run_provider_failure(&run_id).await;
@@ -401,9 +413,6 @@ impl AsterCodeAgent {
             facts.failed = true;
         }
         self.publish_attempt_outcome(session_id, &mut state).await;
-        if deadline_exceeded {
-            return Err(ExecutionDeadline.into());
-        }
         Ok(Attempt::Ended {
             turn_permit,
             facts,

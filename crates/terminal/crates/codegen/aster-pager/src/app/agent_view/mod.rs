@@ -1435,6 +1435,9 @@ pub struct AgentView {
     /// First prompt to enqueue once the session finishes loading replay.
     /// Set by `/fork` when a directive is provided; drained in the `TaskResult::SessionLoaded` arm via `enqueue_prompt_front` so the directive runs ahead of any prompts the user typed during the placeholder window.
     pub(crate) pending_first_prompt: Option<String>,
+    pub(crate) pending_model_switch_target: Option<agent_client_protocol::ModelId>,
+    /// Latest `/effort` level submitted while a model switch awaits its reply.
+    pub(crate) pending_reasoning_effort: Option<String>,
     /// Deferred fork banner to push at the bottom of the scrollback once the fork session finishes loading (in `TaskResult::SessionLoaded`).
     /// Set by `dispatch_fork_resolved`; stores the parent session id and worktree flag so the banner can be formatted with the child's session id (not known until `SessionLoaded`). `None` for non-fork sessions.
     /// Cleared on all failure paths: `SessionLoadFailed`, `WorktreeSessionFailed` (non-orphan branch), and `ForkSessionFailed`.

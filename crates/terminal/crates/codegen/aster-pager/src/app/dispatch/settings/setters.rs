@@ -51,10 +51,15 @@ pub(in crate::app::dispatch) fn set_multiline_mode(app: &mut AppView, new: bool)
     vec![]
 }
 
-/// State-only mutation for `render_mermaid`: update the process-wide cache so every block picks up the new value on the next frame.
-/// Rendering reads only the cache; the disk write goes through `PersistSetting`.
-pub(super) fn set_render_mermaid_inner(kind: crate::appearance::RenderMermaid) {
+/// A Mermaid setting change can alter the height of an existing message.
+pub(super) fn set_render_mermaid_inner(app: &mut AppView, kind: crate::appearance::RenderMermaid) {
     crate::appearance::cache::set_render_mermaid(kind);
+    for agent in app.agents.values_mut() {
+        agent.scrollback.invalidate_heights();
+        for child in agent.subagent_views.values_mut() {
+            child.scrollback.invalidate_heights();
+        }
+    }
 }
 
 /// Set how ` ```mermaid ` code blocks render (auto/on/off).
@@ -68,7 +73,7 @@ pub(in crate::app::dispatch) fn set_render_mermaid(
     if prev == kind {
         return vec![];
     }
-    set_render_mermaid_inner(kind);
+    set_render_mermaid_inner(app, kind);
     // Refresh modal snapshot so the picker reflects the new value.
     refresh_open_settings_modals(app);
     tracing::info!(
@@ -1800,9 +1805,8 @@ pub(in crate::app::dispatch) fn set_default_model(
     // Best-effort session-level switch
     // The `Effect::SwitchModel` pipeline handles its own deferred switch when no session id exists yet (see line 583 of this file)
     if let Some(sid) = session_id {
-        // We already hold a reference path to the agent above; re-borrow mutably here to flip `model_switch_pending`
         if let Some(agent) = app.agents.get_mut(&aid) {
-            agent.session.model_switch_pending = true;
+            agent.begin_model_switch(&new_id);
         }
         effects.push(Effect::SwitchModel {
             agent_id: aid,

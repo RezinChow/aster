@@ -151,7 +151,7 @@ impl ResolvedSessionConfig {
                 resource: SessionBuildResource::Queue,
             });
         }
-        if options.mcp_manager.is_some() {
+        if options.mcp_manager.is_some() || options.global_mcp_scope.is_some() {
             return Err(CodeError::AsyncSessionBuildRequired {
                 resource: SessionBuildResource::Mcp,
             });
@@ -669,15 +669,23 @@ async fn resolve_session_mcp(
     let mut sources = Vec::new();
     let mut inherited = Vec::new();
     if let Some(global) = &agent.global_mcp {
-        inherited.push(Arc::clone(global));
-        sources.push(ResolvedMcpSource {
-            manager: Arc::clone(global),
-            tools: agent
-                .global_mcp_tools
-                .lock()
-                .unwrap_or_else(|poison| poison.into_inner())
-                .clone(),
-        });
+        let (manager, tools) = match &options.global_mcp_scope {
+            Some(names) => {
+                let scoped = global.scoped(names).await;
+                let tools = scoped.get_all_tools().await;
+                (scoped, tools)
+            }
+            None => {
+                let tools = agent
+                    .global_mcp_tools
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner())
+                    .clone();
+                (Arc::clone(global), tools)
+            }
+        };
+        inherited.push(Arc::clone(&manager));
+        sources.push(ResolvedMcpSource { manager, tools });
     }
     if let Some(configured) = &options.mcp_manager {
         let duplicate_global = agent

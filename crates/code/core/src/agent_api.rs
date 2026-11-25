@@ -528,6 +528,7 @@ pub struct SessionOptions {
     /// When set, all tools from connected MCP servers are registered and
     /// available during agent execution with names like `mcp__server__tool`.
     pub mcp_manager: Option<Arc<crate::mcp::manager::McpManager>>,
+    pub(crate) global_mcp_scope: Option<std::collections::BTreeSet<String>>,
     /// Sampling temperature (0.0–1.0). Overrides the provider default.
     pub temperature: Option<f32>,
     /// Extended thinking budget in tokens (Anthropic legacy `budget_tokens`).

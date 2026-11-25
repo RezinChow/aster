@@ -3,6 +3,20 @@
 use super::*;
 use tracing::Instrument as _;
 
+pub(super) struct SessionMcpReservation<'a> {
+    agent: &'a AsterCodeAgent,
+    session_id: &'a str,
+}
+
+impl Drop for SessionMcpReservation<'_> {
+    fn drop(&mut self) {
+        self.agent
+            .opening_session_mcp
+            .borrow_mut()
+            .remove(self.session_id);
+    }
+}
+
 impl AsterCodeAgent {
     pub(super) async fn ensure_core_agent(&self) -> acp::Result<()> {
         let started = std::time::Instant::now();
@@ -36,7 +50,7 @@ impl AsterCodeAgent {
         if let Err(error) = self.arm_sampling_consent(&agent).await {
             tracing::warn!(error = %error, "sampling stays refused: arming failed");
         }
-        *guard = Some(agent);
+        *guard = Some(Arc::new(agent));
         tracing::info!(
             target: "aster_acp::retrieval_phase",
             phase = "core_agent",
@@ -291,7 +305,19 @@ impl AsterCodeAgent {
             );
             options = options.with_prompt_slots(slots);
         }
-        let options = self.with_client_reads(options, session_id, &setup.workspace);
+        let mcp_names = self
+            .launch
+            .config
+            .mcp_servers
+            .iter()
+            .chain(&setup.mcp_servers)
+            .filter(|server| server.enabled)
+            .map(|server| server.name.clone());
+        let options = self.with_client_reads(
+            options.with_global_mcp_scope(mcp_names),
+            session_id,
+            &setup.workspace,
+        );
         if setup.host.source_review {
             // A fixed checker keeps the capability ceiling empty even after a mode change.
             let mut options = options;
@@ -338,9 +364,11 @@ impl AsterCodeAgent {
         let options = self
             .session_options_for(session_id, &setup, &store_dir)
             .await?;
-        let agent_guard = self.core_agent.lock().await;
-        let agent = agent_guard
-            .as_ref()
+        let agent = self
+            .core_agent
+            .lock()
+            .await
+            .clone()
             .ok_or_else(|| acp::Error::internal_error().data("core agent missing"))?;
         let options = match &self.plugin_selection {
             Some(selection) => selection.session_options(options),
@@ -522,20 +550,23 @@ impl AsterCodeAgent {
     /// Rebuild a session that is already registered. `session_async` rejects a
     /// live id (`session is already live or being built`); model and effort
     /// changes have to replace that session in place.
-    pub(super) async fn replace_core_session(
+    pub(super) async fn replace_core_session<T>(
         &self,
         current: &LiveSession,
         setup: SessionSetup<'_>,
-    ) -> acp::Result<LiveSession> {
+        prepare: impl AsyncFnOnce(LiveSession) -> acp::Result<T>,
+    ) -> acp::Result<T> {
         self.ensure_core_agent().await?;
         let store_dir =
             Self::interactive_session_store_dir(self.launch.config.sessions_dir.as_deref());
         let mut options = self
             .session_options_for(current.session.session_id(), &setup, &store_dir)
             .await?;
-        let agent_guard = self.core_agent.lock().await;
-        let agent = agent_guard
-            .as_ref()
+        let agent = self
+            .core_agent
+            .lock()
+            .await
+            .clone()
             .ok_or_else(|| acp::Error::internal_error().data("core agent missing"))?;
         if let Some(selection) = &self.plugin_selection {
             options = selection.session_options(options);
@@ -544,55 +575,48 @@ impl AsterCodeAgent {
             .map_err(|error| acp::Error::invalid_params().data(error))?;
         options =
             self.apply_detected_model(setup.model_id, current.session.session_id(), options)?;
-        let session = if let Some(store) = current.session.session_store() {
+        if let Some(store) = current.session.session_store() {
             options = options.with_session_store(store);
-            agent
-                .replace_session_async(&current.session, options)
-                .await
-                .map_err(|error| acp::Error::internal_error().data(error.to_string()))?
-        } else {
-            // Nothing was persisted, so closing frees the id for a fresh session.
-            current.session.close().await;
-            agent
-                .session_async(setup.workspace.to_string_lossy().to_string(), Some(options))
-                .await
-                .map_err(|error| acp::Error::internal_error().data(error.to_string()))?
-        };
-        if session
-            .work_policy_digest()
+        }
+        agent
+            .replace_session_after(&current.session, options, async |session| {
+                if session
+                    .work_policy_digest()
+                    .map_err(|error| acp::Error::internal_error().data(error.to_string()))?
+                    .is_some()
+                {
+                    crate::engineering::register_scenarios(&session)
+                        .map_err(|error| acp::Error::internal_error().data(error))?;
+                }
+                let asset_denies = Arc::clone(&current.asset_denies);
+                if setup.host.knowledge_compile.is_none() {
+                    self.attach_local_assets(&session, &setup.host, &asset_denies)?;
+                }
+                let mut live = LiveSession {
+                    turn_started: std::sync::Mutex::new(None),
+                    turn_started_ms: std::sync::Mutex::new(None),
+                    session,
+                    workspace: setup.workspace,
+                    model_id: setup.model_id.to_string(),
+                    effort: setup.effort,
+                    permissions: Arc::clone(&current.permissions),
+                    asset_denies,
+                    host: setup.host,
+                    plugin_tools: Vec::new(),
+                    components: setup.components.to_vec(),
+                    turn_queue: Arc::clone(&current.turn_queue),
+                    mcp_servers: setup.mcp_servers,
+                };
+                let posture = live
+                    .permissions
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .posture;
+                live.set_posture(posture, Vec::new())?;
+                prepare(live).await
+            })
+            .await
             .map_err(|error| acp::Error::internal_error().data(error.to_string()))?
-            .is_some()
-        {
-            crate::engineering::register_scenarios(&session)
-                .map_err(|error| acp::Error::internal_error().data(error))?;
-        }
-        let asset_denies = Arc::clone(&current.asset_denies);
-        if setup.host.knowledge_compile.is_none() {
-            self.attach_local_assets(&session, &setup.host, &asset_denies)?;
-        }
-        let mut live = LiveSession {
-            turn_started: std::sync::Mutex::new(None),
-            turn_started_ms: std::sync::Mutex::new(None),
-            session: Arc::new(session),
-            workspace: setup.workspace,
-            model_id: setup.model_id.to_string(),
-            effort: setup.effort,
-            permissions: Arc::clone(&current.permissions),
-            asset_denies,
-            host: setup.host,
-            plugin_tools: Vec::new(),
-            components: setup.components.to_vec(),
-            turn_queue: Arc::clone(&current.turn_queue),
-            mcp_servers: setup.mcp_servers,
-        };
-        let posture = live
-            .permissions
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .posture;
-        live.set_posture(posture, Vec::new())?;
-        start_workspace_indexing(&live);
-        Ok(live)
     }
 
     /// Register `open_local_asset` when the tenant catalog is non-empty.
@@ -668,43 +692,77 @@ impl AsterCodeAgent {
     /// and every live session's server set. Previously the last session's
     /// desired set won alone, so opening a second session with different
     /// `mcp_servers` silently deleted the first session's servers.
-    pub(super) async fn sync_session_mcp_servers(
-        &self,
-        for_session: Option<&str>,
+    pub(super) async fn sync_session_mcp_servers<'a>(
+        &'a self,
+        for_session: Option<&'a str>,
         servers: &[acp::McpServer],
-    ) -> acp::Result<()> {
+    ) -> acp::Result<Option<SessionMcpReservation<'a>>> {
         self.ensure_core_agent().await?;
-        // Snapshot live sessions before locking `core_agent` to preserve a
-        // single global lock order (`sessions` -> `core_agent`) and prevent
-        // AB-BA deadlocks with concurrent `load_session`.
-        let live: Vec<(String, Vec<aster_core::mcp::McpServerConfig>)> = {
+        // Serialize snapshots and publication. The connector handshakes run
+        // after releasing both this guard and the shared Core handle lock.
+        let mut configuration = self.config_mcp.lock().await;
+        let live = {
             let sessions = self.sessions.lock().await;
+            let opening = self.opening_session_mcp.borrow();
             sessions
                 .iter()
-                .map(|(key, live)| (key.clone(), live.mcp_servers.clone()))
-                .collect()
+                .map(|(id, live)| (id.clone(), live.mcp_servers.clone()))
+                .chain(
+                    opening
+                        .iter()
+                        .map(|(id, servers)| (id.clone(), servers.clone())),
+                )
+                .collect::<HashMap<_, _>>()
         };
-        let guard = self.core_agent.lock().await;
-        let agent = guard
-            .as_ref()
-            .ok_or_else(|| acp::Error::internal_error().data("core agent missing"))?;
-        let baseline = {
-            let mut cached = self.config_mcp.lock().await;
-            if cached.is_none() {
-                *cached = Some(agent.global_mcp_configs().await);
-            }
-            cached.clone().unwrap_or_default()
-        };
-        let desired = union_mcp_desired(baseline, &live, for_session, servers)
-            .map_err(|conflict| acp::Error::invalid_params().data(conflict))?;
-        agent
-            .sync_global_mcp_servers(desired)
+        let agent = self
+            .core_agent
+            .lock()
             .await
-            .map_err(|error| acp::Error::internal_error().data(error.to_string()))
+            .clone()
+            .ok_or_else(|| acp::Error::internal_error().data("core agent missing"))?;
+        if configuration.is_none() {
+            *configuration = Some(agent.global_mcp_configs().await);
+        }
+        let baseline = configuration.as_deref().unwrap_or_default();
+        let desired = union_mcp_desired(
+            baseline.to_vec(),
+            &live.into_iter().collect::<Vec<_>>(),
+            for_session,
+            servers,
+        )
+        .map_err(|conflict| acp::Error::invalid_params().data(conflict))?;
+        let session_configs = session_mcp_configs(servers);
+        let names: std::collections::BTreeSet<_> = session_configs
+            .iter()
+            .chain(baseline)
+            .filter(|server| server.enabled)
+            .map(|server| server.name.clone())
+            .collect();
+        let reservation = for_session.map(|session_id| {
+            self.opening_session_mcp
+                .borrow_mut()
+                .insert(session_id.to_owned(), session_configs);
+            SessionMcpReservation {
+                agent: self,
+                session_id,
+            }
+        });
+        agent
+            .reconcile_global_mcp_servers(desired)
+            .await
+            .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+        drop(configuration);
+        if for_session.is_some() && !names.is_empty() {
+            agent
+                .connect_global_mcp_servers(names.into_iter().collect())
+                .await
+                .map_err(|error| acp::Error::internal_error().data(error.to_string()))?;
+        }
+        Ok(reservation)
     }
 }
 
-fn start_workspace_indexing(live: &LiveSession) {
+pub(super) fn start_workspace_indexing(live: &LiveSession) {
     if live.host.source_review || live.host.knowledge_compile.is_some() {
         return;
     }

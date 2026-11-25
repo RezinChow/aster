@@ -234,7 +234,7 @@ async fn wire_fixture_with_policy(work_policy: Option<aster_core::WorkPolicyV1>)
         )
     };
     original.close().await;
-    *host.core_agent.lock().await = Some(core);
+    *host.core_agent.lock().await = Some(Arc::new(core));
     source.send("question-1", None).await.unwrap();
     source.send("question-2", None).await.unwrap();
     source.save().await.unwrap();

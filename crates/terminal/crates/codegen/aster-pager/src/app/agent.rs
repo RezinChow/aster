@@ -869,14 +869,16 @@ impl AgentSession {
     ///
     /// Called by `maybe_drain_queue` when a prompt is being sent.
     pub fn start_turn(&mut self, scrollback: &mut ScrollbackState) {
+        self.start_adopted_turn(scrollback);
+        // A locally submitted prompt shows Thinking while ACP starts its work.
+        self.tracker.pre_create_thinking(scrollback);
+    }
+
+    pub(crate) fn start_adopted_turn(&mut self, scrollback: &mut ScrollbackState) {
         self.tracker.finish_turn(scrollback);
         self.compact_held_prompt = None;
         self.tracker.set_session_cwd(&self.cwd);
         self.tracker.expect_user_echo();
-        // Show Thinking… immediately on send — Code ACP may not emit a chunk
-        // until LLM headers arrive (default wait up to 120s), which felt like
-        // a multi-minute blank turn on simple prompts.
-        self.tracker.pre_create_thinking(scrollback);
         self.state = AgentState::TurnRunning;
         self.in_flight_prompt = None;
     }

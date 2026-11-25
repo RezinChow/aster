@@ -52,10 +52,12 @@ use executor_tools::{batch_can_run_in_parallel, is_parallel_safe_write};
 use executor_tools::{is_parallel_safe_read, CheckpointState, ExecutorTools, NoopCompact};
 pub(crate) use fact_reads::{
     append_compaction_done, compaction_transcript, compaction_transcript_from_facts,
-    retained_transcript, tool_result_weights, ToolResultWeight,
+    goal_scope_sequences_from_facts, retained_transcript, tool_result_weights, ToolResultWeight,
 };
 use fact_reads::{exit_to_error, message_from_fact};
-pub use fact_reads::{phase_name, project_needs_confirmation, read_workspace_facts};
+pub use fact_reads::{
+    goal_scope_sequences, phase_name, project_needs_confirmation, read_workspace_facts,
+};
 #[cfg(test)]
 pub(crate) use goal_evidence::goal_slice_made_progress;
 pub(crate) use goal_evidence::{

@@ -156,11 +156,34 @@ fn has_blank_line_after(text: &str, pos: usize) -> bool {
         == Some(b'\n')
 }
 
+// A CommonMark End event can come from EOF or a container ending. Inspect the
+// range left after the body for the delimiter admitted by the opening line.
+fn has_closing_fence(text: &str, fence: &Range<usize>, body_end: usize) -> bool {
+    let Some(opening) = text.get(fence.clone()) else {
+        return false;
+    };
+    let Some(marker @ (b'`' | b'~')) = opening.bytes().next() else {
+        return false;
+    };
+    let opening_len = opening.bytes().take_while(|byte| *byte == marker).count();
+    let Some(suffix) = text.get(body_end..fence.end) else {
+        return false;
+    };
+    let closing = suffix
+        .trim_end_matches([' ', '\t', '\r', '\n'])
+        .rsplit('\n')
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches([' ', '\t', '>']);
+    closing.len() >= opening_len && closing.bytes().all(|byte| byte == marker)
+}
+
 /// Transient state for the fenced code block currently being parsed.
 /// Fenced blocks never nest (an inner fence closes the outer), so a single `Option` suffices.
 /// Finalized in the `TagEnd::CodeBlock` arm, where the body range and the block range together decide whether the fence was closed.
 struct PendingCodeBlock {
     info: String,
+    fence_range: Range<usize>,
     /// Body byte range in the raw source.
     /// Initialized to an empty range just past the opening fence line, then widened to the merged body text range as text events arrive.
     /// `body_seen` distinguishes the empty-body case.
@@ -195,6 +218,7 @@ pub struct MarkdownParser<'a, 'b, 'syn, 'oc> {
     /// When `Some(w)`, column widths are shrunk proportionally so the table fits within `w` columns.
     /// When `None`, columns use natural widths.
     max_table_width: Option<usize>,
+    mermaid_preview: crate::MermaidPreview,
     /// Monotonically increasing counter for assigning stable link IDs.
     /// Persisted across `rerender_tail` calls via the streaming renderer.
     link_id_counter: u32,
@@ -479,6 +503,7 @@ impl<'a, 'b, 'syn, 'oc> MarkdownParser<'a, 'b, 'syn, 'oc> {
             bq_depth: 0,
             last_checkpoint: None,
             max_table_width: None,
+            mermaid_preview: crate::MermaidPreview::default(),
             link_id_counter: 0,
             collapse_soft_breaks: true,
             pending_code_block: None,
@@ -498,6 +523,11 @@ impl<'a, 'b, 'syn, 'oc> MarkdownParser<'a, 'b, 'syn, 'oc> {
     /// When set, column widths are shrunk proportionally so the table fits within the given number of display columns.
     pub fn max_table_width(mut self, width: Option<usize>) -> Self {
         self.max_table_width = width;
+        self
+    }
+
+    pub(crate) fn mermaid_preview(mut self, preview: crate::MermaidPreview) -> Self {
+        self.mermaid_preview = preview;
         self
     }
 
@@ -639,7 +669,9 @@ impl<'a, 'b, 'syn, 'oc> MarkdownParser<'a, 'b, 'syn, 'oc> {
                             .split_whitespace()
                             .next()
                             .is_some_and(|t| t.eq_ignore_ascii_case("mermaid"))
-                        && range.end < self.text.len()
+                        && self.pending_code_block.as_ref().is_some_and(|pending| {
+                            has_closing_fence(self.text, &pending.fence_range, range.end)
+                        })
                         && self.try_push_mermaid(&text, &range)
                     {
                         return;
@@ -954,6 +986,7 @@ impl<'a, 'b, 'syn, 'oc> MarkdownParser<'a, 'b, 'syn, 'oc> {
                             .map_or(range.end, |nl| range.start + nl + 1);
                         Some(PendingCodeBlock {
                             info: lang.to_string(),
+                            fence_range: range.clone(),
                             body_range: body_start..body_start,
                             body_text: String::new(),
                             body_seen: false,
@@ -1242,10 +1275,9 @@ impl<'a, 'b, 'syn, 'oc> MarkdownParser<'a, 'b, 'syn, 'oc> {
             }
             TagEnd::CodeBlock => {
                 // pulldown synthesizes a block end at end-of-input even for an unterminated fence, so the end event alone does not prove closure
-                // A closing fence always sits after the body, so the block range extends past the body exactly when the fence closed
                 // `take` clears the pending block in either case
                 if let Some(pending) = self.pending_code_block.take()
-                    && pending.body_range.end < range.end
+                    && has_closing_fence(self.text, &pending.fence_range, pending.body_range.end)
                 {
                     self.buffers.code_blocks.push(CodeBlockMeta {
                         info: pending.info,
@@ -1381,7 +1413,16 @@ impl<'a, 'b, 'syn, 'oc> MarkdownParser<'a, 'b, 'syn, 'oc> {
             edge_label: self.ms.emphasis_inner.style_into(),
             title: self.ms.strong_inner.style_into(),
         };
-        match crate::mermaid::render(text, &styles, self.max_table_width) {
+        let art = match self.mermaid_preview {
+            crate::MermaidPreview::Source => None,
+            crate::MermaidPreview::Flowchart => self
+                .max_table_width
+                .and_then(|width| crate::mermaid::render_flowchart_preview(text, &styles, width)),
+            crate::MermaidPreview::Default => {
+                crate::mermaid::render(text, &styles, self.max_table_width)
+            }
+        };
+        match art {
             Some(art) => {
                 self.buffers
                     .mermaid_replaces

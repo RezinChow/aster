@@ -642,6 +642,9 @@ impl AsterCodeAgent {
         {
             attempt::AttemptDrive::Ended(completion) => completion,
             attempt::AttemptDrive::Cancelled(response) => return (response, None),
+            attempt::AttemptDrive::DeadlineExceeded => {
+                return (Err(agent_failure_error("run deadline exceeded")), None);
+            }
         };
         tracing::info!(
             target: "perf_probe",

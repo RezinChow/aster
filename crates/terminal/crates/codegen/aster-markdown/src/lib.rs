@@ -54,6 +54,7 @@ pub use colors::{
     polarity_safe_syntax, polarity_safe_syntax_ansi, set_color_level_cap, set_polarity_safe_syntax,
 };
 pub use latex_delimiters::{LatexDelimiterNormalizer, normalize_latex_delimiters};
+pub use mermaid::MermaidPreview;
 pub use output::{CodeBlockSpan, HyperlinkTarget, MarkdownRenderOutput, MarkdownRenderView};
 pub use parse::{MarkdownParser, ParsedMarkdown};
 pub use source_map::SourceMap;
@@ -128,18 +129,29 @@ pub(crate) fn render_markdown_ratatui_with_link_id(
     max_table_width: Option<usize>,
     link_id_start: u32,
     collapse_soft_breaks: bool,
+    mermaid_preview: MermaidPreview,
     open_code: Option<&mut open_code_highlighter::OpenCodeHighlighter>,
 ) -> (MarkdownRenderOutput, Option<Checkpoint>, u32) {
     let mut parsed = MarkdownParser::new(text, ms, buffers, syntect)
         .max_table_width(max_table_width)
         .link_id_start(link_id_start)
         .collapse_soft_breaks(collapse_soft_breaks)
+        .mermaid_preview(mermaid_preview)
         .open_code(open_code)
         .parse();
 
     // There can be multiple links in a tail, so next_link_id is returned
     let next_link_id = parsed.next_link_id;
-    let (output, checkpoint) = parsed.render_ratatui(pretty);
+    let (mut output, checkpoint) = parsed.render_ratatui(pretty);
+    if mermaid_preview != MermaidPreview::Default {
+        // Keep source and copy metadata intact. Native scrollback can print
+        // the rendered spans directly, including the source fallback.
+        for span in output.lines.iter_mut().flat_map(|line| &mut line.spans) {
+            if span.content.chars().any(char::is_control) {
+                span.content.to_mut().retain(|ch| !ch.is_control());
+            }
+        }
+    }
     (output, checkpoint, next_link_id)
 }
 

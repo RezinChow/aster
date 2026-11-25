@@ -3,9 +3,9 @@
 //! Mirrors the existing inline-video worker model (`std::thread::spawn` and `std::sync::mpsc`, polled each tick via `try_recv`) rather than tokio.
 //! A single worker thread renders a requested diagram in a short-lived child process (see below).
 //! It writes the PNG to the session's `mermaid/` dir and reports back only the on-disk path.
-//! Diagrams are never displayed inline; the path is what the affordance row's `[Open]`/`[Copy path]` actions target.
+//! The PNG path is the target for `[Open]`/`[Copy path]`. Markdown owns the inline character preview.
 //!
-//! Rendering is **lazy**: nothing renders until the user clicks `[Open]` or `[Copy path]`.
+//! PNG rendering is **lazy**, triggered by `[Open]` or `[Copy path]`.
 //! The click renders the diagram at the *live* theme/width and then runs the requested action.
 //! The render therefore always matches the current theme, including auto day/night.
 //! A lock-free [`PendingMermaidAction`] list records what the user asked for so the tick can complete it when the matching render result arrives.
