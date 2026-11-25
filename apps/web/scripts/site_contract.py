@@ -7,12 +7,6 @@ import re
 SHARED_FILES = (
     "transitions.css",
 )
-PAGE_FILES = (
-    "download/index.html",
-    "download/styles.css",
-    "download/app.js",
-    "download/canvas.js",
-)
 HOME_FILES = (
     "index.html",
     "home.css",
@@ -106,29 +100,25 @@ DOCS_REFERENCE_URLS = frozenset((
     "https://arxiv.org/abs/2505.22954",
 ))
 SCREENSHOT_FILES = (
-    "download/screenshots/workspace.png",
-    "download/screenshots/office.png",
-    "download/screenshots/review.png",
-    "download/screenshots/lineage.png",
-    "download/screenshots/tui-home.png",
-    "download/screenshots/tui.png",
-    "download/screenshots/tui-model.png",
-    "download/screenshots/tui-context.png",
-    "download/screenshots/tui-resume.png",
+    "screenshots/workspace.png",
+    "screenshots/office.png",
+    "screenshots/review.png",
+    "screenshots/lineage.png",
+    "screenshots/tui-home.png",
+    "screenshots/tui.png",
+    "screenshots/tui-model.png",
+    "screenshots/tui-context.png",
+    "screenshots/tui-resume.png",
 )
 FONT_FILES = (
-    "download/fonts/ubuntu-latin-400-normal.woff2",
-    "download/fonts/ubuntu-latin-500-normal.woff2",
-    "download/fonts/ubuntu-latin-700-normal.woff2",
-    "download/fonts/Ubuntu-LICENSE.txt",
+    "fonts/ubuntu-latin-400-normal.woff2",
+    "fonts/ubuntu-latin-500-normal.woff2",
+    "fonts/ubuntu-latin-700-normal.woff2",
+    "fonts/Ubuntu-LICENSE.txt",
 )
 BRAND_FILES = (
     "tenant/aster/logo.svg",
     "tenant/aster/mark-light.png",
-    "tenant/aster/favicon.png",
-)
-DOWNLOAD_BRAND_FILES = (
-    "tenant/aster/logo.svg",
     "tenant/aster/favicon.png",
 )
 LEGAL_FILES = (
@@ -136,7 +126,7 @@ LEGAL_FILES = (
     "privacy/index.html",
     "legal/styles.css",
 )
-SITE_FILES = PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + BRAND_FILES + LEGAL_FILES + SHARED_FILES
+SITE_FILES = SCREENSHOT_FILES + FONT_FILES + BRAND_FILES + LEGAL_FILES + SHARED_FILES
 
 REPOSITORY_URL = "https://github.com/aster-ai-lab/aster"
 PAGES_URL = "https://aster-ai-lab.github.io/aster/"

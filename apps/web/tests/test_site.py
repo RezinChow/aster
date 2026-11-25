@@ -18,13 +18,12 @@ from urllib.request import urlopen
 WEB_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(WEB_ROOT / "scripts"))
 from check_site import check_site
-from site_contract import BRAND_FILES, DOCS_FILES, DOCS_PAGES, DOWNLOAD_MANIFEST, HOME_FILES, LEGAL_FILES, SHARED_FILES, SITE_FILES, documentation_pages
+from site_contract import BRAND_FILES, DOCS_FILES, DOCS_PAGES, DOWNLOAD_MANIFEST, FONT_FILES, HOME_FILES, LEGAL_FILES, SCREENSHOT_FILES, SHARED_FILES, SITE_FILES, documentation_pages
 from stage_site import stage_site
 
-SCREENSHOTS = tuple(f"download/screenshots/{name}.png" for name in (
-    "workspace", "office", "review", "lineage", "tui-home", "tui", "tui-model", "tui-context", "tui-resume"))
-FONTS = tuple(f"download/fonts/ubuntu-latin-{weight}-normal.woff2" for weight in (400, 500, 700))
-FONT_LICENSE = "download/fonts/Ubuntu-LICENSE.txt"
+SCREENSHOTS = SCREENSHOT_FILES
+FONTS = tuple(name for name in FONT_FILES if name.endswith(".woff2"))
+FONT_LICENSE = "fonts/Ubuntu-LICENSE.txt"
 
 
 def png_fixture(width=1, height=1):
@@ -41,47 +40,20 @@ class SiteTest(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.public = self.root / "public"
-        self.page = self.public / "download/index.html"
-        self.page.parent.mkdir(parents=True)
-        for name in BRAND_FILES + HOME_FILES + DOCS_FILES + LEGAL_FILES + SHARED_FILES:
+        self.public.mkdir(parents=True)
+        for name in SITE_FILES + HOME_FILES + DOCS_FILES:
             destination = self.public / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(WEB_ROOT / "dist" / name, destination)
-        downloads = "".join(f'<a href="{item[4]}">{item[0]} {item[1]} {item[2]} {item[3]}</a>' for item in DOWNLOAD_MANIFEST)
-        self.html = ('<!doctype html><html lang="zh-CN"><head><title>Aster</title>'
-                     '<link rel="stylesheet" href="styles.css">'
-                     '<link rel="icon" href="../tenant/aster/favicon.png">'
-                     '<script src="app.js" defer></script></head><body>'
-                     '<script src="canvas.js" defer></script>'
-                     '<h1 id="top">Aster</h1><img src="../tenant/aster/logo.svg" alt="Aster">'
-                     '<a href="#top">顶部</a><button aria-label="选择平台"><span aria-hidden="true">+</span></button>'
-                     + downloads + '</body></html>')
-        self.page.write_text(self.html, encoding="utf-8")
-        self.css = self.public / "download/styles.css"
-        self.css.write_text("body { color: #005abb; }", encoding="utf-8")
-        self.javascript = self.public / "download/app.js"
-        self.javascript.write_text('document.documentElement.dataset.ready = "true";', encoding="utf-8")
-        (self.page.parent / 'canvas.js').write_text('document.documentElement.dataset.canvas = "true";', encoding='utf-8')
-        self.add_screenshots_and_fonts()
+        self.page = self.public / "index.html"
+        self.html = self.page.read_text(encoding="utf-8")
+        self.css = self.public / "home.css"
+        self.original_css = self.css.read_text(encoding="utf-8")
+        self.javascript = self.public / "home.js"
+        self.original_js = self.javascript.read_text(encoding="utf-8")
 
     def rewrite(self, old, new):
         self.page.write_text(self.html.replace(old, new), encoding="utf-8")
-
-    def add_screenshots_and_fonts(self):
-        for name in SCREENSHOTS:
-            path = self.public / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(png_fixture())
-        for name in (*FONTS, FONT_LICENSE):
-            path = self.public / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(b"offline font fixture" if name in FONTS else b"font license fixture")
-        images = ''.join(f'<img src="{name.removeprefix("download/")}" alt="Aster screenshot">' for name in SCREENSHOTS)
-        self.html = self.html.replace('</body>', images + '<a href="fonts/Ubuntu-LICENSE.txt">Ubuntu license</a></body>')
-        self.page.write_text(self.html, encoding="utf-8")
-        self.css.write_text('body { color: #005abb; }\n' + '\n'.join(
-            f'@font-face {{ font-family: Ubuntu; font-weight: {weight}; src: url("fonts/ubuntu-latin-{weight}-normal.woff2"); }}'
-            for weight in (400, 500, 700)), encoding="utf-8")
 
     def test_product_screenshots_and_three_local_fonts_with_license_are_public(self):
         self.assertEqual(check_site(self.public)["files"], len(SITE_FILES + HOME_FILES + DOCS_FILES))
@@ -160,10 +132,11 @@ class SiteTest(unittest.TestCase):
             ('src="./navigation.js"', 'src="./styles.css"', 'unsupported documentation script'),
             ('<script src="./navigation.js" defer=""></script>', '<script src="./navigation.js" defer="">alert(1)</script>', 'unsupported documentation script'),
             ('href="#content"', 'href="#missing-section"', 'missing documentation fragment'),
+            ('href="./../#download"', 'href="./../#missing-home-section"', 'missing documentation fragment'),
             ('id="content"', 'id="content" onclick="alert(1)"', 'inline documentation'),
             ('href="./../"', 'href="../../private/"', 'escapes site'),
         ):
-            with self.subTest(reason=reason):
+            with self.subTest(reason=reason, old=old):
                 self.assertIn(old, original)
                 page.write_text(original.replace(old, new, 1))
                 with self.assertRaisesRegex(ValueError, reason):
@@ -200,15 +173,16 @@ class SiteTest(unittest.TestCase):
                     check_site(self.public)
 
     def test_each_screenshot_is_an_explicit_html_image_and_font_assets_are_referenced(self):
-        original = '<img src="screenshots/workspace.png" alt="Aster screenshot">'
-        for replacement in ('', '<a href="screenshots/workspace.png">Screenshot</a>'):
+        original = '<img src="./screenshots/office.png" alt="Aster 中打开的表格编辑界面" width="1080" height="675" loading="lazy" />'
+        self.assertIn(original, self.html)
+        for replacement in ('', '<a href="./screenshots/office.png">Screenshot</a>'):
             with self.subTest(replacement=replacement):
                 self.rewrite(original, replacement)
                 with self.assertRaisesRegex(ValueError, 'all PNG'):
                     check_site(self.public)
         self.page.write_text(self.html, encoding='utf-8')
-        self.css.write_text(self.css.read_text().replace('src: url("fonts/ubuntu-latin-500-normal.woff2");', ''))
-        with self.assertRaisesRegex(ValueError, 'all approved public assets'):
+        self.css.write_text(self.original_css.replace('url("./fonts/ubuntu-latin-500-normal.woff2")', 'url("./fonts/ubuntu-latin-400-normal.woff2")'), encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'required public assets'):
             check_site(self.public)
 
     def test_extra_screenshot_and_symlink_font_are_not_staged(self):
@@ -221,7 +195,7 @@ class SiteTest(unittest.TestCase):
         self.assertFalse((self.root / 'refuse-symlink').exists())
         font.unlink()
         font.write_bytes(original)
-        (self.public / 'download/screenshots/private-preview.png').write_bytes(png_fixture())
+        (self.public / 'screenshots/private-preview.png').write_bytes(png_fixture())
         with self.assertRaisesRegex(ValueError, 'unexpected'):
             stage_site(self.public, self.root / 'refuse-extra')
         self.assertFalse((self.root / 'refuse-extra').exists())
@@ -229,32 +203,28 @@ class SiteTest(unittest.TestCase):
     def test_valid_page_has_named_controls_and_all_exact_release_links(self):
         result = check_site(self.public)
         self.assertEqual(result["download_links"], len(DOWNLOAD_MANIFEST))
-        self.assertEqual(result["named_buttons"], 1)
+        self.assertGreater(result["named_buttons"], 0)
 
     def test_home_links_use_the_published_documentation_routes_without_allowing_doc_assets(self):
-        homepage = self.public / 'index.html'
-        original = homepage.read_text(encoding='utf-8')
         for href in ('./docs/code/9.2.1/integration/', './docs/use/0.3.3/aix/'):
             with self.subTest(href=href):
-                homepage.write_text(original.replace('href="./docs/"', f'href="{href}"', 1), encoding='utf-8')
+                self.page.write_text(self.html.replace('href="./docs/"', f'href="{href}"', 1), encoding='utf-8')
                 self.assertEqual(check_site(self.public)['status'], 'passed')
         for href in ('./docs/unpublished/', './docs/styles.css', './docs/search-index.json',
                      './docs/code/9.2.1/integration/?redirect=1', './docs/code/9.2.1/integration/#missing'):
             with self.subTest(href=href):
-                homepage.write_text(original.replace('href="./docs/"', f'href="{href}"', 1), encoding='utf-8')
+                self.page.write_text(self.html.replace('href="./docs/"', f'href="{href}"', 1), encoding='utf-8')
                 with self.assertRaisesRegex(ValueError, 'homepage'):
                     check_site(self.public)
-        homepage.write_text(original.replace('</body>', '<script src="./docs/code/9.2.1/integration/"></script></body>'), encoding='utf-8')
+        self.page.write_text(self.html.replace('</body>', '<script src="./docs/code/9.2.1/integration/"></script></body>'), encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'unapproved homepage asset'):
             check_site(self.public)
 
     def test_home_scenario_tabs_require_their_own_product_panels(self):
-        homepage = self.public / 'index.html'
-        original = homepage.read_text(encoding='utf-8')
-        homepage.write_text(original.replace('aria-controls="panel-tui-model"', 'aria-controls="panel-document"'), encoding='utf-8')
+        self.page.write_text(self.html.replace('aria-controls="panel-tui-model"', 'aria-controls="panel-document"'), encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'own panel'):
             check_site(self.public)
-        homepage.write_text(original.replace('id="tui-tabs"', 'id="unknown-tabs"'), encoding='utf-8')
+        self.page.write_text(self.html.replace('id="tui-tabs"', 'id="unknown-tabs"'), encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'Studio and TUI'):
             check_site(self.public)
 
@@ -266,17 +236,17 @@ class SiteTest(unittest.TestCase):
             check_site(self.public)
 
     def test_missing_asset_fragment_or_duplicate_id_refuses(self):
-        for old, new in (("styles.css", "missing.css"), ('href="#top"', 'href="#absent"'),
-                         ('<h1 id="top">', '<span id="top"></span><h1 id="top">')):
+        for old, new in (("./home.css", "./missing.css"), ('href="#top"', 'href="#absent"'),
+                         ('<main id="main">', '<span id="main"></span><main id="main">')):
             with self.subTest(new=new):
                 self.rewrite(old, new)
                 with self.assertRaises((ValueError, OSError)):
                     check_site(self.public)
 
     def test_unnamed_or_invalid_labelled_control_refuses(self):
-        for replacement in ('<button></button>', '<button aria-labelledby="absent"></button>'):
-            with self.subTest(replacement=replacement):
-                self.rewrite('<button aria-label="选择平台"><span aria-hidden="true">+</span></button>', replacement)
+        for snippet in ('<button></button>', '<button aria-labelledby="absent"></button>'):
+            with self.subTest(snippet=snippet):
+                self.rewrite('</body>', snippet + '</body>')
                 with self.assertRaisesRegex(ValueError, "button"):
                     check_site(self.public)
 
@@ -300,14 +270,14 @@ class SiteTest(unittest.TestCase):
                     check_site(self.public)
 
     def test_missing_one_verified_download_refuses(self):
-        self.rewrite(f'<a href="{DOWNLOAD_MANIFEST[0][4]}">', '<a href="https://github.com/aster-ai-lab/aster/releases">')
+        self.rewrite(f'href="{DOWNLOAD_MANIFEST[0][4]}"', 'href="https://github.com/aster-ai-lab/aster/releases"')
         with self.assertRaisesRegex(ValueError, "verified desktop/CLI download links"):
             check_site(self.public)
 
     def test_foreign_brand_or_private_script_import_refuses(self):
-        for brand in ('MiniMax', 'AsterDream'):
+        for brand in ('MiniMax', 'AsterDream', 'WorkBuddy'):
             with self.subTest(brand=brand):
-                self.rewrite('<h1 id="top">Aster</h1>', f'<h1 id="top">{brand}</h1>')
+                self.rewrite('让想法落地', brand)
                 with self.assertRaisesRegex(ValueError, "branding"):
                     check_site(self.public)
         self.page.write_text(self.html, encoding="utf-8")
@@ -319,18 +289,18 @@ class SiteTest(unittest.TestCase):
                     check_site(self.public)
 
     def test_remote_css_and_escaping_resource_refuse(self):
-        self.css.write_text('body { background: url("https://cdn.example/hero.png"); }', encoding="utf-8")
+        self.css.write_text(self.original_css + '\nbody { background: url("https://cdn.example/hero.png"); }', encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "nonlocal"):
             check_site(self.public)
-        self.css.write_text('body {}', encoding="utf-8")
-        self.rewrite('../tenant/aster/logo.svg', '../../../private-source.svg')
+        self.css.write_text(self.original_css, encoding="utf-8")
+        self.rewrite('./tenant/aster/logo.svg', '../../../private-source.svg')
         with self.assertRaisesRegex(ValueError, "escapes"):
             check_site(self.public)
         self.rewrite('</body>', '<svg><use href="https://cdn.example/sprite.svg#icon"></use></svg></body>')
         with self.assertRaisesRegex(ValueError, "nonlocal"):
             check_site(self.public)
 
-    def test_symlink_source_and_extra_download_file_refuse(self):
+    def test_symlink_source_extra_asset_and_retired_download_dir_refuse(self):
         original = self.css.read_bytes()
         self.css.unlink()
         external = self.root / 'private.css'
@@ -340,8 +310,13 @@ class SiteTest(unittest.TestCase):
             check_site(self.public)
         self.css.unlink()
         self.css.write_bytes(original)
-        (self.page.parent / 'private-source.txt').write_text('not public')
+        (self.public / 'fonts/private-source.txt').write_text('not public')
         with self.assertRaisesRegex(ValueError, "unexpected"):
+            check_site(self.public)
+        (self.public / 'fonts/private-source.txt').unlink()
+        (self.public / 'download').mkdir()
+        (self.public / 'download/index.html').write_text('<html></html>')
+        with self.assertRaisesRegex(ValueError, "retired download"):
             check_site(self.public)
 
     def test_stage_contains_only_public_allowlist_and_project_relative_homepage(self):
@@ -358,6 +333,7 @@ class SiteTest(unittest.TestCase):
         for name in SITE_FILES:
             self.assertEqual((destination / name).read_bytes(), (self.public / name).read_bytes())
         self.assertFalse((destination / 'tenant/legacy').exists())
+        self.assertFalse((destination / 'download').exists())
         self.assertEqual(check_site(destination)['status'], 'passed')
 
     def test_existing_stage_is_preserved_and_bad_source_cannot_activate_output(self):
@@ -394,7 +370,7 @@ class SiteTest(unittest.TestCase):
                 homepage = response.read()
                 self.assertIn(b'home.css', homepage)
                 self.assertIn('让想法落地'.encode(), homepage)
-            for relative in ('tenant/legacy/INFO.md', 'src/private.js', 'content/docs/catalog.json', 'content/docs/code/index.mdx', 'content/docs/code/9.2.1/index.mdx', 'content/docs/code/9.2.1/_components.mjs', 'content/docs/code/9.2.1/_diagrams/architecture.mmd'):
+            for relative in ('download/', 'download/index.html', 'tenant/legacy/INFO.md', 'src/private.js', 'content/docs/catalog.json', 'content/docs/code/index.mdx', 'content/docs/code/9.2.1/index.mdx', 'content/docs/code/9.2.1/_components.mjs', 'content/docs/code/9.2.1/_diagrams/architecture.mmd'):
                 with self.subTest(relative=relative), self.assertRaises(HTTPError) as refused:
                     urlopen(origin + relative, timeout=2)
                 self.assertEqual(refused.exception.code, 404)

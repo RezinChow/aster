@@ -3,21 +3,21 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../download/fonts/ubuntu-latin-400-normal.woff2') format('woff2');
+  src: url('../fonts/ubuntu-latin-400-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: Ubuntu;
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('../download/fonts/ubuntu-latin-500-normal.woff2') format('woff2');
+  src: url('../fonts/ubuntu-latin-500-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: Ubuntu;
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('../download/fonts/ubuntu-latin-700-normal.woff2') format('woff2');
+  src: url('../fonts/ubuntu-latin-700-normal.woff2') format('woff2');
 }
 
 :root {

@@ -1,4 +1,4 @@
-# Aster 官网、文档与下载页
+# Aster 官网与文档站
 
 整站只有一套实现：Astro 静态构建。源码经 `scripts/prepare_astro.mjs` 写入构建缓存，再由 Astro 生成 `dist/`。GitHub Pages 只发布 `dist/` 中通过检查的公开文件。
 
@@ -7,29 +7,26 @@
 ```text
 apps/web/
   content/
-    home.html                 # 首页 HTML 与下载占位符
-    download.html             # 下载页 HTML 与下载占位符
+    home.html                 # 首页与下载区 HTML 模板（含下载占位符）
     releases.json             # 桌面与 CLI 安装包的固定发布快照
     docs/                     # MDX、产品注册表、Mermaid 与讲解数据
-  src/pages/                  # 首页、下载页、法律页与文档 Astro 路由
-  public/                     # 手工维护的 CSS、浏览器脚本、图片、字体和许可证
+  src/pages/                  # 首页、法律页与文档 Astro 路由
+  public/                     # 手工维护的 CSS、浏览器脚本、截图、字体和许可证
   scripts/                    # 构建器、渲染器与发布检查
-  tests/                      # Python、DOM、Canvas 和文档测试
+  tests/                      # Python、DOM、首页、Release 和产品文档测试
   node_modules/.cache/        # 临时文档与公开资源缓存，不提交
   dist/                       # 唯一最终站点输出，不提交
 ```
 
 `public/` 不再存放生成 HTML，也不保存生成的导航脚本、图示 SVG、搜索索引或 `generated.css`。这些文件全部由构建器写入缓存，再进入 `dist/`。`src/prefs/tenantInfo.ts` 仍由仓库的租户工具使用，不属于旧官网残留。
 
-## 首页与下载页
+## 首页与下载区
 
-首页使用 `content/home.html`、`public/home.css`、`public/home.js` 和 `public/cosmic.js`。首屏保留「Aster，让想法落地」的原位逐字输入，下载区保留紫色双旋臂星系、分层穿行星点、循环聚散、半透明玻璃卡片、指针视差、Canvas 2D 回退和减少动态模式。
+首页使用 `content/home.html`、`public/home.css`、`public/home.js` 和 `public/cosmic.js`，并内含完整 `#download` 平台下载区（已下线早期的独立 `/download/` 页面）。首屏保留「Aster，让想法落地」的原位逐字输入，下载区保留紫色双旋臂星系、分层穿行星点、循环聚散、半透明玻璃卡片、指针视差、Canvas 2D 回退和减少动态模式。
 
-首页保留线上版的首屏、场景排版、连接能力、安全与星系下载布局。截图直接使用原图，场景标题说明各端的用途。Studio 有四个场景；TUI 默认展示启动首页，另有执行、模型、上下文和恢复四个场景。每端只显示一张主画面，通过独立标签切换；两段图文左右交错，手机上回到单列。两组复用原有标签交互，支持方向键、Home、End 和减少动态模式。Studio 使用现有工作区、Office、审查和追溯截图；TUI 使用 `docs/evidence/code/2026-11-10-tui-visual-controls/` 与 `2026-11-10-deepseek-visual-e2e/` 中留存的原生终端截图，展示启动首页、任务执行、推理选项、上下文和会话恢复。首页测试逐字节核对九张构建产物与截图来源，并验证两个产品切换时互不干扰。关闭脚本后仍可阅读全部场景和打开原图，不用 HTML 仿制界面。Studio 的步骤说明只由点击切换，不定时轮播，也不暗示截图正在播放。MCP 与 Skills 入口连接固定版本文档；功能以所用版本和配置为准。
+首页保留线上版的首屏、场景排版、连接能力、安全与星系下载布局。截图直接使用原图（位于 `public/screenshots/`），场景标题说明各端的用途。Studio 有四个场景；TUI 默认展示启动首页，另有执行、模型、上下文和恢复四个场景。每端只显示一张主画面，通过独立标签切换；两段图文左右交错，手机上回到单列。两组复用原有标签交互，支持方向键、Home、End 和减少动态模式。Studio 使用现有工作区、Office、审查和追溯截图；TUI 使用 `docs/evidence/code/2026-11-10-tui-visual-controls/` 与 `2026-11-10-deepseek-visual-e2e/` 中留存的原生终端截图，展示启动首页、任务执行、推理选项、上下文和会话恢复。首页测试逐字节核对九张构建产物与截图来源，并验证两个产品切换时互不干扰。关闭脚本后仍可阅读全部场景和打开原图，不用 HTML 仿制界面。Studio 的步骤说明只由点击切换，不定时轮播，也不暗示截图正在播放。MCP 与 Skills 入口连接固定版本文档；功能以所用版本和配置为准。首页只通过相对路径引用公开资源，兼容 GitHub Pages 的 `/aster/` 项目路径。
 
-下载页使用 `content/download.html` 与 `public/download/` 中的静态资源。四张 Studio 截图使用隔离演示数据，五张 TUI 截图来自实际 DeepSeek 会话中的独立测试工作区，均可查看原图。CLI 卡片先展示首页，可展开更多 TUI 实拍。TUI 网页展示区以淡紫与蓝色点缀；原始界面不做调色。网页本身不提供桌面应用能力。首页和下载页只通过相对路径引用公开资源，兼容 GitHub Pages 的 `/aster/` 项目路径。
-
-安装包地址使用 `content/releases.json` 中的 `{{download.*}}` 占位符。Astro 在构建时调用 `renderDownloadDocument` 渲染两个 HTML 源文件，不再生成 `public/index.html` 或 `public/download/index.html`。
+安装包地址使用 `content/releases.json` 中的 `{{download.*}}` 占位符。Astro 在构建时调用 `renderDownloadDocument` 渲染 `content/home.html`。
 
 刷新公开 Release 快照：
 
@@ -38,7 +35,7 @@ node apps/web/scripts/build_releases.mjs --refresh
 npm --prefix apps/web run check
 ```
 
-刷新命令只更新 `content/releases.json` 并验证模板，不写旧静态产物。选择逻辑排除草稿、预发布和未完成上传的资产，并保持桌面与 CLI 目标的顺序和版本一致（含 Linux 静态无 glibc 的 `linux-musl` / `linux-musl-arm64` 以及 glibc 2.31 的 `linux` / `linux-arm64`）。首页与下载页将桌面端和 CLI 分开展示；已发布的 macOS Apple Silicon 与 Windows x64 桌面版提供直链，尚未发布的 Linux 桌面版显示「敬请期待」，不再用 CLI 包顶替。
+刷新命令只更新 `content/releases.json` 并验证模板，不写旧静态产物。选择逻辑排除草稿、预发布和未完成上传的资产，并保持桌面与 CLI 目标的顺序和版本一致（含 Linux 静态无 glibc 的 `linux-musl` / `linux-musl-arm64` 以及 glibc 2.31 的 `linux` / `linux-arm64`）。首页下载区将桌面端和 CLI 分开展示；已发布的 macOS Apple Silicon 与 Windows x64 桌面版提供直链，尚未发布的 Linux 桌面版显示「敬请期待」，不再用 CLI 包顶替。
 
 ## 文档站
 
@@ -81,7 +78,7 @@ npm --prefix apps/web run dev -- --host 127.0.0.1 --port 7100
 入口分别为：
 
 - <http://127.0.0.1:7100/>
-- <http://127.0.0.1:7100/download/>
+- <http://127.0.0.1:7100/#download>
 - <http://127.0.0.1:7100/docs/>
 - <http://127.0.0.1:7100/terms/>
 - <http://127.0.0.1:7100/privacy/>

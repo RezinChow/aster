@@ -146,7 +146,7 @@ function layout(chapter, meta, Content, toc, entries, versionComponents, diagram
         h('span', { className: 'header-divider', 'aria-hidden': true }, '/'), h('a', { className: 'docs-wordmark', href: docsRoot }, '文档'),
         h('nav', { className: 'header-links', 'aria-label': '网站导航' },
           h('button', { type: 'button', className: 'docs-search-trigger', 'data-docs-search-open': true, 'aria-keyshortcuts': 'Meta+K Control+K' }, '搜索文档', h('kbd', null, '⌘ K')),
-          h('a', { href: siteRoot }, '官网'), h('a', { href: sourceRepository }, 'GitHub ↗'), h('a', { className: 'download-link', href: `${siteRoot}download/` }, '下载 Aster', h('span', { 'aria-hidden': true }, ' ↗')))),
+          h('a', { href: siteRoot }, '官网'), h('a', { href: sourceRepository }, 'GitHub ↗'), h('a', { className: 'download-link', href: `${siteRoot}#download` }, '下载 Aster', h('span', { 'aria-hidden': true }, ' ↗')))),
       searchDialog(chapter, entries, docsRoot),
       h('div', { className: 'docs-layout' },
         h('aside', { className: 'docs-sidebar' },

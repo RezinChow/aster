@@ -82,7 +82,7 @@ Linux 归档分 x86_64 与 arm64，安装器优先选择不依赖宿主机 glibc
 | --- | --- |
 | 固定版本 | Unix：`--version X.Y.Z`；Windows：`-Version X.Y.Z` |
 | 修改安装目录 | Unix：`--prefix DIR`；Windows：`-Prefix DIR` |
-| 下载桌面安装包 | [官网下载页](https://aster-ai-lab.github.io/aster/download/) |
+| 下载桌面安装包 | [官网下载区](https://aster-ai-lab.github.io/aster/#download) |
 
 ### 配置模型
 

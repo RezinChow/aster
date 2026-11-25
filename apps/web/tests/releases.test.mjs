@@ -64,7 +64,7 @@ test('real template rendering keeps versions, formats and direct URLs aligned', 
   await mkdir(path.join(root, 'content'));
   const downloads = selectDownloads([...base(), release('desktop-stable', ['Aster-darwin-aarch64-v0.11.0.zip'])]);
   await writeFile(path.join(root, 'content/releases.json'), JSON.stringify({ schema: 'aster.web.downloads.v1', downloads }));
-  for (const name of ['home.html', 'download.html']) await writeFile(path.join(root, 'content', name), '<!doctype html><a href="{{download.desktop.macos.url}}">v{{download.desktop.macos.version}} {{download.desktop.macos.format}}</a>');
+  await writeFile(path.join(root, 'content', 'home.html'), '<!doctype html><a href="{{download.desktop.macos.url}}">v{{download.desktop.macos.version}} {{download.desktop.macos.format}}</a>');
   const html = await renderDownloadDocument('home.html', { root });
   assert.ok(html.includes(`${repository}/releases/download/desktop-stable/Aster-darwin-aarch64-v0.11.0.zip`));
   assert.ok(html.includes('v0.11.0 ZIP'));
@@ -75,10 +75,8 @@ test('real template rendering keeps versions, formats and direct URLs aligned', 
 
 test('published page snapshots expose exactly the selected stable URLs without browser API requests', async () => {
   const snapshot = JSON.parse(await readFile(new URL('../content/releases.json', import.meta.url), 'utf8'));
-  for (const name of ['index.html','download/index.html']) {
-    const html = await readFile(new URL(`../dist/${name}`, import.meta.url), 'utf8');
-    const urls = new Set([...html.matchAll(/href="(https:\/\/github.com\/aster-ai-lab\/aster\/releases\/download\/[^" ]+)"/g)].map((match) => match[1]));
-    assert.deepEqual([...urls].sort(), snapshot.downloads.map((item) => item.url).sort());
-    assert.ok(!html.includes('{{download.'));
-  }
+  const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
+  const urls = new Set([...html.matchAll(/href="(https:\/\/github.com\/aster-ai-lab\/aster\/releases\/download\/[^" ]+)"/g)].map((match) => match[1]));
+  assert.deepEqual([...urls].sort(), snapshot.downloads.map((item) => item.url).sort());
+  assert.ok(!html.includes('{{download.'));
 });

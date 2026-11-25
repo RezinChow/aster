@@ -13,7 +13,7 @@ import sys
 from urllib.parse import unquote, urlsplit
 import zlib
 
-from site_contract import DOCS_FILES, DOCS_PAGES, DOCS_ROUTES, DOCS_REFERENCE_URLS, DOWNLOAD_MANIFEST, DOWNLOAD_BRAND_FILES, FONT_FILES, HOME_FILES, LEGAL_FILES, PAGE_FILES, PAGES_URL, REPOSITORY_URL, SCREENSHOT_FILES, SITE_FILES
+from site_contract import BRAND_FILES, DOCS_FILES, DOCS_PAGES, DOCS_ROUTES, DOCS_REFERENCE_URLS, DOWNLOAD_MANIFEST, FONT_FILES, HOME_FILES, LEGAL_FILES, PAGES_URL, REPOSITORY_URL, SCREENSHOT_FILES, SITE_FILES
 
 PUBLIC_ROOT = Path(__file__).resolve().parents[1] / "dist"
 DOWNLOAD_URLS = frozenset(item[4] for item in DOWNLOAD_MANIFEST)
@@ -105,118 +105,22 @@ def png_header(path):
 
 def check_site(public_root=PUBLIC_ROOT):
     root = Path(public_root).absolute()
+    if (root / "download").exists() or (root / "download").is_symlink():
+        raise ValueError("retired download page directory must not exist")
     for name in SITE_FILES:
         regular(root, name)
     for name in SCREENSHOT_FILES:
         png_header(root / name)
-    actual_page_files = {path.relative_to(root).as_posix() for path in (root / "download").rglob("*") if path.is_file() or path.is_symlink()}
-    if actual_page_files != set(PAGE_FILES + SCREENSHOT_FILES + FONT_FILES):
-        raise ValueError("unexpected or missing download-page file")
-    source = {name: (root / name).read_text(encoding="utf-8") for name in PAGE_FILES}
-    if any(brand in text.casefold() for text in source.values() for brand in ("minimax", "asterdream")):
-        raise ValueError("foreign product branding in download page")
-    page = Page(source["download/index.html"])
-    nodes = list(page.root.walk())
-    ids = {}
-    for node in nodes:
-        identifier = node.attrs.get("id")
-        if identifier:
-            if identifier in ids:
-                raise ValueError(f"duplicate HTML id: {identifier}")
-            ids[identifier] = node
-    if not any(node.tag == "h1" and "Aster" in node.text() for node in nodes):
-        raise ValueError("missing Aster page heading")
-    seen_assets, seen_downloads, seen_images = set(), set(), set()
-
-    def local_url(value, origin):
-        parsed = urlsplit(value)
-        if parsed.scheme or parsed.netloc or parsed.query or "\\" in value:
-            raise ValueError(f"nonlocal public asset: {value}")
-        decoded = unquote(parsed.path)
-        if decoded.startswith("/"):
-            raise ValueError(f"absolute public asset path breaks project Pages: {value}")
-        if not decoded and not parsed.fragment:
-            raise ValueError("empty public asset reference")
-        target = ((root / origin).parent / decoded if decoded else root / origin).resolve()
-        if not target.is_relative_to(root.resolve()):
-            raise ValueError(f"public asset escapes site: {value}")
-        name = target.relative_to(root.resolve()).as_posix()
-        if name not in SITE_FILES:
-            raise ValueError(f"unapproved local asset: {value}")
-        regular(root, name)
-        if parsed.fragment and (name != "download/index.html" or unquote(parsed.fragment) not in ids):
-            raise ValueError(f"missing local fragment: {value}")
-        seen_assets.add(name)
-        return name
-
-    for node in nodes:
-        if node.tag in {"select", "datalist", "base", "style", "iframe", "object", "embed"}:
-            raise ValueError(f"unsupported public element: {node.tag}")
-        if any(key.startswith("on") or key in {"style", "srcset"} for key in node.attrs):
-            raise ValueError(f"inline behavior/style or unsupported srcset: {node.tag}")
-        if node.tag == "button":
-            labelled_by = node.attrs.get("aria-labelledby", "").split()
-            if any(identifier not in ids for identifier in labelled_by):
-                raise ValueError("button has a missing accessible label reference")
-            name = node.attrs.get("aria-label") or " ".join(ids[key].text() for key in labelled_by) or node.text()
-            if not name.strip():
-                raise ValueError("button has no accessible name")
-        if node.tag == "a":
-            href = node.attrs.get("href", "")
-            if not href:
-                raise ValueError("anchor has no destination")
-            if href.startswith("#"):
-                if unquote(href[1:]) not in ids:
-                    raise ValueError(f"missing local fragment: {href}")
-            elif urlsplit(href).scheme or urlsplit(href).netloc:
-                if external_link(href):
-                    if not node.text() and not node.attrs.get("aria-label"):
-                        raise ValueError("download link has no accessible name")
-                    seen_downloads.add(href)
-            else:
-                local_url(href, "download/index.html")
-        if node.tag == "script":
-            if not node.attrs.get("src") or any(isinstance(child, str) and child.strip() for child in node.children):
-                raise ValueError("inline script in public page")
-        for attr in ("src", "poster"):
-            if attr in node.attrs:
-                name = local_url(node.attrs[attr], "download/index.html")
-                if node.tag == "img" and attr == "src":
-                    seen_images.add(name)
-        for attr in ("href", "xlink:href"):
-            if attr in node.attrs and node.tag not in {"a", "link"}:
-                local_url(node.attrs[attr], "download/index.html")
-        if node.tag == "link" and "href" in node.attrs:
-            if node.attrs.get("rel") == "canonical":
-                if node.attrs["href"] != PAGES_URL + "download/":
-                    raise ValueError("unexpected canonical page URL")
-            else:
-                local_url(node.attrs["href"], "download/index.html")
-    if seen_downloads != DOWNLOAD_URLS:
-        raise ValueError("page does not expose all verified desktop/CLI download links")
-    if not set(SCREENSHOT_FILES).issubset(seen_images):
-        raise ValueError("page does not reference all PNG screenshots")
-    css = re.sub(r"/\*.*?\*/", "", source["download/styles.css"], flags=re.S)
-    if re.search(r"@import\b", css, flags=re.I):
-        raise ValueError("CSS imports are not part of the standalone site")
-    for match in re.finditer(r"url\(\s*(['\"]?)(.*?)\1\s*\)", css, flags=re.I):
-        local_url(match.group(2), "download/styles.css")
-    required_download_assets = set(PAGE_FILES + SCREENSHOT_FILES + FONT_FILES + DOWNLOAD_BRAND_FILES) - {"download/index.html"}
-    if not required_download_assets.issubset(seen_assets):
-        raise ValueError("page/CSS does not reference all approved public assets")
-    for filename in ("download/app.js", "download/canvas.js"):
-        javascript = source[filename]
-        if re.search(r"\b(?:import|require)\b", javascript):
-            raise ValueError("script imports are not part of the standalone site")
-        if re.search(r"createElement\s*\(\s*['\"](?:select|datalist)['\"]", javascript, flags=re.I):
-            raise ValueError("script builds a native choice control")
-        for url in re.findall(r"https?://[^\s'\"<>`]+", javascript):
-            external_link(url)
+    for directory, expected in (("screenshots", set(SCREENSHOT_FILES)), ("fonts", set(FONT_FILES))):
+        actual = {path.relative_to(root).as_posix() for path in (root / directory).rglob("*")
+                  if path.is_file() or path.is_symlink()}
+        if actual != expected:
+            raise ValueError(f"unexpected or missing {directory} file")
     home = check_home_page(root)
-    docs = check_docs(root)
+    docs = check_docs(root, home["ids"])
     legal = check_legal_pages(root)
-    return {"status": "passed", "files": len(SITE_FILES + HOME_FILES + DOCS_FILES), "download_links": len(seen_downloads),
-            "named_buttons": sum(node.tag == "button" for node in nodes), "home_tabs": home["tabs"],
+    return {"status": "passed", "files": len(SITE_FILES + HOME_FILES + DOCS_FILES), "download_links": home["download_links"],
+            "named_buttons": home["named_buttons"], "home_tabs": home["tabs"],
             "docs_pages": docs["pages"], "legal_pages": legal["pages"],
             "private_sources_required": False}
 
@@ -287,6 +191,8 @@ def check_home_page(root):
                     raise ValueError(f"missing homepage fragment: {href}")
             elif urlsplit(href).scheme or urlsplit(href).netloc:
                 if external_link(href):
+                    if not node.text() and not node.attrs.get("aria-label"):
+                        raise ValueError("download link has no accessible name")
                     seen_downloads.add(href)
             elif href.startswith("./docs/") and f"{href[2:]}index.html" in DOCS_PAGES:
                 regular(root, f"{href[2:]}index.html")
@@ -345,7 +251,13 @@ def check_home_page(root):
             panel = ids.get(tab.attrs.get("aria-controls"))
             if panel is None or panel.attrs.get("role") != "tabpanel" or panel.attrs.get("aria-labelledby") != tab.attrs.get("id"):
                 raise ValueError("homepage scenario tab must label its own panel")
-    return {"status": "passed", "tabs": len(tabs), "download_links": len(seen_downloads)}
+    return {
+        "status": "passed",
+        "tabs": len(tabs),
+        "download_links": len(seen_downloads),
+        "named_buttons": sum(node.tag == "button" for node in nodes),
+        "ids": set(ids),
+    }
 
 
 def check_legal_pages(root):
@@ -433,8 +345,8 @@ def check_legal_pages(root):
     return {"pages": len(pages)}
 
 
-def check_docs(root):
-    """Check generated MDX pages without widening the download asset boundary."""
+def check_docs(root, home_ids=None):
+    """Check generated MDX pages without widening the public asset boundary."""
     root = Path(root).absolute()
     for name in DOCS_FILES:
         regular(root, name)
@@ -442,7 +354,7 @@ def check_docs(root):
               if path.is_file() or path.is_symlink()}
     if actual != set(DOCS_FILES):
         raise ValueError("unexpected or missing documentation file")
-    pages, identifiers = {}, {}
+    pages, identifiers = {}, {"index.html": set(home_ids or ())}
     for name in DOCS_PAGES:
         nodes = list(Page((root / name).read_text(encoding="utf-8")).root.walk())
         pages[name] = nodes

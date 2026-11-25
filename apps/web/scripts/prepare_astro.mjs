@@ -12,11 +12,10 @@ const check = args.includes('--check');
 if (args.some((argument) => argument !== '--check')) throw new Error('Usage: prepare_astro.mjs [--check]');
 
 const staticFiles = [
-  'download/styles.css', 'download/app.js', 'download/canvas.js',
-  'download/screenshots/workspace.png', 'download/screenshots/office.png', 'download/screenshots/review.png', 'download/screenshots/lineage.png', 'download/screenshots/tui.png',
-  'download/screenshots/tui-model.png', 'download/screenshots/tui-context.png', 'download/screenshots/tui-resume.png',
-  'download/screenshots/tui-home.png',
-  'download/fonts/ubuntu-latin-400-normal.woff2', 'download/fonts/ubuntu-latin-500-normal.woff2', 'download/fonts/ubuntu-latin-700-normal.woff2', 'download/fonts/Ubuntu-LICENSE.txt',
+  'screenshots/workspace.png', 'screenshots/office.png', 'screenshots/review.png', 'screenshots/lineage.png', 'screenshots/tui.png',
+  'screenshots/tui-model.png', 'screenshots/tui-context.png', 'screenshots/tui-resume.png',
+  'screenshots/tui-home.png',
+  'fonts/ubuntu-latin-400-normal.woff2', 'fonts/ubuntu-latin-500-normal.woff2', 'fonts/ubuntu-latin-700-normal.woff2', 'fonts/Ubuntu-LICENSE.txt',
   'tenant/aster/logo.svg', 'tenant/aster/mark-light.png', 'tenant/aster/favicon.png',
   'home.css', 'home.js', 'cosmic.js', 'transitions.css', 'legal/styles.css',
   'docs/styles.css', 'docs/harness-demo.css', 'docs/search.js',

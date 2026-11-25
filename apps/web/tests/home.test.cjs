@@ -145,10 +145,10 @@ test('homepage assets resolve under project Pages and no-JS content stays availa
 test('Studio and TUI use original real captures and all homepage links resolve without JavaScript', (t) => {
   const { document } = page(t, { execute: false });
   const captures = [
-    ['#studio-panels img[src$="/workspace.png"]', 'apps/web/public/download/screenshots/workspace.png'],
-    ['#studio-panels img[src$="/office.png"]', 'apps/web/public/download/screenshots/office.png'],
-    ['#studio-panels img[src$="/review.png"]', 'apps/web/public/download/screenshots/review.png'],
-    ['#studio-panels img[src$="/lineage.png"]', 'apps/web/public/download/screenshots/lineage.png'],
+    ['#studio-panels img[src$="/workspace.png"]', 'apps/web/public/screenshots/workspace.png'],
+    ['#studio-panels img[src$="/office.png"]', 'apps/web/public/screenshots/office.png'],
+    ['#studio-panels img[src$="/review.png"]', 'apps/web/public/screenshots/review.png'],
+    ['#studio-panels img[src$="/lineage.png"]', 'apps/web/public/screenshots/lineage.png'],
     ['#tui img[src$="/tui-home.png"]', 'docs/evidence/code/2026-11-10-deepseek-visual-e2e/screens/21-fixed-welcome-native.png'],
     ['#tui img[src$="/tui.png"]', 'docs/evidence/code/2026-11-10-tui-visual-controls/screens/16-real-model-completed.png'],
     ['#tui img[src$="/tui-model.png"]', 'docs/evidence/code/2026-11-10-deepseek-visual-e2e/screens/02-effort-menu.png'],

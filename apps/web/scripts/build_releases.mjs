@@ -89,7 +89,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   if (args.includes('--refresh')) {
     await refreshDownloads({ metadata: metadataFile ? JSON.parse(await readFile(metadataFile, 'utf8')) : undefined });
   }
-  for (const source of ['home.html', 'download.html']) await renderDownloadDocument(source);
+  await renderDownloadDocument('home.html');
   const snapshot = JSON.parse(await readFile(path.join(webRoot, 'content/releases.json'), 'utf8'));
   process.stdout.write(JSON.stringify(snapshot.downloads.map(({ key, version, tag }) => ({ key, version, tag }))) + '\n');
 }
